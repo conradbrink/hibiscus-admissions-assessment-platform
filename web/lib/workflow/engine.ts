@@ -27,6 +27,8 @@ export type Actor = {
 
 export const SYSTEM_ACTOR: Actor = { type: "system", label: "System" };
 export const PARENT_ACTOR: Actor = { type: "parent", label: "Parent (via link)" };
+/** The lab computer, acting for the child. Not a parent and not a person with an account. */
+export const KIOSK_ACTOR: Actor = { type: "system", label: "Assessment computer" };
 
 export type TaskSpec = {
   type: string;

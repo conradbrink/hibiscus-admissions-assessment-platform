@@ -741,6 +741,7 @@ export type FeeScheduleStatus = "draft" | "active";
 export type AdmissionRulesetRow = {
   id: string;
   name: string;
+  description: string | null;
   grade_sort_min: number | null;
   grade_sort_max: number | null;
   campus_id: string | null;
@@ -1252,6 +1253,7 @@ export type Database = {
       >;
       admission_rulesets: TableOf<
         AdmissionRulesetRow,
+        | "description"
         | "grade_sort_min"
         | "grade_sort_max"
         | "campus_id"
@@ -1446,6 +1448,7 @@ export type Database = {
         Returns: undefined;
       };
       submit_attempt: { Args: { p_attempt_id: string; p_auto?: boolean }; Returns: AttemptRow };
+      activate_ruleset: { Args: { p_ruleset_id: string }; Returns: undefined };
       publish_email_template: {
         Args: {
           p_key: string;

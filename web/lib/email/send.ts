@@ -6,6 +6,7 @@ import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
 import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@/lib/email/render";
 import { formatDateLong, formatTime } from "@/lib/format-date";
+import { formatMoney } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
 
@@ -98,11 +99,6 @@ async function offerExtras(admin: AdminClient, offerId: string | null | undefine
     offerExpiryDate: data.expires_at ? formatDateLong(data.expires_at) : null,
     amountDue: dueMinor !== null ? formatMoney(dueMinor, data.currency) : null,
   };
-}
-
-export function formatMoney(minor: number, currency: string): string {
-  const symbol = currency === "ZAR" ? "R" : "P";
-  return `${symbol} ${(minor / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplatedOptions): Promise<SendTemplatedResult> {

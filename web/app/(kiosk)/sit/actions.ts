@@ -8,7 +8,7 @@ import { getSettings } from "@/lib/settings";
 import { drainSoon } from "@/lib/staff/action-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { onAssessmentSubmitted } from "@/lib/workflow/assessment-actions";
-import { WorkflowError, type Actor } from "@/lib/workflow/engine";
+import { KIOSK_ACTOR, WorkflowError } from "@/lib/workflow/engine";
 
 /**
  * The two things a lab computer does: open an attempt with a code, and
@@ -16,8 +16,6 @@ import { WorkflowError, type Actor } from "@/lib/workflow/engine";
  * — the code, or the attempt-scoped cookie — and never trust an id from the
  * form.
  */
-
-export const KIOSK_ACTOR: Actor = { type: "system", label: "Assessment computer" };
 
 export type CodeState = { error?: string };
 

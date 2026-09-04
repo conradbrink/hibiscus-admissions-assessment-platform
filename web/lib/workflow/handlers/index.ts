@@ -2,6 +2,12 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { JobRow } from "@/lib/supabase/types";
 import { expireAttemptHandler, markAttemptHandler } from "@/lib/workflow/handlers/assessment";
+import {
+  evaluateAdmissionHandler,
+  generateProfileHandler,
+  sendOutcomeHandler,
+  suggestWritingBandHandler,
+} from "@/lib/workflow/handlers/decisions";
 import { sendEmailHandler } from "@/lib/workflow/handlers/send-email";
 
 /**
@@ -19,11 +25,9 @@ export type HandlerResult =
 export type Handler = (admin: AdminClient, job: JobRow) => Promise<HandlerResult>;
 
 /**
- * Placeholders for the decision and profile jobs, which the marking step
- * queues and the next step implements. Returning a retryable failure rather
- * than "skipped" means these jobs stay in the queue (up to their retry
- * budget) and are picked up by the real handler once it is deployed, instead
- * of stranding the application silently.
+ * A placeholder that keeps a job in the queue (up to its retry budget)
+ * until the real handler ships, rather than stranding the application with
+ * a permanent failure.
  */
 const notYet =
   (name: string): Handler =>
@@ -33,7 +37,9 @@ export const HANDLERS: Record<string, Handler> = {
   send_email: sendEmailHandler,
   mark_attempt: markAttemptHandler,
   expire_attempt: expireAttemptHandler,
-  suggest_writing_band: notYet("suggest_writing_band"),
-  evaluate_admission: notYet("evaluate_admission"),
-  generate_learning_profile: notYet("generate_learning_profile"),
+  suggest_writing_band: suggestWritingBandHandler,
+  evaluate_admission: evaluateAdmissionHandler,
+  generate_learning_profile: generateProfileHandler,
+  send_outcome: sendOutcomeHandler,
+  draft_offer: notYet("draft_offer"),
 };
