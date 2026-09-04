@@ -7,6 +7,10 @@ import type { Database, Json } from "@/lib/supabase/types";
  * The rows in `public.settings` are what an administrator edits. The defaults
  * here are what the engine uses if a row is missing or malformed, so a bad
  * edit degrades to sensible behaviour rather than to no reminders at all.
+ *
+ * The booleans are the "automate it later" switches: Phase 2 ships with a
+ * person clicking Send on every post-decision email, and each switch removes
+ * one click without a deploy.
  */
 export type Settings = {
   bookingTokenDays: number;
@@ -16,6 +20,12 @@ export type Settings = {
   offerExpiryDays: number;
   offerReminderDaysBefore: number[];
   parentSessionMinutes: number;
+  kioskCodeMinutes: number;
+  attemptGraceSeconds: number;
+  autoSendOutcomes: boolean;
+  offerAutoApprove: boolean;
+  profileSharedOnDecline: boolean;
+  aiNarrativeEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -26,6 +36,12 @@ export const DEFAULT_SETTINGS: Settings = {
   offerExpiryDays: 14,
   offerReminderDaysBefore: [7, 2],
   parentSessionMinutes: 60,
+  kioskCodeMinutes: 15,
+  attemptGraceSeconds: 30,
+  autoSendOutcomes: false,
+  offerAutoApprove: false,
+  profileSharedOnDecline: true,
+  aiNarrativeEnabled: true,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -36,6 +52,12 @@ const KEYS: Record<keyof Settings, string> = {
   offerExpiryDays: "offer_expiry_days",
   offerReminderDaysBefore: "offer_reminder_days_before",
   parentSessionMinutes: "parent_session_minutes",
+  kioskCodeMinutes: "kiosk_code_minutes",
+  attemptGraceSeconds: "attempt_grace_seconds",
+  autoSendOutcomes: "auto_send_outcomes",
+  offerAutoApprove: "offer_auto_approve",
+  profileSharedOnDecline: "profile_shared_on_decline",
+  aiNarrativeEnabled: "ai_narrative_enabled",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -46,6 +68,12 @@ function asPositiveIntArray(v: Json | undefined, fallback: number[]): number[] {
   if (!Array.isArray(v)) return fallback;
   const nums = v.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
   return nums.length ? nums : fallback;
+}
+
+// A boolean setting that is anything other than true or false is the
+// fallback — never "truthy", so a stray "yes" cannot switch automation on.
+function asBoolean(v: Json | undefined, fallback: boolean): boolean {
+  return typeof v === "boolean" ? v : fallback;
 }
 
 export async function getSettings(supabase: SupabaseClient<Database>): Promise<Settings> {
@@ -67,5 +95,11 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
       d.offerReminderDaysBefore
     ),
     parentSessionMinutes: asPositiveInt(map.get(KEYS.parentSessionMinutes), d.parentSessionMinutes),
+    kioskCodeMinutes: asPositiveInt(map.get(KEYS.kioskCodeMinutes), d.kioskCodeMinutes),
+    attemptGraceSeconds: asPositiveInt(map.get(KEYS.attemptGraceSeconds), d.attemptGraceSeconds),
+    autoSendOutcomes: asBoolean(map.get(KEYS.autoSendOutcomes), d.autoSendOutcomes),
+    offerAutoApprove: asBoolean(map.get(KEYS.offerAutoApprove), d.offerAutoApprove),
+    profileSharedOnDecline: asBoolean(map.get(KEYS.profileSharedOnDecline), d.profileSharedOnDecline),
+    aiNarrativeEnabled: asBoolean(map.get(KEYS.aiNarrativeEnabled), d.aiNarrativeEnabled),
   };
 }
