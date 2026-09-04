@@ -25,6 +25,11 @@ only where judgement is needed.
 | `web/lib/workflow/` | The state machine and the engine — the only writer of an application's status |
 | `web/lib/email/` | Templates, rendering, the provider seam (`dev` and Resend) |
 | `web/lib/tokens/` | Magic links and the parent session cookie |
+| `web/lib/assessment/` | The question bank's answer keys, form materialisation, marking and scoring, the kiosk session |
+| `web/lib/rules/`, `web/lib/profile/`, `web/lib/ai/` | The admission rules engine, the learning profile with its validated AI narrative, and the AI provider seam |
+| `web/lib/offers/` | Fee snapshots and offer rendering |
+| `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
+| `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only |
 | `supabase/migrations/` | The schema, replayable from empty |
 | `supabase/tests/` | `replay_local.sh` rebuilds a local database; `security_regression.sql` attacks it |
 | `docs/` | Project context, deployment, runbook |
@@ -33,7 +38,7 @@ only where judgement is needed.
 
 ```sh
 cd web
-cp .env.example .env.local      # fill in Supabase URL, publishable key, service-role key, PARENT_SESSION_SECRET
+cp .env.example .env.local      # fill in Supabase URL, publishable key, service-role key, PARENT_SESSION_SECRET; AI_PROVIDER=dev needs no key
 npm install
 npm run dev                     # http://localhost:3000
 ```
@@ -44,7 +49,9 @@ parent journey is walked on a laptop.
 
 To get a database: create a Supabase project, run the migrations with the
 Supabase CLI (`supabase db push`), then create the first staff account — see
-`supabase/README.md`.
+`supabase/README.md`. On a development database, `supabase/seed/dev_phase2.sql`
+adds a sample question bank and template so an assessment can be sat without
+authoring one first.
 
 ## Checks
 
@@ -68,5 +75,12 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
 - **`applications.status` has one writer**, `commit_transition()`. Staff
   clients are refused UPDATE on that column by grant.
 - **No email wording in code.** Templates live in the database; staff edit
-  them at `/staff/admin/templates`.
+  them at `/staff/admin/templates`. Offer wording lives in `offer_templates`.
+- **Answers never leave the server.** The kiosk reads the frozen form only;
+  answer keys are readable by content authors and the marker, nobody else,
+  and a unit test greps the delivery code for the key tables.
+- **The AI never decides.** Admission outcomes come from the rules engine or
+  a person. The AI writes the learning-profile narrative over numbers the
+  code computed, and a validator rejects any sentence that adds a number,
+  diagnoses or ranks; the deterministic wording is used instead.
 - **Migrations are never edited once applied.** CI blocks it.

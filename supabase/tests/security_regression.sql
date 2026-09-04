@@ -47,6 +47,22 @@ declare
   u_campus_admin uuid := gen_random_uuid();
   u_inactive uuid := gen_random_uuid();
   u_noroles uuid := gen_random_uuid();
+  u_finance uuid := gen_random_uuid();
+  u_author uuid := gen_random_uuid();
+  -- Phase 2 fixtures
+  p2_competency uuid;
+  p2_bank uuid;
+  p2_question uuid;
+  p2_template uuid;
+  p2_form uuid;
+  p2_form_question uuid;
+  p2_booking uuid;
+  p2_attempt uuid;
+  p2_ruleset uuid;
+  p2_decision uuid;
+  p2_offer uuid;
+  p2_offer_template uuid;
+  p2_year uuid;
   c_block7 uuid;
   c_broadhurst uuid;
   g_stage4 uuid;
@@ -70,21 +86,27 @@ begin
     (u_assessor, 'sec-assessor@test.invalid'),
     (u_campus_admin, 'sec-campus@test.invalid'),
     (u_inactive, 'sec-inactive@test.invalid'),
-    (u_noroles, 'sec-noroles@test.invalid');
+    (u_noroles, 'sec-noroles@test.invalid'),
+    (u_finance, 'sec-finance@test.invalid'),
+    (u_author, 'sec-author@test.invalid');
   insert into public.staff_profiles (id, full_name, email, is_active) values
     (u_admin, 'Sec Admin', 'sec-admin@test.invalid', true),
     (u_staff, 'Sec Staff', 'sec-staff@test.invalid', true),
     (u_assessor, 'Sec Assessor', 'sec-assessor@test.invalid', true),
     (u_campus_admin, 'Sec Campus', 'sec-campus@test.invalid', true),
     (u_inactive, 'Sec Inactive', 'sec-inactive@test.invalid', false),
-    (u_noroles, 'Sec NoRoles', 'sec-noroles@test.invalid', true);
+    (u_noroles, 'Sec NoRoles', 'sec-noroles@test.invalid', true),
+    (u_finance, 'Sec Finance', 'sec-finance@test.invalid', true),
+    (u_author, 'Sec Author', 'sec-author@test.invalid', true);
   insert into public.staff_roles (staff_id, role_id)
   select u, r.id from (values
     (u_admin, 'super_admin'),
     (u_staff, 'admissions_staff'),
     (u_assessor, 'assessor'),
     (u_campus_admin, 'campus_admin'),
-    (u_inactive, 'super_admin')
+    (u_inactive, 'super_admin'),
+    (u_finance, 'finance'),
+    (u_author, 'content_author')
   ) as x(u, code) join public.roles r on r.code = x.code;
 
   select id into c_block7 from public.campuses where code = 'block7';
@@ -111,6 +133,43 @@ begin
   values ('assessment', c_block7, now() + interval '3 days', now() + interval '3 days 1 hour', 5, false, u_admin)
   returning id into s_empty;
   perform public.book_session(app_block7, s_session);
+
+  -- Phase 2 fixtures: a question with its key, a frozen form with its key,
+  -- an attempt with a response, a decision, an active ruleset, an offer.
+  -- All inserted as the service role, the way the engine does it.
+  select id into p2_competency from public.competencies where code = 'reading';
+  select id into p2_offer_template from public.offer_templates where key = 'standard' and is_active;
+  select ay.id into p2_year from public.intakes i join public.academic_years ay on ay.id = i.academic_year_id where i.id = i_intake;
+  if p2_competency is null or p2_offer_template is null or p2_year is null then
+    raise exception 'SUITE BROKEN: Phase 2 seed data missing (competencies/offer_templates/academic_years)';
+  end if;
+  insert into public.question_banks (name, status, created_by) values ('Sec bank', 'active', u_author) returning id into p2_bank;
+  insert into public.questions (bank_id, competency_id, type, stem, status, created_by)
+  values (p2_bank, p2_competency, 'numeric', 'What is 2 + 2?', 'active', u_author) returning id into p2_question;
+  insert into public.question_answers (question_id, answer) values (p2_question, '{"value": 4, "tolerance": 0}'::jsonb);
+  insert into public.assessment_templates (name, grade_sort_min, grade_sort_max, time_limit_minutes, status, created_by)
+  values ('Sec template', 0, 100, 30, 'active', u_author) returning id into p2_template;
+  insert into public.assessment_forms (application_id, template_id, template_version) values (app_block7, p2_template, 1) returning id into p2_form;
+  insert into public.form_questions (form_id, section_position, section_title, position, question_id, question_version, competency_id, type, stem, marks)
+  values (p2_form, 0, 'Numbers', 0, p2_question, 1, p2_competency, 'numeric', 'What is 2 + 2?', 1) returning id into p2_form_question;
+  insert into public.form_answer_keys (form_question_id, answer) values (p2_form_question, '{"value": 4, "tolerance": 0}'::jsonb);
+  select id into p2_booking from public.bookings where application_id = app_block7 and status = 'booked';
+  insert into public.attempts (application_id, booking_id, form_id, status, launched_by, started_at, time_limit_seconds, expires_at)
+  values (app_block7, p2_booking, p2_form, 'in_progress', u_admin, now(), 1800, now() + interval '30 minutes') returning id into p2_attempt;
+  insert into public.attempt_responses (attempt_id, form_question_id, response) values (p2_attempt, p2_form_question, '{"value": 4}'::jsonb);
+  insert into public.kiosk_codes (attempt_id, code_hash, expires_at) values (p2_attempt, 'sec-hash', now() + interval '15 minutes');
+  -- Rules are added while the ruleset is a draft, then it is activated:
+  -- the same order the admin screen follows, and the only one the freeze
+  -- triggers allow.
+  insert into public.admission_rulesets (name, status, created_by)
+  values ('Sec ruleset', 'draft', u_admin) returning id into p2_ruleset;
+  insert into public.admission_rules (ruleset_id, scope, operator, threshold, severity, label)
+  values (p2_ruleset, 'overall', '>=', 40, 'review', 'Overall at least 40%');
+  update public.admission_rulesets set status = 'active', activated_at = now(), activated_by = u_admin where id = p2_ruleset;
+  insert into public.admission_decisions (application_id, attempt_id, ruleset_id, ruleset_version, computed_outcome, final_outcome, decided_by)
+  values (app_block7, p2_attempt, p2_ruleset, 1, 'staff_review', 'staff_review', 'rules') returning id into p2_decision;
+  insert into public.offers (application_id, template_id, template_version, currency, rendered_html, terms_html, status)
+  values (app_block7, p2_offer_template, 1, 'BWP', '<p>offer</p>', '<p>terms</p>', 'pending_approval') returning id into p2_offer;
 
   -- -------------------------------------------------------------------------
   -- 1. Anonymous callers see nothing
@@ -376,6 +435,271 @@ begin
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('14: deleted a system role'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('14: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 15. Answer keys are for authors only: the bank's key and the frozen
+  --     form's key are invisible to everyone else, including super admin's
+  --     colleagues with every applicant permission. (Super admin holds
+  --     `admin`, which satisfies every check by design.)
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.question_answers where question_id = p2_question;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('15: admissions staff can read question_answers'); end if;
+    select count(*) into v_count from public.form_answer_keys where form_question_id = p2_form_question;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('15: admissions staff can read form_answer_keys'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('15: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.form_answer_keys where form_question_id = p2_form_question;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('15: assessor can read form_answer_keys'); end if;
+    select count(*) into v_count from public.form_questions where id = p2_form_question;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('15 control: assessor cannot read the form question they mark'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('15: unexpected error as assessor: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_author);
+    select count(*) into v_count from public.question_answers where question_id = p2_question;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('15 control: content author cannot read question_answers'); end if;
+    select count(*) into v_count from public.form_answer_keys where form_question_id = p2_form_question;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('15 control: content author cannot read form_answer_keys'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('15 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 16. Marks are the engine's: no staff account can write responses,
+  --     attempts or scores directly, even the super admin
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.attempt_responses set marks_awarded = 99, is_correct = true where attempt_id = p2_attempt;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('16: super admin updated attempt_responses directly'); end if;
+    update public.attempts set status = 'marked' where id = p2_attempt;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('16: super admin updated attempts directly'); end if;
+    insert into public.attempt_scores (attempt_id, scope, scope_id, raw, max, percent, band)
+    values (p2_attempt, 'overall', null, 1, 1, 100, 'exceeding');
+    v_fail := v_fail || E'\n  - ' || ('16: super admin inserted attempt_scores directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('16: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.attempt_responses where attempt_id = p2_attempt;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('16 control: assessor cannot read the responses they mark'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('16 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 17. The kiosk's tables are sealed: codes are service-role only, and the
+  --     anon key (which the kiosk page never uses) sees no form
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select count(*) into v_count from public.kiosk_codes;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('17: kiosk_codes readable by staff'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('17: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    execute 'set local role anon';
+    select count(*) into v_count from public.form_questions;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('17: anon can read form_questions'); end if;
+    select count(*) into v_count from public.attempts;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('17: anon can read attempts'); end if;
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('17: unexpected error as anon: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 18. The delivery RPCs are not callable by any staff account
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_admin);
+    perform public.launch_attempt(app_block7, p2_booking, p2_template, 1.0, u_admin, null);
+    v_fail := v_fail || E'\n  - ' || ('18: authenticated could call launch_attempt');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('18: launch_attempt refused by "' || sqlerrm || '" rather than EXECUTE');
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    perform public.start_attempt(p2_attempt, null);
+    v_fail := v_fail || E'\n  - ' || ('18: authenticated could call start_attempt');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('18: start_attempt refused by "' || sqlerrm || '" rather than EXECUTE');
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    perform public.record_response(p2_attempt, p2_form_question, '{"value": 5}'::jsonb, 30);
+    v_fail := v_fail || E'\n  - ' || ('18: authenticated could call record_response');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('18: record_response refused by "' || sqlerrm || '" rather than EXECUTE');
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    perform public.submit_attempt(p2_attempt, false);
+    v_fail := v_fail || E'\n  - ' || ('18: authenticated could call submit_attempt');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('18: submit_attempt refused by "' || sqlerrm || '" rather than EXECUTE');
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 19. Admission decisions are append-only for everyone, the service role
+  --     included: the trigger, not a policy, is what binds
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    update public.admission_decisions set final_outcome = 'approved' where id = p2_decision;
+    v_fail := v_fail || E'\n  - ' || ('19: service role updated an admission decision');
+  exception when others then
+    if sqlerrm not like '%append-only%' then
+      v_fail := v_fail || E'\n  - ' || ('19: update refused by "' || sqlerrm || '" rather than the append-only trigger');
+    end if;
+  end;
+  begin
+    perform pg_temp.service();
+    delete from public.admission_decisions where id = p2_decision;
+    v_fail := v_fail || E'\n  - ' || ('19: service role deleted an admission decision');
+  exception when others then
+    if sqlerrm not like '%append-only%' then
+      v_fail := v_fail || E'\n  - ' || ('19: delete refused by "' || sqlerrm || '" rather than the append-only trigger');
+    end if;
+  end;
+  begin
+    perform pg_temp.impersonate(u_admin);
+    insert into public.admission_decisions (application_id, computed_outcome, final_outcome, decided_by, staff_id, override_reason)
+    values (app_block7, 'staff_review', 'approved', 'staff', u_admin, 'forged');
+    v_fail := v_fail || E'\n  - ' || ('19: super admin inserted an admission decision directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('19: insert refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.admission_decisions where id = p2_decision;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('19 control: admissions staff cannot read a decision'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('19 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 20. An active ruleset is frozen; a draft is editable
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    update public.admission_rulesets set name = 'Sec ruleset (edited)' where id = p2_ruleset;
+    v_fail := v_fail || E'\n  - ' || ('20: an active ruleset accepted an edit');
+  exception when others then
+    if sqlerrm not like '%cannot be edited%' then
+      v_fail := v_fail || E'\n  - ' || ('20: refused by "' || sqlerrm || '" rather than the freeze trigger');
+    end if;
+  end;
+  begin
+    perform pg_temp.impersonate(u_admin);
+    insert into public.admission_rulesets (name, status, created_by) values ('Sec draft', 'draft', u_admin) returning id into v_id;
+    update public.admission_rulesets set name = 'Sec draft (edited)' where id = v_id;
+    get diagnostics v_count = row_count;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('20 control: a draft ruleset refused an edit'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('20 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 21. Offers: visible with offers.read, invisible to an assessor, and
+  --     never writable by staff (approval goes through the engine)
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.offers where id = p2_offer;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('21: assessor can read offers'); end if;
+    select count(*) into v_count from public.fee_schedules;
+    -- Zero rows is the expected shape; the policy is what is under test.
+    if public.has_permission('offers.read') then v_fail := v_fail || E'\n  - ' || ('21: assessor holds offers.read'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('21: unexpected error as assessor: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_finance);
+    select count(*) into v_count from public.offers where id = p2_offer;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('21 control: finance cannot read offers'); end if;
+    update public.offers set status = 'sent', sent_at = now() where id = p2_offer;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('21: finance updated an offer directly'); end if;
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('21: unexpected error as finance: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.offers set status = 'sent', sent_at = now() where id = p2_offer;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('21: super admin updated an offer directly'); end if;
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('21: unexpected error as super admin: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 22. Fee schedules: finance writes them, admissions staff only reads;
+  --     the currency follows the campus whatever the caller sends
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    insert into public.fee_schedules (name, campus_id, academic_year_id, currency) values ('Sec fees', c_block7, p2_year, 'BWP');
+    v_fail := v_fail || E'\n  - ' || ('22: admissions staff inserted a fee schedule');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('22: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_finance);
+    insert into public.fee_schedules (name, campus_id, academic_year_id, currency) values ('Sec fees', c_block7, p2_year, 'ZAR') returning id into v_id;
+    if (select currency from public.fee_schedules where id = v_id) <> 'BWP' then
+      v_fail := v_fail || E'\n  - ' || ('22: a Botswana campus accepted a ZAR fee schedule');
+    end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('22 control: finance cannot create a fee schedule: ' || sqlerrm);
   end;
   perform pg_temp.service();
 
