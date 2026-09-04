@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/staff/action-form";
+import { ApplicantPhase2 } from "@/components/staff/applicant-phase2";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
@@ -164,6 +165,9 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               </ActionForm>
             ) : null}
           </section>
+
+          {/* Assessment, profile, decision, offer */}
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} />
 
           {/* Timeline */}
           <section className="rounded-xl border border-border bg-card">

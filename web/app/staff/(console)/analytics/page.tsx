@@ -63,14 +63,44 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   ]);
 
   const all = rows ?? [];
+  const ids = all.map((r) => r.application_id);
+  const [{ data: decisions }, { data: offers }, { data: profiles }] = ids.length
+    ? await Promise.all([
+        supabase.from("admission_decisions").select("application_id, final_outcome, computed_outcome, decided_by").in("application_id", ids),
+        supabase.from("offers").select("application_id, status, sent_at, first_viewed_at").in("application_id", ids),
+        supabase.from("learning_profiles").select("application_id, narrative_source, validation_status").in("application_id", ids).not("published_at", "is", null),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
+  // The last real decision per application; referrals are not decisions.
+  const finalDecision = new Map<string, NonNullable<typeof decisions>[number]>();
+  for (const d of decisions ?? []) if (d.final_outcome !== "staff_review") finalDecision.set(d.application_id, d);
+  const decided = [...finalDecision.values()];
+  const outcomes = {
+    approved: decided.filter((d) => d.final_outcome === "approved").length,
+    waitlisted: decided.filter((d) => d.final_outcome === "waitlisted").length,
+    declined: decided.filter((d) => d.final_outcome === "declined").length,
+    byRules: decided.filter((d) => d.decided_by === "rules").length,
+    overridden: decided.filter((d) => d.decided_by === "staff" && d.computed_outcome !== "staff_review" && d.computed_outcome !== d.final_outcome).length,
+  };
+  const offerStats = {
+    sent: (offers ?? []).filter((o) => o.sent_at).length,
+    viewed: (offers ?? []).filter((o) => o.first_viewed_at).length,
+    expired: (offers ?? []).filter((o) => o.status === "expired").length,
+    withdrawn: (offers ?? []).filter((o) => o.status === "withdrawn").length,
+  };
+  const profileStats = {
+    published: (profiles ?? []).length,
+    ai: (profiles ?? []).filter((p) => p.narrative_source === "ai").length,
+    fellBack: (profiles ?? []).filter((p) => p.validation_status === "failed").length,
+  };
   const assessed = all.filter((r) => r.requires_assessment);
   const enquiries = all.length;
   const booked = assessed.filter((r) => r.booked_at).length;
   const attended = assessed.filter((r) => r.attended_at).length;
   const noShows = assessed.filter((r) => r.no_show_at).length;
   const completed = assessed.filter((r) => r.assessed_at).length;
-  const decided = all.filter((r) => r.decided_at).length;
-  const approved = all.filter((r) => ["approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled"].includes(r.status)).length;
+  const decidedCount = all.filter((r) => r.decided_at).length;
+  const approved = all.filter((r) => ["approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired", "offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled"].includes(r.status)).length;
   const offered = all.filter((r) => r.offered_at).length;
   const accepted = all.filter((r) => r.accepted_at).length;
   const paid = all.filter((r) => r.paid_at).length;
@@ -122,7 +152,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <StatTile label="Attended" value={attended} />
         <StatTile label="No-shows" value={noShows} tone="warning" />
         <StatTile label="Assessments completed" value={completed} />
-        <StatTile label="Decisions" value={decided} />
+        <StatTile label="Decisions" value={decidedCount} />
         <StatTile label="Approved" value={approved} />
         <StatTile label="Offers sent" value={offered} />
         <StatTile label="Offers accepted" value={accepted} />
@@ -156,6 +186,29 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <dt className="text-muted-foreground">Acceptance → payment</dt><dd className="tabular-nums">{fmtDays(cycle.acceptanceToPayment)}</dd>
             <dt className="text-muted-foreground">Payment → enrolment</dt><dd className="tabular-nums">{fmtDays(cycle.paymentToEnrolment)}</dd>
           </dl>
+        </section>
+        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <h2 className="mb-2 text-sm font-semibold">Decisions</h2>
+          <dl className="grid grid-cols-[1fr_auto] gap-y-1.5">
+            <dt className="text-muted-foreground">Approved</dt><dd className="tabular-nums">{outcomes.approved}</dd>
+            <dt className="text-muted-foreground">Waitlisted</dt><dd className="tabular-nums">{outcomes.waitlisted}</dd>
+            <dt className="text-muted-foreground">Declined</dt><dd className="tabular-nums">{outcomes.declined}</dd>
+            <dt className="text-muted-foreground">Decided by the rules engine</dt><dd className="tabular-nums">{pct(outcomes.byRules, decided.length)}</dd>
+            <dt className="text-muted-foreground">Rules outcome overridden by staff</dt><dd className="tabular-nums">{outcomes.overridden}</dd>
+            <dt className="text-muted-foreground">Learning profiles published</dt><dd className="tabular-nums">{profileStats.published}</dd>
+            <dt className="text-muted-foreground">With an AI narrative</dt><dd className="tabular-nums">{pct(profileStats.ai, profileStats.published)}</dd>
+            <dt className="text-muted-foreground">AI text rejected by the validator</dt><dd className="tabular-nums">{profileStats.fellBack}</dd>
+          </dl>
+        </section>
+        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <h2 className="mb-2 text-sm font-semibold">Offers</h2>
+          <dl className="grid grid-cols-[1fr_auto] gap-y-1.5">
+            <dt className="text-muted-foreground">Sent</dt><dd className="tabular-nums">{offerStats.sent}</dd>
+            <dt className="text-muted-foreground">Opened by the parent</dt><dd className="tabular-nums">{pct(offerStats.viewed, offerStats.sent)}</dd>
+            <dt className="text-muted-foreground">Expired</dt><dd className="tabular-nums">{offerStats.expired}</dd>
+            <dt className="text-muted-foreground">Withdrawn and re-issued</dt><dd className="tabular-nums">{offerStats.withdrawn}</dd>
+          </dl>
+          <p className="mt-2 text-xs text-muted-foreground">Acceptance and payment figures fill in with Phase 3.</p>
         </section>
         <section className="rounded-xl border border-border bg-card p-4 text-sm">
           <h2 className="mb-2 text-sm font-semibold">By entry route</h2>
