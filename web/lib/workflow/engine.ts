@@ -41,6 +41,10 @@ export type JobPrecondition = {
   application_status?: ApplicationStatus[];
   booking_id?: string;
   booking_status?: string[];
+  attempt_id?: string;
+  attempt_status?: string[];
+  offer_id?: string;
+  offer_status?: string[];
 };
 
 export type JobSpec = {

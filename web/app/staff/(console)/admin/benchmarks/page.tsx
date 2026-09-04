@@ -6,6 +6,17 @@ import { parseBenchmarkBands } from "@/lib/assessment/bands";
 import { requireStaff } from "@/lib/staff/session";
 import { saveBenchmark } from "./actions";
 
+function Floors({ bands }: { bands: ReturnType<typeof parseBenchmarkBands> }) {
+  const floor = (key: string) => bands.find((b) => b.key === key)?.min_percent ?? 0;
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <label className="text-xs">Approaching from %<Input name="approaching" type="number" min={1} max={100} defaultValue={floor("approaching")} className="h-8 md:h-8" /></label>
+      <label className="text-xs">Meeting from %<Input name="meeting" type="number" min={1} max={100} defaultValue={floor("meeting")} className="h-8 md:h-8" /></label>
+      <label className="text-xs">Exceeding from %<Input name="exceeding" type="number" min={1} max={100} defaultValue={floor("exceeding")} className="h-8 md:h-8" /></label>
+    </div>
+  );
+}
+
 export default async function BenchmarksPage() {
   const { supabase } = await requireStaff("assessments.author");
   const [{ data: benchmarks }, { data: subjects }, { data: competencies }, { data: grades }] = await Promise.all([
@@ -17,17 +28,6 @@ export default async function BenchmarksPage() {
   const scopeName = (scope: string, id: string | null) =>
     scope === "overall" ? "Overall" : scope === "subject" ? `Subject: ${subjects?.find((s) => s.id === id)?.name ?? "?"}` : `Competency: ${competencies?.find((c) => c.id === id)?.name ?? "?"}`;
   const gradeName = (sort: number | null) => (sort === null ? "any" : grades?.find((g) => g.sort_order === sort)?.name ?? String(sort));
-
-  const Floors = ({ bands }: { bands: ReturnType<typeof parseBenchmarkBands> }) => {
-    const floor = (key: string) => bands.find((b) => b.key === key)?.min_percent ?? 0;
-    return (
-      <div className="grid grid-cols-3 gap-2">
-        <label className="text-xs">Approaching from %<Input name="approaching" type="number" min={1} max={100} defaultValue={floor("approaching")} className="h-8 md:h-8" /></label>
-        <label className="text-xs">Meeting from %<Input name="meeting" type="number" min={1} max={100} defaultValue={floor("meeting")} className="h-8 md:h-8" /></label>
-        <label className="text-xs">Exceeding from %<Input name="exceeding" type="number" min={1} max={100} defaultValue={floor("exceeding")} className="h-8 md:h-8" /></label>
-      </div>
-    );
-  };
 
   return (
     <>

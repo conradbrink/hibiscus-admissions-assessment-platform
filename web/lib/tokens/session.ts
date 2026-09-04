@@ -11,6 +11,11 @@ import type { TokenPurpose } from "@/lib/supabase/types";
  *
  * Pure functions, no Next imports, so the signing and verification are unit
  * tested in isolation. The cookie plumbing is in ./server.ts.
+ *
+ * The signing helpers are exported for the kiosk session (lib/assessment/
+ * kiosk-code.ts), which signs with the same secret under a different domain
+ * string, so a parent cookie can never be presented as a kiosk cookie or the
+ * reverse even though both are HMACs of a JSON payload.
  */
 
 export const PARENT_COOKIE = "hbs_parent";
@@ -22,13 +27,31 @@ export type ParentSession = {
   expiresAt: number;
 };
 
-function b64url(input: Buffer | string): string {
+export function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
 }
 
-function sign(payload: string, secret: string): string {
-  return createHmac("sha256", secret).update(payload).digest("base64url");
+/** HMAC over `domain:payload`, so signatures from different domains never verify. */
+export function signPayload(payload: string, secret: string, domain: string): string {
+  return createHmac("sha256", secret).update(`${domain}:${payload}`).digest("base64url");
 }
+
+/** Constant-time on the signature comparison. */
+export function verifyPayload(payload: string, signature: string, secret: string, domain: string): boolean {
+  const expected = signPayload(payload, secret, domain);
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Splits `payload.signature`; null when the shape is wrong. */
+export function splitSigned(value: string): { payload: string; signature: string } | null {
+  const dot = value.indexOf(".");
+  if (dot <= 0) return null;
+  return { payload: value.slice(0, dot), signature: value.slice(dot + 1) };
+}
+
+const PARENT_DOMAIN = "parent";
 
 export function encodeParentSession(session: ParentSession, secret: string): string {
   const payload = b64url(
@@ -39,13 +62,12 @@ export function encodeParentSession(session: ParentSession, secret: string): str
       e: session.expiresAt,
     })
   );
-  return `${payload}.${sign(payload, secret)}`;
+  return `${payload}.${signPayload(payload, secret, PARENT_DOMAIN)}`;
 }
 
 /**
  * Returns the session, or null for anything that is not a currently valid
  * signature: malformed, tampered, expired, or signed with a previous secret.
- * Constant-time on the signature comparison.
  */
 export function decodeParentSession(
   value: string | undefined | null,
@@ -53,18 +75,13 @@ export function decodeParentSession(
   now: number = Date.now()
 ): ParentSession | null {
   if (!value) return null;
-  const dot = value.indexOf(".");
-  if (dot <= 0) return null;
-  const payload = value.slice(0, dot);
-  const sig = value.slice(dot + 1);
-  const expected = sign(payload, secret);
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  const parts = splitSigned(value);
+  if (!parts) return null;
+  if (!verifyPayload(parts.payload, parts.signature, secret, PARENT_DOMAIN)) return null;
 
   let parsed: { a?: unknown; p?: unknown; i?: unknown; e?: unknown };
   try {
-    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    parsed = JSON.parse(Buffer.from(parts.payload, "base64url").toString("utf8"));
   } catch {
     return null;
   }

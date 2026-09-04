@@ -8,7 +8,9 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { formatDateLong, formatTime, toSchoolDateString } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
+import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { checkIn, markNoShow } from "../../applications/[id]/actions";
+import { launchAttempt, reissueCode } from "../actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -47,6 +49,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     : null;
   const bookings = bookingsRes?.data ?? [];
   type BookingRow = (typeof bookings)[number];
+
+  // The latest attempt per booking, so the row can say "sitting now" or
+  // "handed in" and link to it.
+  const attemptsRes = bookings.length
+    ? await supabase
+        .from("attempts")
+        .select("id, booking_id, status")
+        .in("booking_id", bookings.map((b) => b.id))
+        .order("created_at", { ascending: false })
+    : null;
+  const attemptByBooking = new Map<string, { id: string; status: string }>();
+  for (const a of attemptsRes?.data ?? []) {
+    if (!attemptByBooking.has(a.booking_id)) attemptByBooking.set(a.booking_id, a);
+  }
 
   const q = (sp.q ?? "").trim().toLowerCase();
   const byId = new Map<string, BookingRow[]>();
@@ -113,6 +129,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                       const grade = one(app.grades);
                       const contact = one(app.contacts);
                       const live = b.status === "booked" || b.status === "checked_in";
+                      const attempt = attemptByBooking.get(b.id) ?? null;
                       return (
                         <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
                           <div className="min-w-0 flex-1">
@@ -125,10 +142,21 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                             </span>
                           </div>
                           <BookingBadge status={b.status} />
+                          {attempt ? (
+                            <Link href={`/staff/assessments/attempts/${attempt.id}`} className="text-xs font-medium text-primary underline underline-offset-2">
+                              {attempt.status === "ready" ? "Waiting for code" : attempt.status === "in_progress" ? "Sitting now" : attempt.status === "submitted" ? "Handed in" : attempt.status === "marked" ? "Marked" : attempt.status}
+                            </Link>
+                          ) : null}
                           {canDeliver && b.status === "booked" ? (
                             <ActionForm action={checkIn} label="Check in" variant="success" size="sm">
                               <input type="hidden" name="applicationId" value={app.id} />
                             </ActionForm>
+                          ) : null}
+                          {canDeliver && b.status === "checked_in" && !attempt ? (
+                            <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} />
+                          ) : null}
+                          {canDeliver && attempt?.status === "ready" ? (
+                            <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={attempt.id} />
                           ) : null}
                           {canDeliver && live ? (
                             <ActionForm action={markNoShow} label="No-show" variant="ghost" size="sm" confirm="Mark as a no-show and email a rebooking link?">
