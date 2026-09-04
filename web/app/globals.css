@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Status colours. The old Ed-admin form used green for "mandatory" and
+     blue for actions; here green means done, blue means informational,
+     amber means attention, and red is reserved for genuine failure. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /*
+   * Hibiscus brand — PLACEHOLDER until brand assets arrive.
+   *
+   * The current site is Ed-admin's palette, not Hibiscus's: an orange tab
+   * highlight, green mandatory-field outlines, blue and green buttons. These
+   * values are a warm hibiscus orange with a soft yellow accent, chosen to be
+   * in the right family so screens look intentional while the real palette
+   * is confirmed. Swap the brand lines below and nothing else needs to
+   * change — every component reads tokens, never a literal colour.
+   */
+  --background: oklch(0.99 0.004 80);
+  --foreground: oklch(0.24 0.02 50);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.02 50);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 50);
+  /* Brand: hibiscus orange */
+  --primary: oklch(0.66 0.19 42);
+  --primary-foreground: oklch(0.99 0.01 80);
+  --secondary: oklch(0.96 0.01 70);
+  --secondary-foreground: oklch(0.3 0.03 45);
+  --muted: oklch(0.96 0.008 70);
+  --muted-foreground: oklch(0.52 0.02 50);
+  /* Brand: soft yellow accent */
+  --accent: oklch(0.93 0.1 92);
+  --accent-foreground: oklch(0.35 0.06 60);
+  --destructive: oklch(0.577 0.22 27.325);
+  --border: oklch(0.91 0.01 70);
+  --input: oklch(0.89 0.012 70);
+  --ring: oklch(0.66 0.19 42);
+  --success: oklch(0.6 0.15 150);
+  --success-foreground: oklch(0.99 0.01 150);
+  --info: oklch(0.58 0.12 240);
+  --info-foreground: oklch(0.99 0.01 240);
+  --warning: oklch(0.78 0.16 80);
+  --warning-foreground: oklch(0.3 0.06 60);
+  --chart-1: oklch(0.66 0.19 42);
+  --chart-2: oklch(0.58 0.12 240);
+  --chart-3: oklch(0.6 0.15 150);
+  --chart-4: oklch(0.78 0.16 80);
+  --chart-5: oklch(0.6 0.02 60);
+  /* Rounder than the merchandising app: this is a parent-facing product
+     and large, soft controls read as friendlier on a phone. */
+  --radius: 0.75rem;
+  --sidebar: oklch(0.985 0.005 75);
+  --sidebar-foreground: oklch(0.3 0.02 50);
+  --sidebar-primary: oklch(0.66 0.19 42);
+  --sidebar-primary-foreground: oklch(0.99 0.01 80);
+  --sidebar-accent: oklch(0.94 0.03 70);
+  --sidebar-accent-foreground: oklch(0.3 0.03 45);
+  --sidebar-border: oklch(0.92 0.008 70);
+  --sidebar-ring: oklch(0.66 0.19 42);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* Light only, deliberately. The merchandising app carries a theme
+       toggle; a school admissions site does not need one, and the parent
+       pages are read once on a phone in daylight. Declaring it stops the
+       browser painting form controls dark on a dark-mode handset. */
+    color-scheme: light;
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
