@@ -445,7 +445,11 @@ export async function onManualDecision(
   await onStaffDecision(admin, app, outcome, reason, actor);
 }
 
-/** Withdraws from any non-terminal state. Cancels the live booking and open tasks. */
+/**
+ * Withdraws from any non-terminal state. Cancels the live booking, abandons
+ * a live sitting, withdraws a live offer, and closes open tasks — so no job
+ * queued for any of them finds its precondition still true.
+ */
 export async function onWithdrawn(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
@@ -457,7 +461,17 @@ export async function onWithdrawn(
     .from("bookings")
     .update({ status: "cancelled", cancelled_at: now, cancel_reason: "Application withdrawn" })
     .eq("application_id", app.id)
-    .in("status", ["booked", "checked_in"]);
+    .in("status", ["booked", "checked_in", "in_progress"]);
+  await admin
+    .from("attempts")
+    .update({ status: "abandoned" })
+    .eq("application_id", app.id)
+    .in("status", ["ready", "in_progress"]);
+  await admin
+    .from("offers")
+    .update({ status: "withdrawn", withdrawn_reason: "Application withdrawn" })
+    .eq("application_id", app.id)
+    .in("status", ["draft", "pending_approval", "sent", "viewed"]);
   await admin
     .from("tasks")
     .update({ status: "cancelled", resolved_at: now, resolution_note: "Application withdrawn" })

@@ -8,6 +8,7 @@ import {
   sendOutcomeHandler,
   suggestWritingBandHandler,
 } from "@/lib/workflow/handlers/decisions";
+import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/offers";
 import { sendEmailHandler } from "@/lib/workflow/handlers/send-email";
 
 /**
@@ -24,15 +25,6 @@ export type HandlerResult =
 
 export type Handler = (admin: AdminClient, job: JobRow) => Promise<HandlerResult>;
 
-/**
- * A placeholder that keeps a job in the queue (up to its retry budget)
- * until the real handler ships, rather than stranding the application with
- * a permanent failure.
- */
-const notYet =
-  (name: string): Handler =>
-  async () => ({ outcome: "failed", error: `${name} is not available in this build yet`, retryable: true });
-
 export const HANDLERS: Record<string, Handler> = {
   send_email: sendEmailHandler,
   mark_attempt: markAttemptHandler,
@@ -41,5 +33,6 @@ export const HANDLERS: Record<string, Handler> = {
   evaluate_admission: evaluateAdmissionHandler,
   generate_learning_profile: generateProfileHandler,
   send_outcome: sendOutcomeHandler,
-  draft_offer: notYet("draft_offer"),
+  draft_offer: draftOfferHandler,
+  offer_expire: offerExpireHandler,
 };

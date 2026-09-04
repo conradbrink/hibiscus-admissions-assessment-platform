@@ -1449,6 +1449,10 @@ export type Database = {
       };
       submit_attempt: { Args: { p_attempt_id: string; p_auto?: boolean }; Returns: AttemptRow };
       activate_ruleset: { Args: { p_ruleset_id: string }; Returns: undefined };
+      publish_offer_template: {
+        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_terms_html: string };
+        Returns: string;
+      };
       publish_email_template: {
         Args: {
           p_key: string;
