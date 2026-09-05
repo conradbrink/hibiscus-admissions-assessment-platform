@@ -7,8 +7,9 @@ name: CI
 # to make sure what reaches `main` is worth deploying. See docs/DEPLOY-WEB.md.
 
 on:
+  # Every pull request, whatever it targets: phases are stacked as PRs based
+  # on the previous phase's branch, and a PR with no CI is not a quality gate.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 
