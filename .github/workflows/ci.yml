@@ -1,0 +1,165 @@
+name: CI
+
+# The quality gate in front of `main`.
+#
+# Deployment is NOT done here — Vercel's GitHub integration builds and promotes
+# `main` on its own, and the integration needs no token. This workflow's job is
+# to make sure what reaches `main` is worth deploying. See docs/DEPLOY-WEB.md.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege for GITHUB_TOKEN. These jobs only read code, and `npm ci`
+# executes third-party install scripts, so the token they can see should be
+# able to do as little as possible.
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web — typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        # Blocking from the first commit. The merchandising app's lint step is
+        # non-blocking because it inherited 28 errors, and its own comment says
+        # a permanently red gate is one everybody learns to ignore. Starting
+        # clean is the one moment making this blocking costs nothing.
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        # Placeholder values only. `next build` needs these to exist because
+        # the browser client reads them at module scope, but nothing in the
+        # build talks to a real project — and CI must never hold production
+        # credentials it does not need.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          NEXT_PUBLIC_SITE_URL: https://placeholder.example
+        run: npm run build
+
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      - name: Block on critical advisories
+        run: npm audit --audit-level=critical
+
+      - name: Report high and moderate advisories
+        if: always()
+        run: npm audit --audit-level=moderate || true
+
+  migrations:
+    name: Migration safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filenames are well formed and unique
+        run: |
+          set -euo pipefail
+          cd supabase/migrations
+          fail=0
+          for f in *.sql; do
+            # `[a-z0-9]+(_[a-z0-9]+)*` rather than `[a-z0-9_]+`: the latter
+            # also accepts `__double.sql` and `trailing_.sql`.
+            if ! [[ "$f" =~ ^[0-9]{14}_[a-z0-9]+(_[a-z0-9]+)*\.sql$ ]]; then
+              echo "::error file=supabase/migrations/$f::Bad migration filename. Expected <14-digit version>_<snake_case_name>.sql"
+              fail=1
+            fi
+          done
+          dupes=$(ls *.sql | cut -c1-14 | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration versions: $dupes"
+            fail=1
+          fi
+          echo "Checked $(ls *.sql | wc -l) migration files."
+          exit $fail
+
+      - name: Applied migrations must not be edited or deleted
+        # An applied migration is a historical record of what production ran.
+        # Editing one makes the repo disagree with the database silently.
+        #
+        # `--find-renames=100%` is load-bearing: with git's default similarity
+        # detection a file that is renamed *and edited* is reported as `R`, so
+        # an edited migration would slip past the MD filter below.
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch -q origin "$BASE_REF"
+          base="origin/$BASE_REF"
+          changed=$(git diff --name-status --find-renames=100% --diff-filter=MD "$base"...HEAD -- supabase/migrations || true)
+          if [ -n "$changed" ]; then
+            echo "::error::This pull request edits or deletes migrations that are already applied:"
+            echo "$changed"
+            echo "Add a new migration instead. See supabase/README.md."
+            exit 1
+          fi
+          renamed=$(git diff --name-status --find-renames=100% --diff-filter=R "$base"...HEAD -- supabase/migrations || true)
+          if [ -n "$renamed" ]; then
+            echo "::warning::This PR renames migration files — confirm they match the recorded versions:"
+            echo "$renamed"
+          fi
+          echo "No applied migration was edited or deleted."
+
+  secrets:
+    name: No secrets in the tree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan tracked files for credentials
+        # Cheap, specific patterns rather than a general scanner: a service-role
+        # JWT, a Supabase secret key, an OpenAI key, a Resend key, a Google key.
+        run: |
+          set -euo pipefail
+          if git grep -nIE \
+              'service_role[^_a-z].*(eyJ[A-Za-z0-9_-]{20,})|sb_secret_[A-Za-z0-9]|sk-[A-Za-z0-9]{20,}|re_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}' \
+              -- . ':!*.lock' ':!package-lock.json'; then
+            echo "::error::A credential-shaped string is committed. Rotate it, then remove it from the tree."
+            exit 1
+          fi
+          echo "No credential-shaped strings found."

@@ -1,0 +1,6 @@
+# Minimal config so `supabase link --project-ref <ref>` works once a project
+# exists. Fill in project_id at that point — see README.md.
+project_id = ""
+
+[db]
+major_version = 17

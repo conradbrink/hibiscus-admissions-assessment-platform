@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in the admissions system did not work as expected.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A partial report is much better than no report. Fill in what you can.
+        **If a parent's data may have been shown to the wrong person, call it Critical and phone someone as well.**
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical — a parent cannot book or accept, data may be wrong or exposed, or money is involved
+        - Major — staff cannot do part of their job, or a parent is stuck with a workaround
+        - Minor — cosmetic, wording, or an inconvenience
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Parent — enquiry or booking
+        - Parent — emailed link or a later step
+        - Staff — dashboard or pipeline
+        - Staff — assessment day
+        - Staff — admin settings
+        - An email that was sent or not sent
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Application reference, if any
+      placeholder: HBS-2026-00482
+  - type: input
+    id: when
+    attributes:
+      label: When did it happen
+      description: Date and time, as precisely as you can. It is how we find the exact request in the logs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Opened the link in the "Assessment booked" email on an iPhone
+        2. Tapped "View booking"
+        3. Page showed "Something went wrong"
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: Samsung A14, Chrome
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Paste or drag an image here. Cover any other family's details first.
