@@ -1,6 +1,7 @@
 "use server";
 
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,7 @@ import { recordFunnelStep } from "@/lib/funnel";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { requireParentSession } from "@/lib/tokens/server";
-import { PARENT_ACTOR } from "@/lib/workflow/engine";
+import { commit, PARENT_ACTOR } from "@/lib/workflow/engine";
 import {
   onBookingCancelled,
   onBookingCreated,
@@ -186,4 +187,38 @@ export async function cancelBooking(): Promise<void> {
   });
   drainSoon();
   redirect("/next");
+}
+
+/**
+ * WhatsApp updates on or off, for the contact on this application. The
+ * choice is the contact's, so it applies to every child they have applied
+ * for; the audit trail records it on this application.
+ */
+export async function setWhatsAppPreference(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await requireParentSession();
+  const admin = createAdminClient();
+  const ctx = await requestContext();
+  const optIn = formData.get("optIn") === "1";
+  const graph = await loadApplicationGraph(admin, session.applicationId);
+  if (!graph) redirect("/link?reason=unknown");
+  const { error } = await admin
+    .from("contacts")
+    .update(
+      optIn
+        ? { whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "enquiry", whatsapp_opt_out_at: null }
+        : { whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }
+    )
+    .eq("id", graph.contact.id);
+  if (error) return { error: "Could not save that. Please try again." };
+  await commit(admin, {
+    applicationId: graph.application.id,
+    expectedStatus: null,
+    newStatus: null,
+    nextAction: null,
+    event: { type: optIn ? "messaging.opted_in" : "messaging.opted_out", summary: optIn ? "Parent turned WhatsApp updates on" : "Parent turned WhatsApp updates off" },
+    audit: { action: optIn ? "contact.whatsapp_opt_in" : "contact.whatsapp_opt_out", entityType: "contact", entityId: graph.contact.id },
+    actor: { ...PARENT_ACTOR, ipHash: ctx.ipHash },
+  });
+  revalidatePath("/next");
+  return {};
 }

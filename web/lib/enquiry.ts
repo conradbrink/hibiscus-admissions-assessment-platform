@@ -77,6 +77,8 @@ export type EnquiryInput = {
   entryRoute: EntryRoute;
   currentSchool?: string | null;
   currentGrade?: string | null;
+  /** The parent ticked "also on WhatsApp". */
+  whatsappOptIn?: boolean;
 };
 
 export type EnquiryResult = {
@@ -144,6 +146,15 @@ export async function createEnquiry(
   if (error) throw new Error(error.message);
   const row = data?.[0];
   if (!row) throw new Error("create_application returned nothing");
+
+  // Opt-in is only ever switched on by the parent's own tick. A returning
+  // parent who leaves the box clear keeps whatever they chose before.
+  if (input.whatsappOptIn) {
+    await admin
+      .from("contacts")
+      .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "enquiry", whatsapp_opt_out_at: null })
+      .eq("id", row.contact_id);
+  }
 
   return {
     applicationId: row.application_id,

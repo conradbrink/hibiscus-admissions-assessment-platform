@@ -60,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/staff/admin/sessions", label: "Sessions", permission: "applications.write" },
       { href: "/staff/admin/templates", label: "Email templates", permission: "templates.write" },
+      { href: "/staff/admin/message-templates", label: "WhatsApp templates", permission: "templates.write" },
       { href: "/staff/admin/offer-templates", label: "Offer templates", permission: "templates.write" },
       { href: "/staff/admin/fees", label: "Fees", permission: "finance.write" },
       { href: "/staff/admin/agreements", label: "Agreements", permission: "templates.write" },
@@ -70,7 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/admin/intakes", label: "Intakes", permission: "settings.write" },
       { href: "/staff/admin/settings", label: "Workflow settings", permission: "settings.write" },
       { href: "/staff/admin/staff", label: "Staff & roles", permission: "staff.write" },
-      { href: "/staff/admin/dev-outbox", label: "Email outbox", permission: "admin" },
+      { href: "/staff/admin/dev-outbox", label: "Outbox", permission: "admin" },
       { href: "/staff/admin/jobs", label: "Job queue", permission: "admin" },
     ],
   },

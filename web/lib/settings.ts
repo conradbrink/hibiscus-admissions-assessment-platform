@@ -31,6 +31,7 @@ export type Settings = {
   paymentVerifyMinutes: number;
   registrationReminderDays: number[];
   autoEnrol: boolean;
+  whatsappEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paymentVerifyMinutes: 10,
   registrationReminderDays: [7, 14],
   autoEnrol: false,
+  whatsappEnabled: false,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -73,6 +75,7 @@ const KEYS: Record<keyof Settings, string> = {
   paymentVerifyMinutes: "payment_verify_minutes",
   registrationReminderDays: "registration_reminder_days",
   autoEnrol: "auto_enrol",
+  whatsappEnabled: "whatsapp_enabled",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -121,5 +124,6 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     paymentVerifyMinutes: asPositiveInt(map.get(KEYS.paymentVerifyMinutes), d.paymentVerifyMinutes),
     registrationReminderDays: asPositiveIntArray(map.get(KEYS.registrationReminderDays), d.registrationReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
+    whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
   };
 }

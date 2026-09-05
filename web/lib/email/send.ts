@@ -109,7 +109,7 @@ export type SendTemplatedOptions = {
  * the graph stays the parent journey's shape; the offer tables arrive with
  * a later migration and this stays a no-op until then.
  */
-async function offerExtras(admin: AdminClient, offerId: string | null | undefined): Promise<EmailExtras & { expiresAt: Date | null }> {
+export async function offerExtras(admin: AdminClient, offerId: string | null | undefined): Promise<EmailExtras & { expiresAt: Date | null }> {
   if (!offerId) return { expiresAt: null };
   const { data, error } = await admin
     .from("offers")
@@ -131,7 +131,7 @@ async function offerExtras(admin: AdminClient, offerId: string | null | undefine
  * date (which take precedence over the offer's provisional figure), the
  * bank details for the campus and currency, and for a receipt the payment.
  */
-async function paymentExtras(
+export async function paymentExtras(
   admin: AdminClient,
   graph: ApplicationGraph,
   requestId: string | null | undefined,
@@ -166,6 +166,24 @@ async function paymentExtras(
     };
   }
   return out;
+}
+
+/**
+ * How long a purpose-specific link lives. An offer link must outlive the
+ * offer by a margin, so a parent opening the email on the last day is not
+ * told the link has expired; a payment link outlives the due date, because
+ * paying late is still paying. Shared with the WhatsApp companion so both
+ * channels' links expire together.
+ */
+export function linkTtlDays(
+  purpose: LinkPurpose | "next_step",
+  bounds: { expiresAt: Date | null; dueAt: Date | null },
+  nextStepTokenDays: number
+): number {
+  const outlive = (until: Date | null) => (until ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 86_400_000) + 7) : nextStepTokenDays);
+  if (purpose === "offer") return outlive(bounds.expiresAt);
+  if (purpose === "payment") return Math.max(outlive(bounds.dueAt), nextStepTokenDays);
+  return nextStepTokenDays;
 }
 
 type ReceiptAttachment = {
@@ -208,12 +226,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   });
   const links: EmailLinks = { nextStep: nextStep.url };
   for (const purpose of opts.links ?? []) {
-    // An offer link must outlive the offer by a margin, so a parent opening
-    // the email on the last day is not told the link has expired.
-    // Likewise a payment link outlives the due date: paying late is still paying.
-    const outlive = (until: Date | null) => (until ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 86_400_000) + 7) : settings.nextStepTokenDays);
-    const ttlDays =
-      purpose === "offer" ? outlive(extras.expiresAt) : purpose === "payment" ? Math.max(outlive(pay.dueAt), settings.nextStepTokenDays) : settings.nextStepTokenDays;
+    const ttlDays = linkTtlDays(purpose, { expiresAt: extras.expiresAt, dueAt: pay.dueAt }, settings.nextStepTokenDays);
     const minted = await mintToken(admin, {
       applicationId: graph.application.id,
       purpose,

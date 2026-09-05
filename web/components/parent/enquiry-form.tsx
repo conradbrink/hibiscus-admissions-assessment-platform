@@ -96,6 +96,13 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
         <Field id="email" label="Email address" error={f.email} hint="Everything about your application arrives here.">
           <Input id="email" name="email" type="email" inputMode="email" autoComplete="email" defaultValue={v.email} required {...invalid("email")} />
         </Field>
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={v.whatsappOptIn === "1"} className="mt-0.5 size-5 shrink-0 accent-primary" />
+          <span>
+            Also send me updates about this application on WhatsApp, to the mobile number above.
+            <span className="block text-xs text-muted-foreground">Optional. Reply STOP at any time. Email remains the full record.</span>
+          </span>
+        </label>
       </fieldset>
 
       <fieldset className="space-y-4">

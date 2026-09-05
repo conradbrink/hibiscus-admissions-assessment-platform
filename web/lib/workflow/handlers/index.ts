@@ -8,6 +8,7 @@ import {
   sendOutcomeHandler,
   suggestWritingBandHandler,
 } from "@/lib/workflow/handlers/decisions";
+import { sendWhatsAppHandler } from "@/lib/workflow/handlers/messaging";
 import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/offers";
 import { paymentOverdueHandler, paymentVerifyHandler } from "@/lib/workflow/handlers/payments";
 import { autoEnrolHandler } from "@/lib/workflow/handlers/registration";
@@ -29,6 +30,7 @@ export type Handler = (admin: AdminClient, job: JobRow) => Promise<HandlerResult
 
 export const HANDLERS: Record<string, Handler> = {
   send_email: sendEmailHandler,
+  send_whatsapp: sendWhatsAppHandler,
   mark_attempt: markAttemptHandler,
   expire_attempt: expireAttemptHandler,
   suggest_writing_band: suggestWritingBandHandler,

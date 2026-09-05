@@ -24,6 +24,8 @@ import {
   recordDecision,
   rescheduleByStaff,
   resendLink,
+  sendWhatsAppTemplate,
+  setWhatsAppOptInByStaff,
   withdraw,
 } from "./actions";
 
@@ -167,7 +169,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} />
 
           {/* Timeline */}
           <section className="rounded-xl border border-border bg-card">
@@ -236,6 +238,11 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             <p className="mt-1 font-medium">{contact?.first_name} {contact?.last_name}</p>
             <p className="text-muted-foreground">{contact?.email}</p>
             <p className="text-muted-foreground">{contact?.mobile ?? "No mobile"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              WhatsApp updates: {contact?.whatsapp_opt_in ? <span className="text-success">on</span> : "off"}
+              {contact?.whatsapp_opt_in && contact.whatsapp_opt_in_source ? ` (${contact.whatsapp_opt_in_source})` : ""}
+              {!contact?.whatsapp_opt_in && contact?.whatsapp_opt_out_at ? ` since ${formatDate(contact.whatsapp_opt_out_at)}` : ""}
+            </p>
             <p className="mt-2 text-xs text-muted-foreground">
               Child born {formatDate(app.child_date_of_birth)} · came via {app.entry_route}
             </p>
@@ -243,6 +250,18 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               <div className="mt-3 space-y-2">
                 <ActionForm action={resendLink} label="Email a fresh link" variant="outline" size="sm">{idField}</ActionForm>
                 <LinkReveal applicationId={app.id} action={generateLinkForStaff} />
+                {contact?.mobile_normalised ? (
+                  <ActionForm
+                    action={setWhatsAppOptInByStaff}
+                    label={contact.whatsapp_opt_in ? "Turn WhatsApp updates off" : "Turn WhatsApp updates on"}
+                    variant="ghost"
+                    size="sm"
+                    confirm={contact.whatsapp_opt_in ? undefined : "Only if the parent asked for WhatsApp updates. Continue?"}
+                  >
+                    {idField}
+                    <input type="hidden" name="optIn" value={contact.whatsapp_opt_in ? "0" : "1"} />
+                  </ActionForm>
+                ) : null}
               </div>
             ) : null}
             {tokens && tokens.length > 0 ? (

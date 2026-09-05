@@ -269,6 +269,10 @@ export type ContactRow = {
   email_normalised: string;
   mobile: string | null;
   mobile_normalised: string | null;
+  whatsapp_opt_in: boolean;
+  whatsapp_opt_in_at: string | null;
+  whatsapp_opt_out_at: string | null;
+  whatsapp_opt_in_source: "enquiry" | "registration" | "staff" | "reply" | null;
   created_at: string;
   updated_at: string;
 };
@@ -1107,6 +1111,51 @@ export type FunnelEventRow = {
   occurred_at: string;
 };
 
+// Phase 4: messaging
+
+export type MessageLinkPurpose = "next_step" | "results" | "offer" | "payment" | "registration";
+
+export type MessageTemplateRow = {
+  key: string;
+  name: string;
+  meta_template_name: string | null;
+  language: string;
+  body_preview: string;
+  parameters: string[];
+  button_link: boolean;
+  link_purpose: MessageLinkPurpose;
+  is_active: boolean;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" | "skipped" | "received";
+
+export type MessageRow = {
+  id: string;
+  application_id: string;
+  contact_id: string | null;
+  direction: "out" | "in";
+  channel: "whatsapp";
+  template_key: string | null;
+  to_normalised: string | null;
+  from_normalised: string | null;
+  provider: string;
+  provider_message_id: string | null;
+  status: MessageStatus;
+  rendered_text: string;
+  error: string | null;
+  idempotency_key: string | null;
+  email_message_id: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -1179,7 +1228,7 @@ export type Database = {
         "updated_by",
         [Rel<"settings_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
-      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised">;
+      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source">;
       reference_counters: TableOf<ReferenceCounterRow, "next_value">;
       applications: TableOf<
         ApplicationRow,
@@ -1671,6 +1720,21 @@ export type Database = {
           Rel<"funnel_events_application_id_fkey", "application_id", "applications">,
           Rel<"funnel_events_campus_id_fkey", "campus_id", "campuses">,
           Rel<"funnel_events_grade_id_fkey", "grade_id", "grades">,
+        ]
+      >;
+      message_templates: TableOf<
+        MessageTemplateRow,
+        "meta_template_name" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
+      >;
+      messages: TableOf<
+        MessageRow,
+        | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
+        | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at",
+        [
+          Rel<"messages_application_id_fkey", "application_id", "applications">,
+          Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"messages_email_message_id_fkey", "email_message_id", "email_messages">,
         ]
       >;
     };

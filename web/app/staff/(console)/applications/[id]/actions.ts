@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendCompanionMessage } from "@/lib/messaging/send";
+import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { getSettings } from "@/lib/settings";
@@ -263,5 +265,69 @@ export async function assignTask(_: StaffActionState, formData: FormData): Promi
     if (error) throw new Error(error.message);
     if (parsed.applicationId) done(parsed.applicationId);
     revalidatePath("/staff/tasks");
+  });
+}
+
+/**
+ * A WhatsApp message by hand: one of the approved templates, nothing
+ * typed. Goes through the same sender as the companion messages, so the
+ * record and the opt-in check are the same.
+ */
+export async function sendWhatsAppTemplate(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema.extend({ templateKey: z.string().regex(/^[a-z0-9_]+$/) }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const verdict = await enforceRateLimit(admin, LIMITS.staffMessage, ctx.userId);
+    if (!verdict.ok) throw new Error("Too many messages in a short time. Please wait a little.");
+    const result = await sendCompanionMessage(admin, {
+      applicationId: app.id,
+      templateKey: parsed.templateKey,
+      // One manual send of a template per applicant per minute, however many clicks.
+      idempotencyKey: `whatsapp:manual:${app.id}:${parsed.templateKey}:${Math.floor(Date.now() / 60_000)}`,
+      trigger: "manual",
+    });
+    if (result.status === "failed") throw new Error(`Not sent: ${result.error}`);
+    if (result.status === "skipped") throw new Error(`Not sent: ${result.reason}.`);
+    await admin.from("audit_log").insert({
+      actor_type: "staff",
+      actor_id: ctx.userId,
+      actor_label: ctx.actor.label ?? null,
+      action: "message.sent_manually",
+      entity_type: "message",
+      entity_id: result.messageId,
+      application_id: app.id,
+      after: { template_key: parsed.templateKey },
+    });
+    done(parsed.applicationId);
+  });
+}
+
+/** Staff record a parent's spoken wish about WhatsApp; audited under their name. */
+export async function setWhatsAppOptInByStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema.extend({ optIn: z.enum(["0", "1"]) }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const optIn = parsed.optIn === "1";
+    const { error } = await admin
+      .from("contacts")
+      .update(
+        optIn
+          ? { whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "staff", whatsapp_opt_out_at: null }
+          : { whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }
+      )
+      .eq("id", app.contact_id);
+    if (error) throw new Error(error.message);
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: null,
+      event: { type: optIn ? "messaging.opted_in" : "messaging.opted_out", summary: optIn ? "WhatsApp updates turned on by staff at the parent's request" : "WhatsApp updates turned off by staff" },
+      audit: { action: optIn ? "contact.whatsapp_opt_in" : "contact.whatsapp_opt_out", entityType: "contact", entityId: app.contact_id },
+      actor: ctx.actor,
+    });
+    done(parsed.applicationId);
   });
 }

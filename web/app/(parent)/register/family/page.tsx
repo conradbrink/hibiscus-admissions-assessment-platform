@@ -24,7 +24,7 @@ export default async function FamilyStep() {
   };
   return (
     <RegisterShell step="family" title="Parents and guardians" description="Who the school talks to, and who else may collect the child." readOnly={!editable}>
-      <FamilyForm action={saveFamily} primary={prefill.primary} secondary={secondaryValues} prefilled={prefill.prefilledFields} readOnly={!editable} />
+      <FamilyForm action={saveFamily} primary={prefill.primary} secondary={secondaryValues} prefilled={prefill.prefilledFields} readOnly={!editable} whatsappOptIn={graph.contact.whatsapp_opt_in} />
     </RegisterShell>
   );
 }

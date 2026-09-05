@@ -171,6 +171,18 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
     if (!hasSecondary) await admin.from("registration_contacts").delete().eq("application_id", appId).eq("kind", "secondary_guardian");
     // The Phase 1 guardians table finally gets its row: the enquiring contact, as the primary guardian.
     await admin.from("application_guardians").upsert({ application_id: appId, contact_id: graph.contact.id, relationship: d.primary.relationship, is_primary: true }, { onConflict: "application_id,contact_id" });
+    // The WhatsApp choice, restated on this step, is the contact's to change either way.
+    const wantsWhatsApp = values.whatsappOptIn === "1";
+    if (wantsWhatsApp !== graph.contact.whatsapp_opt_in) {
+      await admin
+        .from("contacts")
+        .update(
+          wantsWhatsApp
+            ? { whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "registration", whatsapp_opt_out_at: null }
+            : { whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }
+        )
+        .eq("id", graph.contact.id);
+    }
     await admin.from("registrations").update({ family_completed_at: new Date().toISOString() }).eq("application_id", appId);
     await onRegistrationSaved(admin, graph.application, "family", [], PARENT_ACTOR);
   } catch (e) {
