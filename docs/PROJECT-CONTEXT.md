@@ -129,17 +129,20 @@ automation and every AI feature is behind a setting that ships off.
 | **Automation**: waitlist promotion (task, or decision with the switch); data retention through one function with preview and holds; the morning digest per campus team; the rebooking gaps (cancellation email, one nudge that stops on rebooking, an online cutoff) | Done |
 | Security regression suite: 40 attacks with controls | Done |
 
-**Agreements now point at the school's published documents.** The policy
-download centre (hibiscusschools.com/policy-download-center) publishes the
-2026 Parent Acknowledgement and Agreement and the 2026 Learner Code of
-Conduct as PDFs. Both are seeded as required agreements with the link the
-parent reads before signing; the Phase 3 placeholders are retired. The
-wording in the system is the acknowledgement, not the PDF's text — the
-school can paste the full text in under Set up → Agreements, which
-publishes a new version. Those PDFs could not be read from the build
-environment (the school's domain is blocked there), so the acknowledgement
-wording is written from the documents' titles; worth a read-through by the
-school before go-live.
+**The agreements are the school's four January 2026 documents, in their
+own words, and the parent signs them.** The Parent Acknowledgement and
+Agreement is what a parent signs; by signing it they acknowledge the
+Learner Code of Conduct, the Parent Policy and the Fees Policy. All four
+are required agreements, shown in that reading order with the full text of
+each document as its body (so the hash on the acceptance is the hash of the
+document), and each links to the PDF, which the application serves itself
+from `web/public/policies/2026/` so the text and the file are always the
+same edition. The parent signs once, in a box, with a finger or the mouse;
+the server validates the strokes, refuses a tap, renders the SVG itself and
+stores it on every acceptance beside the printed name. Staff see the
+signature on the registration page. Retention deletes the acceptances, so
+the signature goes with the rest of the person. The Phase 3 placeholders
+and the earlier title-only acknowledgements are retired.
 
 Not built: malware scanning (seam in `lib/documents/scanner.ts`), an HTTP
 adapter for Ed-admin (the file export is the integration until the API is
@@ -149,8 +152,9 @@ known), staff editing of submitted registration data, AI email drafting.
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
   set, the payment page offers online payment only.
-- **Agreements**: two placeholder texts are seeded and say so; replace them
-  at `/staff/admin/agreements` before going live.
+- **Agreements**: the four 2026 documents are seeded from the PDFs the
+  school supplied. When a document is revised, publish the new wording at
+  `/staff/admin/agreements` and replace the PDF (see the runbook).
 - **Document requirements**: seeded from the specification (birth
   certificate, vaccination card, school report and transfer certificate from
   Stage 1, optional medical documentation); edit at
@@ -371,6 +375,11 @@ contradicts itself, the choice made is recorded and must be confirmed.
   checklist is in PR #2's description; run it on a development database
   after `supabase/seed/dev_phase2.sql`.
 - **QR scanning** on a real lab tablet.
+- The **signature pad** has been exercised with a mouse in a desktop
+  browser; the pointer-event handling for fingers and styluses on phones
+  and tablets follows the standard API but has not been tried on a device.
+  The server side (strokes validated, ink measured, SVG rendered from
+  numbers only) is unit tested.
 - **DPO Pay** has not been called: the adapter follows the documented v6
   shapes and its XML is pinned by tests, but the first sandbox transaction
   will be the first real one. The reconciler, the return route and the

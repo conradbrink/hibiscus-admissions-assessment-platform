@@ -196,12 +196,31 @@ your name.
 
 ## Updating a policy document
 
-The agreements a parent signs at registration each link to the PDF on the
-school website's policy download centre. When the school publishes a new
-version of a document, update the link (and the acknowledgement wording if
-it changed) under **Set up → Agreements**; that publishes a new version, and
-families who already signed keep the version they saw. Retire an agreement
-there when it no longer applies.
+The four agreements a parent signs at registration (Learner Code of
+Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement)
+carry the full text of the January 2026 documents and link to the PDFs,
+which this site serves from `web/public/policies/2026/`. When the school
+publishes a new edition:
+
+1. Under **Set up → Agreements**, open the agreement and paste the new
+   wording into the body. That publishes a new version; families who
+   already signed keep the version they saw, with its hash.
+2. Put the new PDF in `web/public/policies/<year>/` and point the link at
+   it (a path such as `/policies/2027/Fees-Policy.pdf`), or point the link
+   at the PDF on the school website (`https://…`). Either is accepted.
+3. Retire an agreement there when it no longer applies; add one with a new
+   key when a new document must be signed.
+
+The reading order is fixed by the database (`sort_order`): the
+acknowledgement that refers to the other three comes last.
+
+## A parent asks what they signed
+
+The registration page in the console lists each agreement with the version
+signed, the printed name, the date, and the drawn signature. An acceptance
+made before signatures were drawn shows "typed name only". The body the
+parent saw is the version named there, under **Set up → Agreements**
+(retired versions stay in the database).
 
 ## Exporting students to Ed-admin
 

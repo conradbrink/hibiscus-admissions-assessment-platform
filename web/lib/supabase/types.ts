@@ -1078,6 +1078,7 @@ export type AgreementTemplateRow = {
   body_html: string;
   required: boolean;
   document_url: string | null;
+  sort_order: number;
   is_active: boolean;
   created_by: string | null;
   created_at: string;
@@ -1092,6 +1093,7 @@ export type AgreementAcceptanceRow = {
   template_version: number;
   body_hash: string;
   signature_name: string;
+  signature_svg: string | null;
   ip_hash: string | null;
   user_agent: string | null;
   accepted_at: string;
@@ -1760,12 +1762,12 @@ export type Database = {
       >;
       agreement_templates: TableOf<
         AgreementTemplateRow,
-        "version" | "description" | "required" | "document_url" | "is_active" | "created_by",
+        "version" | "description" | "required" | "document_url" | "sort_order" | "is_active" | "created_by",
         [Rel<"agreement_templates_created_by_fkey", "created_by", "staff_profiles">]
       >;
       agreement_acceptances: TableOf<
         AgreementAcceptanceRow,
-        "ip_hash" | "user_agent" | "accepted_at",
+        "signature_svg" | "ip_hash" | "user_agent" | "accepted_at",
         [
           Rel<"agreement_acceptances_application_id_fkey", "application_id", "applications">,
           Rel<"agreement_acceptances_agreement_template_id_fkey", "agreement_template_id", "agreement_templates">,

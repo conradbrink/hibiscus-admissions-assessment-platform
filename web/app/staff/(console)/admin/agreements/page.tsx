@@ -10,7 +10,7 @@ import { publishAgreement, retireAgreement } from "./actions";
 
 export default async function AgreementsPage() {
   const { supabase } = await requireStaff("templates.write");
-  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, updated_at").eq("is_active", true).order("name");
+  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at").eq("is_active", true).order("sort_order").order("name");
   return (
     <>
       <PageTitle title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />

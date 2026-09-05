@@ -12,7 +12,7 @@ const schema = z.object({
   description: z.string().trim().max(400).optional(),
   bodyHtml: z.string().min(1).max(60_000),
   required: z.string().optional(),
-  documentUrl: z.union([z.literal(""), z.string().trim().url().regex(/^https:\/\//, "The link must start with https://").max(500)]).optional(),
+  documentUrl: z.union([z.literal(""), z.string().trim().regex(/^(https:\/\/[^\s]+|\/[A-Za-z0-9][^\s]*)$/, "The link must start with https:// or be a path on this site such as /policies/2026/Fees-Policy.pdf").max(500)]).optional(),
 });
 
 /** A new version of an existing agreement, or a brand-new one. Versions already accepted stay as they were. */

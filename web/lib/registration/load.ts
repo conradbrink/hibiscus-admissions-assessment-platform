@@ -22,7 +22,7 @@ export async function loadRegistrationBundle(admin: AdminClient, graph: Pick<App
     admin.from("registration_contacts").select("*").eq("application_id", id).order("kind").order("position"),
     admin.from("documents").select("*").eq("application_id", id).is("deleted_at", null).order("uploaded_at", { ascending: false }),
     admin.from("document_requirements").select("*").eq("is_active", true).order("sort_order"),
-    admin.from("agreement_templates").select("*").eq("is_active", true).order("name"),
+    admin.from("agreement_templates").select("*").eq("is_active", true).order("sort_order").order("name"),
     admin.from("agreement_acceptances").select("*").eq("application_id", id),
   ]);
   for (const r of [reg, contacts, documents, requirements, templates, acceptances]) {

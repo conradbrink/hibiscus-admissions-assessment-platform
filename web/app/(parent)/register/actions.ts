@@ -10,6 +10,7 @@ import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/l
 import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
 import { registrationForSession } from "@/lib/registration/session";
+import { parseSignature, signatureSvg } from "@/lib/registration/signature";
 import { requestContext } from "@/lib/request";
 import type { RegisterFormState } from "@/components/parent/register/field";
 import type { Database } from "@/lib/supabase/types";
@@ -261,6 +262,18 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
   const acceptedKeys = Object.keys(values).filter((k) => k.startsWith("agree_") && values[k] === "1").map((k) => k.slice("agree_".length));
   const parsed = agreementsSchema.safeParse({ signatureName: values.signatureName ?? "", acceptedKeys });
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
+  // The signature itself never goes back into the form values: it is
+  // strokes, not text, and the pad keeps its own drawing.
+  const signature = parseSignature(formData.get("signature")?.toString());
+  delete values.signature;
+  if (!signature.ok) {
+    const messages = {
+      empty: "Please sign in the box with your finger, pen or mouse.",
+      too_small: "That looks like a tap rather than a signature. Please sign your name in the box.",
+      malformed: "The signature could not be read. Please clear the box and sign again.",
+    } as const;
+    return { fields: { signature: messages[signature.reason] }, values };
+  }
   try {
     const { admin, graph, bundle } = await openSession();
     const primary = bundle.contacts.find((c) => c.kind === "primary_guardian");
@@ -286,6 +299,7 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
         template_version: t.version,
         body_hash: createHash("sha256").update(t.body_html).digest("base64url"),
         signature_name: parsed.data.signatureName,
+        signature_svg: signatureSvg(signature.strokes),
         ip_hash: ctx.ipHash,
         user_agent: ctx.userAgent,
       })),

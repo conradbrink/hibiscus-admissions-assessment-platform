@@ -105,4 +105,8 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
 - **Every automation ships off**, behind a setting, and runs from the cron
   drain idempotently. Retention removes personal data through one database
   function, after a preview, and keeps the analytics row.
+- **The parent signs the school's own words.** The four policy documents are
+  the agreement bodies, verbatim, with the PDFs served by the site; the
+  signature is drawn, validated and rendered on the server, and stored with
+  the version and hash of what was signed.
 - **Migrations are never edited once applied.** CI blocks it.
