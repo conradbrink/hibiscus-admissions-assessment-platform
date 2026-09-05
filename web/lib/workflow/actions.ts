@@ -472,6 +472,19 @@ export async function onWithdrawn(
     .update({ status: "withdrawn", withdrawn_reason: "Application withdrawn" })
     .eq("application_id", app.id)
     .in("status", ["draft", "pending_approval", "sent", "viewed"]);
+  // Money: open requests close; a checkout nobody started expires; one in
+  // progress is left alone — if it later verifies as paid, the engine files
+  // it as unexpected and finance decides.
+  await admin
+    .from("payment_requests")
+    .update({ status: "cancelled" })
+    .eq("application_id", app.id)
+    .in("status", ["required", "failed", "partially_paid", "processing"]);
+  await admin
+    .from("payments")
+    .update({ status: "expired", failure_reason: "Application withdrawn" })
+    .eq("application_id", app.id)
+    .eq("status", "pending");
   await admin
     .from("tasks")
     .update({ status: "cancelled", resolved_at: now, resolution_note: "Application withdrawn" })

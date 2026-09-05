@@ -861,6 +861,87 @@ export type OfferRow = {
   updated_at: string;
 };
 
+// ---------------------------------------------------------------------------
+// Phase 3: acceptance, payments
+// ---------------------------------------------------------------------------
+
+export type OfferDecision = "accepted" | "declined";
+export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
+export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
+export type PaymentMethod = "online" | "eft";
+export type PaymentProviderName = "dev" | "dpo" | "bank";
+
+export type OfferAcceptanceRow = {
+  id: string;
+  application_id: string;
+  offer_id: string;
+  template_id: string;
+  template_version: number;
+  decision: OfferDecision;
+  terms_accepted: boolean;
+  terms_hash: string;
+  fees: Json;
+  decline_reason: string | null;
+  ip_hash: string | null;
+  user_agent: string | null;
+  decided_at: string;
+  created_at: string;
+};
+
+export type PaymentRequestRow = {
+  id: string;
+  application_id: string;
+  offer_id: string;
+  acceptance_id: string;
+  currency: "BWP" | "ZAR";
+  amount_minor: number;
+  lines: Json;
+  paid_minor: number;
+  status: PaymentRequestStatus;
+  due_at: string;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PaymentRow = {
+  id: string;
+  payment_request_id: string;
+  application_id: string;
+  method: PaymentMethod;
+  provider: PaymentProviderName;
+  provider_ref: string | null;
+  company_ref: string;
+  status: PaymentStatus;
+  amount_minor: number;
+  currency: "BWP" | "ZAR";
+  approval_code: string | null;
+  expires_at: string | null;
+  verify_attempts: number;
+  last_verified_at: string | null;
+  raw_response: Json | null;
+  failure_reason: string | null;
+  bank_reference: string | null;
+  received_on: string | null;
+  recorded_by: string | null;
+  note: string | null;
+  refunded_at: string | null;
+  refunded_by: string | null;
+  refund_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BankInstructionRow = {
+  id: string;
+  currency: "BWP" | "ZAR";
+  campus_id: string | null;
+  body_text: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -1329,6 +1410,53 @@ export type Database = {
           Rel<"offers_fee_schedule_id_fkey", "fee_schedule_id", "fee_schedules">,
           Rel<"offers_approved_by_fkey", "approved_by", "staff_profiles">,
         ]
+      >;
+      offer_acceptances: TableOf<
+        OfferAcceptanceRow,
+        "terms_accepted" | "fees" | "decline_reason" | "ip_hash" | "user_agent" | "decided_at",
+        [
+          Rel<"offer_acceptances_application_id_fkey", "application_id", "applications">,
+          Rel<"offer_acceptances_offer_id_fkey", "offer_id", "offers", true>,
+          Rel<"offer_acceptances_template_id_fkey", "template_id", "offer_templates">,
+        ]
+      >;
+      payment_requests: TableOf<
+        PaymentRequestRow,
+        "lines" | "paid_minor" | "status" | "paid_at",
+        [
+          Rel<"payment_requests_application_id_fkey", "application_id", "applications">,
+          Rel<"payment_requests_offer_id_fkey", "offer_id", "offers">,
+          Rel<"payment_requests_acceptance_id_fkey", "acceptance_id", "offer_acceptances">,
+        ]
+      >;
+      payments: TableOf<
+        PaymentRow,
+        | "provider_ref"
+        | "status"
+        | "approval_code"
+        | "expires_at"
+        | "verify_attempts"
+        | "last_verified_at"
+        | "raw_response"
+        | "failure_reason"
+        | "bank_reference"
+        | "received_on"
+        | "recorded_by"
+        | "note"
+        | "refunded_at"
+        | "refunded_by"
+        | "refund_note",
+        [
+          Rel<"payments_payment_request_id_fkey", "payment_request_id", "payment_requests">,
+          Rel<"payments_application_id_fkey", "application_id", "applications">,
+          Rel<"payments_recorded_by_fkey", "recorded_by", "staff_profiles">,
+          Rel<"payments_refunded_by_fkey", "refunded_by", "staff_profiles">,
+        ]
+      >;
+      bank_instructions: TableOf<
+        BankInstructionRow,
+        "campus_id" | "is_active",
+        [Rel<"bank_instructions_campus_id_fkey", "campus_id", "campuses">]
       >;
       funnel_events: TableOf<
         FunnelEventRow,

@@ -9,6 +9,7 @@ import {
   suggestWritingBandHandler,
 } from "@/lib/workflow/handlers/decisions";
 import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/offers";
+import { paymentOverdueHandler, paymentVerifyHandler } from "@/lib/workflow/handlers/payments";
 import { sendEmailHandler } from "@/lib/workflow/handlers/send-email";
 
 /**
@@ -35,4 +36,6 @@ export const HANDLERS: Record<string, Handler> = {
   send_outcome: sendOutcomeHandler,
   draft_offer: draftOfferHandler,
   offer_expire: offerExpireHandler,
+  payment_verify: paymentVerifyHandler,
+  payment_overdue: paymentOverdueHandler,
 };

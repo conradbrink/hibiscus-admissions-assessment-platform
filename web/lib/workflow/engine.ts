@@ -47,6 +47,8 @@ export type JobPrecondition = {
   attempt_status?: string[];
   offer_id?: string;
   offer_status?: string[];
+  payment_id?: string;
+  payment_status?: string[];
 };
 
 export type JobSpec = {

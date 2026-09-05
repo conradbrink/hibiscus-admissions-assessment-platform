@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { reconcileProcessingPayments } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainJobs } from "@/lib/workflow/jobs";
 import { pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
@@ -29,7 +30,13 @@ export async function GET(request: Request) {
   }
   const admin = createAdminClient();
   const routed = await sweepUnroutedEnquiries(admin);
+  // Ask the gateway about payments still processing: the confirmation path
+  // for a parent who paid and closed the browser, since DPO does not call us.
+  const reconciled = await reconcileProcessingPayments(admin).catch((e) => {
+    console.error("[payments] sweep failed", e);
+    return -1;
+  });
   const summary = await drainJobs(admin, 50);
   const pruned = await pruneRateLimits(admin);
-  return Response.json({ ...summary, routed_enquiries: routed, pruned_rate_limits: pruned });
+  return Response.json({ ...summary, routed_enquiries: routed, reconciled_payments: reconciled, pruned_rate_limits: pruned });
 }
