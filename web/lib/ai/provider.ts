@@ -16,10 +16,19 @@ export type AiResult<T> =
   | { ok: true; output: T; model: string }
   | { ok: false; reason: "refused" | "disabled" | "invalid" | "error"; error?: string; retryable: boolean };
 
+/** A file the model should read alongside the text: a PDF or a photo of a document. */
+export type AiAttachment = {
+  mime: "application/pdf" | "image/jpeg" | "image/png";
+  bytes: Uint8Array;
+  title?: string;
+};
+
 export type StructuredRequest<T> = {
   schema: z.ZodType<T>;
   system: string;
   input: string;
+  /** Sent before the text, as document or image blocks. The dev adapter ignores them. */
+  attachments?: AiAttachment[];
   maxTokens?: number;
   /** What the development adapter returns, so the pipeline runs with no key. */
   devOutput: () => T;

@@ -32,6 +32,8 @@ export type Settings = {
   registrationReminderDays: number[];
   autoEnrol: boolean;
   whatsappEnabled: boolean;
+  aiExtractionEnabled: boolean;
+  aiSummaryEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -54,6 +56,8 @@ export const DEFAULT_SETTINGS: Settings = {
   registrationReminderDays: [7, 14],
   autoEnrol: false,
   whatsappEnabled: false,
+  aiExtractionEnabled: false,
+  aiSummaryEnabled: false,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -76,6 +80,8 @@ const KEYS: Record<keyof Settings, string> = {
   registrationReminderDays: "registration_reminder_days",
   autoEnrol: "auto_enrol",
   whatsappEnabled: "whatsapp_enabled",
+  aiExtractionEnabled: "ai_extraction_enabled",
+  aiSummaryEnabled: "ai_summary_enabled",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -125,5 +131,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     registrationReminderDays: asPositiveIntArray(map.get(KEYS.registrationReminderDays), d.registrationReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
+    aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),
+    aiSummaryEnabled: asBoolean(map.get(KEYS.aiSummaryEnabled), d.aiSummaryEnabled),
   };
 }

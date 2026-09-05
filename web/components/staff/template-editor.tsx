@@ -32,6 +32,7 @@ const SAMPLE: TemplateVariables = {
   payment_reference: "HBS-2026-00482-3F2A9C1B",
   payment_date: "Monday 14 September 2026",
   missing_documents: "Birth certificate, Latest school report",
+  mismatch_details: "Date of birth: the birth certificate shows 15 April 2017; the form says 14 April 2017",
   start_date: "Monday 11 January 2027",
   results_link: "https://example.invalid/profile",
   offer_link: "https://example.invalid/offer",

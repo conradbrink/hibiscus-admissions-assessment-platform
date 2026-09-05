@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import { normaliseMobile } from "@/lib/contacts";
+import { parseMismatchFlags } from "@/lib/documents/compare";
 import { drainSoon } from "@/lib/parent/actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
@@ -46,7 +47,7 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
   const parsed = studentSchema.safeParse(values);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, bundle } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
     const { error } = await admin
@@ -68,10 +69,13 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
         current_grade: d.currentGrade,
         student_completed_at: new Date().toISOString(),
         prefill_changed: changedFromApplication(graph.application, d),
+        // The parent has looked at the document check and saved: the flags are answered.
+        mismatch_flags: [],
       })
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");
-    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), PARENT_ACTOR);
+    const hadFlags = parseMismatchFlags(bundle.registration?.mismatch_flags).length > 0;
+    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), PARENT_ACTOR, { clearedMismatch: hadFlags });
   } catch (e) {
     return failed(e, values);
   }

@@ -994,6 +994,7 @@ export type RegistrationRow = {
   submitted_at: string | null;
   submitted_ip_hash: string | null;
   prefill_changed: Json;
+  mismatch_flags: Json;
   created_at: string;
   updated_at: string;
 };
@@ -1050,6 +1051,9 @@ export type DocumentRow = {
   review_note: string | null;
   extraction_status: ExtractionStatus;
   extracted_fields: Json | null;
+  extraction_model: string | null;
+  extraction_error: string | null;
+  extracted_at: string | null;
   superseded_by: string | null;
   deleted_at: string | null;
   uploaded_at: string;
@@ -1126,6 +1130,23 @@ export type MessageTemplateRow = {
   link_purpose: MessageLinkPurpose;
   is_active: boolean;
   updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationSummaryRow = {
+  application_id: string;
+  input_hash: string;
+  facts: Json;
+  flags: Json;
+  headline: string;
+  paragraph: string;
+  source: "ai" | "deterministic";
+  model: string | null;
+  prompt_version: string | null;
+  validation_errors: Json | null;
+  generated_at: string;
+  generated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1668,7 +1689,7 @@ export type Database = {
         | "previous_institution" | "current_grade" | "medical_aid_name" | "medical_aid_number" | "medical_aid_principal_member"
         | "emergency_treatment_consent" | "allergies" | "medical_conditions" | "medication" | "medical_notes" | "vaccination_notes"
         | "student_completed_at" | "medical_completed_at" | "family_completed_at" | "emergency_completed_at"
-        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed",
+        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed" | "mismatch_flags",
         [Rel<"registrations_application_id_fkey", "application_id", "applications", true>]
       >;
       registration_contacts: TableOf<
@@ -1683,7 +1704,7 @@ export type Database = {
       documents: TableOf<
         DocumentRow,
         | "storage_bucket" | "uploaded_by_staff_id" | "scan_status" | "scanner" | "review_status" | "reviewed_by" | "reviewed_at"
-        | "review_note" | "extraction_status" | "extracted_fields" | "superseded_by" | "deleted_at" | "uploaded_at",
+        | "review_note" | "extraction_status" | "extracted_fields" | "extraction_model" | "extraction_error" | "extracted_at" | "superseded_by" | "deleted_at" | "uploaded_at",
         [
           Rel<"documents_application_id_fkey", "application_id", "applications">,
           Rel<"documents_requirement_code_fkey", "requirement_code", "document_requirements">,
@@ -1735,6 +1756,14 @@ export type Database = {
           Rel<"messages_application_id_fkey", "application_id", "applications">,
           Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
           Rel<"messages_email_message_id_fkey", "email_message_id", "email_messages">,
+        ]
+      >;
+      application_summaries: TableOf<
+        ApplicationSummaryRow,
+        "facts" | "flags" | "model" | "prompt_version" | "validation_errors" | "generated_at" | "generated_by",
+        [
+          Rel<"application_summaries_application_id_fkey", "application_id", "applications", true>,
+          Rel<"application_summaries_generated_by_fkey", "generated_by", "staff_profiles">,
         ]
       >;
     };

@@ -10,7 +10,7 @@ const req = (code: string, required = true, min: number | null = null): Document
 const doc = (code: string, review: DocumentRow["review_status"] = "pending"): DocumentRow => ({
   id: code, application_id: "a", requirement_code: code, storage_bucket: "b", storage_path: `p/${code}`, original_filename: "f", mime_type: "application/pdf",
   size_bytes: 1, sha256: "x", uploaded_by: "parent", uploaded_by_staff_id: null, scan_status: "not_scanned", scanner: "none", review_status: review,
-  reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, superseded_by: null, deleted_at: null,
+  reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, extraction_model: null, extraction_error: null, extracted_at: null, superseded_by: null, deleted_at: null,
   uploaded_at: "", created_at: "", updated_at: "",
 });
 const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, is_active: true, created_by: null, created_at: "", updated_at: "" });

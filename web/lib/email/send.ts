@@ -52,6 +52,7 @@ export type EmailExtras = {
   paymentReference?: string | null;
   paymentDate?: string | null;
   missingDocuments?: string | null;
+  mismatchDetails?: string | null;
 };
 
 /** The variables every template may draw on, built from the application graph. */
@@ -83,6 +84,7 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     payment_reference: extras.paymentReference ?? null,
     payment_date: extras.paymentDate ?? null,
     missing_documents: extras.missingDocuments ?? null,
+    mismatch_details: extras.mismatchDetails ?? null,
     start_date: formatDateLong(graph.intake.starts_on),
   };
 }
@@ -102,6 +104,8 @@ export type SendTemplatedOptions = {
   paymentId?: string | null;
   /** Free text for the documents-missing emails. */
   missingDocuments?: string | null;
+  /** Free text for the document-mismatch email. */
+  mismatchDetails?: string | null;
 };
 
 /**
@@ -217,7 +221,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null };
+  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",

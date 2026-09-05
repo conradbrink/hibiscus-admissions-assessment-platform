@@ -1,10 +1,12 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
+import { isExtractable } from "@/lib/documents/extraction-schemas";
+import { mismatchText, parseMismatchFlags, type MismatchFlag } from "@/lib/documents/compare";
 import { missingDocumentsText, type Completeness } from "@/lib/registration/completeness";
 import { getSettings } from "@/lib/settings";
-import type { ApplicationRow, DocumentRow } from "@/lib/supabase/types";
-import { commit, WorkflowError, type Actor, type TaskSpec } from "@/lib/workflow/engine";
+import type { ApplicationRow, DocumentRow, Json } from "@/lib/supabase/types";
+import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
 
 /**
  * Registration through the engine: every save is a timeline event, a
@@ -13,13 +15,18 @@ import { commit, WorkflowError, type Actor, type TaskSpec } from "@/lib/workflow
  * registration is complete.
  */
 
-/** A section was saved. Pure event; a change to the child's name or date of birth also opens a review task. */
+/**
+ * A section was saved. Pure event; a change to the child's name or date of
+ * birth also opens a review task. Saving the student section answers any
+ * document-mismatch flag: the parent has looked and decided.
+ */
 export async function onRegistrationSaved(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "child_first_name">,
   section: string,
   changedFields: string[],
-  actor: Actor
+  actor: Actor,
+  opts: { clearedMismatch?: boolean } = {}
 ): Promise<void> {
   const tasks: TaskSpec[] = changedFields.length
     ? [
@@ -36,13 +43,18 @@ export async function onRegistrationSaved(
     expectedStatus: null,
     newStatus: null,
     nextAction: null,
-    event: { type: "registration.section_saved", summary: `Registration: ${section} saved`, payload: { section, prefill_changed: changedFields } },
+    event: { type: "registration.section_saved", summary: `Registration: ${section} saved${opts.clearedMismatch ? " (document check answered)" : ""}`, payload: { section, prefill_changed: changedFields } },
     tasks,
+    resolveTaskTypes: opts.clearedMismatch ? ["review_document_mismatch"] : [],
     actor,
   });
 }
 
-/** A document arrived. Resolves the missing-documents task when nothing required is missing any more. */
+/**
+ * A document arrived. Resolves the missing-documents task when nothing
+ * required is missing any more, and queues a reading of the document when
+ * the extractor is switched on and the kind is one that is read.
+ */
 export async function onDocumentUploaded(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id">,
@@ -51,6 +63,11 @@ export async function onDocumentUploaded(
   actor: Actor
 ): Promise<void> {
   const nothingMissing = completeness.missingDocuments.length === 0 && completeness.rejectedDocuments.length === 0;
+  const settings = await getSettings(admin);
+  const jobs: JobSpec[] =
+    settings.aiExtractionEnabled && isExtractable(document.requirement_code) && document.scan_status !== "infected"
+      ? [{ type: "document_extract", payload: { document_id: document.id }, idempotencyKey: `extract:${document.id}` }]
+      : [];
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: null,
@@ -62,6 +79,77 @@ export async function onDocumentUploaded(
       payload: { document_id: document.id, requirement_code: document.requirement_code, scan_status: document.scan_status },
     },
     resolveTaskTypes: nothingMissing ? ["documents_missing"] : [],
+    jobs,
+    actor,
+  });
+}
+
+/**
+ * The extractor read a document. Records the reading on the timeline; when
+ * it disagrees with the registration, flags the fields on the parent's form
+ * and opens a task for a person. Never writes a registration field.
+ */
+export async function onDocumentExtracted(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "child_first_name">,
+  document: Pick<DocumentRow, "id" | "requirement_code">,
+  reading: { confidence: number; flags: MismatchFlag[]; existingFlags: Json | null }
+): Promise<void> {
+  const label = document.requirement_code.replace(/_/g, " ");
+  // Replace this document's flags; keep the others'.
+  const kept = parseMismatchFlags(reading.existingFlags).filter((f) => f.requirement_code !== document.requirement_code);
+  const flags = [...kept, ...reading.flags];
+  await admin.from("registrations").update({ mismatch_flags: flags as unknown as Json }).eq("application_id", app.id);
+
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: null,
+    newStatus: null,
+    nextAction: null,
+    event: {
+      type: "document.extracted",
+      summary: reading.flags.length
+        ? `Document read: ${label} differs from the registration (${reading.flags.map((f) => f.label.toLowerCase()).join(", ")})`
+        : `Document read: ${label} agrees with the registration`,
+      payload: { document_id: document.id, requirement_code: document.requirement_code, confidence: reading.confidence, mismatches: reading.flags as unknown as Json },
+    },
+    tasks: reading.flags.length
+      ? [
+          {
+            type: "review_document_mismatch",
+            title: `${app.child_first_name}: ${label} differs from the registration`,
+            details: `${mismatchText(reading.flags)}\n\nThe reading is a proposal (confidence ${Math.round(reading.confidence * 100)}%). Open the registration to compare, then ask the parent to confirm or correct the form. Nothing has been changed.`,
+            priority: "normal",
+          },
+        ]
+      : [],
+    resolveTaskTypes: reading.flags.length ? [] : ["review_document_mismatch"],
+    actor: SYSTEM_ACTOR,
+  });
+}
+
+/** Staff ask the parent to check a flagged detail against their document. */
+export async function onMismatchConfirmationRequested(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status">,
+  flags: MismatchFlag[],
+  actor: Actor
+): Promise<void> {
+  if (!flags.length) throw new WorkflowError("There is nothing flagged to confirm.", "status_conflict");
+  if (app.status !== "registration_incomplete") throw new WorkflowError("The parent can only correct the form while registration is open.", "status_conflict");
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: null,
+    newStatus: null,
+    nextAction: null,
+    event: { type: "document.mismatch_notice_sent", summary: "Parent asked to check a detail against their document", payload: { fields: flags.map((f) => f.field) } },
+    jobs: [
+      {
+        type: "send_email",
+        payload: { template_key: "document_mismatch", links: ["registration"], mismatch_details: mismatchText(flags) },
+        idempotencyKey: `email:${app.id}:document_mismatch:${Math.floor(Date.now() / 3_600_000)}`,
+      },
+    ],
     actor,
   });
 }
@@ -181,7 +269,7 @@ export async function onRegistrationSubmitted(
     newStatus: "registration_complete",
     nextAction: "none",
     event: { type: "registration.completed", summary: "Registration completed by the parent", payload: {} },
-    resolveTaskTypes: ["documents_missing", "registration_reminder_follow_up"],
+    resolveTaskTypes: ["documents_missing"],
     tasks: settings.autoEnrol
       ? []
       : [

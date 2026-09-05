@@ -30,11 +30,23 @@ export const anthropicProvider: AiProvider = {
   async generateStructured(request) {
     const model = process.env.AI_MODEL ?? DEFAULT_MODEL;
     try {
+      // Attachments go first as document/image blocks, then the instructions
+      // as text, which is the order the API reads best.
+      const content: Anthropic.Messages.ContentBlockParam[] = [];
+      for (const a of request.attachments ?? []) {
+        const data = Buffer.from(a.bytes).toString("base64");
+        if (a.mime === "application/pdf") {
+          content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data }, ...(a.title ? { title: a.title } : {}) });
+        } else {
+          content.push({ type: "image", source: { type: "base64", media_type: a.mime, data } });
+        }
+      }
+      content.push({ type: "text", text: request.input });
       const response = await getClient().messages.parse({
         model,
         max_tokens: request.maxTokens ?? 8000,
         system: request.system,
-        messages: [{ role: "user", content: request.input }],
+        messages: [{ role: "user", content }],
         output_config: { format: zodOutputFormat(request.schema) },
       });
       if (response.stop_reason === "refusal") {

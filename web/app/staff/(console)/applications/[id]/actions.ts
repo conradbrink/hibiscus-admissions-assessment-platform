@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
+import { generateSummary } from "@/lib/summary/generate";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
@@ -329,5 +330,19 @@ export async function setWhatsAppOptInByStaff(_: StaffActionState, formData: For
       actor: ctx.actor,
     });
     done(parsed.applicationId);
+  });
+}
+
+/** Regenerate the applicant summary. The facts and flags come from code; the prose from the model only when switched on. */
+export async function refreshSummary(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.read");
+    const { applicationId } = idSchema.parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, applicationId);
+    const verdict = await enforceRateLimit(admin, LIMITS.summary, ctx.userId);
+    if (!verdict.ok) throw new Error("Too many refreshes in a short time. Please wait a little.");
+    await generateSummary(admin, app.id, ctx.userId);
+    revalidatePath(`/staff/applications/${app.id}`);
+    revalidatePath("/staff/applications");
   });
 }

@@ -10,7 +10,10 @@ import { can } from "@/lib/permissions";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { RELATIONSHIP_LABELS } from "@/lib/registration/schema";
 import { requireStaff } from "@/lib/staff/session";
-import { confirmEnrolment, reviewDocument, sendRegistrationReminder } from "../actions";
+import { parseMismatchFlags } from "@/lib/documents/compare";
+import { isExtractable } from "@/lib/documents/extraction-schemas";
+import { DocumentReading } from "@/components/staff/document-reading";
+import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder } from "../actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -61,6 +64,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
   const liveDocs = (documents ?? []).filter((d) => !d.superseded_by);
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
   const changed = Array.isArray(r?.prefill_changed) ? (r.prefill_changed as string[]) : [];
+  const flags = parseMismatchFlags(r?.mismatch_flags);
+  const extractorOn = (process.env.DOCUMENT_EXTRACTOR ?? "none") !== "none";
 
   return (
     <>
@@ -106,8 +111,14 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                               <Input name="note" placeholder="Why (sent to the parent)" className="h-7 w-56 md:h-7" required minLength={3} />
                             </ActionForm>
                           ) : null}
+                          {canWrite && extractorOn && isExtractable(d.requirement_code) && d.extraction_status !== "pending" ? (
+                            <ActionForm action={extractDocument} label={d.extraction_status === "done" ? "Read again" : "Read with AI"} size="xs" variant="ghost">
+                              {idField}<input type="hidden" name="documentId" value={d.id} />
+                            </ActionForm>
+                          ) : null}
                         </div>
                       ) : null}
+                      {d && isExtractable(d.requirement_code) ? <DocumentReading document={d} /> : null}
                     </li>
                   );
                 })}
@@ -117,6 +128,17 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
           <section className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-sm font-semibold">Student</h2>
             {changed.length ? <p className="mt-1 rounded-md bg-warning/15 px-3 py-2 text-xs">The parent entered a different {changed.map((f) => f.replace("child_", "").replace(/_/g, " ")).join(", ")} from the application. Check against the birth certificate.</p> : null}
+            {flags.length ? (
+              <div className="mt-1 rounded-md bg-warning/15 px-3 py-2 text-xs">
+                <p className="font-medium">A document disagrees with the form — nothing has been changed:</p>
+                <ul className="mt-1 list-disc pl-4">
+                  {flags.map((f) => <li key={`${f.document_id}-${f.field}`}>{f.label}: the {f.requirement_code.replace(/_/g, " ")} shows <strong>{f.document_value ?? "—"}</strong>; the form says <strong>{f.registration_value ?? "—"}</strong></li>)}
+                </ul>
+                {canWrite && app.status === "registration_incomplete" ? (
+                  <ActionForm action={askParentToConfirm} label="Ask the parent to check" size="xs" variant="outline" className="mt-2">{idField}</ActionForm>
+                ) : <p className="mt-1 text-muted-foreground">The parent can only correct the form while registration is open.</p>}
+              </div>
+            ) : null}
             <dl className="mt-2">
               <Row label="Legal name" value={[r?.legal_first_name, r?.legal_middle_names, r?.legal_last_name].filter(Boolean).join(" ")} />
               <Row label="Preferred name" value={r?.preferred_name} />

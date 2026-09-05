@@ -96,3 +96,10 @@ export async function signedUrlFor(admin: AdminClient, document: Pick<DocumentRo
   if (error || !data) throw new Error(`signed url: ${error?.message ?? "failed"}`);
   return data.signedUrl;
 }
+
+/** The bytes of a stored document, for the extractor. Service role only; the caller has already read the row. */
+export async function downloadDocument(admin: AdminClient, document: Pick<DocumentRow, "storage_bucket" | "storage_path">): Promise<Uint8Array> {
+  const { data, error } = await admin.storage.from(document.storage_bucket).download(document.storage_path);
+  if (error || !data) throw new Error(`storage download: ${error?.message ?? "failed"}`);
+  return new Uint8Array(await data.arrayBuffer());
+}
