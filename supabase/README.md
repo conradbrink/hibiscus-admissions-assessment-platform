@@ -1,6 +1,6 @@
 # Database schema
 
-Twenty-two migrations, replayable from an empty database. That last property is not
+Twenty-three migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -31,6 +31,7 @@ change.
 | `…100000_messaging` (2026-09-05) | WhatsApp opt-in on contacts, `message_templates`, `messages` (both directions), the `whatsapp_enabled` switch |
 | `…100100_documents_and_summaries` | Extraction columns on documents, `registrations.mismatch_flags`, `application_summaries`, the extraction and summary switches, the `document_mismatch` template |
 | `…100200_export_and_analytics` | `export_columns` (seeded, medical off), `student_exports`, `mark_student_records_exported()`, prefill counters, `v_application_facts` |
+| `…100400_agreement_documents` | `agreement_templates.document_url`, `publish_agreement_template()` with the link, the two published agreements seeded, placeholders retired |
 | `…100300_automation` | Retention columns and `anonymise_application()`, `staff_profiles.digest_enabled`, staff-audience templates, `campus_dashboard_counts()`, `maintenance_runs`, the automation settings and templates; replaces `dashboard_counts()` |
 
 ## Rules for new migrations
@@ -39,7 +40,7 @@ change.
    applied anywhere its filename must equal the version the database recorded.
    Never invent the timestamp after the fact. CI checks the shape and refuses
    edits to files already on `main`.
-2. **Never edit an applied migration.** Add a new one. The twenty-two here are
+2. **Never edit an applied migration.** Add a new one. The twenty-three here are
    editable only until the first project applies them.
 3. **`security invoker` on every RPC and `security_invoker = true` on every
    view.** A view defaults to definer rights and bypasses RLS. The

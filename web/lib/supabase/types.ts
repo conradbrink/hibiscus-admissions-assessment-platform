@@ -1077,6 +1077,7 @@ export type AgreementTemplateRow = {
   description: string | null;
   body_html: string;
   required: boolean;
+  document_url: string | null;
   is_active: boolean;
   created_by: string | null;
   created_at: string;
@@ -1759,7 +1760,7 @@ export type Database = {
       >;
       agreement_templates: TableOf<
         AgreementTemplateRow,
-        "version" | "description" | "required" | "is_active" | "created_by",
+        "version" | "description" | "required" | "document_url" | "is_active" | "created_by",
         [Rel<"agreement_templates_created_by_fkey", "created_by", "staff_profiles">]
       >;
       agreement_acceptances: TableOf<
@@ -1914,7 +1915,7 @@ export type Database = {
     };
     Functions: {
       publish_agreement_template: {
-        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean };
+        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean; p_document_url?: string | null };
         Returns: string;
       };
       required_document_codes: {

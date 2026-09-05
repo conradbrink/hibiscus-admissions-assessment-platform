@@ -206,9 +206,9 @@ begin
   values (app_block7, 'emergency', 'Sec', 'Aunt', 'other', '+26771234567');
   insert into public.documents (application_id, requirement_code, storage_path, original_filename, mime_type, size_bytes, sha256, uploaded_by)
   values (app_block7, 'birth_certificate', 'applications/' || app_block7 || '/sec', 'birth.pdf', 'application/pdf', 1234, 'sha', 'parent') returning id into p3_document;
-  select id into p3_agreement from public.agreement_templates where key = 'policies' and is_active;
+  select id into p3_agreement from public.agreement_templates where key = 'learner_code_of_conduct' and is_active;
   insert into public.agreement_acceptances (application_id, agreement_template_id, template_key, template_version, body_hash, signature_name)
-  values (app_block7, p3_agreement, 'policies', 1, 'hash', 'Sec Parent');
+  values (app_block7, p3_agreement, 'learner_code_of_conduct', 1, 'hash', 'Sec Parent');
   insert into public.audit_log (actor_type, actor_id, action, entity_type, entity_id, application_id)
   values ('staff', u_admin, 'sec.block7', 'application', app_block7, app_block7),
          ('staff', u_admin, 'sec.broadhurst', 'application', app_broadhurst, app_broadhurst),

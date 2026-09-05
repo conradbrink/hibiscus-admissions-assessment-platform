@@ -17,7 +17,7 @@ export default async function AgreementsStep() {
     <RegisterShell step="agreements" title="Agreements" description="Please read each one. Typing your name is your signature." readOnly={!editable}>
       <AgreementsForm
         action={acceptAgreements}
-        agreements={bundle.agreementTemplates.map((t) => ({ key: t.key, name: t.name, bodyHtml: t.body_html, required: t.required }))}
+        agreements={bundle.agreementTemplates.map((t) => ({ key: t.key, name: t.name, bodyHtml: t.body_html, required: t.required, documentUrl: t.document_url }))}
         accepted={accepted}
         signerName={signer}
         readOnly={!editable}

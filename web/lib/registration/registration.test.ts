@@ -13,7 +13,7 @@ const doc = (code: string, review: DocumentRow["review_status"] = "pending"): Do
   reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, extraction_model: null, extraction_error: null, extracted_at: null, superseded_by: null, deleted_at: null,
   uploaded_at: "", created_at: "", updated_at: "",
 });
-const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, is_active: true, created_by: null, created_at: "", updated_at: "" });
+const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, document_url: null, is_active: true, created_by: null, created_at: "", updated_at: "" });
 const contact = (kind: RegistrationContactRow["kind"]): RegistrationContactRow => ({
   id: kind, application_id: "a", kind, position: 1, contact_id: null, first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",
 });

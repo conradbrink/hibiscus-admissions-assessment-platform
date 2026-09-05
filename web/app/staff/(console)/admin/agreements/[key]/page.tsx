@@ -19,12 +19,14 @@ export default async function AgreementPage({ params }: { params: Promise<{ key:
           <input type="hidden" name="key" value={t.key} />
           <Input name="name" defaultValue={t.name} required />
           <Input name="description" defaultValue={t.description ?? ""} placeholder="Description (for staff)" />
+          <Input name="documentUrl" type="url" defaultValue={t.document_url ?? ""} placeholder="Link to the published document (https://…pdf), optional" />
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="required" value="1" defaultChecked={t.required} /> Required to enrol</label>
           <Textarea name="bodyHtml" rows={18} defaultValue={t.body_html} className="font-mono text-xs" required />
         </ActionForm>
         <div>
           <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase">Current version, as the parent sees it</p>
           <div className="prose prose-sm max-w-none rounded-xl border border-border bg-white p-6 text-black" dangerouslySetInnerHTML={{ __html: t.body_html }} />
+          {t.document_url ? <p className="mt-2 text-xs text-muted-foreground">Parents are offered: <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="underline">{t.document_url}</a></p> : null}
         </div>
       </div>
     </>

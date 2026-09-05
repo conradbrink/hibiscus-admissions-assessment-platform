@@ -14,7 +14,7 @@ export function AgreementsForm({
   readOnly,
 }: {
   action: (state: RegisterFormState, formData: FormData) => Promise<RegisterFormState>;
-  agreements: Array<{ key: string; name: string; bodyHtml: string; required: boolean }>;
+  agreements: Array<{ key: string; name: string; bodyHtml: string; required: boolean; documentUrl: string | null }>;
   accepted: Record<string, { signatureName: string; acceptedAt: string }>;
   signerName: string;
   readOnly: boolean;
@@ -26,6 +26,11 @@ export function AgreementsForm({
       {agreements.map((a) => (
         <section key={a.key} className="rounded-2xl border border-border bg-card p-4">
           <div className="prose prose-sm max-h-72 max-w-none overflow-y-auto" dangerouslySetInnerHTML={{ __html: a.bodyHtml }} />
+          {a.documentUrl ? (
+            <a href={a.documentUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm font-medium text-primary underline underline-offset-2">
+              Read the full document (PDF, opens in a new tab)
+            </a>
+          ) : null}
           <label className="mt-3 flex items-start gap-3 text-sm">
             <input type="checkbox" name={`agree_${a.key}`} value="1" defaultChecked={!!accepted[a.key]} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" aria-invalid={Boolean(f[`agree_${a.key}`])} />
             <span>I have read and accept the {a.name.toLowerCase()}{a.required ? "" : " (optional)"}.</span>

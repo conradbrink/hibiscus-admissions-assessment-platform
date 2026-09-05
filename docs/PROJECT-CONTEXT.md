@@ -129,6 +129,18 @@ automation and every AI feature is behind a setting that ships off.
 | **Automation**: waitlist promotion (task, or decision with the switch); data retention through one function with preview and holds; the morning digest per campus team; the rebooking gaps (cancellation email, one nudge that stops on rebooking, an online cutoff) | Done |
 | Security regression suite: 40 attacks with controls | Done |
 
+**Agreements now point at the school's published documents.** The policy
+download centre (hibiscusschools.com/policy-download-center) publishes the
+2026 Parent Acknowledgement and Agreement and the 2026 Learner Code of
+Conduct as PDFs. Both are seeded as required agreements with the link the
+parent reads before signing; the Phase 3 placeholders are retired. The
+wording in the system is the acknowledgement, not the PDF's text — the
+school can paste the full text in under Set up → Agreements, which
+publishes a new version. Those PDFs could not be read from the build
+environment (the school's domain is blocked there), so the acknowledgement
+wording is written from the documents' titles; worth a read-through by the
+school before go-live.
+
 Not built: malware scanning (seam in `lib/documents/scanner.ts`), an HTTP
 adapter for Ed-admin (the file export is the integration until the API is
 known), staff editing of submitted registration data, AI email drafting.

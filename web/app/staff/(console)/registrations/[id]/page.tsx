@@ -178,7 +178,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             <ul className="mt-2 text-sm">
               {(templates ?? []).map((t) => {
                 const a = (acceptances ?? []).find((x) => x.agreement_template_id === t.id);
-                return <li key={t.id} className="flex flex-wrap gap-2 py-1"><span className="font-medium">{t.name}</span>{a ? <span className="text-xs text-muted-foreground">v{a.template_version} · signed &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}</span> : <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "not accepted" : "optional, not accepted"}</Badge>}</li>;
+                return <li key={t.id} className="flex flex-wrap gap-2 py-1"><span className="font-medium">{t.name}</span>{t.document_url ? <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-2">document</a> : null}{a ? <span className="text-xs text-muted-foreground">v{a.template_version} · signed &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}</span> : <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "not accepted" : "optional, not accepted"}</Badge>}</li>;
               })}
             </ul>
           </section>

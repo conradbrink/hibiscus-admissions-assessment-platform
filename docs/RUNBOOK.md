@@ -194,6 +194,15 @@ status, dates, campus and grade stay so the reports still count it. Nothing
 runs until **retention_enabled** is on; **Run now** runs it today under
 your name.
 
+## Updating a policy document
+
+The agreements a parent signs at registration each link to the PDF on the
+school website's policy download centre. When the school publishes a new
+version of a document, update the link (and the acknowledgement wording if
+it changed) under **Set up → Agreements**; that publishes a new version, and
+families who already signed keep the version they saw. Retire an agreement
+there when it no longer applies.
+
 ## Exporting students to Ed-admin
 
 **Enrolment → Student export**: choose the campus and intake, download CSV
