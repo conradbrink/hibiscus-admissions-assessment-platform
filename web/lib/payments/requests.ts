@@ -1,7 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
-import type { ApplicationRow, Json, OfferRow, PaymentRequestRow } from "@/lib/supabase/types";
+import type { ApplicationRow, BankInstructionRow, Json, OfferRow, PaymentRequestRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
 
 /**
@@ -81,4 +81,17 @@ export function requestLines(request: Pick<PaymentRequestRow, "lines">): Payment
           : [];
       })
     : [];
+}
+
+/** The bank details for a transfer: the campus's own if set, else the currency's. */
+export async function loadBankInstructions(admin: AdminClient, opts: { currency: "BWP" | "ZAR"; campusId: string }): Promise<BankInstructionRow | null> {
+  const { data, error } = await admin
+    .from("bank_instructions")
+    .select("*")
+    .eq("currency", opts.currency)
+    .eq("is_active", true)
+    .or(`campus_id.eq.${opts.campusId},campus_id.is.null`);
+  if (error) throw new WorkflowError(error.message, "database");
+  const rows = data ?? [];
+  return rows.find((r) => r.campus_id === opts.campusId) ?? rows.find((r) => r.campus_id === null) ?? null;
 }

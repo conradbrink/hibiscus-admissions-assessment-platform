@@ -16,8 +16,8 @@ export type OutboundEmail = {
   text: string;
   /** Provider-side idempotency, where supported. */
   idempotencyKey?: string;
-  /** e.g. a calendar invitation. */
-  attachments?: Array<{ filename: string; content: string; contentType: string }>;
+  /** A calendar invitation (text) or a receipt PDF (bytes). */
+  attachments?: Array<{ filename: string; content: string | Uint8Array; contentType: string }>;
 };
 
 export type SendResult =

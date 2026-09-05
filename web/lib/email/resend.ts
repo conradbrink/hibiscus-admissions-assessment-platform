@@ -40,6 +40,7 @@ export class ResendProvider implements EmailProvider {
         text: email.text,
         attachments: email.attachments?.map((a) => ({
           filename: a.filename,
+          // Text is UTF-8; bytes are bytes. Buffer.from handles both, and Resend wants base64.
           content: Buffer.from(a.content).toString("base64"),
           content_type: a.contentType,
         })),
