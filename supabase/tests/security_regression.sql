@@ -71,6 +71,8 @@ declare
   p3_acceptance uuid;
   p3_request uuid;
   p3_payment uuid;
+  p3_document uuid;
+  p3_agreement uuid;
   c_block7 uuid;
   c_broadhurst uuid;
   g_stage4 uuid;
@@ -192,6 +194,14 @@ begin
   values (app_block7, p2_offer, p3_acceptance, 'BWP', 750000, now() + interval '14 days') returning id into p3_request;
   insert into public.payments (payment_request_id, application_id, method, provider, company_ref, status, amount_minor, currency)
   values (p3_request, app_block7, 'eft', 'bank', 'SEC-EFT', 'pending', 750000, 'BWP') returning id into p3_payment;
+  insert into public.registrations (application_id, legal_first_name, identity_number, allergies) values (app_block7, 'Child', 'ID-SEC-1', 'peanuts');
+  insert into public.registration_contacts (application_id, kind, first_name, last_name, relationship, phone)
+  values (app_block7, 'emergency', 'Sec', 'Aunt', 'other', '+26771234567');
+  insert into public.documents (application_id, requirement_code, storage_path, original_filename, mime_type, size_bytes, sha256, uploaded_by)
+  values (app_block7, 'birth_certificate', 'applications/' || app_block7 || '/sec', 'birth.pdf', 'application/pdf', 1234, 'sha', 'parent') returning id into p3_document;
+  select id into p3_agreement from public.agreement_templates where key = 'policies' and is_active;
+  insert into public.agreement_acceptances (application_id, agreement_template_id, template_key, template_version, body_hash, signature_name)
+  values (app_block7, p3_agreement, 'policies', 1, 'hash', 'Sec Parent');
   insert into public.audit_log (actor_type, actor_id, action, entity_type, entity_id, application_id)
   values ('staff', u_admin, 'sec.block7', 'application', app_block7, app_block7),
          ('staff', u_admin, 'sec.broadhurst', 'application', app_broadhurst, app_broadhurst),
@@ -288,6 +298,14 @@ begin
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s payment request'); end if;
     select count(*) into v_count from public.offer_acceptances where id = p3_acceptance;
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s acceptance'); end if;
+    select count(*) into v_count from public.registrations where application_id = app_block7;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s registration'); end if;
+    select count(*) into v_count from public.registration_contacts where application_id = app_block7;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s registration contacts'); end if;
+    select count(*) into v_count from public.documents where id = p3_document;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s documents'); end if;
+    select count(*) into v_count from public.agreement_acceptances where application_id = app_block7;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s agreement acceptances'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('4b: unexpected error: ' || sqlerrm);
   end;
@@ -856,6 +874,36 @@ begin
   end;
   perform pg_temp.service();
 
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.registrations set identity_number = 'tampered' where application_id = app_block7;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('27: super admin edited a registration directly'); end if;
+    update public.documents set review_status = 'accepted' where id = p3_document;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('27: super admin reviewed a document directly'); end if;
+    insert into public.documents (application_id, requirement_code, storage_path, original_filename, mime_type, size_bytes, sha256, uploaded_by)
+    values (app_block7, 'vaccination_card', 'forged/path', 'x.pdf', 'application/pdf', 1, 'x', 'staff');
+    v_fail := v_fail || E'\n  - ' || ('27: super admin inserted a document row directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('27: registration write refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.documents where id = p3_document;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('27 control: admissions staff cannot read a document row'); end if;
+    select count(*) into v_count from public.registrations where application_id = app_block7;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('27 control: admissions staff cannot read a registration'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('27 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
   -- -------------------------------------------------------------------------
   -- 28. Receipts are finance's to read; what is owed is admissions' too;
   --     an assessor sees neither
@@ -895,6 +943,62 @@ begin
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('28: assessor can read payment requests'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('28: unexpected error as assessor: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 29. Agreements are published with templates.write; the document rule
+  --     function answers by grade
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    perform public.publish_agreement_template('sec_forged', 'Forged', null, '<p>x</p>', true);
+    v_fail := v_fail || E'\n  - ' || ('29: admissions staff published an agreement');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%permission_denied%' then
+        v_fail := v_fail || E'\n  - ' || ('29: refused by "' || sqlerrm || '" rather than permission_denied');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    v_id := public.publish_agreement_template('sec_new', 'New agreement', null, '<p>x</p>', false);
+    if v_id is null then v_fail := v_fail || E'\n  - ' || ('29 control: super admin could not publish an agreement'); end if;
+    select count(*) into v_count from public.agreement_templates where key = 'sec_new' and is_active;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('29 control: published agreement is not the one active version'); end if;
+    select count(*) into v_count from public.required_document_codes(60);
+    if v_count <> 4 then v_fail := v_fail || E'\n  - ' || ('29: required_document_codes(60) returned ' || v_count || ', expected 4'); end if;
+    select count(*) into v_count from public.required_document_codes(10);
+    if v_count <> 2 then v_fail := v_fail || E'\n  - ' || ('29: required_document_codes(10) returned ' || v_count || ', expected 2'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('29 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 30. Document requirements are settings.write to change, anyone's to read
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.document_requirements;
+    if v_count < 5 then v_fail := v_fail || E'\n  - ' || ('30 control: staff cannot read document requirements'); end if;
+    insert into public.document_requirements (code, label) values ('sec_forged', 'Forged');
+    v_fail := v_fail || E'\n  - ' || ('30: admissions staff added a document requirement');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('30: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    insert into public.document_requirements (code, label, required) values ('sec_extra', 'Extra', false);
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('30 control: super admin cannot add a document requirement: ' || sqlerrm);
   end;
   perform pg_temp.service();
 

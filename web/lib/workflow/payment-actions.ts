@@ -153,6 +153,8 @@ export async function onPaymentVerified(
   }
 
   const settings = await getSettings(admin);
+  // The registration row exists from here so every later save is an update.
+  await admin.from("registrations").upsert({ application_id: app.id }, { onConflict: "application_id", ignoreDuplicates: true });
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,

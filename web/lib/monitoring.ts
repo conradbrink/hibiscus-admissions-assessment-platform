@@ -45,7 +45,15 @@ const SENSITIVE_KEY_PARTS = [
   "date_of_birth",
   "dob",
   "identity_number",
+  "identity",
+  "passport",
   "medical",
+  "allerg",
+  "medication",
+  "bank",
+  "card",
+  "account",
+  "signature",
 ];
 
 function isSensitiveKey(key: string): boolean {
