@@ -1,6 +1,6 @@
 # Database schema
 
-Eighteen migrations, replayable from an empty database. That last property is not
+Twenty-two migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -28,6 +28,10 @@ change.
 | `…210100_acceptance_and_payments` | Offer acceptances, payment requests, payments, bank instructions; payment settings and templates |
 | `…210200_registration` | Registrations, contacts, document requirements with `required_document_codes()`, documents, agreement templates with `publish_agreement_template()`, acceptances |
 | `…210300_enrolment` | Student records, `dashboard_counts()` with the Phase 3 queues, the welcome template |
+| `…100000_messaging` (2026-09-05) | WhatsApp opt-in on contacts, `message_templates`, `messages` (both directions), the `whatsapp_enabled` switch |
+| `…100100_documents_and_summaries` | Extraction columns on documents, `registrations.mismatch_flags`, `application_summaries`, the extraction and summary switches, the `document_mismatch` template |
+| `…100200_export_and_analytics` | `export_columns` (seeded, medical off), `student_exports`, `mark_student_records_exported()`, prefill counters, `v_application_facts` |
+| `…100300_automation` | Retention columns and `anonymise_application()`, `staff_profiles.digest_enabled`, staff-audience templates, `campus_dashboard_counts()`, `maintenance_runs`, the automation settings and templates; replaces `dashboard_counts()` |
 
 ## Rules for new migrations
 
@@ -35,12 +39,15 @@ change.
    applied anywhere its filename must equal the version the database recorded.
    Never invent the timestamp after the fact. CI checks the shape and refuses
    edits to files already on `main`.
-2. **Never edit an applied migration.** Add a new one. The eighteen here are
+2. **Never edit an applied migration.** Add a new one. The twenty-two here are
    editable only until the first project applies them.
 3. **`security invoker` on every RPC and `security_invoker = true` on every
-   view.** A view defaults to definer rights and bypasses RLS. The only
+   view.** A view defaults to definer rights and bypasses RLS. The
    `security definer` functions are the RLS helpers that read `staff_*`
-   tables, and each pins `search_path`.
+   tables and, from Phase 4, three the service role alone may call
+   (`anonymise_application`, `campus_dashboard_counts`,
+   `mark_student_records_exported`) — EXECUTE revoked from `authenticated`
+   too, and the suite checks it. Each pins `search_path`.
 4. **Wrap auth calls in policies as `(select …)`** — `(select auth.uid())`,
    `(select public.has_permission('x'))` — so they evaluate once per query.
 5. **Revoke EXECUTE from `public, anon`** on every function, and from
@@ -97,6 +104,6 @@ su postgres -c "supabase/tests/replay_local.sh"
 
 Creates `hibiscus_local` from scratch on a stock Ubuntu Postgres, applies
 `tests/local_supabase_stub.sql` (roles, `auth.uid()`), every migration in
-order, then `tests/security_regression.sql` (31 attacks, each with a control
+order, then `tests/security_regression.sql` (40 attacks, each with a control
 that the legitimate case still works). Exit code 0 means both "the schema
 builds" and "the schema refuses what it should".

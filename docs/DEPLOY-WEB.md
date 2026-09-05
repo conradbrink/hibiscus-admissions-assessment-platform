@@ -41,7 +41,11 @@ deploy token lives in GitHub.
 | `DPO_COMPANY_TOKEN`, `DPO_SERVICE_TYPE` | **Secret** | From the DPO Pay merchant portal; only read when `PAYMENT_PROVIDER=dpo` |
 | `DPO_API_URL` | | Defaults to live; the sandbox is `https://secure1.sandbox.directpay.online/API/v6/` |
 | `DOCUMENT_SCANNER` | | `none` until a scanner is implemented |
-| `STUDENT_SYSTEM` | | `none` until the Ed-admin adapter exists |
+| `DOCUMENT_EXTRACTOR` | | `none`, or `anthropic` to read birth certificates and reports through the AI provider (also needs the `ai_extraction_enabled` setting) |
+| `STUDENT_SYSTEM` | | `none`; the student export under Enrolment is the integration until Ed-admin's API is known |
+| `MESSAGING_PROVIDER` | | `dev` (records, sends nothing) or `meta` for WhatsApp through Meta's Cloud API |
+| `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | **Secret** | From Meta Business Manager; only read when `MESSAGING_PROVIDER=meta` |
+| `WHATSAPP_API_URL` | | Optional; defaults to the Graph API version in `lib/messaging/meta.ts` |
 
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
@@ -49,8 +53,10 @@ compiled into the JavaScript every visitor downloads.
 3. `vercel.json` registers the cron (`/api/jobs/drain` every five minutes).
    Confirm it appears under the project's Cron Jobs after the first deploy.
    The drain is also what runs the delayed jobs — a timed-out sitting's
-   auto-submit, offer reminders and offer expiry — so a stalled cron delays
-   all of them until it next fires.
+   auto-submit, offer reminders and offer expiry — and, from Phase 4, the
+   payment sweep, waitlist promotion, the daily retention run, the morning
+   digest and the WhatsApp companions, so a stalled cron delays all of them
+   until it next fires.
 4. Custom domain and HTTPS.
 
 ### Payments
@@ -71,6 +77,17 @@ service role; no Storage policies are needed because only the service role
 ever reads or writes an object. Uploads are capped at 10 MB server-side. If
 the Vercel plan's request-body limit is lower, a signed-upload-URL flow
 replaces the upload route (the seam is `storeDocument`).
+
+### WhatsApp
+
+Leave `MESSAGING_PROVIDER=dev` until the school has a WhatsApp Business
+Account and a verified number. Then set the four Meta variables, register
+`https://<domain>/api/webhooks/whatsapp` in Meta's app dashboard (the GET
+handshake answers with the challenge for `WHATSAPP_VERIFY_TOKEN`; every POST
+is verified against `WHATSAPP_APP_SECRET`), subscribe the app to the
+`messages` field, and submit the templates for approval. Nothing is sent
+until the `whatsapp_enabled` setting is on, a template is active, and the
+parent opted in.
 
 ### Email
 

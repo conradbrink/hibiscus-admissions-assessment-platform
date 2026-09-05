@@ -113,10 +113,25 @@ typing their name; a person confirms enrolment and the welcome email goes.
 | Console: Payments and Registrations queues, document review through one-minute signed URLs, Confirm enrolment, JSON download, Payment and Registration tabs, admin for bank details, agreements and document requirements | Done |
 | Security regression suite: 31 attacks with controls | Done |
 
-Not built (later phases): AI/OCR document extraction (seam in `documents.extracted_fields`
-and `lib/documents/extractor.ts`), malware scanning (seam in `lib/documents/scanner.ts`),
-the Ed-admin adapter (seam in `lib/enrolment/integration.ts`), WhatsApp, staff editing of
-submitted registration data, document retention.
+### Phase 4 (PR #4) — messaging, AI extraction and summaries, export, analytics, automation
+
+The specification's Phase 4, built on the seams Phase 3 left. Every
+automation and every AI feature is behind a setting that ships off.
+
+| Area | State |
+|---|---|
+| Four more migrations (22 total): messaging, document readings and summaries, export and the facts view, automation | Done, replayed from empty |
+| **WhatsApp** as a companion channel: explicit opt-in on the enquiry, the registration and the hub; a message is always a Meta-approved template mapped onto our variables; the email handler queues the companion after a send; replies become tasks, STOP opts out; Meta Cloud API adapter over `fetch`, `dev` adapter delivers nothing | Done; Meta untested against a real account (§5) |
+| **AI document extraction**: birth certificates, reports and vaccination cards read through the AI seam with the file attached and a schema per kind; a reading is a proposal on the document row; a disagreement flags the parent's form and opens a task; **nothing writes the registration**; medical documents are never sent | Done; untested on real scans (§5) |
+| **Applicant summaries**: facts and attention flags computed in code (always current), prose by the model only when switched on and only if the validator passes; the pipeline shows the flags | Done |
+| **Student export** (the Ed-admin integration until its API is known): CSV/JSON batches with configurable columns, medical off by default, records remember their batch; `StudentManagementSystem` seam unchanged | Done |
+| **Analytics**: `v_application_facts`, the Stage 27 funnel by campus, grade, period, lead source or assessment outcome, conversions, cycle times, Stage 28 parent-effort figures, a weekly trend, CSV export; **forecast** of expected enrolments against capacity with every rate and sample size shown | Done |
+| **Automation**: waitlist promotion (task, or decision with the switch); data retention through one function with preview and holds; the morning digest per campus team; the rebooking gaps (cancellation email, one nudge that stops on rebooking, an online cutoff) | Done |
+| Security regression suite: 40 attacks with controls | Done |
+
+Not built: malware scanning (seam in `lib/documents/scanner.ts`), an HTTP
+adapter for Ed-admin (the file export is the integration until the API is
+known), staff editing of submitted registration data, AI email drafting.
 
 ### Three more things the school owns
 
@@ -207,6 +222,43 @@ submitted registration data, document retention.
 - **`@react-pdf/renderer` types**: `renderToBuffer` wants
   `ReactElement<DocumentProps>`; the route handlers cast through `unknown`.
   Both PDFs render from the stored snapshot, on demand, with no Storage.
+- **WhatsApp is companion-only and template-only.** No engine action knows
+  the channel exists: `handlers/send-email.ts` queues a `send_whatsapp` job
+  after an email goes, keyed on the email's idempotency key. Meta allows free
+  text only inside a 24-hour reply window, so the contract is "this approved
+  template, these parameter values"; a reply from a parent becomes a task and
+  is answered by phone or email. Templates are approved in Meta Business
+  Manager by hand; the runbook has the loop.
+- **Meta rejects parameters with line breaks**, so `sanitiseParam` folds the
+  bank details onto one line and caps length; and the URL button's suffix is
+  the raw magic-link token, minted at send time like the email's.
+- **Extraction proposes; the parent's save is the write.** The reading lives
+  on the document row, the disagreement on `registrations.mismatch_flags`,
+  and `saveStudent` clears the flags. A grep in the security suite's spirit:
+  nothing under `lib/documents` or `handlers/documents.ts` updates
+  `registrations` fields.
+- **The summary's flags are code, its prose is optional.** `summaryFacts` is
+  pure and runs on every page load; the stored prose is shown only while its
+  input hash matches, so a stale paragraph is never presented as current.
+  The staff summary uses the profile's banned terms minus the process words
+  a staff reader needs (offer, accept, admit…).
+- **`server-only` modules cannot be imported by vitest.** Pure rules live in
+  files without that import (`lib/workflow/automation/rules.ts`,
+  `lib/documents/compare.ts`) and the server modules import them.
+- **Retention deletes through one function.** `anonymise_application()` is
+  `security definer`, revoked from every role but the service role, and the
+  application row survives with its status, dates, campus and grade so the
+  analytics still count it. Storage objects are removed by code *before* the
+  function runs. `child_date_of_birth` is `not null`, so it becomes
+  1900-01-01 rather than null.
+- **Daily jobs gate themselves** on `maintenance_runs`, because the cron is
+  every five minutes; the digest is keyed `digest:<campus>:<date>` in
+  Gaborone time, and `jobs.application_id` is nullable so a job can belong to
+  a campus rather than an applicant.
+- **The rebooking flow already existed** (`/next/book` in "changing" mode,
+  `onRescheduled`); Phase 4 added what was missing around it: the
+  cancellation email, one `rebook_nudge` with a `booking_none` precondition,
+  the online cutoff, and the missed session named on the page.
 
 ## 4. Reference data to confirm with the school
 
@@ -265,11 +317,29 @@ contradicts itself, the choice made is recorded and must be confirmed.
    every profile uses the deterministic wording, which is complete and safe;
    the school can go live without the AI and switch it on later. The
    `ai_narrative_enabled` setting turns it off without a deploy.
-11. **WhatsApp** is the dominant channel in Botswana and is Phase 4 by the
-   spec; worth deciding deliberately whether reminders move earlier.
+11. **WhatsApp Business account.** Set `MESSAGING_PROVIDER=meta` with the
+   Cloud API credentials, register `/api/webhooks/whatsapp` in Meta with the
+   verify token, submit each template in Meta Business Manager, enter its
+   name under Set up → WhatsApp templates and activate it, then switch
+   `whatsapp_enabled` on. The adapter follows Meta's documented Cloud API
+   and is pinned by unit tests; it has not been run against a real account.
 12. **Malware scanning on uploads.** Every document is stored as
     `not_scanned` and staff see that label; `lib/documents/scanner.ts` is
     the seam. Choose a scanner (ClamAV, a scanning API) and implement it.
+15. **Document extraction on real scans.** Set `DOCUMENT_EXTRACTOR=anthropic`
+    with `AI_PROVIDER=anthropic`, switch `ai_extraction_enabled` on, and read
+    a handful of real birth certificates and reports before trusting the
+    comparisons; the schemas and prompts are tested, the model's readings of
+    Botswana's documents are not.
+16. **Retention periods and what survives** (§2, Phase 4): the defaults are
+    180 days for abandoned enquiries and a year for closed applications, and
+    the anonymised row keeps status, dates, campus and grade for the
+    analytics. Confirm both against the school's DPA/POPIA policy before
+    switching `retention_enabled` on.
+17. **Ed-admin's import format.** The export columns are a best guess at a
+    student import; get Ed-admin's actual template and set the columns under
+    Set up → Export columns. An HTTP adapter is a second implementation of
+    `StudentManagementSystem` once the API is known.
 13. **Generated Supabase types** to replace the hand-maintained file (now
     1,500 lines).
 14. **Playwright smoke test** of the funnel on a phone viewport, timed, and
@@ -299,6 +369,18 @@ contradicts itself, the choice made is recorded and must be confirmed.
 - The **Phase 3 walkthrough** in PR #3's description (accept → pay → register
   → enrol, and the campus-scoping check) has been exercised against the SQL
   functions and by reading the code, not by a person in two browsers.
+- **Meta's WhatsApp Cloud API** has not been called: the request body,
+  signature check and webhook parser are pinned by unit tests; the first
+  approved template will be the first real send.
+- **Claude reading a real document** has not been tried; the dev AI adapter
+  returns a labelled sample reading and the comparison logic is tested on
+  fixtures.
+- **Supabase Storage object removal** (retention) follows the documented
+  client API; exercised only against the local database, which has no
+  Storage.
+- The **Phase 4 walkthrough** in PR #4's description has been exercised
+  against the SQL functions, the unit tests and the local replay, not by a
+  person in two browsers.
 
 ## 6. Working style that worked
 
