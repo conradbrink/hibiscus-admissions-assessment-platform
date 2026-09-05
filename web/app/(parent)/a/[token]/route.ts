@@ -31,8 +31,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const settings = await getSettings(admin);
   await startParentSession(result.applicationId, result.purpose, settings.parentSessionMinutes);
 
-  // Purpose-specific destinations arrive with later phases (results, offer,
-  // payment, registration). Everything currently lands on the hub, which
-  // shows the one next step.
+  // The link says what it is for; the page it lands on checks the data is
+  // there (a profile that is not published, an offer that is not sent) and
+  // otherwise the hub shows the one next step.
+  if (result.purpose === "results") redirect("/profile");
+  if (result.purpose === "offer") redirect("/offer");
   redirect("/next");
 }

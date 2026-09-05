@@ -34,12 +34,18 @@ deploy token lives in GitHub.
 | `CRON_SECRET` | **Secret** | Vercel sends it to `/api/jobs/drain` |
 | `EMAIL_PROVIDER` | | `dev` until the domain is verified, then `resend` |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET` | **Secret** | |
+| `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
+| `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic` |
+| `AI_MODEL` | | Optional; defaults to `claude-opus-5` |
 
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
 
 3. `vercel.json` registers the cron (`/api/jobs/drain` every five minutes).
    Confirm it appears under the project's Cron Jobs after the first deploy.
+   The drain is also what runs the delayed jobs — a timed-out sitting's
+   auto-submit, offer reminders and offer expiry — so a stalled cron delays
+   all of them until it next fires.
 4. Custom domain and HTTPS.
 
 ### Email

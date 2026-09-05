@@ -28,14 +28,34 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Decisions",
+    items: [
+      { href: "/staff/decisions", label: "Review queue", permission: "applications.read" },
+      { href: "/staff/offers", label: "Offers & outcomes", permission: "offers.read" },
+    ],
+  },
+  {
     label: "Insight",
     items: [{ href: "/staff/analytics", label: "Analytics", permission: "analytics.read" }],
+  },
+  {
+    label: "Assessment content",
+    items: [
+      { href: "/staff/admin/question-banks", label: "Question banks", permission: "assessments.author" },
+      { href: "/staff/admin/assessment-templates", label: "Assessment templates", permission: "assessments.author" },
+      { href: "/staff/admin/rubrics", label: "Writing rubrics", permission: "assessments.author" },
+      { href: "/staff/admin/benchmarks", label: "Benchmarks", permission: "assessments.author" },
+      { href: "/staff/admin/competencies", label: "Competencies", permission: "assessments.author" },
+    ],
   },
   {
     label: "Set up",
     items: [
       { href: "/staff/admin/sessions", label: "Sessions", permission: "applications.write" },
       { href: "/staff/admin/templates", label: "Email templates", permission: "templates.write" },
+      { href: "/staff/admin/offer-templates", label: "Offer templates", permission: "templates.write" },
+      { href: "/staff/admin/fees", label: "Fees", permission: "finance.write" },
+      { href: "/staff/admin/rules", label: "Admission rules", permission: "rules.write" },
       { href: "/staff/admin/campuses", label: "Campuses", permission: "settings.write" },
       { href: "/staff/admin/grades", label: "Grades", permission: "settings.write" },
       { href: "/staff/admin/intakes", label: "Intakes", permission: "settings.write" },

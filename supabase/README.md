@@ -1,6 +1,6 @@
 # Database schema
 
-Nine migrations, replayable from an empty database. That last property is not
+Fourteen migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -19,6 +19,11 @@ change.
 | `…120600_jobs` | The job outbox and `claim_jobs()` |
 | `…120700_funnel_events` | Parent-effort instrumentation and the analytics views |
 | `…120800_workflow_engine` | `commit_transition()`, `create_application()`, `dashboard_counts()` |
+| `…193000_phase2_reference` | Potch → ZA/ZAR, `campus_grades.capacity`, subjects and competencies, Phase 2 settings and email templates |
+| `…193100_assessment_bank` | Question banks, passages, rubrics, questions, options, **answer keys (authors only)**, assessment templates and sections, benchmarks |
+| `…193200_assessment_delivery` | Frozen forms and their keys, attempts, kiosk codes, responses, scores; `launch_attempt()`, `start_attempt()`, `record_response()`, `submit_attempt()` — service role only |
+| `…193300_admissions_decisions` | Rulesets and rules with freeze triggers, `activate_ruleset()`, append-only `admission_decisions`, learning profiles |
+| `…193400_offers` | Fee schedules and lines, versioned offer templates with `publish_offer_template()`, offers; replaces `dashboard_counts()` |
 
 ## Rules for new migrations
 
@@ -26,7 +31,7 @@ change.
    applied anywhere its filename must equal the version the database recorded.
    Never invent the timestamp after the fact. CI checks the shape and refuses
    edits to files already on `main`.
-2. **Never edit an applied migration.** Add a new one. The nine here are
+2. **Never edit an applied migration.** Add a new one. The fourteen here are
    editable only until the first project applies them.
 3. **`security invoker` on every RPC and `security_invoker = true` on every
    view.** A view defaults to definer rights and bypasses RLS. The only
@@ -69,6 +74,14 @@ select '<auth user id>', id from public.roles where code = 'super_admin';
 
 From then on, Staff & roles in the console does it.
 
+## Development seed
+
+`seed/dev_phase2.sql` is not a migration and the replay ignores it. It adds a
+sample question bank (flagged `is_sample`), a template for the Stage 1–6
+band, a Block 7 fee schedule with placeholder amounts and a draft ruleset,
+so the assessment → decision → offer journey can be walked on a laptop. It
+refuses to run on a database that already holds a real bank.
+
 ## Local rehearsal
 
 ```sh
@@ -77,5 +90,6 @@ su postgres -c "supabase/tests/replay_local.sh"
 
 Creates `hibiscus_local` from scratch on a stock Ubuntu Postgres, applies
 `tests/local_supabase_stub.sql` (roles, `auth.uid()`), every migration in
-order, then `tests/security_regression.sql`. Exit code 0 means both "the
-schema builds" and "the schema refuses what it should".
+order, then `tests/security_regression.sql` (22 attacks, each with a control
+that the legitimate case still works). Exit code 0 means both "the schema
+builds" and "the schema refuses what it should".

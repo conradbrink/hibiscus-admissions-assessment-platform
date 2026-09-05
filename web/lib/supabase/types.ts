@@ -201,6 +201,31 @@ export type CampusGradeRow = {
   campus_id: string;
   grade_id: string;
   is_active: boolean;
+  /** Places per academic year. Null is unlimited. */
+  capacity: number | null;
+};
+
+export type SubjectRow = {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CompetencyRow = {
+  id: string;
+  subject_id: string;
+  code: string;
+  name: string;
+  focus_label: string | null;
+  reportable: boolean;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AcademicYearRow = {
@@ -457,6 +482,383 @@ export type JobRow = {
   updated_at: string;
 };
 
+// ---------------------------------------------------------------------------
+// Phase 2: question bank and templates
+// ---------------------------------------------------------------------------
+
+export type BankStatus = "draft" | "active" | "retired";
+export type QuestionType =
+  | "single_choice"
+  | "multi_select"
+  | "numeric"
+  | "short_text"
+  | "matching"
+  | "ordering"
+  | "extended_text";
+export type QuestionStatus = "draft" | "active" | "retired";
+export type SectionSelection = "fixed" | "random";
+export type BenchmarkScope = "overall" | "subject" | "competency";
+export type BenchmarkBand = "below" | "approaching" | "meeting" | "exceeding";
+
+export type QuestionBankRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: BankStatus;
+  is_sample: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PassageRow = {
+  id: string;
+  bank_id: string;
+  title: string;
+  body: string;
+  media_path: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RubricBand = { key: string; label: string; min_marks: number; descriptor: string };
+
+export type RubricRow = {
+  id: string;
+  name: string;
+  competency_id: string;
+  max_marks: number;
+  bands: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type QuestionRow = {
+  id: string;
+  bank_id: string;
+  competency_id: string;
+  passage_id: string | null;
+  type: QuestionType;
+  stem: string;
+  stem_media_path: string | null;
+  marks: number;
+  difficulty: number;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  status: QuestionStatus;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type QuestionOptionRow = {
+  id: string;
+  question_id: string;
+  position: number;
+  label: string;
+  media_path: string | null;
+  side: "left" | "right" | null;
+};
+
+export type QuestionAnswerRow = {
+  question_id: string;
+  answer: Json | null;
+  partial_credit: boolean;
+  rubric_id: string | null;
+  updated_at: string;
+};
+
+export type AssessmentTemplateRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  grade_sort_min: number;
+  grade_sort_max: number;
+  campus_id: string | null;
+  time_limit_minutes: number;
+  status: QuestionStatus;
+  version: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemplateSectionRow = {
+  id: string;
+  template_id: string;
+  position: number;
+  title: string;
+  subject_id: string;
+  instructions: string | null;
+  time_limit_minutes: number | null;
+  selection: SectionSelection;
+  random_count: number | null;
+  random_difficulty_mix: Json | null;
+  practice_question_id: string | null;
+};
+
+export type TemplateSectionQuestionRow = {
+  section_id: string;
+  question_id: string;
+  position: number;
+};
+
+export type BenchmarkRow = {
+  id: string;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  scope: BenchmarkScope;
+  scope_id: string | null;
+  bands: Json;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Phase 2: sittings
+// ---------------------------------------------------------------------------
+
+export type AttemptStatus = "ready" | "in_progress" | "submitted" | "marked" | "abandoned";
+export type MarkingStatus = "pending" | "auto_marked" | "awaiting_rubric" | "complete";
+export type MarkingMethod = "auto" | "rubric";
+
+export type AssessmentFormRow = {
+  id: string;
+  application_id: string;
+  template_id: string;
+  template_version: number;
+  created_at: string;
+};
+
+export type FormQuestionRow = {
+  id: string;
+  form_id: string;
+  section_position: number;
+  section_title: string;
+  section_instructions: string | null;
+  section_time_limit_seconds: number | null;
+  is_practice: boolean;
+  position: number;
+  question_id: string | null;
+  question_version: number;
+  competency_id: string;
+  type: QuestionType;
+  stem: string;
+  stem_media_path: string | null;
+  passage_snapshot: Json | null;
+  options: Json;
+  marks: number;
+  rubric_snapshot: Json | null;
+};
+
+export type FormAnswerKeyRow = {
+  form_question_id: string;
+  answer: Json | null;
+  partial_credit: boolean;
+};
+
+export type AttemptRow = {
+  id: string;
+  application_id: string;
+  booking_id: string;
+  form_id: string;
+  status: AttemptStatus;
+  marking_status: MarkingStatus;
+  launched_by: string | null;
+  launched_at: string;
+  started_at: string | null;
+  submitted_at: string | null;
+  auto_submitted: boolean;
+  time_limit_seconds: number;
+  time_multiplier: number;
+  accommodation_note: string | null;
+  expires_at: string | null;
+  device_user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KioskCodeRow = {
+  id: string;
+  attempt_id: string;
+  code_hash: string;
+  expires_at: string;
+  used_at: string | null;
+  created_at: string;
+};
+
+export type AttemptResponseRow = {
+  id: string;
+  attempt_id: string;
+  form_question_id: string;
+  response: Json;
+  answered_at: string;
+  is_correct: boolean | null;
+  marks_awarded: number | null;
+  marking_method: MarkingMethod | null;
+  marked_by: string | null;
+  marked_at: string | null;
+  ai_suggestion: Json | null;
+};
+
+export type AttemptScoreRow = {
+  attempt_id: string;
+  scope: BenchmarkScope;
+  scope_id: string | null;
+  raw: number;
+  max: number;
+  percent: number;
+  band: BenchmarkBand;
+  computed_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Phase 2: decisions, profiles, offers
+// ---------------------------------------------------------------------------
+
+export type DecisionOutcome = "approved" | "waitlisted" | "declined" | "staff_review";
+export type DecidedBy = "rules" | "staff";
+export type RulesetStatus = "draft" | "active" | "superseded";
+export type RuleSeverity = "hard_fail" | "review";
+export type RuleOperator = ">=" | ">" | "<=" | "<";
+export type NarrativeSource = "ai" | "fallback";
+export type ValidationStatus = "passed" | "failed" | "not_run";
+export type OfferStatus =
+  | "draft"
+  | "pending_approval"
+  | "sent"
+  | "viewed"
+  | "expired"
+  | "withdrawn"
+  | "accepted"
+  | "declined";
+export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term";
+export type FeeScheduleStatus = "draft" | "active";
+
+export type AdmissionRulesetRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  campus_id: string | null;
+  version: number;
+  status: RulesetStatus;
+  activated_at: string | null;
+  activated_by: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdmissionRuleRow = {
+  id: string;
+  ruleset_id: string;
+  scope: BenchmarkScope;
+  scope_id: string | null;
+  operator: RuleOperator;
+  threshold: number;
+  severity: RuleSeverity;
+  label: string;
+  position: number;
+};
+
+export type AdmissionDecisionRow = {
+  id: string;
+  application_id: string;
+  attempt_id: string | null;
+  ruleset_id: string | null;
+  ruleset_version: number | null;
+  inputs: Json;
+  computed_outcome: DecisionOutcome;
+  final_outcome: DecisionOutcome;
+  decided_by: DecidedBy;
+  staff_id: string | null;
+  override_reason: string | null;
+  decided_at: string;
+};
+
+export type LearningProfileRow = {
+  id: string;
+  attempt_id: string;
+  application_id: string;
+  computed: Json;
+  narrative: Json;
+  narrative_source: NarrativeSource;
+  ai_model: string | null;
+  prompt_version: string | null;
+  validation_status: ValidationStatus;
+  validation_errors: Json | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeeScheduleRow = {
+  id: string;
+  campus_id: string;
+  academic_year_id: string;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  currency: "BWP" | "ZAR";
+  status: FeeScheduleStatus;
+  name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeeLineRow = {
+  id: string;
+  schedule_id: string;
+  code: FeeCode;
+  label: string;
+  amount_minor: number;
+  payable_at_acceptance: boolean;
+  position: number;
+};
+
+export type OfferTemplateRow = {
+  id: string;
+  key: string;
+  version: number;
+  name: string;
+  description: string | null;
+  body_html: string;
+  terms_html: string;
+  allowed_variables: string[];
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OfferRow = {
+  id: string;
+  application_id: string;
+  template_id: string;
+  template_version: number;
+  fee_schedule_id: string | null;
+  currency: "BWP" | "ZAR";
+  variables: Json;
+  rendered_html: string;
+  terms_html: string;
+  fees: Json;
+  start_date: string | null;
+  expires_at: string | null;
+  status: OfferStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  sent_at: string | null;
+  first_viewed_at: string | null;
+  conditions: string | null;
+  withdrawn_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -517,11 +919,17 @@ export type Database = {
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
-        "is_active",
+        "is_active" | "capacity",
         [
           Rel<"campus_grades_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campus_grades_grade_id_fkey", "grade_id", "grades">,
         ]
+      >;
+      subjects: TableOf<SubjectRow, "sort_order" | "is_active">;
+      competencies: TableOf<
+        CompetencyRow,
+        "focus_label" | "reportable" | "sort_order" | "is_active",
+        [Rel<"competencies_subject_id_fkey", "subject_id", "subjects">]
       >;
       academic_years: TableOf<AcademicYearRow, "is_current">;
       intakes: TableOf<
@@ -689,6 +1097,237 @@ export type Database = {
         | "completed_at",
         [Rel<"jobs_application_id_fkey", "application_id", "applications">]
       >;
+      question_banks: TableOf<
+        QuestionBankRow,
+        "description" | "status" | "is_sample" | "created_by",
+        [Rel<"question_banks_created_by_fkey", "created_by", "staff_profiles">]
+      >;
+      passages: TableOf<
+        PassageRow,
+        "media_path",
+        [Rel<"passages_bank_id_fkey", "bank_id", "question_banks">]
+      >;
+      rubrics: TableOf<
+        RubricRow,
+        "bands",
+        [Rel<"rubrics_competency_id_fkey", "competency_id", "competencies">]
+      >;
+      questions: TableOf<
+        QuestionRow,
+        | "passage_id"
+        | "stem_media_path"
+        | "marks"
+        | "difficulty"
+        | "grade_sort_min"
+        | "grade_sort_max"
+        | "status"
+        | "version"
+        | "created_by",
+        [
+          Rel<"questions_bank_id_fkey", "bank_id", "question_banks">,
+          Rel<"questions_competency_id_fkey", "competency_id", "competencies">,
+          Rel<"questions_passage_id_fkey", "passage_id", "passages">,
+          Rel<"questions_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      question_options: TableOf<
+        QuestionOptionRow,
+        "media_path" | "side",
+        [Rel<"question_options_question_id_fkey", "question_id", "questions">]
+      >;
+      question_answers: TableOf<
+        QuestionAnswerRow,
+        "answer" | "partial_credit" | "rubric_id" | "updated_at",
+        [
+          Rel<"question_answers_question_id_fkey", "question_id", "questions", true>,
+          Rel<"question_answers_rubric_id_fkey", "rubric_id", "rubrics">,
+        ]
+      >;
+      assessment_templates: TableOf<
+        AssessmentTemplateRow,
+        "description" | "campus_id" | "status" | "version" | "created_by",
+        [
+          Rel<"assessment_templates_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"assessment_templates_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      template_sections: TableOf<
+        TemplateSectionRow,
+        | "instructions"
+        | "time_limit_minutes"
+        | "selection"
+        | "random_count"
+        | "random_difficulty_mix"
+        | "practice_question_id",
+        [
+          Rel<"template_sections_template_id_fkey", "template_id", "assessment_templates">,
+          Rel<"template_sections_subject_id_fkey", "subject_id", "subjects">,
+          Rel<"template_sections_practice_question_id_fkey", "practice_question_id", "questions">,
+        ]
+      >;
+      template_section_questions: TableOf<
+        TemplateSectionQuestionRow,
+        never,
+        [
+          Rel<"template_section_questions_section_id_fkey", "section_id", "template_sections">,
+          Rel<"template_section_questions_question_id_fkey", "question_id", "questions">,
+        ]
+      >;
+      benchmarks: TableOf<
+        BenchmarkRow,
+        "grade_sort_min" | "grade_sort_max" | "scope_id" | "description" | "is_active"
+      >;
+      assessment_forms: TableOf<
+        AssessmentFormRow,
+        never,
+        [
+          Rel<"assessment_forms_application_id_fkey", "application_id", "applications">,
+          Rel<"assessment_forms_template_id_fkey", "template_id", "assessment_templates">,
+        ]
+      >;
+      form_questions: TableOf<
+        FormQuestionRow,
+        | "section_instructions"
+        | "section_time_limit_seconds"
+        | "is_practice"
+        | "question_id"
+        | "stem_media_path"
+        | "passage_snapshot"
+        | "options"
+        | "rubric_snapshot",
+        [
+          Rel<"form_questions_form_id_fkey", "form_id", "assessment_forms">,
+          Rel<"form_questions_question_id_fkey", "question_id", "questions">,
+          Rel<"form_questions_competency_id_fkey", "competency_id", "competencies">,
+        ]
+      >;
+      form_answer_keys: TableOf<
+        FormAnswerKeyRow,
+        "answer" | "partial_credit",
+        [Rel<"form_answer_keys_form_question_id_fkey", "form_question_id", "form_questions", true>]
+      >;
+      attempts: TableOf<
+        AttemptRow,
+        | "status"
+        | "marking_status"
+        | "launched_by"
+        | "launched_at"
+        | "started_at"
+        | "submitted_at"
+        | "auto_submitted"
+        | "time_multiplier"
+        | "accommodation_note"
+        | "expires_at"
+        | "device_user_agent",
+        [
+          Rel<"attempts_application_id_fkey", "application_id", "applications">,
+          Rel<"attempts_booking_id_fkey", "booking_id", "bookings">,
+          Rel<"attempts_form_id_fkey", "form_id", "assessment_forms">,
+          Rel<"attempts_launched_by_fkey", "launched_by", "staff_profiles">,
+        ]
+      >;
+      kiosk_codes: TableOf<
+        KioskCodeRow,
+        "used_at",
+        [Rel<"kiosk_codes_attempt_id_fkey", "attempt_id", "attempts">]
+      >;
+      attempt_responses: TableOf<
+        AttemptResponseRow,
+        | "answered_at"
+        | "is_correct"
+        | "marks_awarded"
+        | "marking_method"
+        | "marked_by"
+        | "marked_at"
+        | "ai_suggestion",
+        [
+          Rel<"attempt_responses_attempt_id_fkey", "attempt_id", "attempts">,
+          Rel<"attempt_responses_form_question_id_fkey", "form_question_id", "form_questions">,
+          Rel<"attempt_responses_marked_by_fkey", "marked_by", "staff_profiles">,
+        ]
+      >;
+      attempt_scores: TableOf<
+        AttemptScoreRow,
+        "scope_id" | "computed_at",
+        [Rel<"attempt_scores_attempt_id_fkey", "attempt_id", "attempts">]
+      >;
+      admission_rulesets: TableOf<
+        AdmissionRulesetRow,
+        | "description"
+        | "grade_sort_min"
+        | "grade_sort_max"
+        | "campus_id"
+        | "version"
+        | "status"
+        | "activated_at"
+        | "activated_by"
+        | "created_by",
+        [
+          Rel<"admission_rulesets_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"admission_rulesets_activated_by_fkey", "activated_by", "staff_profiles">,
+          Rel<"admission_rulesets_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      admission_rules: TableOf<
+        AdmissionRuleRow,
+        "scope_id" | "position",
+        [Rel<"admission_rules_ruleset_id_fkey", "ruleset_id", "admission_rulesets">]
+      >;
+      admission_decisions: TableOf<
+        AdmissionDecisionRow,
+        "attempt_id" | "ruleset_id" | "ruleset_version" | "staff_id" | "override_reason" | "decided_at",
+        [
+          Rel<"admission_decisions_application_id_fkey", "application_id", "applications">,
+          Rel<"admission_decisions_attempt_id_fkey", "attempt_id", "attempts">,
+          Rel<"admission_decisions_ruleset_id_fkey", "ruleset_id", "admission_rulesets">,
+          Rel<"admission_decisions_staff_id_fkey", "staff_id", "staff_profiles">,
+        ]
+      >;
+      learning_profiles: TableOf<
+        LearningProfileRow,
+        "ai_model" | "prompt_version" | "validation_status" | "validation_errors" | "published_at",
+        [
+          Rel<"learning_profiles_attempt_id_fkey", "attempt_id", "attempts", true>,
+          Rel<"learning_profiles_application_id_fkey", "application_id", "applications">,
+        ]
+      >;
+      fee_schedules: TableOf<
+        FeeScheduleRow,
+        "grade_sort_min" | "grade_sort_max" | "status",
+        [
+          Rel<"fee_schedules_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"fee_schedules_academic_year_id_fkey", "academic_year_id", "academic_years">,
+        ]
+      >;
+      fee_lines: TableOf<
+        FeeLineRow,
+        "payable_at_acceptance" | "position",
+        [Rel<"fee_lines_schedule_id_fkey", "schedule_id", "fee_schedules">]
+      >;
+      offer_templates: TableOf<
+        OfferTemplateRow,
+        "version" | "description" | "allowed_variables" | "is_active" | "created_by",
+        [Rel<"offer_templates_created_by_fkey", "created_by", "staff_profiles">]
+      >;
+      offers: TableOf<
+        OfferRow,
+        | "fee_schedule_id"
+        | "start_date"
+        | "expires_at"
+        | "status"
+        | "approved_by"
+        | "approved_at"
+        | "sent_at"
+        | "first_viewed_at"
+        | "conditions"
+        | "withdrawn_reason",
+        [
+          Rel<"offers_application_id_fkey", "application_id", "applications">,
+          Rel<"offers_template_id_fkey", "template_id", "offer_templates">,
+          Rel<"offers_fee_schedule_id_fkey", "fee_schedule_id", "fee_schedules">,
+          Rel<"offers_approved_by_fkey", "approved_by", "staff_profiles">,
+        ]
+      >;
       funnel_events: TableOf<
         FunnelEventRow,
         "application_id" | "campus_id" | "grade_id" | "elapsed_ms" | "occurred_at",
@@ -792,6 +1431,28 @@ export type Database = {
         Returns: number;
       };
       dashboard_counts: { Args: Record<string, never>; Returns: Json };
+      launch_attempt: {
+        Args: {
+          p_application_id: string;
+          p_booking_id: string;
+          p_template_id: string;
+          p_time_multiplier: number;
+          p_launched_by: string | null;
+          p_accommodation_note?: string | null;
+        };
+        Returns: string;
+      };
+      start_attempt: { Args: { p_attempt_id: string; p_user_agent?: string | null }; Returns: AttemptRow };
+      record_response: {
+        Args: { p_attempt_id: string; p_form_question_id: string; p_response: Json; p_grace_seconds?: number };
+        Returns: undefined;
+      };
+      submit_attempt: { Args: { p_attempt_id: string; p_auto?: boolean }; Returns: AttemptRow };
+      activate_ruleset: { Args: { p_ruleset_id: string }; Returns: undefined };
+      publish_offer_template: {
+        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_terms_html: string };
+        Returns: string;
+      };
       publish_email_template: {
         Args: {
           p_key: string;

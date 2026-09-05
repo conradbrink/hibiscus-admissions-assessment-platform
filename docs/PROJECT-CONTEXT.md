@@ -6,7 +6,7 @@ Handoff document. Read this first in a new session.
 
 An admissions and assessment platform for Hibiscus Schools, Botswana (eight
 campuses: five pre-schools, a primary school, a primary-and-secondary school,
-and one in Potchefstroom that is probably in South Africa — see §4). It
+and one in Potchefstroom, South Africa — confirmed, see §4). It
 replaces the Ed-admin online application form at
 `hibiscus.ed-space.net/onlineapplication.cfm`.
 
@@ -39,10 +39,30 @@ is in the pull request that introduced this repository. The short version:
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
 - **Permission-native from migration 1** (no role-string layer to migrate off).
-- **Answers never leave the server** (Phase 2 rule, already stated so nobody
-  designs against it).
+- **Answers never leave the server.** Keys are readable by content authors
+  and the marker (service role). The kiosk reads the frozen form; a unit test
+  greps the delivery code for the key tables.
+- **The AI never decides.** Outcomes come from the rules engine or a person.
+  The AI writes prose over computed numbers behind a validator; no active
+  ruleset means every assessed applicant is reviewed by a person.
+- **A human clicks before anything reaches a parent after a decision.**
+  Offer approval and outcome emails are buttons in Phase 2. The switches
+  `offer_auto_approve` and `auto_send_outcomes` exist, default off, and are
+  the school's to flip once it trusts the wording.
+- **Snapshots, not references.** A sitting is a frozen form; an offer is the
+  HTML and fees rendered at approval; a decision records its inputs. Editing
+  a question, template or fee schedule never rewrites history.
+- **Potch is South Africa: ZA / ZAR.** Currency hangs off the campus and is
+  copied onto fee schedules and offers by trigger. POPIA applies alongside
+  the Botswana DPA. The campus stays inactive until its grades are assigned.
+- **Written language is marked by a person** against a rubric; the AI may
+  suggest a band, stored as advice, never as marks.
+- **Declined applicants receive the learning profile** (setting
+  `profile_shared_on_decline`, default on).
 
-## 2. What is built (Phase 1)
+## 2. What is built
+
+### Phase 1 (PR #1)
 
 | Area | State |
 |---|---|
@@ -56,10 +76,38 @@ is in the pull request that introduced this repository. The short version:
 | Analytics v1: funnel, conversion, cycle times, parent-effort | Done |
 | Security regression suite (14 attacks with controls) | Done, passes on local replay |
 
-Not built (later phases): computer-based assessment, question bank, marking,
-learning profiles, rules engine, offers, payments, registration, documents,
-Ed-admin integration. The schema's status list and the state machine already
-include those states so adding them is additive.
+### Phase 2 (PR #2) — assessment, decision, learning profile, offer
+
+The journey now runs from a checked-in booking to `offer_sent`. Phase 2 ends
+there: electronic acceptance and payment are Phase 3, and the parent's
+`/offer` page says so.
+
+| Area | State |
+|---|---|
+| Five more migrations (14 total): competencies, question bank and answer keys, frozen forms and attempts, rulesets and append-only decisions, fee schedules, offer templates and offers | Done, replayed from empty |
+| Authoring admin: banks, questions of seven types with per-type keys, passages, rubrics, templates with fixed or random sections, benchmarks, competencies | Done |
+| Launch from the check-in board: template resolved by grade and campus, accommodation multiplier, single-use code and QR | Done |
+| Kiosk (`/sit`): one question per screen, practice item, server-authoritative timer, autosave, resume on the same computer, auto-submit at time-out | Done |
+| Automatic marking of six types; rubric marking of writing by an assessor with an AI-suggested band; scores by competency, subject and overall against benchmarks | Done |
+| Rules engine: versioned rulesets, hard-fail and review rules, capacity → waitlist, no ruleset → a person; review queue; decisions append-only | Done |
+| Learning profile: computed numbers, AI narrative (Anthropic) behind a validator, deterministic fallback; parent page and PDF | Done; AI adapter untested against the live API (§5) |
+| Offers: fee schedules per campus/year/grade band, versioned offer template with preview, drafting on approval, blocked-on-fees state, human approval, parent page and PDF, reminders and expiry, withdraw and re-issue | Done |
+| Console: applicant tabs (assessment, profile, decision, offer), Offers & outcomes queue, dashboard queues, analytics for decisions and offers | Done |
+| Security regression suite extended to 22 attacks; dev seed with a labelled sample bank | Done |
+
+Not built (later phases): acceptance and payment, registration and documents,
+antivirus on uploads, WhatsApp, Ed-admin integration. The schema's status
+list and the state machine already include those states.
+
+### Three things the code deliberately does not invent
+
+- **Admission thresholds.** No ruleset is seeded or active. Every assessed
+  applicant goes to the review queue until the school activates one at
+  `/staff/admin/rules`. The dev seed's ruleset is a draft.
+- **The question bank.** `supabase/seed/dev_phase2.sql` holds a sample bank
+  flagged `is_sample`, for development databases only.
+- **Fee amounts.** With no active fee schedule an approved applicant rests
+  at `offer_draft` with a task for finance, and approval is blocked.
 
 ## 3. Gotchas learned building this
 
@@ -83,7 +131,29 @@ include those states so adding them is additive.
   who abandons between them leaves an application with `next_action = null`;
   the drain's sweep routes it after ten minutes.
 - **Reminder jobs carry a `booking_id` precondition.** Rescheduling marks the
-  old booking `rescheduled`, so its reminders skip themselves.
+  old booking `rescheduled`, so its reminders skip themselves. Offer
+  reminders and the expiry sweep do the same with `offer_id`, and their
+  idempotency keys carry the offer id, so a withdrawn and re-issued offer
+  gets its own set.
+- **Raw tokens never enter `jobs.payload`.** An email job names the link
+  purposes it needs (`results`, `offer`); `sendTemplatedEmail` mints them at
+  send time.
+- **`onOfferDrafted` is two commits** (`approved → offer_draft`, then
+  `offer_draft → offer_pending_approval`) so "no fee schedule" is a real
+  resting state with a task, not an exception.
+- **`decision.made` is emitted only for a real outcome.** A referral to
+  staff review emits `decision.referred`, so the analytics' decision
+  milestone is not polluted.
+- **Money formatting is hand-rolled** (`lib/money.ts`). `toLocaleString`
+  with `en-ZA` produced "2 500,00" on the server's ICU and would have
+  reached an offer letter.
+- **A `"use server"` file may export only async functions.** `KIOSK_ACTOR`
+  lives in `lib/workflow/engine.ts` for that reason.
+- **Tailwind only emits classes it can see.** No template-literal class
+  names; map bands to full class strings.
+- **`@react-pdf/renderer` types**: `renderToBuffer` wants
+  `ReactElement<DocumentProps>`; the route handlers cast through `unknown`.
+  Both PDFs render from the stored snapshot, on demand, with no Storage.
 
 ## 4. Reference data to confirm with the school
 
@@ -92,20 +162,23 @@ contradicts itself, the choice made is recorded and must be confirmed.
 
 | Item | What the site says | What is seeded | Confirm |
 |---|---|---|---|
-| Form 3 / Form 4 age | Both "turning 14 before end July" | Form 3 = 14, Form 4 = 15 | The Form 4 age |
+| Form 3 / Form 4 age | Both "turning 14 before end July" | Form 3 = 14, Form 4 = 15 | **Confirmed** |
 | Stage 7 | In the dropdown as "Stage7-HPS", not in the age table | Seeded **inactive**, age 12 | Whether it exists and where |
 | Form 5 | In the dropdown, not in the age table | Age 16, active | Whether it exists and where |
 | Nursery, Pre-Kindergarten | In the age table, not in the dropdown | Active, pre-school campuses only | That they are offered |
 | Which grades each campus offers | Dropdown unfiltered by campus | Pre-schools: Nursery–Pre-Reception; Broadhurst: Reception–Stage 6; Block 7: Reception–Form 5 | The whole matrix at `/staff/admin/grades` |
-| Potch — CBD Maury Avenue | Listed as a campus | Seeded **inactive**, country BW | Country (ZA?), currency, what it offers |
+| Potch — CBD Maury Avenue | Listed as a campus | **ZA / ZAR (confirmed)**, still **inactive** | Which grades it offers; a ZAR fee schedule |
 | Term dates 2026–2027 | Not on the site | Approximate | Real dates at `/staff/admin/intakes` |
 | Age cut-off | "before end July" | 31 July of the academic year | — |
 | Assessment exemption | "Reception through to Secondary … assessment" | Nursery–Pre-Reception exempt | — |
+| Benchmark bands | Not on the site | Placeholder <40 / 40–59 / 60–79 / ≥80, labelled so | Real bands at `/staff/admin/benchmarks` |
+| Competencies | Not on the site | English (5), Mathematics (5), Reasoning (2) | Names, and which are reported to parents |
 
 ## 5. Open items, roughly by priority
 
-1. **Is Potch in South Africa?** Drives currency (ZAR), POPIA, and the payment
-   provider. The schema is ready either way (`campuses.country/currency`).
+1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
+   create a ZAR fee schedule, and choose a payment provider that settles in
+   both currencies (Phase 3).
 2. **Email provider and sending domain** with SPF, DKIM, DMARC. Set
    `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM`,
    `RESEND_WEBHOOK_SECRET`, and point Resend's webhook at
@@ -119,16 +192,43 @@ contradicts itself, the choice made is recorded and must be confirmed.
 6. **Payment provider** (Phase 3, but merchant onboarding is slow — start now).
    Candidates: DPO/PayGate, Flutterwave, FNB/Stanbic gateway, Orange Money,
    MyZaka; EFT with proof-of-payment regardless.
-7. **Admission thresholds, question bank authorship, written-language marking
-   policy** (Phase 2). Not for engineering to invent.
-8. **Data protection**: Botswana DPA 2018 (and POPIA if Potch is ZA) — consent
+7. **Admission thresholds, the question bank, fee amounts.** Owned by the
+   school; the screens exist (`/staff/admin/rules`, `/staff/admin/question-banks`,
+   `/staff/admin/fees`). Until each is set the system takes the safe path
+   (§2). The written-language rubric is also the school's to write.
+8. **Data protection**: Botswana DPA 2018 and POPIA (Potch) — consent
    wording, retention for declined/abandoned applicants, cross-border
-   disclosure (Vercel, Supabase, AI provider).
-9. **WhatsApp** is the dominant channel in Botswana and is Phase 4 by the
+   disclosure (Vercel, Supabase, Anthropic). The AI receives first name,
+   grade, competency labels, percentages and bands only; never surname, date
+   of birth, contacts or medical information. Confirm that is acceptable and
+   whether a data-processing agreement with Anthropic is wanted.
+9. **AI configuration.** `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`,
+   optional `AI_MODEL` (default `claude-opus-5`). With `dev` (the default)
+   every profile uses the deterministic wording, which is complete and safe;
+   the school can go live without the AI and switch it on later. The
+   `ai_narrative_enabled` setting turns it off without a deploy.
+10. **WhatsApp** is the dominant channel in Botswana and is Phase 4 by the
    spec; worth deciding deliberately whether reminders move earlier.
-10. **Antivirus scanning on uploads** (Phase 3) is not designed yet.
-11. **Generated Supabase types** to replace the hand-maintained file.
-12. **Playwright smoke test** of the funnel on a phone viewport, timed.
+11. **Antivirus scanning on uploads** (Phase 3) is not designed yet.
+12. **Generated Supabase types** to replace the hand-maintained file (now
+    1,500 lines).
+13. **Playwright smoke test** of the funnel on a phone viewport, timed, and
+    of the kiosk on a lab computer's browser.
+
+### What is untested, honestly
+
+- The **Anthropic adapter** has not been run against the live API. It is
+  built on `client.messages.parse` with a Zod output format per the SDK's
+  documentation; the validator and fallback are unit tested, so a wrong
+  call fails safe (deterministic wording, reason recorded). The writing-band
+  suggester has only been exercised with the `dev` adapter.
+- The **Resend adapter**, as before.
+- The **end-to-end walkthrough** (launch → sit → mark → decide → approve →
+  parent pages → PDFs) has been exercised against the SQL functions and by
+  reading the code, not by a person in two browsers. The plan's manual
+  checklist is in PR #2's description; run it on a development database
+  after `supabase/seed/dev_phase2.sql`.
+- **QR scanning** on a real lab tablet.
 
 ## 6. Working style that worked
 
@@ -137,4 +237,9 @@ contradicts itself, the choice made is recorded and must be confirmed.
 - Write the SQL functions, then smoke-test them with `psql` before writing
   the TypeScript that calls them.
 - Typecheck after every batch of files, not at the end.
-- Say what is untested. The Resend adapter and the Supabase invite flow are.
+- Say what is untested. See §5.
+- Keep the security suite's fixtures the engine's own shapes: an attempt
+  inserted the way `launch_attempt()` inserts one, a decision the way the
+  engine records one. The suite's first Phase 2 run failed on a fixture
+  that tried to add rules to an already-active ruleset — the freeze trigger
+  was right, the fixture was wrong.

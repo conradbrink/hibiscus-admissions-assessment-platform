@@ -31,6 +31,10 @@ export const LIMITS = {
   funnelEvent: { bucket: "funnel_event", limit: 300, windowSeconds: 3600 },
   /** Booking or changing a slot from a parent session. */
   parentBooking: { bucket: "parent_booking", limit: 20, windowSeconds: 3600 },
+  /** Typing a launch code on a lab computer, per address. Codes are single use; this stops guessing. */
+  kioskCode: { bucket: "kiosk_code", limit: 20, windowSeconds: 600 },
+  /** Autosaving answers, per attempt. Generous: a quick child answers a question every few seconds. */
+  kioskResponse: { bucket: "kiosk_response", limit: 900, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };

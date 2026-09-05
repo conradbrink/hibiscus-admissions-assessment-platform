@@ -3,6 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
 import { formatDateLong, formatTime } from "@/lib/format-date";
+import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import {
   commit,
   hoursBefore,
@@ -429,45 +430,26 @@ export async function onRescheduled(
 export type ManualOutcome = "approved" | "waitlisted" | "declined";
 
 /**
- * A member of staff records an outcome by hand. In Phase 1 this is how
- * pre-school enquiries progress; from Phase 2 the rules engine does it for
- * assessed applicants and this becomes the override path. Either way the
- * reason is required and audited.
+ * A member of staff records an outcome by hand: a pre-school enquiry, a
+ * referral from the rules engine, or an override. All three write the same
+ * decision row and the same follow-ups as a rules decision — see
+ * decision-actions.ts, which owns that.
  */
 export async function onManualDecision(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name">,
   outcome: ManualOutcome,
   reason: string,
   actor: Actor
 ): Promise<void> {
-  if (actor.type !== "staff" || !actor.id) {
-    throw new WorkflowError("A decision needs a signed-in member of staff", "illegal_transition");
-  }
-  if (reason.trim().length < 5) {
-    throw new WorkflowError("A reason is required", "illegal_transition");
-  }
-  await commit(admin, {
-    applicationId: app.id,
-    expectedStatus: app.status,
-    newStatus: outcome,
-    nextAction: outcome === "approved" ? "review_offer" : "await_decision",
-    event: {
-      type: "decision.made",
-      summary: `Decision recorded: ${outcome}`,
-      payload: { outcome, reason, manual: true },
-    },
-    resolveTaskTypes: ["review_preschool_enquiry", "review_decision"],
-    audit: {
-      action: "decision.manual",
-      before: { status: app.status },
-      after: { status: outcome, reason },
-    },
-    actor,
-  });
+  await onStaffDecision(admin, app, outcome, reason, actor);
 }
 
-/** Withdraws from any non-terminal state. Cancels the live booking and open tasks. */
+/**
+ * Withdraws from any non-terminal state. Cancels the live booking, abandons
+ * a live sitting, withdraws a live offer, and closes open tasks — so no job
+ * queued for any of them finds its precondition still true.
+ */
 export async function onWithdrawn(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
@@ -479,7 +461,17 @@ export async function onWithdrawn(
     .from("bookings")
     .update({ status: "cancelled", cancelled_at: now, cancel_reason: "Application withdrawn" })
     .eq("application_id", app.id)
-    .in("status", ["booked", "checked_in"]);
+    .in("status", ["booked", "checked_in", "in_progress"]);
+  await admin
+    .from("attempts")
+    .update({ status: "abandoned" })
+    .eq("application_id", app.id)
+    .in("status", ["ready", "in_progress"]);
+  await admin
+    .from("offers")
+    .update({ status: "withdrawn", withdrawn_reason: "Application withdrawn" })
+    .eq("application_id", app.id)
+    .in("status", ["draft", "pending_approval", "sent", "viewed"]);
   await admin
     .from("tasks")
     .update({ status: "cancelled", resolved_at: now, resolution_note: "Application withdrawn" })

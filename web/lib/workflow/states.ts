@@ -42,7 +42,8 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
   declined: [],
   offer_draft: ["offer_pending_approval", "offer_sent"],
   offer_pending_approval: ["offer_sent", "offer_draft"],
-  offer_sent: ["offer_accepted", "offer_declined", "offer_expired"],
+  // Back to draft: staff withdraw a sent offer to correct it and re-issue.
+  offer_sent: ["offer_accepted", "offer_declined", "offer_expired", "offer_draft"],
   offer_expired: ["offer_sent", "offer_draft"],
   offer_declined: ["offer_draft"],
   offer_accepted: ["payment_required"],
@@ -182,6 +183,8 @@ export const NEXT_ACTION_KEYS = [
   "await_school_contact",
   "await_results",
   "await_decision",
+  "await_offer",
+  "view_profile",
   "review_offer",
   "pay_fees",
   "complete_registration",
@@ -248,6 +251,18 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
     parentDetail: "Your application is being reviewed. We will email you as soon as there is news.",
     parentCta: null,
     staffLabel: "Decision pending",
+  },
+  await_offer: {
+    parentTitle: "No action required.",
+    parentDetail: "Good news is on its way: we are preparing your offer and will email it shortly.",
+    parentCta: null,
+    staffLabel: "Offer being prepared",
+  },
+  view_profile: {
+    parentTitle: "No action required.",
+    parentDetail: "The learning profile is ready to read whenever you like.",
+    parentCta: { label: "View learning profile", href: "/profile" },
+    staffLabel: "Profile shared",
   },
   review_offer: {
     parentTitle: "Your next step is to review and accept your offer.",
