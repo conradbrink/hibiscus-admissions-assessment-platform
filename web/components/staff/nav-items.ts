@@ -35,6 +35,10 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Enrolment",
+    items: [{ href: "/staff/payments", label: "Payments", permission: "finance.read" }],
+  },
+  {
     label: "Insight",
     items: [{ href: "/staff/analytics", label: "Analytics", permission: "analytics.read" }],
   },

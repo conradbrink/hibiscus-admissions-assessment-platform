@@ -67,6 +67,10 @@ declare
   p2_offer uuid;
   p2_offer_template uuid;
   p2_year uuid;
+  -- Phase 3 fixtures
+  p3_acceptance uuid;
+  p3_request uuid;
+  p3_payment uuid;
   c_block7 uuid;
   c_broadhurst uuid;
   g_stage4 uuid;
@@ -180,6 +184,14 @@ begin
   values (app_block7, p2_attempt, p2_ruleset, 1, 'staff_review', 'staff_review', 'rules') returning id into p2_decision;
   insert into public.offers (application_id, template_id, template_version, currency, rendered_html, terms_html, status)
   values (app_block7, p2_offer_template, 1, 'BWP', '<p>offer</p>', '<p>terms</p>', 'pending_approval') returning id into p2_offer;
+  -- Phase 3: an accepted offer with its payment request and one receipt,
+  -- inserted the way the engine does it (service role).
+  insert into public.offer_acceptances (application_id, offer_id, template_id, template_version, decision, terms_accepted, terms_hash, fees)
+  values (app_block7, p2_offer, p2_offer_template, 1, 'accepted', true, 'sec-hash', '{}'::jsonb) returning id into p3_acceptance;
+  insert into public.payment_requests (application_id, offer_id, acceptance_id, currency, amount_minor, due_at)
+  values (app_block7, p2_offer, p3_acceptance, 'BWP', 750000, now() + interval '14 days') returning id into p3_request;
+  insert into public.payments (payment_request_id, application_id, method, provider, company_ref, status, amount_minor, currency)
+  values (p3_request, app_block7, 'eft', 'bank', 'SEC-EFT', 'pending', 750000, 'BWP') returning id into p3_payment;
   insert into public.audit_log (actor_type, actor_id, action, entity_type, entity_id, application_id)
   values ('staff', u_admin, 'sec.block7', 'application', app_block7, app_block7),
          ('staff', u_admin, 'sec.broadhurst', 'application', app_broadhurst, app_broadhurst),
@@ -272,6 +284,10 @@ begin
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s responses'); end if;
     select count(*) into v_count from public.tasks where application_id = app_block7;
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s tasks'); end if;
+    select count(*) into v_count from public.payment_requests where id = p3_request;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s payment request'); end if;
+    select count(*) into v_count from public.offer_acceptances where id = p3_acceptance;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s acceptance'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('4b: unexpected error: ' || sqlerrm);
   end;
@@ -800,6 +816,85 @@ begin
     if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('26: restricted staff do not see their own campus in the filter'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('26: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 27. Money is the engine's: no staff account writes acceptances, requests
+  --     or payments directly, super admin included
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.payments set status = 'succeeded' where id = p3_payment;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('27: super admin marked a payment succeeded directly'); end if;
+    update public.payment_requests set status = 'paid', paid_minor = amount_minor where id = p3_request;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('27: super admin marked a request paid directly'); end if;
+    insert into public.offer_acceptances (application_id, offer_id, template_id, template_version, decision, terms_accepted, terms_hash)
+    values (app_broadhurst, p2_offer, p2_offer_template, 1, 'accepted', true, 'forged');
+    v_fail := v_fail || E'\n  - ' || ('27: super admin inserted an acceptance directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('27: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_finance);
+    insert into public.payments (payment_request_id, application_id, method, provider, company_ref, status, amount_minor, currency)
+    values (p3_request, app_block7, 'eft', 'bank', 'FORGED', 'succeeded', 750000, 'BWP');
+    v_fail := v_fail || E'\n  - ' || ('27: finance inserted a payment directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('27: finance insert refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 28. Receipts are finance's to read; what is owed is admissions' too;
+  --     an assessor sees neither
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_finance);
+    select count(*) into v_count from public.payments where id = p3_payment;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('28 control: finance cannot read payments'); end if;
+    select count(*) into v_count from public.payment_requests where id = p3_request;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('28 control: finance cannot read payment requests'); end if;
+    update public.bank_instructions set is_active = is_active where false;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('28 control: unexpected error as finance: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.payments where id = p3_payment;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('28: admissions staff can read payments'); end if;
+    select count(*) into v_count from public.payment_requests where id = p3_request;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('28 control: admissions staff cannot see what is owed'); end if;
+    insert into public.bank_instructions (currency, body_text) values ('ZAR', 'forged');
+    v_fail := v_fail || E'\n  - ' || ('28: admissions staff wrote bank instructions');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('28: unexpected error as staff: ' || sqlerrm);
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.payments where id = p3_payment;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('28: assessor can read payments'); end if;
+    select count(*) into v_count from public.payment_requests where id = p3_request;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('28: assessor can read payment requests'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('28: unexpected error as assessor: ' || sqlerrm);
   end;
   perform pg_temp.service();
 

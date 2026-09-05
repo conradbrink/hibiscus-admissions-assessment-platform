@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { PaymentPanel } from "@/components/staff/payment-panel";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
@@ -35,7 +36,8 @@ export async function ApplicantPhase2({
   permissions: PermissionSet;
   app: Pick<ApplicationRow, "id" | "status" | "requires_assessment" | "child_first_name">;
 }) {
-  const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }] = await Promise.all([
+  const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
+  const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
     supabase.from("attempts").select("*").eq("application_id", app.id).order("created_at", { ascending: false }),
     supabase.from("learning_profiles").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("admission_decisions").select("*, staff_profiles(full_name)").eq("application_id", app.id).order("decided_at", { ascending: false }),
@@ -44,6 +46,12 @@ export async function ApplicantPhase2({
       : Promise.resolve({ data: null }),
     supabase.from("subjects").select("id, name").order("sort_order"),
     supabase.from("competencies").select("id, name, subject_id").order("sort_order"),
+    canSeePayments
+      ? supabase.from("payment_requests").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    can(permissions, "finance.read")
+      ? supabase.from("payments").select("*").eq("application_id", app.id).order("created_at", { ascending: false })
+      : Promise.resolve({ data: null }),
   ]);
   const latestAttempt = attempts?.[0] ?? null;
   const { data: scores } = latestAttempt
@@ -66,6 +74,7 @@ export async function ApplicantPhase2({
           <TabsTrigger value="profile">Learning profile</TabsTrigger>
           <TabsTrigger value="decision">Decision</TabsTrigger>
           <TabsTrigger value="offer">Offer</TabsTrigger>
+          <TabsTrigger value="payment">Payment</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessment" className="text-sm">
@@ -241,6 +250,20 @@ export async function ApplicantPhase2({
               ))}
             </ul>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="payment" className="text-sm">
+          {!canSeePayments ? (
+            <p className="text-muted-foreground">You do not have permission to see payments.</p>
+          ) : paymentRequest ? (
+            <PaymentPanel applicationId={app.id} request={paymentRequest} payments={payments} canWrite={can(permissions, "finance.write")} compact />
+          ) : (
+            <p className="text-muted-foreground">
+              {["offer_accepted", "payment_required", "payment_processing", "paid"].includes(app.status)
+                ? "No payment request found for this application; the offer may not have had fees payable on acceptance."
+                : "Fees become due when the parent accepts the offer."}
+            </p>
+          )}
         </TabsContent>
       </Tabs>
     </section>
