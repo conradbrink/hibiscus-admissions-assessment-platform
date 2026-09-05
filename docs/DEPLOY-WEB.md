@@ -50,7 +50,7 @@ deploy token lives in GitHub.
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
 
-3. `vercel.json` registers the cron (`/api/jobs/drain` every five minutes).
+3. `web/vercel.json` registers the cron (`/api/jobs/drain` every five minutes).
    Confirm it appears under the project's Cron Jobs after the first deploy.
    The drain is also what runs the delayed jobs — a timed-out sitting's
    auto-submit, offer reminders and offer expiry — and, from Phase 4, the
