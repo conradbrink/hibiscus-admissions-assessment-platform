@@ -103,3 +103,22 @@ export async function downloadDocument(admin: AdminClient, document: Pick<Docume
   if (error || !data) throw new Error(`storage download: ${error?.message ?? "failed"}`);
   return new Uint8Array(await data.arrayBuffer());
 }
+
+/**
+ * Deletes every stored object for an application — the retention run does
+ * this before the database rows go, so no orphaned file outlives the record.
+ * Missing objects are not an error; a storage failure is.
+ */
+export async function removeDocumentObjects(admin: AdminClient, applicationId: string): Promise<number> {
+  const { data: docs, error } = await admin.from("documents").select("storage_bucket, storage_path").eq("application_id", applicationId);
+  if (error) throw new Error(error.message);
+  const byBucket = new Map<string, string[]>();
+  for (const d of docs ?? []) byBucket.set(d.storage_bucket, [...(byBucket.get(d.storage_bucket) ?? []), d.storage_path]);
+  let removed = 0;
+  for (const [bucket, paths] of byBucket) {
+    const { error: rmErr } = await admin.storage.from(bucket).remove(paths);
+    if (rmErr && !/not found/i.test(rmErr.message)) throw new Error(`storage remove: ${rmErr.message}`);
+    removed += paths.length;
+  }
+  return removed;
+}

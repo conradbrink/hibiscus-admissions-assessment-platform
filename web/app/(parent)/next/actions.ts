@@ -11,6 +11,8 @@ import { funnelSessionKey } from "@/lib/funnel-session";
 import { recordFunnelStep } from "@/lib/funnel";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
+import { getSettings } from "@/lib/settings";
+import { withinCutoff } from "@/lib/format-date";
 import { requireParentSession } from "@/lib/tokens/server";
 import { commit, PARENT_ACTOR } from "@/lib/workflow/engine";
 import {
@@ -138,6 +140,13 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
     return { error: "That time is at a different campus. Please choose another." };
   }
 
+  if (graph.booking && graph.booking.kind === target.kind) {
+    const settings = await getSettings(admin);
+    if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) {
+      return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the assessment. Please call ${graph.campus.name}.` };
+    }
+  }
+
   try {
     if (graph.booking && graph.booking.kind === target.kind) {
       await onRescheduled(admin, app, graph.booking, target.id, actor);
@@ -181,6 +190,8 @@ export async function cancelBooking(): Promise<void> {
   const ctx = await requestContext();
   const graph = await loadApplicationGraph(admin, session.applicationId);
   if (!graph?.booking) redirect("/next");
+  const settings = await getSettings(admin);
+  if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) redirect("/next/booking?cutoff=1");
   await onBookingCancelled(admin, graph.application, graph.booking, "Cancelled by parent", {
     ...PARENT_ACTOR,
     ipHash: ctx.ipHash,

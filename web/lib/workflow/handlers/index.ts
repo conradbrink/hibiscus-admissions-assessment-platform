@@ -8,6 +8,7 @@ import {
   sendOutcomeHandler,
   suggestWritingBandHandler,
 } from "@/lib/workflow/handlers/decisions";
+import { staffDigestHandler } from "@/lib/workflow/automation/digest";
 import { documentExtractHandler } from "@/lib/workflow/handlers/documents";
 import { sendWhatsAppHandler } from "@/lib/workflow/handlers/messaging";
 import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/offers";
@@ -44,4 +45,5 @@ export const HANDLERS: Record<string, Handler> = {
   payment_overdue: paymentOverdueHandler,
   auto_enrol: autoEnrolHandler,
   document_extract: documentExtractHandler,
+  staff_digest: staffDigestHandler,
 };

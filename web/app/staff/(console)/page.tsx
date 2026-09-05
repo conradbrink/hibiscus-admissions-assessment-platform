@@ -57,6 +57,8 @@ export default async function DashboardPage() {
           <StatTile label="Payments not completed" value={c.payments_failed ?? 0} tone="warning" href="/staff/payments" />
           <StatTile label="Parents missing documents" value={c.documents_missing ?? 0} tone="warning" href="/staff/registrations" />
           <StatTile label="Enrolments to confirm" value={c.enrolments_to_confirm ?? 0} tone="warning" href="/staff/registrations" />
+          <StatTile label="Waitlist places available" value={c.waitlist_places ?? 0} tone="warning" href="/staff/tasks?type=waitlist_place_available" />
+          <StatTile label="WhatsApp replies" value={c.parent_replies ?? 0} tone="warning" href="/staff/tasks?type=parent_replied" />
         </div>
       </section>
 

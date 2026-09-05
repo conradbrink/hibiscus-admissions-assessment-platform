@@ -100,7 +100,7 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
       }
     }
 
-    const { error } = await ctx.supabase.from("staff_profiles").update({ is_active: active }).eq("id", staffId);
+    const { error } = await ctx.supabase.from("staff_profiles").update({ is_active: active, digest_enabled: formData.get("digestEnabled") === "1" }).eq("id", staffId);
     if (error) throw new Error(error.message);
     await ctx.supabase.from("staff_roles").delete().eq("staff_id", staffId);
     if (roleIds.length) {

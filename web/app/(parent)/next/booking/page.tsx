@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/parent/page-header";
 import { Button } from "@/components/ui/button";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
-import { hasStarted } from "@/lib/format-date";
+import { hasStarted, withinCutoff } from "@/lib/format-date";
+import { getSettings } from "@/lib/settings";
 import { requireParentSession } from "@/lib/tokens/server";
 import { cancelBooking } from "../actions";
 
@@ -15,13 +16,16 @@ export const metadata: Metadata = { title: "Your booking" };
 
 export default async function BookingPage() {
   const session = await requireParentSession();
-  const graph = await loadApplicationGraph(createAdminClient(), session.applicationId);
+  const admin = createAdminClient();
+  const graph = await loadApplicationGraph(admin, session.applicationId);
   if (!graph) redirect("/link?reason=unknown");
   if (!graph.booking) redirect("/next");
 
   const { application: app, campus, booking } = graph;
+  const settings = await getSettings(admin);
   const qr = await QRCode.toDataURL(app.reference, { margin: 1, width: 192 });
   const past = hasStarted(booking.session.starts_at);
+  const locked = !past && withinCutoff(booking.session.starts_at, settings.rescheduleCutoffHours);
 
   return (
     <>
@@ -34,7 +38,12 @@ export default async function BookingPage() {
         reference={app.reference}
         qrDataUrl={qr}
       />
-      {!past && booking.status === "booked" ? (
+      {locked && booking.status === "booked" ? (
+        <p className="mt-6 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+          Your assessment is less than {settings.rescheduleCutoffHours} hours away, so the booking can no longer be changed or cancelled online. If something has come up, please call {campus.name}.
+        </p>
+      ) : null}
+      {!past && !locked && booking.status === "booked" ? (
         <div className="mt-6 space-y-3">
           <Button size="parent" variant="outline" nativeButton={false} render={<Link href="/next/book" />}>
             Change the time

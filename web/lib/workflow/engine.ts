@@ -49,6 +49,8 @@ export type JobPrecondition = {
   offer_status?: string[];
   payment_id?: string;
   payment_status?: string[];
+  /** Holds only while the application has no live booking: a nudge to rebook that stops once they have. */
+  booking_none?: boolean;
 };
 
 export type JobSpec = {

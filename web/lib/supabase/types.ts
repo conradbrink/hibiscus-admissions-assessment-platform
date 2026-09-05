@@ -120,6 +120,7 @@ export type StaffProfileRow = {
   full_name: string;
   email: string;
   is_active: boolean;
+  digest_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -305,6 +306,9 @@ export type ApplicationRow = {
   next_action: string | null;
   next_action_due_at: string | null;
   withdrawn_reason: string | null;
+  anonymised_at: string | null;
+  retention_hold: boolean;
+  retention_hold_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -441,6 +445,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
+  audience: "parent" | "staff";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -465,6 +470,7 @@ export type EmailMessageRow = {
   opened_at: string | null;
   clicked_at: string | null;
   bounced_at: string | null;
+  recipient_staff_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1180,6 +1186,12 @@ export type StudentExportRow = {
   created_at: string;
 };
 
+export type MaintenanceRunRow = {
+  key: string;
+  last_run_at: string;
+  detail: Json;
+};
+
 export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" | "skipped" | "received";
 
 export type MessageRow = {
@@ -1213,7 +1225,7 @@ export type MessageRow = {
 export type Database = {
   public: {
     Tables: {
-      staff_profiles: TableOf<StaffProfileRow, "is_active">;
+      staff_profiles: TableOf<StaffProfileRow, "is_active" | "digest_enabled">;
       permissions: TableOf<PermissionRow, "sort_order">;
       roles: TableOf<RoleRow, "description" | "is_system" | "campus_scoped">;
       role_permissions: TableOf<
@@ -1292,7 +1304,8 @@ export type Database = {
         | "owner_staff_id"
         | "next_action"
         | "next_action_due_at"
-        | "withdrawn_reason",
+        | "withdrawn_reason"
+        | "anonymised_at" | "retention_hold" | "retention_hold_reason",
         [
           Rel<"applications_contact_id_fkey", "contact_id", "contacts">,
           Rel<"applications_campus_id_fkey", "campus_id", "campuses">,
@@ -1396,7 +1409,7 @@ export type Database = {
       >;
       email_templates: TableOf<
         EmailTemplateRow,
-        "version" | "description" | "allowed_variables" | "is_active" | "created_by",
+        "version" | "description" | "allowed_variables" | "is_active" | "audience" | "created_by",
         [Rel<"email_templates_created_by_fkey", "created_by", "staff_profiles">]
       >;
       email_messages: TableOf<
@@ -1412,10 +1425,12 @@ export type Database = {
         | "delivered_at"
         | "opened_at"
         | "clicked_at"
-        | "bounced_at",
+        | "bounced_at"
+        | "recipient_staff_id",
         [
           Rel<"email_messages_application_id_fkey", "application_id", "applications">,
           Rel<"email_messages_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"email_messages_recipient_staff_id_fkey", "recipient_staff_id", "staff_profiles">,
         ]
       >;
       jobs: TableOf<
@@ -1798,6 +1813,7 @@ export type Database = {
           Rel<"student_exports_created_by_fkey", "created_by", "staff_profiles">,
         ]
       >;
+      maintenance_runs: TableOf<MaintenanceRunRow, "last_run_at" | "detail">;
       application_summaries: TableOf<
         ApplicationSummaryRow,
         "facts" | "flags" | "model" | "prompt_version" | "validation_errors" | "generated_at" | "generated_by",
@@ -1905,6 +1921,8 @@ export type Database = {
         Args: { p_grade_sort: number };
         Returns: string[];
       };
+      anonymise_application: { Args: { p_application_id: string }; Returns: undefined };
+      campus_dashboard_counts: { Args: { p_campus_id: string }; Returns: Json };
       mark_student_records_exported: {
         Args: { p_record_ids: string[]; p_batch_id: string };
         Returns: number;

@@ -100,3 +100,8 @@ export function toSchoolDateString(value: Date): string {
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
+
+/** True inside the last `hours` before an instant (or after it): the window in which a booking is no longer the parent's to move online. */
+export function withinCutoff(startsAt: string | Date, hours: number, now: Date = new Date()): boolean {
+  return new Date(startsAt).getTime() - now.getTime() < hours * 3_600_000;
+}

@@ -34,6 +34,14 @@ export type Settings = {
   whatsappEnabled: boolean;
   aiExtractionEnabled: boolean;
   aiSummaryEnabled: boolean;
+  waitlistAutoPromote: boolean;
+  retentionEnabled: boolean;
+  retentionDaysAbandoned: number;
+  retentionDaysClosed: number;
+  digestEnabled: boolean;
+  digestHour: number;
+  rescheduleCutoffHours: number;
+  rebookNudgeDays: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +66,14 @@ export const DEFAULT_SETTINGS: Settings = {
   whatsappEnabled: false,
   aiExtractionEnabled: false,
   aiSummaryEnabled: false,
+  waitlistAutoPromote: false,
+  retentionEnabled: false,
+  retentionDaysAbandoned: 180,
+  retentionDaysClosed: 365,
+  digestEnabled: false,
+  digestHour: 7,
+  rescheduleCutoffHours: 24,
+  rebookNudgeDays: 3,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -82,6 +98,14 @@ const KEYS: Record<keyof Settings, string> = {
   whatsappEnabled: "whatsapp_enabled",
   aiExtractionEnabled: "ai_extraction_enabled",
   aiSummaryEnabled: "ai_summary_enabled",
+  waitlistAutoPromote: "waitlist_auto_promote",
+  retentionEnabled: "retention_enabled",
+  retentionDaysAbandoned: "retention_days_abandoned",
+  retentionDaysClosed: "retention_days_closed",
+  digestEnabled: "digest_enabled",
+  digestHour: "digest_hour",
+  rescheduleCutoffHours: "reschedule_cutoff_hours",
+  rebookNudgeDays: "rebook_nudge_days",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -92,6 +116,10 @@ function asPositiveIntArray(v: Json | undefined, fallback: number[]): number[] {
   if (!Array.isArray(v)) return fallback;
   const nums = v.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
   return nums.length ? nums : fallback;
+}
+
+function asHour(v: Json | undefined, fallback: number): number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 23 ? v : fallback;
 }
 
 // A boolean setting that is anything other than true or false is the
@@ -133,5 +161,14 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
     aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),
     aiSummaryEnabled: asBoolean(map.get(KEYS.aiSummaryEnabled), d.aiSummaryEnabled),
+    waitlistAutoPromote: asBoolean(map.get(KEYS.waitlistAutoPromote), d.waitlistAutoPromote),
+    retentionEnabled: asBoolean(map.get(KEYS.retentionEnabled), d.retentionEnabled),
+    retentionDaysAbandoned: asPositiveInt(map.get(KEYS.retentionDaysAbandoned), d.retentionDaysAbandoned),
+    retentionDaysClosed: asPositiveInt(map.get(KEYS.retentionDaysClosed), d.retentionDaysClosed),
+    digestEnabled: asBoolean(map.get(KEYS.digestEnabled), d.digestEnabled),
+    // The hour may legitimately be 0; a non-integer or out-of-range value falls back.
+    digestHour: asHour(map.get(KEYS.digestHour), d.digestHour),
+    rescheduleCutoffHours: asPositiveInt(map.get(KEYS.rescheduleCutoffHours), d.rescheduleCutoffHours),
+    rebookNudgeDays: asPositiveInt(map.get(KEYS.rebookNudgeDays), d.rebookNudgeDays),
   };
 }

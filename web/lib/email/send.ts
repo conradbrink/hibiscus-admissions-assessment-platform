@@ -345,3 +345,69 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
 
   return { status: "sent", messageId: message.id };
 }
+
+// ---------------------------------------------------------------------------
+// Staff email: a template with audience 'staff', no application, no tokens
+// ---------------------------------------------------------------------------
+
+export type SendStaffOptions = {
+  staffId: string;
+  templateKey: string;
+  variables: Record<string, string>;
+  idempotencyKey: string;
+};
+
+/**
+ * Sends one templated email to a member of staff — the daily digest — and
+ * records it against them. Same renderer, layout and provider as the
+ * parent emails; no magic links, because staff sign in.
+ */
+export async function sendStaffEmail(admin: AdminClient, opts: SendStaffOptions): Promise<SendTemplatedResult> {
+  const [{ data: staff }, { data: template, error: tErr }] = await Promise.all([
+    admin.from("staff_profiles").select("id, full_name, email, is_active").eq("id", opts.staffId).maybeSingle(),
+    admin.from("email_templates").select("*").eq("key", opts.templateKey).eq("is_active", true).maybeSingle(),
+  ]);
+  if (tErr) return { status: "failed", error: tErr.message, retryable: true };
+  if (!template) return { status: "failed", error: `No active template for "${opts.templateKey}"`, retryable: false };
+  if (template.audience !== "staff") return { status: "failed", error: `Template "${opts.templateKey}" is not a staff template`, retryable: false };
+  if (!staff || !staff.is_active) return { status: "skipped", reason: "staff member missing or inactive" };
+
+  let subject: string;
+  let html: string;
+  let text: string;
+  try {
+    subject = renderSubject(template.subject, opts.variables, template.allowed_variables);
+    html = wrapHtml(renderHtml(template.body_html, opts.variables, template.allowed_variables));
+    text = renderText(template.body_text, opts.variables, template.allowed_variables);
+  } catch (e) {
+    return { status: "failed", error: (e as Error).message, retryable: false };
+  }
+
+  const provider = await getEmailProvider();
+  const { data: message, error: mErr } = await admin
+    .from("email_messages")
+    .insert({
+      application_id: null,
+      contact_id: null,
+      recipient_staff_id: staff.id,
+      template_key: template.key,
+      template_version: template.version,
+      to_email: staff.email,
+      subject,
+      body_html: html,
+      body_text: text,
+      provider: provider.name,
+      status: "queued",
+    })
+    .select("id")
+    .single();
+  if (mErr || !message) return { status: "failed", error: mErr?.message ?? "insert failed", retryable: true };
+
+  const result = await provider.send({ to: staff.email, subject, html, text, idempotencyKey: opts.idempotencyKey });
+  if (!result.ok) {
+    await admin.from("email_messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    return { status: "failed", error: result.error, retryable: result.retryable };
+  }
+  await admin.from("email_messages").update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() }).eq("id", message.id);
+  return { status: "sent", messageId: message.id };
+}

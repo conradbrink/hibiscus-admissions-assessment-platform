@@ -92,6 +92,17 @@ export async function preconditionHolds(
     }
   }
 
+  if (precondition.booking_none) {
+    if (!applicationId) return { holds: false, reason: "no application" };
+    const { count, error } = await admin
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("application_id", applicationId)
+      .in("status", ["booked", "checked_in", "in_progress"]);
+    if (error) throw new Error(error.message);
+    if ((count ?? 0) > 0) return { holds: false, reason: "a booking exists" };
+  }
+
   if (precondition.payment_id) {
     const { data, error } = await admin
       .from("payments")
