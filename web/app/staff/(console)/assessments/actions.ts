@@ -7,8 +7,9 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import { mintKioskCode } from "@/lib/assessment/kiosk-server";
 import { resolveTemplate } from "@/lib/assessment/templates";
 import { getSettings } from "@/lib/settings";
-import { drainSoon, guarded } from "@/lib/staff/action-helpers";
-import { requireStaffAction } from "@/lib/staff/session";
+import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
+import { requireStaffAction, type StaffContext } from "@/lib/staff/session";
+import { WorkflowError } from "@/lib/workflow/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
 import {
@@ -57,7 +58,8 @@ export async function launchAttempt(_: LaunchState, formData: FormData): Promise
         accommodationNote: z.string().trim().max(300).optional(),
       })
       .parse(Object.fromEntries(formData));
-    const admin = createAdminClient();
+    // Visibility first: a campus administrator cannot launch another campus's child.
+    const { admin } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: app, error } = await admin
       .from("applications")
       .select("id, status, campus_id, child_first_name, grades!applications_grade_id_fkey(sort_order)")
@@ -107,11 +109,12 @@ export async function launchAttempt(_: LaunchState, formData: FormData): Promise
 /** A fresh code for an attempt that is still waiting to start (the first one expired or was mistyped). */
 export async function reissueCode(_: LaunchState, formData: FormData): Promise<LaunchState> {
   try {
-    await requireStaffAction("assessments.deliver");
+    const ctx = await requireStaffAction("assessments.deliver");
     const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
-    const admin = createAdminClient();
-    const { data: attempt } = await admin.from("attempts").select("id, status, application_id, time_limit_seconds").eq("id", p.attemptId).single();
+    // Read through the caller's client so campus scoping applies to the action.
+    const { data: attempt } = await ctx.supabase.from("attempts").select("id, status, application_id, time_limit_seconds").eq("id", p.attemptId).maybeSingle();
     if (!attempt) throw new Error("Attempt not found.");
+    const admin = createAdminClient();
     if (attempt.status !== "ready") throw new Error(`The attempt is ${attempt.status}; a code can only be re-issued before it starts.`);
     const settings = await getSettings(admin);
     const minted = await mintKioskCode(admin, attempt.id, settings.kioskCodeMinutes);
@@ -123,10 +126,11 @@ export async function reissueCode(_: LaunchState, formData: FormData): Promise<L
   }
 }
 
-async function loadAttemptAndApp(attemptId: string) {
+/** The attempt is read through the caller's client first, so a campus administrator cannot reach another campus's sitting by id. */
+async function loadAttemptAndApp(ctx: Pick<StaffContext, "supabase">, attemptId: string) {
+  const { data: attempt, error } = await ctx.supabase.from("attempts").select("*").eq("id", attemptId).maybeSingle();
+  if (error || !attempt) throw new WorkflowError("Attempt not found.", "application_not_found");
   const admin = createAdminClient();
-  const { data: attempt, error } = await admin.from("attempts").select("*").eq("id", attemptId).single();
-  if (error || !attempt) throw new Error("Attempt not found.");
   const { data: app, error: aErr } = await admin
     .from("applications")
     .select("id, status, child_first_name")
@@ -140,7 +144,7 @@ export async function abandonAttempt(_: StaffActionState, formData: FormData): P
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
     const p = z.object({ attemptId: z.uuid(), reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
-    const { admin, attempt, app } = await loadAttemptAndApp(p.attemptId);
+    const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     await onAssessmentAbandoned(admin, app, attempt, p.reason, ctx.actor);
     done(app.id, attempt.id);
   });
@@ -151,7 +155,7 @@ export async function submitForChild(_: StaffActionState, formData: FormData): P
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
     const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
-    const { admin, attempt, app } = await loadAttemptAndApp(p.attemptId);
+    const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     await onAssessmentSubmitted(admin, app, attempt, { auto: false }, ctx.actor);
     drainSoon();
     done(app.id, attempt.id);
@@ -175,7 +179,7 @@ export async function markWriting(_: StaffActionState, formData: FormData): Prom
       marks.push({ responseId, marksAwarded: Math.round(n * 100) / 100 });
     }
     if (!marks.length) throw new Error("Enter marks for at least one response.");
-    const { admin, attempt, app } = await loadAttemptAndApp(attemptId);
+    const { admin, attempt, app } = await loadAttemptAndApp(ctx, attemptId);
     await onWritingMarked(admin, attempt, marks, ctx.actor);
     drainSoon();
     done(app.id, attempt.id);
@@ -187,7 +191,7 @@ export async function remarkAttempt(_: StaffActionState, formData: FormData): Pr
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.score.write");
     const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
-    const { admin, attempt, app } = await loadAttemptAndApp(p.attemptId);
+    const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     if (attempt.status !== "submitted" && attempt.status !== "marked") throw new Error("Only a submitted attempt can be marked.");
     await runMarking(admin, attempt.id, ctx.actor);
     drainSoon();

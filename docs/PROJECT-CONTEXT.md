@@ -130,6 +130,16 @@ list and the state machine already include those states.
 - **An enquiry is routed on the second screen**, not the first. A parent
   who abandons between them leaves an application with `next_action = null`;
   the drain's sweep routes it after ten minutes.
+- **Campus scoping is orthogonal to role, and fails closed.** Every applicant
+  table's policy calls `can_access_campus()`. A person with `staff_campuses`
+  rows sees those campuses; a person with none sees everything **unless**
+  they hold a campus-scoped role (`roles.campus_scoped`, true for
+  `campus_admin`), in which case they see nothing until a campus is assigned.
+  So a school's team is: `campus_admin` + their campus for staff, and
+  `admissions_manager` + their campus for the person who approves offers and
+  overrides decisions there. Staff actions read the application through the
+  caller's own client first (`loadApplicationForStaff`), so a posted id from
+  another campus is "not found", never a write.
 - **Reminder jobs carry a `booking_id` precondition.** Rescheduling marks the
   old booking `rescheduled`, so its reminders skip themselves. Offer
   reminders and the expiry sweep do the same with `offer_id`, and their

@@ -49,6 +49,10 @@ declare
   u_noroles uuid := gen_random_uuid();
   u_finance uuid := gen_random_uuid();
   u_author uuid := gen_random_uuid();
+  -- Campus scoping fixtures (Phase 3): a campus administrator with no
+  -- campus assigned, and an admissions manager limited to Broadhurst.
+  u_campus_none uuid := gen_random_uuid();
+  u_campus_mgr uuid := gen_random_uuid();
   -- Phase 2 fixtures
   p2_competency uuid;
   p2_bank uuid;
@@ -88,7 +92,9 @@ begin
     (u_inactive, 'sec-inactive@test.invalid'),
     (u_noroles, 'sec-noroles@test.invalid'),
     (u_finance, 'sec-finance@test.invalid'),
-    (u_author, 'sec-author@test.invalid');
+    (u_author, 'sec-author@test.invalid'),
+    (u_campus_none, 'sec-campus-none@test.invalid'),
+    (u_campus_mgr, 'sec-campus-mgr@test.invalid');
   insert into public.staff_profiles (id, full_name, email, is_active) values
     (u_admin, 'Sec Admin', 'sec-admin@test.invalid', true),
     (u_staff, 'Sec Staff', 'sec-staff@test.invalid', true),
@@ -97,7 +103,9 @@ begin
     (u_inactive, 'Sec Inactive', 'sec-inactive@test.invalid', false),
     (u_noroles, 'Sec NoRoles', 'sec-noroles@test.invalid', true),
     (u_finance, 'Sec Finance', 'sec-finance@test.invalid', true),
-    (u_author, 'Sec Author', 'sec-author@test.invalid', true);
+    (u_author, 'Sec Author', 'sec-author@test.invalid', true),
+    (u_campus_none, 'Sec Campus None', 'sec-campus-none@test.invalid', true),
+    (u_campus_mgr, 'Sec Campus Manager', 'sec-campus-mgr@test.invalid', true);
   insert into public.staff_roles (staff_id, role_id)
   select u, r.id from (values
     (u_admin, 'super_admin'),
@@ -106,7 +114,9 @@ begin
     (u_campus_admin, 'campus_admin'),
     (u_inactive, 'super_admin'),
     (u_finance, 'finance'),
-    (u_author, 'content_author')
+    (u_author, 'content_author'),
+    (u_campus_none, 'campus_admin'),
+    (u_campus_mgr, 'admissions_manager')
   ) as x(u, code) join public.roles r on r.code = x.code;
 
   select id into c_block7 from public.campuses where code = 'block7';
@@ -117,7 +127,7 @@ begin
     raise exception 'SUITE BROKEN: seed data missing (campuses/grades/intakes)';
   end if;
 
-  insert into public.staff_campuses (staff_id, campus_id) values (u_campus_admin, c_broadhurst);
+  insert into public.staff_campuses (staff_id, campus_id) values (u_campus_admin, c_broadhurst), (u_campus_mgr, c_broadhurst);
 
   select application_id into app_block7 from public.create_application(
     'Sec','Parent','sec-parent-a@test.invalid','sec-parent-a@test.invalid',null,null,
@@ -170,6 +180,10 @@ begin
   values (app_block7, p2_attempt, p2_ruleset, 1, 'staff_review', 'staff_review', 'rules') returning id into p2_decision;
   insert into public.offers (application_id, template_id, template_version, currency, rendered_html, terms_html, status)
   values (app_block7, p2_offer_template, 1, 'BWP', '<p>offer</p>', '<p>terms</p>', 'pending_approval') returning id into p2_offer;
+  insert into public.audit_log (actor_type, actor_id, action, entity_type, entity_id, application_id)
+  values ('staff', u_admin, 'sec.block7', 'application', app_block7, app_block7),
+         ('staff', u_admin, 'sec.broadhurst', 'application', app_broadhurst, app_broadhurst),
+         ('staff', u_admin, 'sec.no_application', 'staff_profile', u_admin, null);
 
   -- -------------------------------------------------------------------------
   -- 1. Anonymous callers see nothing
@@ -240,6 +254,26 @@ begin
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4: campus admin can see another campus''s contact'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('4: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 4b. The same restriction on everything that hangs off an application
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.attempts where id = p2_attempt;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s attempt'); end if;
+    select count(*) into v_count from public.offers where id = p2_offer;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s offer'); end if;
+    select count(*) into v_count from public.admission_decisions where id = p2_decision;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s decision'); end if;
+    select count(*) into v_count from public.attempt_responses where attempt_id = p2_attempt;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s responses'); end if;
+    select count(*) into v_count from public.tasks where application_id = app_block7;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('4b: campus admin can see another campus''s tasks'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('4b: unexpected error: ' || sqlerrm);
   end;
   perform pg_temp.service();
 
@@ -702,6 +736,85 @@ begin
     v_fail := v_fail || E'\n  - ' || ('22 control: finance cannot create a fee schedule: ' || sqlerrm);
   end;
   perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 23. A campus-scoped role with no campus assigned sees nothing; assigning
+  --     one campus shows exactly that campus (fail closed, then open by design)
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_campus_none);
+    select count(*) into v_count from public.applications;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('23: campus admin with no campus can see applications'); end if;
+    select count(*) into v_count from public.bookings;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('23: campus admin with no campus can see bookings'); end if;
+    if public.can_access_campus(c_block7) then v_fail := v_fail || E'\n  - ' || ('23: can_access_campus is open for a campus admin with no campus'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('23: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    insert into public.staff_campuses (staff_id, campus_id) values (u_campus_none, c_block7);
+    perform pg_temp.impersonate(u_campus_none);
+    select count(*) into v_count from public.applications where id = app_block7;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('23 control: campus admin cannot see the campus just assigned'); end if;
+    select count(*) into v_count from public.applications where id = app_broadhurst;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('23 control: assigning one campus opened another'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('23 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 24. The audit log follows the application's campus; rows about nothing
+  --     in particular stay visible to audit.read
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_campus_mgr);
+    if not public.has_permission('audit.read') then v_fail := v_fail || E'\n  - ' || ('24: fixture: campus manager lacks audit.read'); end if;
+    select count(*) into v_count from public.audit_log where action = 'sec.block7';
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('24: campus manager can read another campus''s audit rows'); end if;
+    select count(*) into v_count from public.audit_log where action = 'sec.broadhurst';
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('24 control: campus manager cannot read own campus''s audit rows'); end if;
+    select count(*) into v_count from public.audit_log where action = 'sec.no_application';
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('24 control: audit rows with no application are hidden'); end if;
+    -- and the same person, being a manager, may approve offers — for their campus only
+    select count(*) into v_count from public.offers where id = p2_offer;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('24: campus manager can see another campus''s offer'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('24: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 26. v_accessible_campuses offers each person only what the policies allow
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.v_accessible_campuses;
+    if v_count < 2 then v_fail := v_fail || E'\n  - ' || ('26 control: head-office staff do not see every active campus'); end if;
+    perform pg_temp.service();
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.v_accessible_campuses;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('26: restricted staff see ' || v_count || ' campuses in the filter, expected 1'); end if;
+    select count(*) into v_count from public.v_accessible_campuses where id = c_broadhurst;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('26: restricted staff do not see their own campus in the filter'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('26: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 31. The campus administrator role is campus-scoped (guards the seed)
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    if not exists (select 1 from public.roles where code = 'campus_admin' and campus_scoped) then
+      v_fail := v_fail || E'\n  - ' || ('31: campus_admin is not campus_scoped');
+    end if;
+    if exists (select 1 from public.roles where code in ('super_admin', 'admissions_manager') and campus_scoped) then
+      v_fail := v_fail || E'\n  - ' || ('31: a head-office role is campus_scoped');
+    end if;
+  end;
 
   -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.

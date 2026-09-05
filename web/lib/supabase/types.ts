@@ -136,6 +136,8 @@ export type RoleRow = {
   name: string;
   description: string | null;
   is_system: boolean;
+  /** Holders see nothing until assigned campuses in staff_campuses. */
+  campus_scoped: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -879,7 +881,7 @@ export type Database = {
     Tables: {
       staff_profiles: TableOf<StaffProfileRow, "is_active">;
       permissions: TableOf<PermissionRow, "sort_order">;
-      roles: TableOf<RoleRow, "description" | "is_system">;
+      roles: TableOf<RoleRow, "description" | "is_system" | "campus_scoped">;
       role_permissions: TableOf<
         RolePermissionRow,
         never,
@@ -1339,6 +1341,11 @@ export type Database = {
       >;
     };
     Views: {
+      /** The active campuses the caller may see; every campus filter reads this. */
+      v_accessible_campuses: {
+        Row: CampusRow;
+        Relationships: [];
+      };
       v_pipeline_counts: {
         Row: {
           campus_id: string;

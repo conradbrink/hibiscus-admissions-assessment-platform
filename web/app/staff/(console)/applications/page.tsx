@@ -53,7 +53,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
 
   const [{ data: rows, count, error }, { data: campuses }, { data: pipeline }] = await Promise.all([
     query,
-    supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
     supabase.from("v_pipeline_counts").select("status, applications"),
   ]);
   if (error) throw new Error(error.message);

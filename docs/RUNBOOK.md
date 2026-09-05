@@ -96,6 +96,16 @@ They are computed live from the same rows the pipeline shows; if the pipeline
 is right, the counts are right. Campus-restricted staff see only their
 campuses in both.
 
+## Setting up a school's admissions team
+
+`/staff/admin/staff`. Invite each person with the **Campus administrator**
+role and tick their campus under **Limit to campuses**; a campus
+administrator with no campus ticked sees nothing at all, and the form refuses
+to save that. The person who approves offers and decides reviews for that
+school gets **Admissions manager** with the same campus limit. Head-office
+staff have no campus limit and see every school. Every list, count and
+report in the console follows the same rule automatically.
+
 ## Somebody left, or joined
 
 `/staff/admin/staff`. Untick **Can sign in** to remove access at once —
