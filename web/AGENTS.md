@@ -71,11 +71,33 @@ come from `lib/rules/evaluate.ts` or a person's recorded decision. Do not add
 an AI call that writes a mark, an outcome, or anything a parent reads without
 that validator in front of it.
 
+## Paid means verified
+
+A payment row reaches `succeeded`, and an application reaches `paid`, only
+through `reconcilePayment` in `lib/payments/reconcile.ts` (a server-side
+verify whose amount and currency equal the row) or through `onEftRecorded`
+(a receipt a member of finance is accountable for). The gateway's return
+URL carries nothing we trust; the query string is at most a hint about
+which payment to verify first. The dev adapter cannot report "paid" unless
+the non-production simulate screen wrote the outcome. Do not add a path
+that sets a payment status from a request.
+
+## Documents go through one door
+
+Bytes are stored only by `storeDocument` (sniffed, capped, hashed, path
+without a user-controlled segment) and read only through the staff route
+that first selects the `documents` row under RLS and then mints a
+one-minute signed URL. The bucket is private and has no policies; nothing
+but the service role touches it. Never hand a storage path or URL to a
+parent page.
+
 ## Snapshots, not references
 
 An attempt sits a frozen form (`form_questions`), an offer is the HTML and
-fees rendered at approval (`offers.rendered_html`, `offers.fees`), a decision
-records the inputs it read. Editing a question, a template, a fee schedule or
+fees rendered at approval (`offers.rendered_html`, `offers.fees`), an
+acceptance hashes what was on the screen, a payment request copies the fees
+owed, a decision records the inputs it read, and a student record freezes
+the registration at enrolment. Editing a question, a template, a fee schedule or
 an offer template after the fact must never change what a child saw, what a
 parent was offered or why a decision was made. Read from the snapshot when
 showing history.

@@ -1,6 +1,6 @@
 # Database schema
 
-Fourteen migrations, replayable from an empty database. That last property is not
+Eighteen migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -24,6 +24,10 @@ change.
 | `…193200_assessment_delivery` | Frozen forms and their keys, attempts, kiosk codes, responses, scores; `launch_attempt()`, `start_attempt()`, `record_response()`, `submit_attempt()` — service role only |
 | `…193300_admissions_decisions` | Rulesets and rules with freeze triggers, `activate_ruleset()`, append-only `admission_decisions`, learning profiles |
 | `…193400_offers` | Fee schedules and lines, versioned offer templates with `publish_offer_template()`, offers; replaces `dashboard_counts()` |
+| `…210000_campus_scope_hardening` | `roles.campus_scoped`, `can_access_campus()` fails closed, `v_accessible_campuses`, scoped `audit_log` |
+| `…210100_acceptance_and_payments` | Offer acceptances, payment requests, payments, bank instructions; payment settings and templates |
+| `…210200_registration` | Registrations, contacts, document requirements with `required_document_codes()`, documents, agreement templates with `publish_agreement_template()`, acceptances |
+| `…210300_enrolment` | Student records, `dashboard_counts()` with the Phase 3 queues, the welcome template |
 
 ## Rules for new migrations
 
@@ -31,7 +35,7 @@ change.
    applied anywhere its filename must equal the version the database recorded.
    Never invent the timestamp after the fact. CI checks the shape and refuses
    edits to files already on `main`.
-2. **Never edit an applied migration.** Add a new one. The fourteen here are
+2. **Never edit an applied migration.** Add a new one. The eighteen here are
    editable only until the first project applies them.
 3. **`security invoker` on every RPC and `security_invoker = true` on every
    view.** A view defaults to definer rights and bypasses RLS. The only
@@ -46,7 +50,10 @@ change.
 6. **A missing policy is a decision and gets a comment.** `audit_log` has no
    update or delete policy; `bookings` has no write policy for staff; these
    are on purpose and say so.
-7. Idempotent DDL: `create table if not exists`, `drop policy if exists`
+7. **Nothing references `storage.*`.** The local replay stub has no storage
+   schema, and the documents bucket needs no policies because only the
+   service role touches it; the application creates the bucket at first use.
+8. Idempotent DDL: `create table if not exists`, `drop policy if exists`
    before `create policy`, `drop trigger if exists` before `create trigger`.
 
 ## Applying to a project
@@ -90,6 +97,6 @@ su postgres -c "supabase/tests/replay_local.sh"
 
 Creates `hibiscus_local` from scratch on a stock Ubuntu Postgres, applies
 `tests/local_supabase_stub.sql` (roles, `auth.uid()`), every migration in
-order, then `tests/security_regression.sql` (22 attacks, each with a control
+order, then `tests/security_regression.sql` (31 attacks, each with a control
 that the legitimate case still works). Exit code 0 means both "the schema
 builds" and "the schema refuses what it should".

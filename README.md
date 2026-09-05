@@ -28,7 +28,10 @@ only where judgement is needed.
 | `web/lib/assessment/` | The question bank's answer keys, form materialisation, marking and scoring, the kiosk session |
 | `web/lib/rules/`, `web/lib/profile/`, `web/lib/ai/` | The admission rules engine, the learning profile with its validated AI narrative, and the AI provider seam |
 | `web/lib/offers/` | Fee snapshots and offer rendering |
+| `web/lib/payments/` | The gateway seam: DPO Pay adapter, a dev adapter, checkout, the reconciler that is the only path to "paid" |
+| `web/lib/registration/`, `web/lib/documents/`, `web/lib/enrolment/` | Registration schemas and the completeness rule, document storage and sniffing, the enrolment record and the student-system seam |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
+| `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
 | `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only |
 | `supabase/migrations/` | The schema, replayable from empty |
 | `supabase/tests/` | `replay_local.sh` rebuilds a local database; `security_regression.sql` attacks it |
@@ -79,6 +82,13 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
 - **Answers never leave the server.** The kiosk reads the frozen form only;
   answer keys are readable by content authors and the marker, nobody else,
   and a unit test greps the delivery code for the key tables.
+- **A payment is "paid" only when the gateway confirms it server-side** with the
+  amount and currency we asked for, or when finance records a bank receipt.
+  Nothing on the return URL is trusted, and the dev adapter cannot say "paid"
+  on its own.
+- **Every school's team sees its own school.** Campus scoping is in the
+  policies, fails closed for campus-scoped roles, and binds staff actions as
+  well as pages.
 - **The AI never decides.** Admission outcomes come from the rules engine or
   a person. The AI writes the learning-profile narrative over numbers the
   code computed, and a validator rejects any sentence that adds a number,

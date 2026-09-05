@@ -90,6 +90,43 @@ The parent's offer link stops working immediately, the reminders for that
 offer skip themselves, and a corrected offer can be generated and approved.
 The withdrawn offer stays in the applicant's history with the reason given.
 
+## A parent says they paid but the site says "confirming"
+
+1. Online payments are confirmed by asking the payment provider, not by the
+   parent's browser. The site asks when they return, and again every few
+   minutes from the cron. Applicant → **Payment** tab, or `/staff/payments`
+   → **Being confirmed** → **Check with gateway**.
+2. If the provider says it is not paid and the parent has a card statement
+   showing a charge, note the reference on the task and ask finance to check
+   the provider's portal; never record it as paid on the parent's word.
+3. If the cron is not running, nothing confirms until somebody presses the
+   button. Check `/staff/admin/jobs`.
+
+## A bank transfer has arrived
+
+`/staff/payments` → the family's row → **Record bank transfer** with the
+amount, the date it reached the account and the bank's reference. That
+receipt is what moves the application to paid and sends the parent a
+receipt and the registration link. Half the amount records as a part
+payment and opens a task for the balance.
+
+## A document will not upload
+
+1. Only PDF, JPEG and PNG are accepted, decided by the file's contents, and
+   up to 10 MB. A Word file, a HEIC photo straight from an iPhone, or a
+   renamed file is refused with a message saying which.
+2. Ask the parent to take a fresh photo with the camera set to "most
+   compatible" (JPEG), or to print to PDF.
+3. Staff cannot upload on a parent's behalf in this phase; email the file to
+   admissions and note it on the applicant until the parent uploads it.
+
+## Enrolment will not confirm
+
+**Confirm enrolment** is refused until every required document is uploaded
+and accepted, and every required agreement signed. The registration page
+lists what is missing. Accept or reject each pending document first; a
+rejection emails the parent with your reason and asks for it again.
+
 ## The dashboard counts look wrong
 
 They are computed live from the same rows the pipeline shows; if the pipeline
@@ -135,5 +172,10 @@ trail keeps their name.
    the safe default.
 7. Never grant `assessments.author` to somebody who does not write
    questions: it is the only permission that can read answer keys.
+8. Never set `PAYMENT_PROVIDER=dev` on production. The adapter refuses to
+   load there; if it somehow did, nothing would be charged and nothing
+   could be marked paid, but parents would see a page that says so.
+9. Never mark a payment as received without a bank reference you can point
+   to on a statement. The recording is audited under your name.
 5. Never switch `EMAIL_PROVIDER` to `resend` before the domain records are in
    place.
