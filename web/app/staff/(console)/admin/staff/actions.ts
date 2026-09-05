@@ -1,15 +1,33 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/types";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { PERMISSION_CODES } from "@/lib/permissions";
 
 function ids(formData: FormData, name: string): string[] {
   return formData.getAll(name).filter((v): v is string => typeof v === "string" && v.length > 0);
+}
+
+/**
+ * A campus-scoped role (a campus administrator) with no campus sees
+ * nothing, by design; saving that combination is a mistake, so refuse it
+ * here where the person can fix it rather than at their first sign-in.
+ */
+async function assertCampusScopedRolesHaveCampuses(
+  client: SupabaseClient<Database>,
+  roleIds: string[],
+  campusIds: string[]
+): Promise<void> {
+  if (!roleIds.length || campusIds.length) return;
+  const { data } = await client.from("roles").select("name, campus_scoped").in("id", roleIds);
+  const scoped = (data ?? []).filter((r) => r.campus_scoped).map((r) => r.name);
+  if (scoped.length) throw new Error(`${scoped.join(", ")} is limited to campuses; choose at least one campus.`);
 }
 
 /**
@@ -27,6 +45,7 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
     const campusIds = ids(formData, "campusIds");
 
     const admin = createAdminClient();
+    await assertCampusScopedRolesHaveCampuses(admin, roleIds, campusIds);
     const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/staff/reset-password`;
     const { data, error } = await admin.auth.admin.inviteUserByEmail(p.email, { redirectTo });
     if (error) throw new Error(error.message);
@@ -63,6 +82,7 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
     const active = formData.get("isActive") === "1";
     const roleIds = ids(formData, "roleIds");
     const campusIds = ids(formData, "campusIds");
+    await assertCampusScopedRolesHaveCampuses(ctx.supabase, roleIds, campusIds);
 
     // Guard against locking everyone out: the last active holder of the
     // super_admin role cannot be deactivated or stripped of it.

@@ -36,5 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   // otherwise the hub shows the one next step.
   if (result.purpose === "results") redirect("/profile");
   if (result.purpose === "offer") redirect("/offer");
+  if (result.purpose === "payment") redirect("/pay");
+  if (result.purpose === "registration") redirect("/register");
   redirect("/next");
 }

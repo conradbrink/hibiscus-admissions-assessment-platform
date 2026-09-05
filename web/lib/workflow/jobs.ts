@@ -92,6 +92,19 @@ export async function preconditionHolds(
     }
   }
 
+  if (precondition.payment_id) {
+    const { data, error } = await admin
+      .from("payments")
+      .select("status")
+      .eq("id", precondition.payment_id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { holds: false, reason: "payment missing" };
+    if (precondition.payment_status && !precondition.payment_status.includes(data.status)) {
+      return { holds: false, reason: `payment is ${data.status}` };
+    }
+  }
+
   return { holds: true };
 }
 

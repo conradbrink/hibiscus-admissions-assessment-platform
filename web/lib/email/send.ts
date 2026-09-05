@@ -9,6 +9,10 @@ import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
+import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
+import { createElement, type ReactElement } from "react";
+import { ReceiptDocument } from "@/lib/documents/receipt-pdf";
+import { loadBankInstructions, requestLines } from "@/lib/payments/requests";
 
 /**
  * Sends one templated email to the parent on an application, and records it.
@@ -28,19 +32,26 @@ export type SendTemplatedResult =
   | { status: "failed"; error: string; retryable: boolean }
   | { status: "skipped"; reason: string };
 
-export type LinkPurpose = "results" | "offer";
+export type LinkPurpose = "results" | "offer" | "payment" | "registration";
 
 export type EmailLinks = {
   nextStep: string;
   results?: string | null;
   offer?: string | null;
+  payment?: string | null;
+  registration?: string | null;
 };
 
-/** Values that come from the live offer. Empty until Phase 2's offers exist. */
+/** Values that come from the live offer, payment request and payment. */
 export type EmailExtras = {
   offerExpiryDate?: string | null;
   amountDue?: string | null;
-  paymentLink?: string | null;
+  paymentDueDate?: string | null;
+  bankDetails?: string | null;
+  amountPaid?: string | null;
+  paymentReference?: string | null;
+  paymentDate?: string | null;
+  missingDocuments?: string | null;
 };
 
 /** The variables every template may draw on, built from the application graph. */
@@ -62,9 +73,17 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     // references a link its send did not mint simply omits it.
     results_link: links.results ?? null,
     offer_link: links.offer ?? null,
+    payment_link: links.payment ?? null,
+    registration_link: links.registration ?? null,
     offer_expiry_date: extras.offerExpiryDate ?? null,
     amount_due: extras.amountDue ?? null,
-    payment_link: extras.paymentLink ?? null,
+    payment_due_date: extras.paymentDueDate ?? null,
+    bank_details: extras.bankDetails ?? null,
+    amount_paid: extras.amountPaid ?? null,
+    payment_reference: extras.paymentReference ?? null,
+    payment_date: extras.paymentDate ?? null,
+    missing_documents: extras.missingDocuments ?? null,
+    start_date: formatDateLong(graph.intake.starts_on),
   };
 }
 
@@ -77,6 +96,12 @@ export type SendTemplatedOptions = {
   links?: LinkPurpose[];
   /** The offer the email is about, for its expiry and amount. */
   offerId?: string | null;
+  /** The payment request, for the amount due, due date and bank details. */
+  paymentRequestId?: string | null;
+  /** The payment a receipt is about. */
+  paymentId?: string | null;
+  /** Free text for the documents-missing emails. */
+  missingDocuments?: string | null;
 };
 
 /**
@@ -101,6 +126,60 @@ async function offerExtras(admin: AdminClient, offerId: string | null | undefine
   };
 }
 
+/**
+ * What the payment emails say about money: the request's amount and due
+ * date (which take precedence over the offer's provisional figure), the
+ * bank details for the campus and currency, and for a receipt the payment.
+ */
+async function paymentExtras(
+  admin: AdminClient,
+  graph: ApplicationGraph,
+  requestId: string | null | undefined,
+  paymentId: string | null | undefined
+): Promise<EmailExtras & { dueAt: Date | null; receipt: ReceiptAttachment | null }> {
+  if (!requestId && !paymentId) return { dueAt: null, receipt: null };
+  const out: EmailExtras & { dueAt: Date | null; receipt: ReceiptAttachment | null } = { dueAt: null, receipt: null };
+  const { data: payment } = paymentId ? await admin.from("payments").select("*").eq("id", paymentId).maybeSingle() : { data: null };
+  const reqId = requestId ?? payment?.payment_request_id ?? null;
+  const { data: request } = reqId ? await admin.from("payment_requests").select("*").eq("id", reqId).maybeSingle() : { data: null };
+  if (request) {
+    out.dueAt = new Date(request.due_at);
+    out.paymentDueDate = formatDateLong(request.due_at);
+    out.amountDue = formatMoney(Number(request.amount_minor) - Number(request.paid_minor), request.currency);
+    const bank = await loadBankInstructions(admin, { currency: request.currency, campusId: graph.application.campus_id });
+    out.bankDetails = bank?.body_text ?? null;
+  }
+  if (payment && payment.status === "succeeded") {
+    out.amountPaid = formatMoney(Number(payment.amount_minor), payment.currency);
+    out.paymentReference = payment.method === "eft" ? (payment.bank_reference ?? payment.company_ref) : payment.company_ref;
+    out.paymentDate = formatDateLong(payment.received_on ?? payment.updated_at);
+    out.receipt = {
+      receiptNumber: `R-${payment.id.slice(0, 8).toUpperCase()}`,
+      currency: payment.currency,
+      lines: request ? requestLines(request) : [],
+      amountMinor: Number(payment.amount_minor),
+      method: payment.method,
+      providerLabel: payment.provider === "dpo" ? "DPO Pay" : payment.provider,
+      paymentReference: out.paymentReference,
+      approvalCode: payment.approval_code,
+      paidOn: out.paymentDate,
+    };
+  }
+  return out;
+}
+
+type ReceiptAttachment = {
+  receiptNumber: string;
+  currency: string;
+  lines: Array<{ label: string; amount_minor: number }>;
+  amountMinor: number;
+  method: "online" | "eft";
+  providerLabel: string;
+  paymentReference: string;
+  approvalCode: string | null;
+  paidOn: string;
+};
+
 export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplatedOptions): Promise<SendTemplatedResult> {
   const graph = await loadApplicationGraph(admin, opts.applicationId);
   if (!graph) return { status: "skipped", reason: "application missing" };
@@ -118,7 +197,9 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   }
 
   const settings = await getSettings(admin);
-  const extras = await offerExtras(admin, opts.offerId);
+  const offer = await offerExtras(admin, opts.offerId);
+  const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
+  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",
@@ -129,10 +210,10 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   for (const purpose of opts.links ?? []) {
     // An offer link must outlive the offer by a margin, so a parent opening
     // the email on the last day is not told the link has expired.
+    // Likewise a payment link outlives the due date: paying late is still paying.
+    const outlive = (until: Date | null) => (until ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 86_400_000) + 7) : settings.nextStepTokenDays);
     const ttlDays =
-      purpose === "offer" && extras.expiresAt
-        ? Math.max(1, Math.ceil((extras.expiresAt.getTime() - Date.now()) / 86_400_000) + 7)
-        : settings.nextStepTokenDays;
+      purpose === "offer" ? outlive(extras.expiresAt) : purpose === "payment" ? Math.max(outlive(pay.dueAt), settings.nextStepTokenDays) : settings.nextStepTokenDays;
     const minted = await mintToken(admin, {
       applicationId: graph.application.id,
       purpose,
@@ -156,7 +237,19 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
     return { status: "failed", error: (e as Error).message, retryable: false };
   }
 
-  const attachments: Array<{ filename: string; content: string; contentType: string }> = [];
+  const attachments: Array<{ filename: string; content: string | Uint8Array; contentType: string }> = [];
+  if (opts.templateKey === "payment_received" && pay.receipt) {
+    const element = createElement(ReceiptDocument, {
+      reference: graph.application.reference,
+      studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
+      payerName: `${graph.contact.first_name} ${graph.contact.last_name}`,
+      campus: graph.campus.name,
+      grade: graph.grade.name,
+      ...pay.receipt,
+    }) as unknown as ReactElement<DocumentProps>;
+    const buffer = await renderToBuffer(element);
+    attachments.push({ filename: `hibiscus-receipt-${pay.receipt.receiptNumber}.pdf`, contentType: "application/pdf", content: new Uint8Array(buffer) });
+  }
   if (
     (opts.templateKey === "booking_confirmed" || opts.templateKey === "visit_confirmed") &&
     graph.booking

@@ -98,4 +98,36 @@ describe("state machine", () => {
       expect(NEXT_ACTIONS[k].staffLabel).toBeTruthy();
     }
   });
+
+  it("walks the Phase 3 path from a sent offer to enrolment", () => {
+    const path: ApplicationStatus[] = [
+      "offer_sent",
+      "offer_accepted",
+      "payment_required",
+      "payment_processing",
+      "payment_required",
+      "payment_processing",
+      "paid",
+      "registration_incomplete",
+      "registration_complete",
+      "enrolled",
+    ];
+    for (let i = 1; i < path.length; i++) expect(canTransition(path[i - 1], path[i])).toBe(true);
+    // A bank transfer settles without a processing step.
+    expect(canTransition("payment_required", "paid")).toBe(true);
+    // Once submitted, registration does not reopen: corrections are a task.
+    expect(canTransition("registration_complete", "registration_incomplete")).toBe(false);
+    // An accepted offer goes to payment and nowhere else.
+    expect(TRANSITIONS.offer_accepted).toEqual(["payment_required"]);
+    for (const s of ["offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete"] as ApplicationStatus[]) {
+      expect(canTransition(s, "withdrawn")).toBe(true);
+    }
+    expect(canTransition("enrolled", "withdrawn")).toBe(false);
+  });
+
+  it("points the payment and registration actions at their pages", () => {
+    expect(NEXT_ACTIONS.pay_fees.parentCta?.href).toBe("/pay");
+    expect(NEXT_ACTIONS.complete_registration.parentCta?.href).toBe("/register");
+    expect(NEXT_ACTIONS.review_offer.parentCta?.href).toBe("/offer");
+  });
 });

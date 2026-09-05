@@ -50,4 +50,17 @@ describe("template rendering", () => {
     const out = renderText("Hi {{student_first_name}}", { student_first_name: "{{next_step_link}}" }, ALLOWED);
     expect(out).toBe("Hi {{next_step_link}}");
   });
+  it("renders the payment email shapes: an optional bank-details block and a pre-line body", () => {
+    const allowed = ["amount_due", "payment_link", "bank_details", "application_reference"];
+    const t = "<p>Pay {{amount_due}}</p>{{#if bank_details}}<p style=\"white-space:pre-line\">{{bank_details}}</p><p>Ref {{application_reference}}</p>{{/if}}";
+    const withBank = renderHtml(t, { amount_due: "P 7,500.00", payment_link: "x", bank_details: "FNB\nAccount 1 & 2", application_reference: "HBS-1" }, allowed);
+    expect(withBank).toBe("<p>Pay P 7,500.00</p><p style=\"white-space:pre-line\">FNB\nAccount 1 &amp; 2</p><p>Ref HBS-1</p>");
+    const without = renderHtml(t, { amount_due: "P 7,500.00", payment_link: "x", bank_details: null, application_reference: "HBS-1" }, allowed);
+    expect(without).toBe("<p>Pay P 7,500.00</p>");
+  });
+  it("lists missing documents only when there are any", () => {
+    const allowed = ["missing_documents"];
+    expect(renderText("{{#if missing_documents}}Still needed: {{missing_documents}}{{/if}}", { missing_documents: "Birth certificate" }, allowed)).toBe("Still needed: Birth certificate");
+    expect(renderText("{{#if missing_documents}}Still needed: {{missing_documents}}{{/if}}", { missing_documents: null }, allowed)).toBe("");
+  });
 });

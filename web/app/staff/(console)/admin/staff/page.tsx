@@ -38,12 +38,12 @@ export default async function StaffAdminPage() {
             <legend className="mb-1 font-medium">Roles</legend>
             <div className="flex flex-wrap gap-3">
               {(roles ?? []).map((r) => (
-                <label key={r.id} className="flex items-center gap-1.5"><input type="checkbox" name="roleIds" value={r.id} /> {r.name}</label>
+                <label key={r.id} className="flex items-center gap-1.5"><input type="checkbox" name="roleIds" value={r.id} /> {r.name}{r.campus_scoped ? <span className="text-xs text-muted-foreground">(needs a campus)</span> : null}</label>
               ))}
             </div>
           </fieldset>
           <fieldset className="text-sm">
-            <legend className="mb-1 font-medium">Limit to campuses <span className="font-normal text-muted-foreground">(none = all)</span></legend>
+            <legend className="mb-1 font-medium">Limit to campuses <span className="font-normal text-muted-foreground">(none = all, except for roles that need a campus)</span></legend>
             <div className="flex flex-wrap gap-3">
               {(campuses ?? []).map((c) => (
                 <label key={c.id} className="flex items-center gap-1.5"><input type="checkbox" name="campusIds" value={c.id} /> {c.name}</label>

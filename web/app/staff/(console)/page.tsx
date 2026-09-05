@@ -53,6 +53,10 @@ export default async function DashboardPage() {
           <StatTile label="Callbacks open" value={c.callbacks_open ?? 0} tone="warning" href="/staff/tasks?type=callback" />
           <StatTile label="Tasks overdue" value={c.tasks_overdue ?? 0} tone="destructive" href="/staff/tasks?filter=overdue" />
           <StatTile label="Offers outstanding" value={c.offers_outstanding ?? 0} href="/staff/applications?status=offer_sent" />
+          <StatTile label="Payments overdue" value={c.payments_overdue ?? 0} tone="destructive" href="/staff/payments" />
+          <StatTile label="Payments not completed" value={c.payments_failed ?? 0} tone="warning" href="/staff/payments" />
+          <StatTile label="Parents missing documents" value={c.documents_missing ?? 0} tone="warning" href="/staff/registrations" />
+          <StatTile label="Enrolments to confirm" value={c.enrolments_to_confirm ?? 0} tone="warning" href="/staff/registrations" />
         </div>
       </section>
 
@@ -62,7 +66,8 @@ export default async function DashboardPage() {
           <StatTile label="New enquiries" value={c.new_enquiries ?? 0} href="/staff/applications?group=enquiry" />
           <StatTile label="Assessments today" value={c.assessments_today ?? 0} href="/staff/assessments/today" />
           <StatTile label="Assessments this week" value={c.assessments_this_week ?? 0} href="/staff/assessments/today" />
-          <StatTile label="Payments outstanding" value={c.payments_outstanding ?? 0} href="/staff/applications?status=payment_required" />
+          <StatTile label="Payments outstanding" value={c.payments_outstanding ?? 0} href="/staff/payments" />
+          <StatTile label="Registrations incomplete" value={c.registrations_incomplete ?? 0} href="/staff/registrations" />
           <StatTile label="Enrolled" value={c.enrolled ?? 0} tone="success" href="/staff/applications?status=enrolled" />
         </div>
       </section>

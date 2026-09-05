@@ -36,7 +36,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   const [{ data: sessions }, { data: campuses }] = await Promise.all([
     sessionsQuery,
-    supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
   ]);
 
   const sessionIds = (sessions ?? []).map((s) => s.id);

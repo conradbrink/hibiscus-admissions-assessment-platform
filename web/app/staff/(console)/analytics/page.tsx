@@ -58,7 +58,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const [{ data: rows }, { data: effort }, { data: campuses }, { data: pipeline }] = await Promise.all([
     q,
     supabase.from("v_funnel_effort").select("*").maybeSingle(),
-    supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
     supabase.from("v_pipeline_counts").select("*"),
   ]);
 

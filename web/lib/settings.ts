@@ -26,6 +26,11 @@ export type Settings = {
   offerAutoApprove: boolean;
   profileSharedOnDecline: boolean;
   aiNarrativeEnabled: boolean;
+  paymentDueDays: number;
+  paymentReminderDaysBefore: number[];
+  paymentVerifyMinutes: number;
+  registrationReminderDays: number[];
+  autoEnrol: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +47,11 @@ export const DEFAULT_SETTINGS: Settings = {
   offerAutoApprove: false,
   profileSharedOnDecline: true,
   aiNarrativeEnabled: true,
+  paymentDueDays: 14,
+  paymentReminderDaysBefore: [7, 2],
+  paymentVerifyMinutes: 10,
+  registrationReminderDays: [7, 14],
+  autoEnrol: false,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -58,6 +68,11 @@ const KEYS: Record<keyof Settings, string> = {
   offerAutoApprove: "offer_auto_approve",
   profileSharedOnDecline: "profile_shared_on_decline",
   aiNarrativeEnabled: "ai_narrative_enabled",
+  paymentDueDays: "payment_due_days",
+  paymentReminderDaysBefore: "payment_reminder_days_before",
+  paymentVerifyMinutes: "payment_verify_minutes",
+  registrationReminderDays: "registration_reminder_days",
+  autoEnrol: "auto_enrol",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -101,5 +116,10 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     offerAutoApprove: asBoolean(map.get(KEYS.offerAutoApprove), d.offerAutoApprove),
     profileSharedOnDecline: asBoolean(map.get(KEYS.profileSharedOnDecline), d.profileSharedOnDecline),
     aiNarrativeEnabled: asBoolean(map.get(KEYS.aiNarrativeEnabled), d.aiNarrativeEnabled),
+    paymentDueDays: asPositiveInt(map.get(KEYS.paymentDueDays), d.paymentDueDays),
+    paymentReminderDaysBefore: asPositiveIntArray(map.get(KEYS.paymentReminderDaysBefore), d.paymentReminderDaysBefore),
+    paymentVerifyMinutes: asPositiveInt(map.get(KEYS.paymentVerifyMinutes), d.paymentVerifyMinutes),
+    registrationReminderDays: asPositiveIntArray(map.get(KEYS.registrationReminderDays), d.registrationReminderDays),
+    autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
   };
 }

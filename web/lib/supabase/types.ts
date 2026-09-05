@@ -136,6 +136,8 @@ export type RoleRow = {
   name: string;
   description: string | null;
   is_system: boolean;
+  /** Holders see nothing until assigned campuses in staff_campuses. */
+  campus_scoped: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -859,6 +861,241 @@ export type OfferRow = {
   updated_at: string;
 };
 
+// ---------------------------------------------------------------------------
+// Phase 3: acceptance, payments
+// ---------------------------------------------------------------------------
+
+export type OfferDecision = "accepted" | "declined";
+export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
+export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
+export type PaymentMethod = "online" | "eft";
+export type PaymentProviderName = "dev" | "dpo" | "bank";
+
+export type OfferAcceptanceRow = {
+  id: string;
+  application_id: string;
+  offer_id: string;
+  template_id: string;
+  template_version: number;
+  decision: OfferDecision;
+  terms_accepted: boolean;
+  terms_hash: string;
+  fees: Json;
+  decline_reason: string | null;
+  ip_hash: string | null;
+  user_agent: string | null;
+  decided_at: string;
+  created_at: string;
+};
+
+export type PaymentRequestRow = {
+  id: string;
+  application_id: string;
+  offer_id: string;
+  acceptance_id: string;
+  currency: "BWP" | "ZAR";
+  amount_minor: number;
+  lines: Json;
+  paid_minor: number;
+  status: PaymentRequestStatus;
+  due_at: string;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PaymentRow = {
+  id: string;
+  payment_request_id: string;
+  application_id: string;
+  method: PaymentMethod;
+  provider: PaymentProviderName;
+  provider_ref: string | null;
+  company_ref: string;
+  status: PaymentStatus;
+  amount_minor: number;
+  currency: "BWP" | "ZAR";
+  approval_code: string | null;
+  expires_at: string | null;
+  verify_attempts: number;
+  last_verified_at: string | null;
+  raw_response: Json | null;
+  failure_reason: string | null;
+  bank_reference: string | null;
+  received_on: string | null;
+  recorded_by: string | null;
+  note: string | null;
+  refunded_at: string | null;
+  refunded_by: string | null;
+  refund_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BankInstructionRow = {
+  id: string;
+  currency: "BWP" | "ZAR";
+  campus_id: string | null;
+  body_text: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Phase 3: registration, documents, agreements
+// ---------------------------------------------------------------------------
+
+export type Gender = "female" | "male" | "other" | "undisclosed";
+export type IdentityType = "omang" | "passport" | "birth_certificate" | "other";
+export type GuardianRelationship = "mother" | "father" | "parent" | "guardian" | "grandparent" | "other";
+export type RegistrationContactKind = "primary_guardian" | "secondary_guardian" | "emergency";
+export type DocumentMime = "application/pdf" | "image/jpeg" | "image/png";
+export type ScanStatus = "not_scanned" | "clean" | "infected" | "error";
+export type ReviewStatus = "pending" | "accepted" | "rejected";
+export type ExtractionStatus = "not_run" | "pending" | "done" | "failed";
+
+export type RegistrationRow = {
+  id: string;
+  application_id: string;
+  legal_first_name: string | null;
+  legal_middle_names: string | null;
+  legal_last_name: string | null;
+  preferred_name: string | null;
+  gender: Gender | null;
+  date_of_birth: string | null;
+  nationality: string | null;
+  country_of_birth: string | null;
+  place_of_birth: string | null;
+  home_language: string | null;
+  identity_type: IdentityType | null;
+  identity_number: string | null;
+  previous_institution: string | null;
+  current_grade: string | null;
+  medical_aid_name: string | null;
+  medical_aid_number: string | null;
+  medical_aid_principal_member: string | null;
+  emergency_treatment_consent: boolean | null;
+  allergies: string | null;
+  medical_conditions: string | null;
+  medication: string | null;
+  medical_notes: string | null;
+  vaccination_notes: string | null;
+  student_completed_at: string | null;
+  medical_completed_at: string | null;
+  family_completed_at: string | null;
+  emergency_completed_at: string | null;
+  documents_completed_at: string | null;
+  agreements_completed_at: string | null;
+  submitted_at: string | null;
+  submitted_ip_hash: string | null;
+  prefill_changed: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RegistrationContactRow = {
+  id: string;
+  application_id: string;
+  kind: RegistrationContactKind;
+  position: number;
+  contact_id: string | null;
+  first_name: string;
+  last_name: string;
+  relationship: GuardianRelationship;
+  email: string | null;
+  mobile: string | null;
+  mobile_normalised: string | null;
+  phone: string | null;
+  address: string | null;
+  nationality: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentRequirementRow = {
+  code: string;
+  label: string;
+  description: string | null;
+  required: boolean;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentRow = {
+  id: string;
+  application_id: string;
+  requirement_code: string;
+  storage_bucket: string;
+  storage_path: string;
+  original_filename: string;
+  mime_type: DocumentMime;
+  size_bytes: number;
+  sha256: string;
+  uploaded_by: "parent" | "staff";
+  uploaded_by_staff_id: string | null;
+  scan_status: ScanStatus;
+  scanner: string | null;
+  review_status: ReviewStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  extraction_status: ExtractionStatus;
+  extracted_fields: Json | null;
+  superseded_by: string | null;
+  deleted_at: string | null;
+  uploaded_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgreementTemplateRow = {
+  id: string;
+  key: string;
+  version: number;
+  name: string;
+  description: string | null;
+  body_html: string;
+  required: boolean;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgreementAcceptanceRow = {
+  id: string;
+  application_id: string;
+  agreement_template_id: string;
+  template_key: string;
+  template_version: number;
+  body_hash: string;
+  signature_name: string;
+  ip_hash: string | null;
+  user_agent: string | null;
+  accepted_at: string;
+};
+
+export type ExportStatus = "pending" | "exported" | "failed";
+
+export type StudentRecordRow = {
+  id: string;
+  application_id: string;
+  schema_version: number;
+  snapshot: Json;
+  generated_at: string;
+  generated_by: string | null;
+  export_status: ExportStatus;
+  exported_at: string | null;
+  external_ref: string | null;
+  export_error: string | null;
+  created_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -879,7 +1116,7 @@ export type Database = {
     Tables: {
       staff_profiles: TableOf<StaffProfileRow, "is_active">;
       permissions: TableOf<PermissionRow, "sort_order">;
-      roles: TableOf<RoleRow, "description" | "is_system">;
+      roles: TableOf<RoleRow, "description" | "is_system" | "campus_scoped">;
       role_permissions: TableOf<
         RolePermissionRow,
         never,
@@ -1328,6 +1565,105 @@ export type Database = {
           Rel<"offers_approved_by_fkey", "approved_by", "staff_profiles">,
         ]
       >;
+      offer_acceptances: TableOf<
+        OfferAcceptanceRow,
+        "terms_accepted" | "fees" | "decline_reason" | "ip_hash" | "user_agent" | "decided_at",
+        [
+          Rel<"offer_acceptances_application_id_fkey", "application_id", "applications">,
+          Rel<"offer_acceptances_offer_id_fkey", "offer_id", "offers", true>,
+          Rel<"offer_acceptances_template_id_fkey", "template_id", "offer_templates">,
+        ]
+      >;
+      payment_requests: TableOf<
+        PaymentRequestRow,
+        "lines" | "paid_minor" | "status" | "paid_at",
+        [
+          Rel<"payment_requests_application_id_fkey", "application_id", "applications">,
+          Rel<"payment_requests_offer_id_fkey", "offer_id", "offers">,
+          Rel<"payment_requests_acceptance_id_fkey", "acceptance_id", "offer_acceptances">,
+        ]
+      >;
+      payments: TableOf<
+        PaymentRow,
+        | "provider_ref"
+        | "status"
+        | "approval_code"
+        | "expires_at"
+        | "verify_attempts"
+        | "last_verified_at"
+        | "raw_response"
+        | "failure_reason"
+        | "bank_reference"
+        | "received_on"
+        | "recorded_by"
+        | "note"
+        | "refunded_at"
+        | "refunded_by"
+        | "refund_note",
+        [
+          Rel<"payments_payment_request_id_fkey", "payment_request_id", "payment_requests">,
+          Rel<"payments_application_id_fkey", "application_id", "applications">,
+          Rel<"payments_recorded_by_fkey", "recorded_by", "staff_profiles">,
+          Rel<"payments_refunded_by_fkey", "refunded_by", "staff_profiles">,
+        ]
+      >;
+      bank_instructions: TableOf<
+        BankInstructionRow,
+        "campus_id" | "is_active",
+        [Rel<"bank_instructions_campus_id_fkey", "campus_id", "campuses">]
+      >;
+      registrations: TableOf<
+        RegistrationRow,
+        | "legal_first_name" | "legal_middle_names" | "legal_last_name" | "preferred_name" | "gender" | "date_of_birth"
+        | "nationality" | "country_of_birth" | "place_of_birth" | "home_language" | "identity_type" | "identity_number"
+        | "previous_institution" | "current_grade" | "medical_aid_name" | "medical_aid_number" | "medical_aid_principal_member"
+        | "emergency_treatment_consent" | "allergies" | "medical_conditions" | "medication" | "medical_notes" | "vaccination_notes"
+        | "student_completed_at" | "medical_completed_at" | "family_completed_at" | "emergency_completed_at"
+        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed",
+        [Rel<"registrations_application_id_fkey", "application_id", "applications", true>]
+      >;
+      registration_contacts: TableOf<
+        RegistrationContactRow,
+        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality",
+        [
+          Rel<"registration_contacts_application_id_fkey", "application_id", "applications">,
+          Rel<"registration_contacts_contact_id_fkey", "contact_id", "contacts">,
+        ]
+      >;
+      document_requirements: TableOf<DocumentRequirementRow, "description" | "required" | "grade_sort_min" | "grade_sort_max" | "sort_order" | "is_active">;
+      documents: TableOf<
+        DocumentRow,
+        | "storage_bucket" | "uploaded_by_staff_id" | "scan_status" | "scanner" | "review_status" | "reviewed_by" | "reviewed_at"
+        | "review_note" | "extraction_status" | "extracted_fields" | "superseded_by" | "deleted_at" | "uploaded_at",
+        [
+          Rel<"documents_application_id_fkey", "application_id", "applications">,
+          Rel<"documents_requirement_code_fkey", "requirement_code", "document_requirements">,
+          Rel<"documents_uploaded_by_staff_id_fkey", "uploaded_by_staff_id", "staff_profiles">,
+          Rel<"documents_reviewed_by_fkey", "reviewed_by", "staff_profiles">,
+          Rel<"documents_superseded_by_fkey", "superseded_by", "documents">,
+        ]
+      >;
+      agreement_templates: TableOf<
+        AgreementTemplateRow,
+        "version" | "description" | "required" | "is_active" | "created_by",
+        [Rel<"agreement_templates_created_by_fkey", "created_by", "staff_profiles">]
+      >;
+      agreement_acceptances: TableOf<
+        AgreementAcceptanceRow,
+        "ip_hash" | "user_agent" | "accepted_at",
+        [
+          Rel<"agreement_acceptances_application_id_fkey", "application_id", "applications">,
+          Rel<"agreement_acceptances_agreement_template_id_fkey", "agreement_template_id", "agreement_templates">,
+        ]
+      >;
+      student_records: TableOf<
+        StudentRecordRow,
+        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error",
+        [
+          Rel<"student_records_application_id_fkey", "application_id", "applications", true>,
+          Rel<"student_records_generated_by_fkey", "generated_by", "staff_profiles">,
+        ]
+      >;
       funnel_events: TableOf<
         FunnelEventRow,
         "application_id" | "campus_id" | "grade_id" | "elapsed_ms" | "occurred_at",
@@ -1339,6 +1675,11 @@ export type Database = {
       >;
     };
     Views: {
+      /** The active campuses the caller may see; every campus filter reads this. */
+      v_accessible_campuses: {
+        Row: CampusRow;
+        Relationships: [];
+      };
       v_pipeline_counts: {
         Row: {
           campus_id: string;
@@ -1384,6 +1725,14 @@ export type Database = {
       };
     };
     Functions: {
+      publish_agreement_template: {
+        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean };
+        Returns: string;
+      };
+      required_document_codes: {
+        Args: { p_grade_sort: number };
+        Returns: string[];
+      };
       current_staff_id: { Args: Record<string, never>; Returns: string | null };
       has_permission: { Args: { p_code: string }; Returns: boolean };
       my_permissions: { Args: Record<string, never>; Returns: string[] };

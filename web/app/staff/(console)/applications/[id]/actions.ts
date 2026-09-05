@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { drainSoon, guarded } from "@/lib/staff/action-helpers";
+import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
@@ -26,16 +26,10 @@ import { commit } from "@/lib/workflow/engine";
  * current row (so the engine's expected-status check catches a stale
  * screen), and goes through the engine.
  *
- * Reads here use the admin client after the permission check, because the
- * action then writes through the engine; the *page* reads through RLS.
+ * The application is read through the caller's own client first
+ * (`loadApplicationForStaff`), so campus scoping applies to the action as
+ * it does to the page; the engine call that follows uses the admin client.
  */
-
-async function loadApp(applicationId: string) {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("applications").select("*").eq("id", applicationId).single();
-  if (error || !data) throw new Error("Application not found");
-  return { admin, app: data };
-}
 
 async function loadLiveBooking(admin: ReturnType<typeof createAdminClient>, applicationId: string) {
   const { data } = await admin
@@ -61,7 +55,7 @@ export async function assignOwner(_: StaffActionState, formData: FormData): Prom
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ ownerStaffId: z.string() }).parse(Object.fromEntries(formData));
-    const { admin } = await loadApp(parsed.applicationId);
+    const { admin } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const ownerId = parsed.ownerStaffId || null;
     let name: string | null = null;
     if (ownerId) {
@@ -90,7 +84,7 @@ export async function checkIn(_: StaffActionState, formData: FormData): Promise<
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
     const { applicationId } = idSchema.parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, applicationId);
     const booking = await loadLiveBooking(admin, applicationId);
     if (!booking) throw new Error("No live booking to check in.");
     await onCheckedIn(admin, app, booking, ctx.actor);
@@ -102,7 +96,7 @@ export async function markNoShow(_: StaffActionState, formData: FormData): Promi
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
     const { applicationId } = idSchema.parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, applicationId);
     const booking = await loadLiveBooking(admin, applicationId);
     if (!booking) throw new Error("No live booking.");
     await onNoShow(admin, app, booking, ctx.actor);
@@ -115,7 +109,7 @@ export async function cancelBookingByStaff(_: StaffActionState, formData: FormDa
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ reason: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(parsed.applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const booking = await loadLiveBooking(admin, parsed.applicationId);
     if (!booking) throw new Error("No live booking.");
     await onBookingCancelled(admin, app, booking, parsed.reason || "Cancelled by staff", ctx.actor);
@@ -127,7 +121,7 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ sessionId: z.uuid() }).parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(parsed.applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const booking = await loadLiveBooking(admin, parsed.applicationId);
     if (booking) {
       await onRescheduled(admin, app, booking, parsed.sessionId, ctx.actor);
@@ -155,7 +149,7 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
         reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
       })
       .parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(parsed.applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onManualDecision(admin, app, parsed.outcome, parsed.reason, ctx.actor);
     done(parsed.applicationId);
   });
@@ -165,7 +159,7 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ note: z.string().trim().max(1000).optional() }).parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(parsed.applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onCallbackCompleted(admin, app, parsed.note || null, ctx.actor);
     done(parsed.applicationId);
   });
@@ -175,7 +169,7 @@ export async function withdraw(_: StaffActionState, formData: FormData): Promise
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ reason: z.string().trim().min(3).max(500) }).parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(parsed.applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onWithdrawn(admin, app, parsed.reason, ctx.actor);
     done(parsed.applicationId);
   });
@@ -186,7 +180,7 @@ export async function resendLink(_: StaffActionState, formData: FormData): Promi
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const { applicationId } = idSchema.parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApp(applicationId);
+    const { admin, app } = await loadApplicationForStaff(ctx, applicationId);
     await commit(admin, {
       applicationId,
       expectedStatus: null,
@@ -213,7 +207,7 @@ export async function generateLinkForStaff(_: StaffActionState, formData: FormDa
   try {
     const ctx = await requireStaffAction("applications.write");
     const { applicationId } = idSchema.parse(Object.fromEntries(formData));
-    const { admin } = await loadApp(applicationId);
+    const { admin } = await loadApplicationForStaff(ctx, applicationId);
     const settings = await getSettings(admin);
     const link = await mintToken(admin, {
       applicationId,

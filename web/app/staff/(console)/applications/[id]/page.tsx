@@ -167,7 +167,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} />
 
           {/* Timeline */}
           <section className="rounded-xl border border-border bg-card">

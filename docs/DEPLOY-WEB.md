@@ -37,6 +37,11 @@ deploy token lives in GitHub.
 | `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
 | `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic` |
 | `AI_MODEL` | | Optional; defaults to `claude-opus-5` |
+| `PAYMENT_PROVIDER` | | `dev` (charges nothing, cannot say "paid" on its own, refuses to load in production) or `dpo` |
+| `DPO_COMPANY_TOKEN`, `DPO_SERVICE_TYPE` | **Secret** | From the DPO Pay merchant portal; only read when `PAYMENT_PROVIDER=dpo` |
+| `DPO_API_URL` | | Defaults to live; the sandbox is `https://secure1.sandbox.directpay.online/API/v6/` |
+| `DOCUMENT_SCANNER` | | `none` until a scanner is implemented |
+| `STUDENT_SYSTEM` | | `none` until the Ed-admin adapter exists |
 
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
@@ -47,6 +52,25 @@ compiled into the JavaScript every visitor downloads.
    auto-submit, offer reminders and offer expiry — so a stalled cron delays
    all of them until it next fires.
 4. Custom domain and HTTPS.
+
+### Payments
+
+Set `PAYMENT_PROVIDER=dpo` only on production, with the live DPO token and
+service type. Preview deployments keep `dev`: the `/pay/dev` screen stands in
+for the gateway and nothing is charged. DPO sends no signed webhook; the site
+verifies each payment with DPO when the parent returns and again from the
+cron every few minutes until it is paid or its time limit passes, so the
+cron must be running for payments to confirm without the parent's browser.
+Enter the bank details for transfers under **Set up → Fees**.
+
+### Documents
+
+Uploaded documents go into a private Storage bucket named
+`applicant-documents`, created by the application on first use with the
+service role; no Storage policies are needed because only the service role
+ever reads or writes an object. Uploads are capped at 10 MB server-side. If
+the Vercel plan's request-body limit is lower, a signed-upload-URL flow
+replaces the upload route (the seam is `storeDocument`).
 
 ### Email
 

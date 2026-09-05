@@ -4,7 +4,7 @@ import type { JobRow } from "@/lib/supabase/types";
 import { sendTemplatedEmail, type LinkPurpose } from "@/lib/email/send";
 import type { HandlerResult } from "@/lib/workflow/handlers";
 
-const LINK_PURPOSES: LinkPurpose[] = ["results", "offer"];
+const LINK_PURPOSES: LinkPurpose[] = ["results", "offer", "payment", "registration"];
 
 export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise<HandlerResult> {
   const payload = job.payload as {
@@ -12,6 +12,9 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     booking_id?: string | null;
     links?: string[] | null;
     offer_id?: string | null;
+    payment_request_id?: string | null;
+    payment_id?: string | null;
+    missing_documents?: string | null;
   };
   if (!payload.template_key || !job.application_id) {
     return { outcome: "failed", error: "send_email job missing template_key or application", retryable: false };
@@ -24,6 +27,9 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     bookingId: payload.booking_id ?? null,
     links,
     offerId: payload.offer_id ?? null,
+    paymentRequestId: payload.payment_request_id ?? null,
+    paymentId: payload.payment_id ?? null,
+    missingDocuments: payload.missing_documents ?? null,
   });
   if (result.status === "sent") return { outcome: "done" };
   if (result.status === "skipped") return { outcome: "skipped", reason: result.reason };

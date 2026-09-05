@@ -1,8 +1,10 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, Json, OfferRow } from "@/lib/supabase/types";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildOfferVariables, feeSnapshotFrom, loadActiveOfferTemplate, renderOffer, resolveFeeSchedule, snapshotFees, type FeeSnapshot } from "@/lib/offers/render";
+import { createPaymentRequest } from "@/lib/payments/requests";
 import { getSettings } from "@/lib/settings";
 import { commit, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
 
@@ -327,6 +329,167 @@ export async function onOfferWithdrawn(
     event: { type: "offer.withdrawn", summary: `Offer withdrawn: ${reason}`, payload: { offer_id: offer.id, reason } },
     resolveTaskTypes: ["approve_offer", "follow_up_expired_offer"],
     audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason } },
+    actor,
+  });
+}
+
+/**
+ * What the parent saw, hashed: the rendered offer, its terms and its fees.
+ * Stored with the acceptance so the record stands on its own.
+ */
+export function offerSnapshotHash(offer: Pick<OfferRow, "rendered_html" | "terms_html" | "fees">): string {
+  return createHash("sha256").update(offer.rendered_html).update("\n--\n").update(offer.terms_html).update("\n--\n").update(JSON.stringify(offer.fees ?? null)).digest("base64url");
+}
+
+function offerIsOpen(app: Pick<ApplicationRow, "status">, offer: Pick<OfferRow, "status" | "expires_at">): void {
+  if (app.status !== "offer_sent") throw new WorkflowError("This offer is no longer open.", "status_conflict");
+  if (offer.status !== "sent" && offer.status !== "viewed") throw new WorkflowError(`This offer is ${offer.status}.`, "status_conflict");
+  if (offer.expires_at && new Date(offer.expires_at).getTime() < Date.now()) {
+    throw new WorkflowError("This offer has expired. Please contact admissions if you would still like the place.", "status_conflict");
+  }
+}
+
+/**
+ * The parent accepts. Two moves in one call: the acceptance itself
+ * (`offer.accepted`, the milestone), then straight on to payment required
+ * with the fees due in `payment_due_days`. Emails and reminders carry the
+ * payment request's id so a re-issued request gets its own set.
+ */
+export async function onOfferAccepted(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name">,
+  offer: OfferRow,
+  decision: { termsAccepted: boolean; ipHash: string | null; userAgent: string | null },
+  actor: Actor
+): Promise<{ acceptanceId: string; paymentRequestId: string }> {
+  offerIsOpen(app, offer);
+  if (!decision.termsAccepted) throw new WorkflowError("Please confirm that you accept the terms.", "database");
+  const settings = await getSettings(admin);
+
+  const { data: acceptance, error } = await admin
+    .from("offer_acceptances")
+    .insert({
+      application_id: app.id,
+      offer_id: offer.id,
+      template_id: offer.template_id,
+      template_version: offer.template_version,
+      decision: "accepted",
+      terms_accepted: true,
+      terms_hash: offerSnapshotHash(offer),
+      fees: offer.fees,
+      ip_hash: decision.ipHash,
+      user_agent: decision.userAgent?.slice(0, 300) ?? null,
+    })
+    .select("id")
+    .single();
+  if (error || !acceptance) {
+    if (error?.code === "23505") throw new WorkflowError("This offer has already been answered.", "status_conflict");
+    throw new WorkflowError(error?.message ?? "acceptance insert failed", "database");
+  }
+  const { data: flipped } = await admin.from("offers").update({ status: "accepted" }).eq("id", offer.id).in("status", ["sent", "viewed"]).select("id");
+  if (!flipped?.length) throw new WorkflowError("This offer is no longer open.", "status_conflict");
+
+  const dueAt = new Date(Date.now() + settings.paymentDueDays * DAY);
+  const request = await createPaymentRequest(admin, { app, offer, acceptanceId: acceptance.id, dueAt });
+
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: "offer_sent",
+    newStatus: "offer_accepted",
+    nextAction: "pay_fees",
+    nextActionDueAt: dueAt,
+    event: { type: "offer.accepted", summary: "Parent accepted the offer", payload: { offer_id: offer.id, acceptance_id: acceptance.id } },
+    resolveTaskTypes: ["follow_up_expired_offer"],
+    audit: { action: "offer.accepted", entityType: "offer", entityId: offer.id, after: { acceptance_id: acceptance.id, terms_hash: offerSnapshotHash(offer) } },
+    actor,
+  });
+
+  const jobs: JobSpec[] = [
+    {
+      type: "send_email",
+      payload: { template_key: "offer_accepted_pay", links: ["payment"], offer_id: offer.id, payment_request_id: request.id },
+      idempotencyKey: `email:${app.id}:offer_accepted_pay:${request.id}`,
+    },
+    {
+      type: "payment_overdue",
+      payload: { payment_request_id: request.id },
+      idempotencyKey: `payment_overdue:${request.id}`,
+      runAfter: new Date(dueAt.getTime() + 60_000),
+      precondition: { application_status: ["payment_required"] },
+    },
+  ];
+  for (const days of settings.paymentReminderDaysBefore) {
+    const at = new Date(dueAt.getTime() - days * DAY);
+    if (at.getTime() <= Date.now() + 15 * 60_000) continue;
+    jobs.push({
+      type: "send_email",
+      payload: { template_key: "payment_reminder", links: ["payment"], offer_id: offer.id, payment_request_id: request.id },
+      idempotencyKey: `email:${app.id}:payment_reminder:${request.id}:${days}d`,
+      runAfter: at,
+      precondition: { application_status: ["payment_required"] },
+    });
+  }
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: "offer_accepted",
+    newStatus: "payment_required",
+    nextAction: "pay_fees",
+    nextActionDueAt: dueAt,
+    event: {
+      type: "payment.requested",
+      summary: `Registration and admission fees due by ${dueAt.toDateString()}`,
+      payload: { payment_request_id: request.id, amount_minor: request.amount_minor, currency: request.currency, due_at: dueAt.toISOString() },
+    },
+    jobs,
+    actor: { type: "system", label: "System" },
+  });
+  return { acceptanceId: acceptance.id, paymentRequestId: request.id };
+}
+
+/** The parent declines. Recorded like an acceptance; staff get a task, the parent gets no email. */
+export async function onOfferDeclined(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name">,
+  offer: OfferRow,
+  decision: { reason: string | null; ipHash: string | null; userAgent: string | null },
+  actor: Actor
+): Promise<void> {
+  offerIsOpen(app, offer);
+  const { error } = await admin.from("offer_acceptances").insert({
+    application_id: app.id,
+    offer_id: offer.id,
+    template_id: offer.template_id,
+    template_version: offer.template_version,
+    decision: "declined",
+    terms_accepted: false,
+    terms_hash: offerSnapshotHash(offer),
+    fees: offer.fees,
+    decline_reason: decision.reason,
+    ip_hash: decision.ipHash,
+    user_agent: decision.userAgent?.slice(0, 300) ?? null,
+  });
+  if (error) {
+    if (error.code === "23505") throw new WorkflowError("This offer has already been answered.", "status_conflict");
+    throw new WorkflowError(error.message, "database");
+  }
+  const { data: flipped } = await admin.from("offers").update({ status: "declined" }).eq("id", offer.id).in("status", ["sent", "viewed"]).select("id");
+  if (!flipped?.length) throw new WorkflowError("This offer is no longer open.", "status_conflict");
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: "offer_sent",
+    newStatus: "offer_declined",
+    nextAction: "none",
+    event: { type: "offer.declined", summary: decision.reason ? `Parent declined the offer: ${decision.reason}` : "Parent declined the offer", payload: { offer_id: offer.id, reason: decision.reason } },
+    resolveTaskTypes: ["follow_up_expired_offer"],
+    tasks: [
+      {
+        type: "follow_up_declined_offer",
+        title: `${app.child_first_name}'s offer was declined`,
+        details: decision.reason ? `The parent said: "${decision.reason}". A call may recover the place, or release it.` : "No reason given. A call may recover the place, or release it.",
+        priority: "normal",
+      },
+    ],
+    audit: { action: "offer.declined", entityType: "offer", entityId: offer.id, after: { reason: decision.reason } },
     actor,
   });
 }

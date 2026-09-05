@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Download } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download } from "lucide-react";
+import { OfferDecisionForm } from "@/components/parent/offer-decision-form";
 import { PageHeader } from "@/components/parent/page-header";
 import { Button } from "@/components/ui/button";
 import { loadApplicationGraph } from "@/lib/applications";
@@ -11,12 +12,13 @@ import { loadVisibleOffer } from "@/lib/offers/load";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireParentSession } from "@/lib/tokens/server";
 import { onOfferViewed } from "@/lib/workflow/offer-actions";
+import { acceptOffer, declineOffer } from "./actions";
 
 export const metadata: Metadata = { title: "Your offer" };
 
 /**
- * The offer as sent: the snapshot, not a fresh render. Acceptance and
- * payment arrive with Phase 3; until then the page says how to accept.
+ * The offer as sent: the snapshot, not a fresh render. The parent accepts
+ * or declines here; after that the page shows what they decided.
  */
 export default async function OfferPage() {
   const session = await requireParentSession();
@@ -26,6 +28,7 @@ export default async function OfferPage() {
   const offer = await loadVisibleOffer(admin, graph.application.id);
   if (!offer) notFound();
   await onOfferViewed(admin, graph.application, offer);
+  const { data: acceptance } = await admin.from("offer_acceptances").select("decided_at, decision").eq("offer_id", offer.id).maybeSingle();
 
   const expired = offer.status === "expired";
   const fees = offer.feeSnapshot;
@@ -63,11 +66,21 @@ export default async function OfferPage() {
         <div className="prose prose-sm mt-2 max-w-none" dangerouslySetInnerHTML={{ __html: offer.terms_html }} />
       </details>
 
-      {!expired ? (
-        <section className="mt-6 rounded-2xl bg-primary/10 p-5 text-sm">
-          <p className="font-semibold">How to accept</p>
-          <p className="mt-1 text-muted-foreground">Online acceptance and payment are coming soon. For now, reply to the email this link came in, or contact the admissions office, and we will confirm the place and send payment details.</p>
+      {offer.status === "accepted" ? (
+        <section className="mt-6 rounded-2xl bg-success/10 p-5 text-sm">
+          <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-4 text-success" aria-hidden /> Offer accepted{acceptance?.decided_at ? ` on ${formatDateLong(acceptance.decided_at)}` : ""}</p>
+          <p className="mt-1 text-muted-foreground">The place is secured once the registration and admission fees are paid.</p>
+          <div className="mt-4">
+            <Button size="parent" nativeButton={false} render={<Link href="/pay" />}>Pay the fees <ArrowRight data-icon="inline-end" /></Button>
+          </div>
         </section>
+      ) : offer.status === "declined" ? (
+        <section className="mt-6 rounded-2xl bg-muted p-5 text-sm">
+          <p className="font-semibold">You declined this offer{acceptance?.decided_at ? ` on ${formatDateLong(acceptance.decided_at)}` : ""}.</p>
+          <p className="mt-1 text-muted-foreground">If you change your mind, contact the admissions office and we will see what is possible.</p>
+        </section>
+      ) : !expired ? (
+        <OfferDecisionForm accept={acceptOffer} decline={declineOffer} />
       ) : null}
 
       <div className="mt-6">

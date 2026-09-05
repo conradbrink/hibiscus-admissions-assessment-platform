@@ -12,6 +12,7 @@ const REASONS: Record<string, string> = {
   exhausted: "That link has already been used.",
   unknown: "We did not recognise that link.",
   busy: "Too many attempts from this connection. Please wait a minute and try again.",
+  payment_pending: "Thank you. If you have just paid, we are confirming it with the payment provider and will email you a receipt. Use a fresh link to see the latest.",
   "1": "Your session has timed out.",
 };
 

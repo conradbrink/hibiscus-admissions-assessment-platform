@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { PaymentPanel } from "@/components/staff/payment-panel";
+import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
@@ -30,12 +32,15 @@ export async function ApplicantPhase2({
   supabase,
   permissions,
   app,
+  gradeSort,
 }: {
   supabase: StaffContext["supabase"];
   permissions: PermissionSet;
   app: Pick<ApplicationRow, "id" | "status" | "requires_assessment" | "child_first_name">;
+  gradeSort: number;
 }) {
-  const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }] = await Promise.all([
+  const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
+  const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
     supabase.from("attempts").select("*").eq("application_id", app.id).order("created_at", { ascending: false }),
     supabase.from("learning_profiles").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("admission_decisions").select("*, staff_profiles(full_name)").eq("application_id", app.id).order("decided_at", { ascending: false }),
@@ -44,7 +49,27 @@ export async function ApplicantPhase2({
       : Promise.resolve({ data: null }),
     supabase.from("subjects").select("id, name").order("sort_order"),
     supabase.from("competencies").select("id, name, subject_id").order("sort_order"),
+    canSeePayments
+      ? supabase.from("payment_requests").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    can(permissions, "finance.read")
+      ? supabase.from("payments").select("*").eq("application_id", app.id).order("created_at", { ascending: false })
+      : Promise.resolve({ data: null }),
   ]);
+  const registrationOpen = ["paid", "registration_incomplete", "registration_complete", "enrolled"].includes(app.status);
+  const [{ data: registration }, { data: regContacts }, { data: documents }, { data: requirements }, { data: agreementTemplates }, { data: acceptances }] = registrationOpen
+    ? await Promise.all([
+        supabase.from("registrations").select("*").eq("application_id", app.id).maybeSingle(),
+        supabase.from("registration_contacts").select("*").eq("application_id", app.id),
+        supabase.from("documents").select("*").eq("application_id", app.id).is("deleted_at", null),
+        supabase.from("document_requirements").select("*").eq("is_active", true),
+        supabase.from("agreement_templates").select("*").eq("is_active", true),
+        supabase.from("agreement_acceptances").select("*").eq("application_id", app.id),
+      ])
+    : [{ data: null }, { data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+  const registrationState = registrationOpen
+    ? registrationCompleteness({ registration: registration ?? null, contacts: regContacts ?? [], documents: documents ?? [], requirements: requirements ?? [], gradeSort, agreementTemplates: agreementTemplates ?? [], acceptances: acceptances ?? [] })
+    : null;
   const latestAttempt = attempts?.[0] ?? null;
   const { data: scores } = latestAttempt
     ? await supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id)
@@ -66,6 +91,8 @@ export async function ApplicantPhase2({
           <TabsTrigger value="profile">Learning profile</TabsTrigger>
           <TabsTrigger value="decision">Decision</TabsTrigger>
           <TabsTrigger value="offer">Offer</TabsTrigger>
+          <TabsTrigger value="payment">Payment</TabsTrigger>
+          <TabsTrigger value="registration">Registration</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessment" className="text-sm">
@@ -241,6 +268,38 @@ export async function ApplicantPhase2({
               ))}
             </ul>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="payment" className="text-sm">
+          {!canSeePayments ? (
+            <p className="text-muted-foreground">You do not have permission to see payments.</p>
+          ) : paymentRequest ? (
+            <PaymentPanel applicationId={app.id} request={paymentRequest} payments={payments} canWrite={can(permissions, "finance.write")} compact />
+          ) : (
+            <p className="text-muted-foreground">
+              {["offer_accepted", "payment_required", "payment_processing", "paid"].includes(app.status)
+                ? "No payment request found for this application; the offer may not have had fees payable on acceptance."
+                : "Fees become due when the parent accepts the offer."}
+            </p>
+          )}
+        </TabsContent>
+
+        <TabsContent value="registration" className="text-sm">
+          {registrationState ? (
+            <div className="space-y-2">
+              <ul className="flex flex-wrap gap-1.5">
+                {SECTIONS.map((s) => (
+                  <li key={s} className={`rounded-md border px-2 py-0.5 text-xs ${registrationState.sections[s] ? "border-success/40 text-success" : "border-border text-muted-foreground"}`}>{SECTION_LABELS[s]}{registrationState.sections[s] ? " ✓" : ""}</li>
+                ))}
+              </ul>
+              {registrationState.missingDocuments.length ? <p className="text-xs text-warning-foreground">Missing: {registrationState.missingDocuments.map((d) => d.label).join(", ")}</p> : null}
+              {registrationState.rejectedDocuments.length ? <p className="text-xs text-destructive">To upload again: {registrationState.rejectedDocuments.map((d) => d.label).join(", ")}</p> : null}
+              {(documents ?? []).filter((d) => !d.superseded_by && d.review_status === "pending").length ? <p className="text-xs">{(documents ?? []).filter((d) => !d.superseded_by && d.review_status === "pending").length} document(s) waiting for review.</p> : null}
+              <p><Link href={`/staff/registrations/${app.id}`} className="text-xs text-primary underline underline-offset-2">Open the registration</Link></p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Registration opens once the fees are paid.</p>
+          )}
         </TabsContent>
       </Tabs>
     </section>

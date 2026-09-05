@@ -4,16 +4,16 @@ import { feeSnapshotFrom, type FeeSnapshot } from "@/lib/offers/snapshot";
 import type { OfferRow } from "@/lib/supabase/types";
 
 /**
- * The offer a parent may see for their application: sent, viewed or
- * expired. A draft or a withdrawn offer is not shown, whatever link they
- * arrived by.
+ * The offer a parent may see for their application: sent, viewed, expired,
+ * or the one they accepted or declined. A draft or a withdrawn offer is not
+ * shown, whatever link they arrived by.
  */
 export async function loadVisibleOffer(admin: AdminClient, applicationId: string): Promise<(OfferRow & { feeSnapshot: FeeSnapshot | null }) | null> {
   const { data, error } = await admin
     .from("offers")
     .select("*")
     .eq("application_id", applicationId)
-    .in("status", ["sent", "viewed", "expired", "accepted"])
+    .in("status", ["sent", "viewed", "expired", "accepted", "declined"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

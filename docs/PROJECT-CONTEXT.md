@@ -95,9 +95,39 @@ there: electronic acceptance and payment are Phase 3, and the parent's
 | Console: applicant tabs (assessment, profile, decision, offer), Offers & outcomes queue, dashboard queues, analytics for decisions and offers | Done |
 | Security regression suite extended to 22 attacks; dev seed with a labelled sample bank | Done |
 
-Not built (later phases): acceptance and payment, registration and documents,
-antivirus on uploads, WhatsApp, Ed-admin integration. The schema's status
-list and the state machine already include those states.
+### Phase 3 (PR #3) — acceptance, payment, registration, documents, enrolment
+
+The journey now runs to `enrolled`. The parent accepts electronically, pays
+online or by bank transfer, completes a six-step registration prefilled
+from what they already told us, uploads documents and signs agreements by
+typing their name; a person confirms enrolment and the welcome email goes.
+
+| Area | State |
+|---|---|
+| Four more migrations (18 total): campus scoping fails closed; acceptances, payment requests, payments, bank instructions; registrations, contacts, document requirements, documents, agreements; student records; `dashboard_counts()` with the Phase 3 queues | Done, replayed from empty |
+| Every school's team sees its own school: `roles.campus_scoped`, `can_access_campus()` fail-closed, `v_accessible_campuses` behind every filter, scoped `audit_log`, staff actions read through RLS before any write | Done; checks 4b, 23, 24, 26, 31 |
+| Offer acceptance with an immutable record (snapshot hash, terms, ip/device, version); decline with reason | Done |
+| Payments: DPO Pay v6 behind a provider seam, `dev` adapter that cannot say "paid", pull-based verification on return plus a cron sweep, amount and currency must match, bank transfers recorded by finance, refunds, receipts as PDF | Done; DPO untested against the sandbox (§5) |
+| Registration: student, medical, family, emergency contacts, documents (private bucket, sniffed, capped), agreements; prefill and "still correct?"; review and submit; the completeness rule shared by parent, staff and engine | Done |
+| Enrolment: refused until required documents are accepted; student record snapshot; student-system seam with a `none` implementation; welcome email; `auto_enrol` switch | Done |
+| Console: Payments and Registrations queues, document review through one-minute signed URLs, Confirm enrolment, JSON download, Payment and Registration tabs, admin for bank details, agreements and document requirements | Done |
+| Security regression suite: 31 attacks with controls | Done |
+
+Not built (later phases): AI/OCR document extraction (seam in `documents.extracted_fields`
+and `lib/documents/extractor.ts`), malware scanning (seam in `lib/documents/scanner.ts`),
+the Ed-admin adapter (seam in `lib/enrolment/integration.ts`), WhatsApp, staff editing of
+submitted registration data, document retention.
+
+### Three more things the school owns
+
+- **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
+  set, the payment page offers online payment only.
+- **Agreements**: two placeholder texts are seeded and say so; replace them
+  at `/staff/admin/agreements` before going live.
+- **Document requirements**: seeded from the specification (birth
+  certificate, vaccination card, school report and transfer certificate from
+  Stage 1, optional medical documentation); edit at
+  `/staff/admin/document-requirements`.
 
 ### Three things the code deliberately does not invent
 
@@ -130,6 +160,29 @@ list and the state machine already include those states.
 - **An enquiry is routed on the second screen**, not the first. A parent
   who abandons between them leaves an application with `next_action = null`;
   the drain's sweep routes it after ten minutes.
+- **Campus scoping is orthogonal to role, and fails closed.** Every applicant
+  table's policy calls `can_access_campus()`. A person with `staff_campuses`
+  rows sees those campuses; a person with none sees everything **unless**
+  they hold a campus-scoped role (`roles.campus_scoped`, true for
+  `campus_admin`), in which case they see nothing until a campus is assigned.
+  So a school's team is: `campus_admin` + their campus for staff, and
+  `admissions_manager` + their campus for the person who approves offers and
+  overrides decisions there. Staff actions read the application through the
+  caller's own client first (`loadApplicationForStaff`), so a posted id from
+  another campus is "not found", never a write.
+- **DPO Pay has no signed webhook.** Verification is pull-based: the return
+  route and the cron sweep call `verifyToken`; the return URL's query string
+  is never trusted. A parent who pays and closes the browser is confirmed
+  within `payment_verify_minutes` by the sweep — so the cron matters.
+- **`PAYMENT_PROVIDER=dev` throws on `VERCEL_ENV=production`**, not on
+  `NODE_ENV`, because `next build` and previews run with the latter.
+- **The documents bucket is created by code, not by migration.** The local
+  replay stub has no `storage` schema; referencing `storage.*` in a migration
+  breaks it. No Storage policies exist and none are needed.
+- **A `"use server"` file may export only async functions** — bit again in
+  Phase 3; `devGatewayEnabled` lives in `lib/payments/dev-gateway.ts`.
+- **`/pay/dev` must be `force-dynamic`**: as a static page it would be
+  prerendered at build with the build's env, not the runtime's.
 - **Reminder jobs carry a `booking_id` precondition.** Rescheduling marks the
   old booking `rescheduled`, so its reminders skip themselves. Offer
   reminders and the expiry sweep do the same with `offer_id`, and their
@@ -179,40 +232,47 @@ contradicts itself, the choice made is recorded and must be confirmed.
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in
    both currencies (Phase 3).
-2. **Email provider and sending domain** with SPF, DKIM, DMARC. Set
+2. **DPO Pay merchant account** (BWP; a ZAR account for Potch). Sandbox
+   credentials first: set `PAYMENT_PROVIDER=dpo`, `DPO_COMPANY_TOKEN`,
+   `DPO_SERVICE_TYPE`, `DPO_API_URL` to the sandbox, and walk one payment
+   end to end. The adapter is built from DPO's documented v6 XML shapes,
+   pinned by unit tests, and has not been run against DPO itself.
+3. **Email provider and sending domain** with SPF, DKIM, DMARC. Set
    `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM`,
    `RESEND_WEBHOOK_SECRET`, and point Resend's webhook at
    `/api/webhooks/email`. The adapter has not been run against the live API.
-3. **Brand assets.** The palette in `web/app/globals.css` is a placeholder in
+4. **Brand assets.** The palette in `web/app/globals.css` is a placeholder in
    the right family; swap the brand tokens once real colours arrive.
-4. **First super admin.** See `supabase/README.md`. Until one exists nobody
+5. **First super admin.** See `supabase/README.md`. Until one exists nobody
    can sign in to `/staff`.
-5. **Publish sessions.** Parents cannot book until a session is published at
+6. **Publish sessions.** Parents cannot book until a session is published at
    `/staff/admin/sessions`.
-6. **Payment provider** (Phase 3, but merchant onboarding is slow — start now).
-   Candidates: DPO/PayGate, Flutterwave, FNB/Stanbic gateway, Orange Money,
-   MyZaka; EFT with proof-of-payment regardless.
-7. **Admission thresholds, the question bank, fee amounts.** Owned by the
+7. **Potch in ZAR.** Once the campus is active it needs a ZAR fee schedule,
+   ZAR bank details, and a ZAR-settling DPO service before an offer there
+   can be paid.
+8. **Admission thresholds, the question bank, fee amounts.** Owned by the
    school; the screens exist (`/staff/admin/rules`, `/staff/admin/question-banks`,
    `/staff/admin/fees`). Until each is set the system takes the safe path
    (§2). The written-language rubric is also the school's to write.
-8. **Data protection**: Botswana DPA 2018 and POPIA (Potch) — consent
+9. **Data protection**: Botswana DPA 2018 and POPIA (Potch) — consent
    wording, retention for declined/abandoned applicants, cross-border
    disclosure (Vercel, Supabase, Anthropic). The AI receives first name,
    grade, competency labels, percentages and bands only; never surname, date
    of birth, contacts or medical information. Confirm that is acceptable and
    whether a data-processing agreement with Anthropic is wanted.
-9. **AI configuration.** `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`,
+10. **AI configuration.** `AI_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`,
    optional `AI_MODEL` (default `claude-opus-5`). With `dev` (the default)
    every profile uses the deterministic wording, which is complete and safe;
    the school can go live without the AI and switch it on later. The
    `ai_narrative_enabled` setting turns it off without a deploy.
-10. **WhatsApp** is the dominant channel in Botswana and is Phase 4 by the
+11. **WhatsApp** is the dominant channel in Botswana and is Phase 4 by the
    spec; worth deciding deliberately whether reminders move earlier.
-11. **Antivirus scanning on uploads** (Phase 3) is not designed yet.
-12. **Generated Supabase types** to replace the hand-maintained file (now
+12. **Malware scanning on uploads.** Every document is stored as
+    `not_scanned` and staff see that label; `lib/documents/scanner.ts` is
+    the seam. Choose a scanner (ClamAV, a scanning API) and implement it.
+13. **Generated Supabase types** to replace the hand-maintained file (now
     1,500 lines).
-13. **Playwright smoke test** of the funnel on a phone viewport, timed, and
+14. **Playwright smoke test** of the funnel on a phone viewport, timed, and
     of the kiosk on a lab computer's browser.
 
 ### What is untested, honestly
@@ -229,6 +289,16 @@ contradicts itself, the choice made is recorded and must be confirmed.
   checklist is in PR #2's description; run it on a development database
   after `supabase/seed/dev_phase2.sql`.
 - **QR scanning** on a real lab tablet.
+- **DPO Pay** has not been called: the adapter follows the documented v6
+  shapes and its XML is pinned by tests, but the first sandbox transaction
+  will be the first real one. The reconciler, the return route and the
+  finance actions were exercised with the `dev` adapter only.
+- **Supabase Storage** was not exercised: `ensureBucket` and `storeDocument`
+  are written against the documented client API; the first upload on a real
+  project is the test.
+- The **Phase 3 walkthrough** in PR #3's description (accept → pay → register
+  → enrol, and the campus-scoping check) has been exercised against the SQL
+  functions and by reading the code, not by a person in two browsers.
 
 ## 6. Working style that worked
 

@@ -35,6 +35,13 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Enrolment",
+    items: [
+      { href: "/staff/payments", label: "Payments", permission: "finance.read" },
+      { href: "/staff/registrations", label: "Registrations", permission: "applications.read" },
+    ],
+  },
+  {
     label: "Insight",
     items: [{ href: "/staff/analytics", label: "Analytics", permission: "analytics.read" }],
   },
@@ -55,6 +62,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/admin/templates", label: "Email templates", permission: "templates.write" },
       { href: "/staff/admin/offer-templates", label: "Offer templates", permission: "templates.write" },
       { href: "/staff/admin/fees", label: "Fees", permission: "finance.write" },
+      { href: "/staff/admin/agreements", label: "Agreements", permission: "templates.write" },
+      { href: "/staff/admin/document-requirements", label: "Document requirements", permission: "settings.write" },
       { href: "/staff/admin/rules", label: "Admission rules", permission: "rules.write" },
       { href: "/staff/admin/campuses", label: "Campuses", permission: "settings.write" },
       { href: "/staff/admin/grades", label: "Grades", permission: "settings.write" },

@@ -19,7 +19,7 @@ export default async function SessionsAdminPage() {
       .gte("starts_at", daysAgoDateString(1))
       .order("starts_at")
       .limit(200),
-    supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
     supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
     supabase.from("staff_profiles").select("id, full_name").eq("is_active", true).order("full_name"),
   ]);
