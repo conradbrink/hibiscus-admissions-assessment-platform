@@ -1080,6 +1080,22 @@ export type AgreementAcceptanceRow = {
   accepted_at: string;
 };
 
+export type ExportStatus = "pending" | "exported" | "failed";
+
+export type StudentRecordRow = {
+  id: string;
+  application_id: string;
+  schema_version: number;
+  snapshot: Json;
+  generated_at: string;
+  generated_by: string | null;
+  export_status: ExportStatus;
+  exported_at: string | null;
+  external_ref: string | null;
+  export_error: string | null;
+  created_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -1638,6 +1654,14 @@ export type Database = {
         [
           Rel<"agreement_acceptances_application_id_fkey", "application_id", "applications">,
           Rel<"agreement_acceptances_agreement_template_id_fkey", "agreement_template_id", "agreement_templates">,
+        ]
+      >;
+      student_records: TableOf<
+        StudentRecordRow,
+        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error",
+        [
+          Rel<"student_records_application_id_fkey", "application_id", "applications", true>,
+          Rel<"student_records_generated_by_fkey", "generated_by", "staff_profiles">,
         ]
       >;
       funnel_events: TableOf<

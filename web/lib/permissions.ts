@@ -90,6 +90,8 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/rules", "rules.write"],
   ["/staff/admin/templates", "templates.write"],
   ["/staff/admin/offer-templates", "templates.write"],
+  ["/staff/admin/agreements", "templates.write"],
+  ["/staff/admin/document-requirements", "settings.write"],
   ["/staff/admin/fees", "finance.write"],
   ["/staff/admin/staff", "staff.write"],
   ["/staff/admin/sessions", "applications.write"],
@@ -101,6 +103,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin", "settings.write"],
   ["/staff/analytics", "analytics.read"],
   ["/staff/payments", "finance.read"],
+  ["/staff/registrations", "applications.read"],
   ["/staff/offers", "offers.read"],
   // The attempt page is for anyone who may see the applicant, not only for
   // the people who run assessment days; the longer prefix wins.
