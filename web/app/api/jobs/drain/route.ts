@@ -2,6 +2,9 @@ import { timingSafeEqual } from "node:crypto";
 import { reconcileProcessingPayments } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainJobs } from "@/lib/workflow/jobs";
+import { queueDigests } from "@/lib/workflow/automation/digest";
+import { anonymiseExpired } from "@/lib/workflow/automation/retention";
+import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
 import { pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
 
 export const runtime = "nodejs";
@@ -36,7 +39,30 @@ export async function GET(request: Request) {
     console.error("[payments] sweep failed", e);
     return -1;
   });
+  // Phase 4 automation. Each is gated by its setting and idempotent; a
+  // failure in one is logged and does not stop the others.
+  const waitlist = await promoteWaitlist(admin).catch((e) => {
+    console.error("[waitlist] sweep failed", e);
+    return { promoted: -1, tasks: -1 };
+  });
+  const retention = await anonymiseExpired(admin).catch((e) => {
+    console.error("[retention] run failed", e);
+    return { anonymised: -1, failed: -1, skipped: "error" };
+  });
+  const digests = await queueDigests(admin).catch((e) => {
+    console.error("[digest] queue failed", e);
+    return -1;
+  });
   const summary = await drainJobs(admin, 50);
   const pruned = await pruneRateLimits(admin);
-  return Response.json({ ...summary, routed_enquiries: routed, reconciled_payments: reconciled, pruned_rate_limits: pruned });
+  return Response.json({
+    ...summary,
+    routed_enquiries: routed,
+    reconciled_payments: reconciled,
+    pruned_rate_limits: pruned,
+    waitlist_promoted: waitlist.promoted,
+    waitlist_tasks: waitlist.tasks,
+    retention_anonymised: retention.anonymised,
+    digests_queued: digests,
+  });
 }

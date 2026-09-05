@@ -7,6 +7,8 @@ import { SlotPicker } from "@/components/parent/slot-picker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { loadAvailableSlots } from "@/lib/enquiry";
+import { formatDateLong, formatTime, withinCutoff } from "@/lib/format-date";
+import { getSettings } from "@/lib/settings";
 import { requireParentSession } from "@/lib/tokens/server";
 import { bookSlot } from "../actions";
 
@@ -35,6 +37,13 @@ export default async function BookPage() {
   });
 
   const changing = Boolean(graph.booking);
+  const settings = await getSettings(admin);
+  const locked = graph.booking ? withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours) : false;
+  // After a no-show, name the session they missed so the page reads as a continuation, not a fresh start.
+  const { data: missed } = !changing && app.status === "no_show"
+    ? await admin.from("bookings").select("sessions(starts_at)").eq("application_id", app.id).eq("status", "no_show").order("updated_at", { ascending: false }).limit(1).maybeSingle()
+    : { data: null };
+  const missedSession = missed ? (Array.isArray(missed.sessions) ? missed.sessions[0] : missed.sessions) : null;
 
   return (
     <>
@@ -54,7 +63,18 @@ export default async function BookPage() {
             : `We will show you around and answer your questions.`
         }
       />
-      {days.length === 0 ? (
+      {missedSession ? (
+        <p className="mb-4 rounded-xl bg-muted px-4 py-3 text-sm">
+          {app.child_first_name} was booked for {formatDateLong(missedSession.starts_at)} at {formatTime(missedSession.starts_at)} and we missed you. Choose a new time below.
+        </p>
+      ) : null}
+      {locked ? (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <p className="font-semibold">Your assessment is less than {settings.rescheduleCutoffHours} hours away.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Bookings this close cannot be changed online. Please call {campus.name} and they will help.</p>
+          <Link href="/next/booking" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">Back to your booking</Link>
+        </div>
+      ) : days.length === 0 ? (
         <div className="rounded-2xl border border-border bg-card p-5">
           <p className="font-semibold">No dates are open at {campus.name} right now.</p>
           <p className="mt-1 text-sm text-muted-foreground">

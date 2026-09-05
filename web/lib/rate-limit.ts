@@ -45,6 +45,12 @@ export const LIMITS = {
   documentUpload: { bucket: "document_upload", limit: 30, windowSeconds: 3600 },
   /** Saving a registration section, per application. */
   registrationSave: { bucket: "registration_save", limit: 120, windowSeconds: 3600 },
+  /** A member of staff sending WhatsApp templates by hand, per person. */
+  staffMessage: { bucket: "staff_message", limit: 60, windowSeconds: 3600 },
+  /** Asking the extractor to read a document by hand, per person. Each reading is a model call. */
+  extraction: { bucket: "extraction", limit: 30, windowSeconds: 3600 },
+  /** Refreshing an applicant summary, per person. */
+  summary: { bucket: "summary", limit: 60, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };

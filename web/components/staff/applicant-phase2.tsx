@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { MessagesPanel } from "@/components/staff/messages-panel";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
@@ -13,6 +14,7 @@ import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
 import type { RuleResult } from "@/lib/rules/evaluate";
+import type { StaffActionState } from "@/components/staff/action-form";
 import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
@@ -33,11 +35,14 @@ export async function ApplicantPhase2({
   permissions,
   app,
   gradeSort,
+  sendWhatsApp,
 }: {
   supabase: StaffContext["supabase"];
   permissions: PermissionSet;
   app: Pick<ApplicationRow, "id" | "status" | "requires_assessment" | "child_first_name">;
   gradeSort: number;
+  /** The manual template send, from the applicant page's actions. */
+  sendWhatsApp: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
 }) {
   const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
@@ -71,9 +76,11 @@ export async function ApplicantPhase2({
     ? registrationCompleteness({ registration: registration ?? null, contacts: regContacts ?? [], documents: documents ?? [], requirements: requirements ?? [], gradeSort, agreementTemplates: agreementTemplates ?? [], acceptances: acceptances ?? [] })
     : null;
   const latestAttempt = attempts?.[0] ?? null;
-  const { data: scores } = latestAttempt
-    ? await supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id)
-    : { data: [] };
+  const [{ data: scores }, { data: messages }, { data: messageTemplates }] = await Promise.all([
+    latestAttempt ? supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id) : Promise.resolve({ data: [] }),
+    supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("message_templates").select("key, name, is_active, meta_template_name").eq("is_active", true).order("name"),
+  ]);
   const scopeName = (scope: string, id: string | null) =>
     scope === "overall" ? "Overall" : scope === "subject" ? subjects?.find((s) => s.id === id)?.name ?? "?" : competencies?.find((c) => c.id === id)?.name ?? "?";
 
@@ -93,6 +100,7 @@ export async function ApplicantPhase2({
           <TabsTrigger value="offer">Offer</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
           <TabsTrigger value="registration">Registration</TabsTrigger>
+          <TabsTrigger value="messages">WhatsApp</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessment" className="text-sm">
@@ -300,6 +308,16 @@ export async function ApplicantPhase2({
           ) : (
             <p className="text-muted-foreground">Registration opens once the fees are paid.</p>
           )}
+        </TabsContent>
+
+        <TabsContent value="messages" className="text-sm">
+          <MessagesPanel
+            applicationId={app.id}
+            messages={messages ?? []}
+            templates={(messageTemplates ?? []).filter((t) => t.meta_template_name)}
+            canSend={can(permissions, "applications.write")}
+            action={sendWhatsApp}
+          />
         </TabsContent>
       </Tabs>
     </section>

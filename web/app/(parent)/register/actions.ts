@@ -3,12 +3,14 @@
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import { normaliseMobile } from "@/lib/contacts";
+import { parseMismatchFlags } from "@/lib/documents/compare";
 import { drainSoon } from "@/lib/parent/actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
-import { changedFromApplication } from "@/lib/registration/prefill";
+import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
 import { registrationForSession } from "@/lib/registration/session";
+import { parseSignature, signatureSvg } from "@/lib/registration/signature";
 import { requestContext } from "@/lib/request";
 import type { RegisterFormState } from "@/components/parent/register/field";
 import type { Database } from "@/lib/supabase/types";
@@ -46,7 +48,7 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
   const parsed = studentSchema.safeParse(values);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, bundle } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
     const { error } = await admin
@@ -68,10 +70,16 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
         current_grade: d.currentGrade,
         student_completed_at: new Date().toISOString(),
         prefill_changed: changedFromApplication(graph.application, d),
+        // The parent has looked at the document check and saved: the flags are answered.
+        mismatch_flags: [],
+        // Parent-effort metric: how much of this section we could fill for them, and how much they changed.
+        prefilled_count: prefillRegistration(graph, null, null).prefilledFields.length,
+        prefill_changed_count: changedFromApplication(graph.application, d).length,
       })
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");
-    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), PARENT_ACTOR);
+    const hadFlags = parseMismatchFlags(bundle.registration?.mismatch_flags).length > 0;
+    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), PARENT_ACTOR, { clearedMismatch: hadFlags });
   } catch (e) {
     return failed(e, values);
   }
@@ -171,6 +179,18 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
     if (!hasSecondary) await admin.from("registration_contacts").delete().eq("application_id", appId).eq("kind", "secondary_guardian");
     // The Phase 1 guardians table finally gets its row: the enquiring contact, as the primary guardian.
     await admin.from("application_guardians").upsert({ application_id: appId, contact_id: graph.contact.id, relationship: d.primary.relationship, is_primary: true }, { onConflict: "application_id,contact_id" });
+    // The WhatsApp choice, restated on this step, is the contact's to change either way.
+    const wantsWhatsApp = values.whatsappOptIn === "1";
+    if (wantsWhatsApp !== graph.contact.whatsapp_opt_in) {
+      await admin
+        .from("contacts")
+        .update(
+          wantsWhatsApp
+            ? { whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "registration", whatsapp_opt_out_at: null }
+            : { whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }
+        )
+        .eq("id", graph.contact.id);
+    }
     await admin.from("registrations").update({ family_completed_at: new Date().toISOString() }).eq("application_id", appId);
     await onRegistrationSaved(admin, graph.application, "family", [], PARENT_ACTOR);
   } catch (e) {
@@ -242,6 +262,18 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
   const acceptedKeys = Object.keys(values).filter((k) => k.startsWith("agree_") && values[k] === "1").map((k) => k.slice("agree_".length));
   const parsed = agreementsSchema.safeParse({ signatureName: values.signatureName ?? "", acceptedKeys });
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
+  // The signature itself never goes back into the form values: it is
+  // strokes, not text, and the pad keeps its own drawing.
+  const signature = parseSignature(formData.get("signature")?.toString());
+  delete values.signature;
+  if (!signature.ok) {
+    const messages = {
+      empty: "Please sign in the box with your finger, pen or mouse.",
+      too_small: "That looks like a tap rather than a signature. Please sign your name in the box.",
+      malformed: "The signature could not be read. Please clear the box and sign again.",
+    } as const;
+    return { fields: { signature: messages[signature.reason] }, values };
+  }
   try {
     const { admin, graph, bundle } = await openSession();
     const primary = bundle.contacts.find((c) => c.kind === "primary_guardian");
@@ -267,6 +299,7 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
         template_version: t.version,
         body_hash: createHash("sha256").update(t.body_html).digest("base64url"),
         signature_name: parsed.data.signatureName,
+        signature_svg: signatureSvg(signature.strokes),
         ip_hash: ctx.ipHash,
         user_agent: ctx.userAgent,
       })),

@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { isNextAction, NEXT_ACTIONS, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
+import { FLAG_LABELS, type Flag } from "@/lib/summary/facts";
 
 type Search = {
   q?: string;
@@ -57,6 +58,12 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     supabase.from("v_pipeline_counts").select("status, applications"),
   ]);
   if (error) throw new Error(error.message);
+
+  // Attention flags from the last generated summary, where one exists.
+  const ids = (rows ?? []).map((r) => r.id);
+  const { data: summaries } = ids.length ? await supabase.from("application_summaries").select("application_id, flags").in("application_id", ids) : { data: [] };
+  const flagsFor = new Map<string, Flag[]>();
+  for (const s of summaries ?? []) flagsFor.set(s.application_id, (Array.isArray(s.flags) ? s.flags : []) as unknown as Flag[]);
 
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
   const countByStatus = new Map<string, number>();
@@ -147,7 +154,14 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                       <span className="block text-xs text-muted-foreground">{contact?.email}</span>
                     </td>
                     <td className="px-3 py-2">{campus?.name} · {grade?.name}</td>
-                    <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
+                    <td className="px-3 py-2">
+                      <StatusBadge status={r.status} />
+                      {(flagsFor.get(r.id) ?? []).filter((f) => f.kind !== "waiting_on_school").length ? (
+                        <span className="mt-1 block text-xs text-warning-foreground">
+                          {(flagsFor.get(r.id) ?? []).filter((f) => f.kind !== "waiting_on_school").map((f) => FLAG_LABELS[f.kind] ?? f.kind).join(" · ")}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-3 py-2">
                       {na}
                       {r.next_action_due_at ? <span className="block text-xs text-muted-foreground">by {formatDateTime(r.next_action_due_at)}</span> : null}

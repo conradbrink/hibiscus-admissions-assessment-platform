@@ -9,6 +9,8 @@ import { loadApplicationGraph, loadSiblingApplications } from "@/lib/application
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { requireParentSession } from "@/lib/tokens/server";
 import { isNextAction, NEXT_ACTIONS, STATUS_LABELS } from "@/lib/workflow/states";
+import { MessagePreferences } from "@/components/parent/message-preferences";
+import { setWhatsAppPreference } from "./actions";
 
 export const metadata: Metadata = { title: "Your application" };
 
@@ -91,6 +93,10 @@ export default async function NextPage() {
           Status: <span className="font-medium text-foreground">{STATUS_LABELS[app.status]}</span>
         </p>
       </section>
+
+      {contact.mobile_normalised ? (
+        <MessagePreferences optedIn={contact.whatsapp_opt_in} mobile={contact.mobile ?? contact.mobile_normalised} action={setWhatsAppPreference} />
+      ) : null}
 
       {siblings.length > 1 ? (
         <section className="mt-8">

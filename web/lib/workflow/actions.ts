@@ -302,6 +302,7 @@ export async function onNoShow(
     .eq("id", booking.id)
     .in("status", ["booked", "checked_in"]);
   if (error) throw new WorkflowError(error.message, "database");
+  const settings = await getSettings(admin);
 
   if (booking.kind === "visit") {
     await commit(admin, {
@@ -336,7 +337,15 @@ export async function onNoShow(
         dueAt: hoursFromNow(72),
       },
     ],
-    jobs: [emailJob(app.id, "no_show_reschedule", { suffix: booking.id, bookingId: booking.id })],
+    jobs: [
+      emailJob(app.id, "no_show_reschedule", { suffix: booking.id, bookingId: booking.id }),
+      // If they have not rebooked in a few days, one reminder; it skips itself once a booking exists.
+      emailJob(app.id, "rebook_nudge", {
+        suffix: booking.id,
+        runAfter: new Date(Date.now() + settings.rebookNudgeDays * 86_400_000),
+        precondition: { application_status: ["no_show"], booking_none: true },
+      }),
+    ],
     audit: { action: "booking.no_show", entityType: "booking", entityId: booking.id },
     actor,
   });
@@ -356,6 +365,7 @@ export async function onBookingCancelled(
     .eq("id", booking.id)
     .in("status", ["booked", "checked_in"]);
   if (error) throw new WorkflowError(error.message, "database");
+  const settings = await getSettings(admin);
 
   await commit(admin, {
     applicationId: app.id,
@@ -368,6 +378,15 @@ export async function onBookingCancelled(
       summary: `${booking.kind === "assessment" ? "Assessment" : "Visit"} booking cancelled`,
       payload: { booking_id: booking.id, reason },
     },
+    jobs: [
+      // The parent is told, with the link to choose again; and reminded once if they have not.
+      emailJob(app.id, "booking_cancelled", { suffix: booking.id, bookingId: booking.id }),
+      emailJob(app.id, "rebook_nudge", {
+        suffix: booking.id,
+        runAfter: new Date(Date.now() + settings.rebookNudgeDays * 86_400_000),
+        precondition: { application_status: ["new_enquiry"], booking_none: true },
+      }),
+    ],
     audit: { action: "booking.cancelled", entityType: "booking", entityId: booking.id },
     actor,
   });

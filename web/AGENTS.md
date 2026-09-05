@@ -91,6 +91,34 @@ one-minute signed URL. The bucket is private and has no policies; nothing
 but the service role touches it. Never hand a storage path or URL to a
 parent page.
 
+## A message is an approved template
+
+`lib/messaging/provider.ts` is the only seam; nothing else imports a vendor
+API. WhatsApp messages are sent only by `sendCompanionMessage`, only as a
+`message_templates` row that names a Meta-approved template, only to a
+contact with `whatsapp_opt_in`, and only as the companion of an email moment
+(or by hand from the applicant page, still a template). Do not add a path
+that sends free text, and do not teach an engine action about the channel:
+`handlers/send-email.ts` queues the companion.
+
+## Extraction proposes, the parent confirms
+
+A document reading is written to `documents.extracted_fields` and, when it
+disagrees with the form, to `registrations.mismatch_flags` and a task. It
+must never write a registration field; `saveStudent` clearing the flags is
+the parent's confirmation. Medical documents are never sent to a model. The
+summary on the applicant page follows the same rule: `lib/summary/facts.ts`
+computes the facts and flags, the model may only write prose over them, and
+`validateSummary` decides whether that prose is kept.
+
+## Retention deletes through one function
+
+`anonymise_application()` in the database is the only thing that removes
+personal data, and `lib/workflow/automation/retention.ts` is the only thing
+that calls it, after deleting the stored files. Do not add a delete of an
+applicant row anywhere else; if a new table holds personal data, add it to
+the function and to the security suite's check 37.
+
 ## Snapshots, not references
 
 An attempt sits a frozen form (`form_questions`), an offer is the HTML and

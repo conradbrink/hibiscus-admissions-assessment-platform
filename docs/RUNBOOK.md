@@ -127,6 +127,115 @@ and accepted, and every required agreement signed. The registration page
 lists what is missing. Accept or reject each pending document first; a
 rejection emails the parent with your reason and asks for it again.
 
+## Setting up WhatsApp
+
+1. The school needs a WhatsApp Business Account and a verified number in
+   Meta Business Manager. The engineer sets `MESSAGING_PROVIDER=meta` and the
+   credentials, and registers `<site>/api/webhooks/whatsapp` in Meta.
+2. Every message is a **template** Meta has approved: submit the wording for
+   each moment (booking confirmed, reminder, offer, fees due…) in Meta
+   Business Manager. **Set up → WhatsApp templates** lists the moments, shows
+   the suggested wording, and says which variables fill which placeholder.
+3. When Meta approves a template, enter its name on that row and tick
+   **Active**. Then switch **Workflow settings → whatsapp_enabled** on.
+4. Parents only get messages if they ticked the box on the enquiry form, the
+   registration, or their application page. Replying STOP turns it off;
+   START turns it back on. Staff can turn it on for a parent who asked by
+   phone, from the applicant page — that is audited.
+
+## A parent replied on WhatsApp
+
+Replies land as a task (**WhatsApp replies** on the dashboard) with the text
+quoted, on the applicant's WhatsApp tab. Answer by phone or email: the
+system can only send approved templates, so there is no reply box, by
+design.
+
+## The document reading says something differs
+
+1. When extraction is on, an uploaded birth certificate or report is read
+   and compared with the form. A difference shows on the registration page
+   (**Read from document**) and on the parent's form, and opens a task.
+   **Nothing has been changed**: the reading is a proposal.
+2. Open the document, decide which side is right. If the document is right,
+   press **Ask the parent to check** — they get an email naming the detail
+   and correct the form themselves. If the form is right, close the task;
+   the flag clears when the parent next saves that section.
+3. A reading that looks nothing like the document (a blurry photo, a
+   different document uploaded under the wrong heading) is normal: reject
+   the document with a reason and the parent uploads again.
+
+## A waitlisted family, and a place has opened
+
+When an offer is declined or expires, or a capacity is raised, the drain
+notices within minutes and opens **Waitlist place available** for the
+longest-waiting family. Record a decision of **Approved** on their applicant
+page to draft the offer, or leave them waitlisted. With **Workflow settings →
+waitlist_auto_promote** on, the promotion is automatic and the offer still
+waits for a person to approve it.
+
+## The morning digest did not arrive
+
+1. **Workflow settings → digest_enabled** must be on; it is sent after
+   `digest_hour` (Gaborone time), once per campus per day, only when there
+   is something to report.
+2. Each person has **Receives the morning digest** on Staff & roles; a
+   campus-limited person gets their campuses', head office gets all.
+3. `/staff/admin/dev-outbox` lists digests like any other email; a
+   `failed` one shows why.
+
+## Data retention: what will be removed
+
+**Set up → Data retention** previews exactly which applications the next run
+would anonymise (enquiries that went nowhere after 180 days, closed
+applications after a year — both under Workflow settings) and lets you put
+one on **Hold** with a reason. Anonymising removes the family's names,
+contact details, documents, messages and notes for good; the application's
+status, dates, campus and grade stay so the reports still count it. Nothing
+runs until **retention_enabled** is on; **Run now** runs it today under
+your name.
+
+## Updating a policy document
+
+The four agreements a parent signs at registration (Learner Code of
+Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement)
+carry the full text of the January 2026 documents and link to the PDFs,
+which this site serves from `web/public/policies/2026/`. When the school
+publishes a new edition:
+
+1. Under **Set up → Agreements**, open the agreement and paste the new
+   wording into the body. That publishes a new version; families who
+   already signed keep the version they saw, with its hash.
+2. Put the new PDF in `web/public/policies/<year>/` and point the link at
+   it (a path such as `/policies/2027/Fees-Policy.pdf`), or point the link
+   at the PDF on the school website (`https://…`). Either is accepted.
+3. Retire an agreement there when it no longer applies; add one with a new
+   key when a new document must be signed.
+
+The reading order is fixed by the database (`sort_order`): the
+acknowledgement that refers to the other three comes last.
+
+## A parent asks what they signed
+
+The registration page in the console lists each agreement with the version
+signed, the printed name, the date, and the drawn signature. An acceptance
+made before signatures were drawn shows "typed name only". The body the
+parent saw is the version named there, under **Set up → Agreements**
+(retired versions stay in the database).
+
+## Exporting students to Ed-admin
+
+**Enrolment → Student export**: choose the campus and intake, download CSV
+or JSON. Each download is a batch; the records are marked exported so the
+default view shows only what is new, and a batch can be downloaded again
+from the list. The columns are under **Set up → Export columns**; medical
+fields are off unless an administrator turns one on, and that is deliberate.
+
+## A parent cannot change their booking online
+
+Inside the cutoff (**Workflow settings → reschedule_cutoff_hours**, 24 by
+default) the booking page asks them to call. Staff can still move or cancel
+it from the applicant page.
+
 ## The dashboard counts look wrong
 
 They are computed live from the same rows the pipeline shows; if the pipeline
@@ -177,5 +286,13 @@ trail keeps their name.
    could be marked paid, but parents would see a page that says so.
 9. Never mark a payment as received without a bank reference you can point
    to on a statement. The recording is audited under your name.
-5. Never switch `EMAIL_PROVIDER` to `resend` before the domain records are in
-   place.
+10. Never switch `EMAIL_PROVIDER` to `resend` before the domain records are in
+    place.
+11. Never send a parent a WhatsApp message they did not opt in to, and never
+    add a way to send free text: Meta will suspend the number, and the
+    wording would live outside the templates the school controls.
+12. Never copy a document reading into a registration by hand. The parent
+    confirms or corrects; that is the record.
+13. Never turn a medical export column on without the data-protection
+    officer's say-so, and never switch `retention_enabled` on without reading
+    the preview first. Anonymisation cannot be undone.

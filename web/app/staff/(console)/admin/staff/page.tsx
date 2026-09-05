@@ -68,6 +68,7 @@ export default async function StaffAdminPage() {
               <ActionForm action={updateStaffAccess} label="Save" size="sm" variant="outline" className="space-y-2 text-sm">
                 <input type="hidden" name="staffId" value={s.id} />
                 <label className="flex items-center gap-1.5"><input type="checkbox" name="isActive" value="1" defaultChecked={s.is_active} /> Can sign in</label>
+                <label className="flex items-center gap-1.5"><input type="checkbox" name="digestEnabled" value="1" defaultChecked={s.digest_enabled} /> Receives the morning digest</label>
                 <div className="flex flex-wrap gap-3">
                   {(roles ?? []).map((r) => (
                     <label key={r.id} className="flex items-center gap-1.5"><input type="checkbox" name="roleIds" value={r.id} defaultChecked={mine.has(r.id)} /> {r.name}</label>

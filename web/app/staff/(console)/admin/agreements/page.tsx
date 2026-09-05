@@ -10,7 +10,7 @@ import { publishAgreement, retireAgreement } from "./actions";
 
 export default async function AgreementsPage() {
   const { supabase } = await requireStaff("templates.write");
-  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, updated_at").eq("is_active", true).order("name");
+  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at").eq("is_active", true).order("sort_order").order("name");
   return (
     <>
       <PageTitle title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
@@ -21,7 +21,7 @@ export default async function AgreementsPage() {
               <Link href={`/staff/admin/agreements/${t.key}`} className="font-medium hover:underline">{t.name}</Link>
               <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key} · v{t.version}</span>
               <p className="text-muted-foreground">{t.description}</p>
-              <p className="text-xs text-muted-foreground">Updated {formatDate(t.updated_at)}</p>
+              <p className="text-xs text-muted-foreground">Updated {formatDate(t.updated_at)}{t.document_url ? <> · <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="underline">document</a></> : null}</p>
             </div>
             <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "required" : "optional"}</Badge>
             <ActionForm action={retireAgreement} label="Retire" size="xs" variant="ghost" confirm="Retire this agreement? New families will no longer be asked to sign it."><input type="hidden" name="key" value={t.key} /></ActionForm>
@@ -38,6 +38,7 @@ export default async function AgreementsPage() {
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="required" value="1" defaultChecked /> Required to enrol</label>
           </div>
           <Input name="description" placeholder="Description (for staff)" />
+          <Input name="documentUrl" type="url" placeholder="Link to the published document (https://…pdf), optional" />
           <Textarea name="bodyHtml" rows={8} placeholder="<h2>Title</h2><p>Wording…</p>" className="font-mono text-xs" required />
         </ActionForm>
       </section>

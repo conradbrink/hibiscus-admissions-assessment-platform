@@ -25,12 +25,14 @@ export function FamilyForm({
   secondary,
   prefilled,
   readOnly,
+  whatsappOptIn,
 }: {
   action: (state: RegisterFormState, formData: FormData) => Promise<RegisterFormState>;
   primary: Record<string, string>;
   secondary: Record<string, string>;
   prefilled: string[];
   readOnly: boolean;
+  whatsappOptIn: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const f = state.fields ?? {};
@@ -57,6 +59,13 @@ export function FamilyForm({
         {input("primary.phone", "Other phone", p("phone"), { type: "tel" })}
         {input("primary.address", "Home address", p("address"))}
         {input("primary.nationality", "Nationality", p("nationality"))}
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={sv.whatsappOptIn ? sv.whatsappOptIn === "1" : whatsappOptIn} disabled={readOnly} className="mt-0.5 size-5 shrink-0 accent-primary" />
+          <span>
+            Send updates on WhatsApp to the primary mobile number.
+            <span className="block text-xs text-muted-foreground">Optional. Reply STOP at any time; untick to stop.</span>
+          </span>
+        </label>
       </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Second parent or guardian</legend>

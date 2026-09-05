@@ -12,6 +12,7 @@ const schema = z.object({
   description: z.string().trim().max(400).optional(),
   bodyHtml: z.string().min(1).max(60_000),
   required: z.string().optional(),
+  documentUrl: z.union([z.literal(""), z.string().trim().regex(/^(https:\/\/[^\s]+|\/[A-Za-z0-9][^\s]*)$/, "The link must start with https:// or be a path on this site such as /policies/2026/Fees-Policy.pdf").max(500)]).optional(),
 });
 
 /** A new version of an existing agreement, or a brand-new one. Versions already accepted stay as they were. */
@@ -25,6 +26,7 @@ export async function publishAgreement(_: StaffActionState, formData: FormData):
       p_description: p.description || null,
       p_body_html: p.bodyHtml,
       p_required: p.required === "1",
+      p_document_url: p.documentUrl || null,
     });
     if (error) throw new Error(error.message);
     revalidatePath("/staff/admin/agreements");

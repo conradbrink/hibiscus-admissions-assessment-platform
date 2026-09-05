@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/staff/action-form";
 import { ApplicantPhase2 } from "@/components/staff/applicant-phase2";
+import { SummaryPanel } from "@/components/staff/summary-panel";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
@@ -10,7 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatDateLong, formatDateTime, formatTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
+import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
+import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { isNextAction, NEXT_ACTIONS, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import {
   addNote,
@@ -23,7 +26,10 @@ import {
   markNoShow,
   recordDecision,
   rescheduleByStaff,
+  refreshSummary,
   resendLink,
+  sendWhatsAppTemplate,
+  setWhatsAppOptInByStaff,
   withdraw,
 } from "./actions";
 
@@ -82,6 +88,12 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     supabase.from("access_tokens").select("purpose, expires_at, use_count, revoked_at, created_at").eq("application_id", id).order("created_at", { ascending: false }).limit(5),
   ]);
 
+  const [summaryInputs, { data: storedSummary }, settings] = await Promise.all([
+    loadSummaryInputs(supabase, id),
+    supabase.from("application_summaries").select("*").eq("application_id", id).maybeSingle(),
+    getSettings(supabase),
+  ]);
+  const summary = summaryInputs ? summaryView(summaryInputs, storedSummary ?? null, settings.aiSummaryEnabled) : null;
   const bookingSession = booking ? one(booking.sessions) : null;
   const na = isNextAction(app.next_action) ? NEXT_ACTIONS[app.next_action] : null;
   const canWrite = can(permissions, "applications.write");
@@ -109,6 +121,8 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="space-y-5">
+          {summary ? <SummaryPanel applicationId={app.id} view={summary} action={refreshSummary} /> : null}
+
           {/* Next action */}
           <section className="rounded-xl border border-border bg-card p-4">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Next action</p>
@@ -167,7 +181,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} />
 
           {/* Timeline */}
           <section className="rounded-xl border border-border bg-card">
@@ -236,6 +250,11 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             <p className="mt-1 font-medium">{contact?.first_name} {contact?.last_name}</p>
             <p className="text-muted-foreground">{contact?.email}</p>
             <p className="text-muted-foreground">{contact?.mobile ?? "No mobile"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              WhatsApp updates: {contact?.whatsapp_opt_in ? <span className="text-success">on</span> : "off"}
+              {contact?.whatsapp_opt_in && contact.whatsapp_opt_in_source ? ` (${contact.whatsapp_opt_in_source})` : ""}
+              {!contact?.whatsapp_opt_in && contact?.whatsapp_opt_out_at ? ` since ${formatDate(contact.whatsapp_opt_out_at)}` : ""}
+            </p>
             <p className="mt-2 text-xs text-muted-foreground">
               Child born {formatDate(app.child_date_of_birth)} · came via {app.entry_route}
             </p>
@@ -243,6 +262,18 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               <div className="mt-3 space-y-2">
                 <ActionForm action={resendLink} label="Email a fresh link" variant="outline" size="sm">{idField}</ActionForm>
                 <LinkReveal applicationId={app.id} action={generateLinkForStaff} />
+                {contact?.mobile_normalised ? (
+                  <ActionForm
+                    action={setWhatsAppOptInByStaff}
+                    label={contact.whatsapp_opt_in ? "Turn WhatsApp updates off" : "Turn WhatsApp updates on"}
+                    variant="ghost"
+                    size="sm"
+                    confirm={contact.whatsapp_opt_in ? undefined : "Only if the parent asked for WhatsApp updates. Continue?"}
+                  >
+                    {idField}
+                    <input type="hidden" name="optIn" value={contact.whatsapp_opt_in ? "0" : "1"} />
+                  </ActionForm>
+                ) : null}
               </div>
             ) : null}
             {tokens && tokens.length > 0 ? (

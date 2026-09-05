@@ -83,6 +83,13 @@ declare
   s_empty uuid;
   v_count int;
   v_id uuid;
+  -- Phase 4 fixtures
+  p4_message uuid;
+  p4_export uuid;
+  app_retain uuid;
+  c_retain uuid;
+  v_json jsonb;
+  v_text text;
 
 
 
@@ -199,13 +206,27 @@ begin
   values (app_block7, 'emergency', 'Sec', 'Aunt', 'other', '+26771234567');
   insert into public.documents (application_id, requirement_code, storage_path, original_filename, mime_type, size_bytes, sha256, uploaded_by)
   values (app_block7, 'birth_certificate', 'applications/' || app_block7 || '/sec', 'birth.pdf', 'application/pdf', 1234, 'sha', 'parent') returning id into p3_document;
-  select id into p3_agreement from public.agreement_templates where key = 'policies' and is_active;
-  insert into public.agreement_acceptances (application_id, agreement_template_id, template_key, template_version, body_hash, signature_name)
-  values (app_block7, p3_agreement, 'policies', 1, 'hash', 'Sec Parent');
+  select id into p3_agreement from public.agreement_templates where key = 'learner_code_of_conduct' and is_active;
+  insert into public.agreement_acceptances (application_id, agreement_template_id, template_key, template_version, body_hash, signature_name, signature_svg)
+  select app_block7, id, key, version, 'hash', 'Sec Parent', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 200"><path d="M10 10 L200 100"/></svg>'
+    from public.agreement_templates where id = p3_agreement;
   insert into public.audit_log (actor_type, actor_id, action, entity_type, entity_id, application_id)
   values ('staff', u_admin, 'sec.block7', 'application', app_block7, app_block7),
          ('staff', u_admin, 'sec.broadhurst', 'application', app_broadhurst, app_broadhurst),
          ('staff', u_admin, 'sec.no_application', 'staff_profile', u_admin, null);
+  -- Phase 4: a WhatsApp message, a summary and an export batch on Block 7,
+  -- and a third application that retention will anonymise.
+  insert into public.messages (application_id, direction, template_key, to_normalised, provider, status, rendered_text, idempotency_key)
+  values (app_block7, 'out', 'booking_confirmed', '+26771234567', 'dev', 'sent', 'Hi Sec', 'sec-msg') returning id into p4_message;
+  insert into public.application_summaries (application_id, input_hash, headline, paragraph, source)
+  values (app_block7, 'h', 'Sec headline', 'Sec paragraph', 'deterministic');
+  insert into public.student_exports (campus_id, format, record_count, filename, created_by)
+  values (c_block7, 'csv', 0, 'sec.csv', u_admin) returning id into p4_export;
+  select application_id into app_retain from public.create_application(
+    'Retain','Parent','sec-parent-r@test.invalid','sec-parent-r@test.invalid','+26771000000','+26771000000',
+    'Child','R','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+  select contact_id into c_retain from public.applications where id = app_retain;
+  insert into public.notes (application_id, author_staff_id, body) values (app_retain, u_admin, 'sensitive note');
 
   -- -------------------------------------------------------------------------
   -- 1. Anonymous callers see nothing
@@ -1013,6 +1034,248 @@ begin
     if exists (select 1 from public.roles where code in ('super_admin', 'admissions_manager') and campus_scoped) then
       v_fail := v_fail || E'\n  - ' || ('31: a head-office role is campus_scoped');
     end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 32. WhatsApp messages follow the application's campus and are the
+  --     engine's to write
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.messages where id = p4_message;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('32: campus admin can see another campus''s WhatsApp message'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('32: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.messages where id = p4_message;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('32 control: admissions staff cannot read a message on their campus'); end if;
+    update public.messages set status = 'read' where id = p4_message;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('32: staff updated a message directly'); end if;
+    insert into public.messages (application_id, direction, provider, status, rendered_text)
+    values (app_block7, 'out', 'dev', 'sent', 'forged');
+    v_fail := v_fail || E'\n  - ' || ('32: staff inserted a message directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('32: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 33. Message templates: anyone reads, templates.write edits
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.message_templates;
+    if v_count < 5 then v_fail := v_fail || E'\n  - ' || ('33 control: staff cannot read message templates'); end if;
+    update public.message_templates set is_active = true, meta_template_name = 'forged' where key = 'booking_confirmed';
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('33: admissions staff activated a WhatsApp template'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('33: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.message_templates set meta_template_name = 'sec_named' where key = 'booking_confirmed';
+    get diagnostics v_count = row_count;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('33 control: super admin cannot edit a WhatsApp template'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('33 control: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 34. Summaries follow the campus; nobody writes them by hand
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.application_summaries where application_id = app_block7;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('34: campus admin can see another campus''s summary'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('34: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select count(*) into v_count from public.application_summaries where application_id = app_block7;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('34 control: super admin cannot read a summary'); end if;
+    update public.application_summaries set paragraph = 'tampered' where application_id = app_block7;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('34: super admin edited a summary directly'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('34: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 35. Export columns are settings.write to change; export batches follow
+  --     data.export and the campus
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.export_columns;
+    if v_count < 10 then v_fail := v_fail || E'\n  - ' || ('35 control: staff cannot read export columns'); end if;
+    update public.export_columns set is_active = true where source_path like 'medical.%';
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('35: admissions staff switched medical export columns on'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('35: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.student_exports where id = p4_export;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('35: an assessor can see export batches'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('35: unexpected error as assessor: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.student_exports where id = p4_export;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('35: campus admin can see another campus''s export batch'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('35: unexpected error as campus admin: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select count(*) into v_count from public.student_exports where id = p4_export;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('35 control: super admin cannot see an export batch'); end if;
+    insert into public.student_exports (campus_id, format, filename) values (c_block7, 'csv', 'forged.csv');
+    v_fail := v_fail || E'\n  - ' || ('35: super admin inserted an export batch directly');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('35: batch insert refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 36. The service-role-only functions are not callable by any signed-in
+  --     account, super admin included
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_admin);
+    perform public.anonymise_application(app_retain);
+    v_fail := v_fail || E'\n  - ' || ('36: super admin called anonymise_application');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('36: anonymise refused by "' || sqlerrm || '" rather than the execute grant');
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select public.campus_dashboard_counts(c_block7) into v_json;
+    v_fail := v_fail || E'\n  - ' || ('36: super admin called campus_dashboard_counts');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('36: campus counts refused by "' || sqlerrm || '" rather than the execute grant');
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select public.mark_student_records_exported(array[]::uuid[], p4_export) into v_count;
+    v_fail := v_fail || E'\n  - ' || ('36: super admin called mark_student_records_exported');
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('36: mark exported refused by "' || sqlerrm || '" rather than the execute grant');
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 37. Anonymisation removes the person and keeps the analytics row
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    perform public.anonymise_application(app_retain);
+    select child_first_name into v_text from public.applications where id = app_retain;
+    if v_text <> 'Removed' then v_fail := v_fail || E'\n  - ' || ('37: child name survives anonymisation'); end if;
+    select count(*) into v_count from public.applications where id = app_retain and anonymised_at is not null and status is not null and campus_id = c_block7;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('37: the analytics row did not survive anonymisation'); end if;
+    select email into v_text from public.contacts where id = c_retain;
+    if v_text not like 'removed+%@invalid' then v_fail := v_fail || E'\n  - ' || ('37: contact email survives anonymisation'); end if;
+    select count(*) into v_count from public.contacts where id = c_retain and mobile_normalised is not null;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('37: contact mobile survives anonymisation'); end if;
+    select count(*) into v_count from public.notes where application_id = app_retain;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('37: notes survive anonymisation'); end if;
+    select count(*) into v_count from public.access_tokens where application_id = app_retain;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('37: tokens survive anonymisation'); end if;
+    -- The other family is untouched.
+    select child_first_name into v_text from public.applications where id = app_block7;
+    if v_text = 'Removed' then v_fail := v_fail || E'\n  - ' || ('37: anonymisation touched another application'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('37: unexpected error: ' || sqlerrm);
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 38. Per-campus counts count only the campus; the dashboard has the new
+  --     tiles; maintenance runs are the service role's
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    select public.campus_dashboard_counts(c_broadhurst) into v_json;
+    if (v_json->>'unbooked_over_48h') is null or (v_json->>'parent_replies') is null then
+      v_fail := v_fail || E'\n  - ' || ('38: campus_dashboard_counts is missing keys');
+    end if;
+    insert into public.tasks (application_id, campus_id, type, title, status) values (app_block7, c_block7, 'parent_replied', 'Sec reply', 'open');
+    select public.campus_dashboard_counts(c_broadhurst) into v_json;
+    if (v_json->>'parent_replies')::int <> 0 then v_fail := v_fail || E'\n  - ' || ('38: Broadhurst counts a Block 7 reply'); end if;
+    select public.campus_dashboard_counts(c_block7) into v_json;
+    if (v_json->>'parent_replies')::int < 1 then v_fail := v_fail || E'\n  - ' || ('38: Block 7 does not count its own reply'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('38: unexpected error: ' || sqlerrm);
+  end;
+  begin
+    perform pg_temp.impersonate(u_admin);
+    select public.dashboard_counts() into v_json;
+    if (v_json->>'waitlist_places') is null or (v_json->>'parent_replies') is null then
+      v_fail := v_fail || E'\n  - ' || ('38: dashboard_counts is missing the Phase 4 tiles');
+    end if;
+    select count(*) into v_count from public.maintenance_runs;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('38: staff can read maintenance runs'); end if;
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('38: unexpected error as admin: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
+  -- 39. The staff digest is a staff template with no parent links; a staff
+  --     template is never sent to a parent by mistake (audience guards it)
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    select count(*) into v_count from public.email_templates
+     where key = 'staff_digest' and is_active and audience = 'staff'
+       and not exists (select 1 from unnest(allowed_variables) v where v like '%_link' and v <> 'console_link');
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('39: staff_digest is not a staff-only template without parent links'); end if;
+    select count(*) into v_count from public.email_templates where audience = 'staff' and key <> 'staff_digest';
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('39: a parent template is marked as staff'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('39: unexpected error: ' || sqlerrm);
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 40. Every Phase 4 automation ships switched off
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    select count(*) into v_count from public.settings
+     where key in ('whatsapp_enabled', 'ai_extraction_enabled', 'ai_summary_enabled', 'waitlist_auto_promote', 'retention_enabled', 'digest_enabled')
+       and value = 'false'::jsonb;
+    if v_count <> 6 then v_fail := v_fail || E'\n  - ' || ('40: a Phase 4 switch is not seeded off (' || v_count || ' of 6)'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('40: unexpected error: ' || sqlerrm);
   end;
 
   -- -------------------------------------------------------------------------

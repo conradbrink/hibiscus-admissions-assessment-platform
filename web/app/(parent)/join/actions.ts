@@ -71,6 +71,7 @@ export async function submitEnquiry(
       campusId: parsed.data.campusId,
       intakeId: parsed.data.intakeId ?? null,
       entryRoute: route,
+      whatsappOptIn: parsed.data.whatsappOptIn === "1",
     });
   } catch (e) {
     console.error("[enquiry] create failed", (e as Error).message);

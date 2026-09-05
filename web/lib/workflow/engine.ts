@@ -49,6 +49,8 @@ export type JobPrecondition = {
   offer_status?: string[];
   payment_id?: string;
   payment_status?: string[];
+  /** Holds only while the application has no live booking: a nudge to rebook that stops once they have. */
+  booking_none?: boolean;
 };
 
 export type JobSpec = {
@@ -165,6 +167,35 @@ export async function commit(admin: AdminClient, spec: TransitionSpec): Promise<
     throw new WorkflowError(error.message, "database");
   }
   return data as number;
+}
+
+/**
+ * Queues jobs outside a transition — a companion message after an email
+ * went, a digest, an extraction — with the same idempotency rule as
+ * `commit_transition`: a key that already exists is silently a no-op, so a
+ * retried caller cannot queue twice. Returns how many rows were new.
+ */
+export async function enqueueJobs(
+  admin: AdminClient,
+  jobs: Array<JobSpec & { applicationId: string | null }>
+): Promise<number> {
+  if (jobs.length === 0) return 0;
+  const { data, error } = await admin
+    .from("jobs")
+    .upsert(
+      jobs.map((j) => ({
+        type: j.type,
+        payload: stripUndefined(j.payload),
+        application_id: j.applicationId,
+        idempotency_key: j.idempotencyKey,
+        run_after: (j.runAfter ?? new Date()).toISOString(),
+        precondition: j.precondition ? (j.precondition as Json) : null,
+      })),
+      { onConflict: "idempotency_key", ignoreDuplicates: true }
+    )
+    .select("id");
+  if (error) throw new WorkflowError(error.message, "database");
+  return data?.length ?? 0;
 }
 
 /** Hours from now, as a Date. */

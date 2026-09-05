@@ -120,6 +120,7 @@ export type StaffProfileRow = {
   full_name: string;
   email: string;
   is_active: boolean;
+  digest_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -269,6 +270,10 @@ export type ContactRow = {
   email_normalised: string;
   mobile: string | null;
   mobile_normalised: string | null;
+  whatsapp_opt_in: boolean;
+  whatsapp_opt_in_at: string | null;
+  whatsapp_opt_out_at: string | null;
+  whatsapp_opt_in_source: "enquiry" | "registration" | "staff" | "reply" | null;
   created_at: string;
   updated_at: string;
 };
@@ -301,6 +306,9 @@ export type ApplicationRow = {
   next_action: string | null;
   next_action_due_at: string | null;
   withdrawn_reason: string | null;
+  anonymised_at: string | null;
+  retention_hold: boolean;
+  retention_hold_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -437,6 +445,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
+  audience: "parent" | "staff";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -461,6 +470,7 @@ export type EmailMessageRow = {
   opened_at: string | null;
   clicked_at: string | null;
   bounced_at: string | null;
+  recipient_staff_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -990,6 +1000,9 @@ export type RegistrationRow = {
   submitted_at: string | null;
   submitted_ip_hash: string | null;
   prefill_changed: Json;
+  mismatch_flags: Json;
+  prefilled_count: number;
+  prefill_changed_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -1046,6 +1059,9 @@ export type DocumentRow = {
   review_note: string | null;
   extraction_status: ExtractionStatus;
   extracted_fields: Json | null;
+  extraction_model: string | null;
+  extraction_error: string | null;
+  extracted_at: string | null;
   superseded_by: string | null;
   deleted_at: string | null;
   uploaded_at: string;
@@ -1061,6 +1077,8 @@ export type AgreementTemplateRow = {
   description: string | null;
   body_html: string;
   required: boolean;
+  document_url: string | null;
+  sort_order: number;
   is_active: boolean;
   created_by: string | null;
   created_at: string;
@@ -1075,6 +1093,7 @@ export type AgreementAcceptanceRow = {
   template_version: number;
   body_hash: string;
   signature_name: string;
+  signature_svg: string | null;
   ip_hash: string | null;
   user_agent: string | null;
   accepted_at: string;
@@ -1093,6 +1112,8 @@ export type StudentRecordRow = {
   exported_at: string | null;
   external_ref: string | null;
   export_error: string | null;
+  export_batch_id: string | null;
+  export_count: number;
   created_at: string;
 };
 
@@ -1107,6 +1128,99 @@ export type FunnelEventRow = {
   occurred_at: string;
 };
 
+// Phase 4: messaging
+
+export type MessageLinkPurpose = "next_step" | "results" | "offer" | "payment" | "registration";
+
+export type MessageTemplateRow = {
+  key: string;
+  name: string;
+  meta_template_name: string | null;
+  language: string;
+  body_preview: string;
+  parameters: string[];
+  button_link: boolean;
+  link_purpose: MessageLinkPurpose;
+  is_active: boolean;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationSummaryRow = {
+  application_id: string;
+  input_hash: string;
+  facts: Json;
+  flags: Json;
+  headline: string;
+  paragraph: string;
+  source: "ai" | "deterministic";
+  model: string | null;
+  prompt_version: string | null;
+  validation_errors: Json | null;
+  generated_at: string;
+  generated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExportTransform = "none" | "upper" | "date_dmy" | "date_ymd" | "yes_no" | "money";
+
+export type ExportColumnRow = {
+  id: string;
+  position: number;
+  header: string;
+  source_path: string;
+  transform: ExportTransform;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudentExportRow = {
+  id: string;
+  campus_id: string | null;
+  intake_id: string | null;
+  format: "csv" | "json";
+  record_count: number;
+  filename: string;
+  columns_snapshot: Json;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type MaintenanceRunRow = {
+  key: string;
+  last_run_at: string;
+  detail: Json;
+};
+
+export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" | "skipped" | "received";
+
+export type MessageRow = {
+  id: string;
+  application_id: string;
+  contact_id: string | null;
+  direction: "out" | "in";
+  channel: "whatsapp";
+  template_key: string | null;
+  to_normalised: string | null;
+  from_normalised: string | null;
+  provider: string;
+  provider_message_id: string | null;
+  status: MessageStatus;
+  rendered_text: string;
+  error: string | null;
+  idempotency_key: string | null;
+  email_message_id: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+  received_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -1114,7 +1228,7 @@ export type FunnelEventRow = {
 export type Database = {
   public: {
     Tables: {
-      staff_profiles: TableOf<StaffProfileRow, "is_active">;
+      staff_profiles: TableOf<StaffProfileRow, "is_active" | "digest_enabled">;
       permissions: TableOf<PermissionRow, "sort_order">;
       roles: TableOf<RoleRow, "description" | "is_system" | "campus_scoped">;
       role_permissions: TableOf<
@@ -1179,7 +1293,7 @@ export type Database = {
         "updated_by",
         [Rel<"settings_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
-      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised">;
+      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source">;
       reference_counters: TableOf<ReferenceCounterRow, "next_value">;
       applications: TableOf<
         ApplicationRow,
@@ -1193,7 +1307,8 @@ export type Database = {
         | "owner_staff_id"
         | "next_action"
         | "next_action_due_at"
-        | "withdrawn_reason",
+        | "withdrawn_reason"
+        | "anonymised_at" | "retention_hold" | "retention_hold_reason",
         [
           Rel<"applications_contact_id_fkey", "contact_id", "contacts">,
           Rel<"applications_campus_id_fkey", "campus_id", "campuses">,
@@ -1297,7 +1412,7 @@ export type Database = {
       >;
       email_templates: TableOf<
         EmailTemplateRow,
-        "version" | "description" | "allowed_variables" | "is_active" | "created_by",
+        "version" | "description" | "allowed_variables" | "is_active" | "audience" | "created_by",
         [Rel<"email_templates_created_by_fkey", "created_by", "staff_profiles">]
       >;
       email_messages: TableOf<
@@ -1313,10 +1428,12 @@ export type Database = {
         | "delivered_at"
         | "opened_at"
         | "clicked_at"
-        | "bounced_at",
+        | "bounced_at"
+        | "recipient_staff_id",
         [
           Rel<"email_messages_application_id_fkey", "application_id", "applications">,
           Rel<"email_messages_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"email_messages_recipient_staff_id_fkey", "recipient_staff_id", "staff_profiles">,
         ]
       >;
       jobs: TableOf<
@@ -1619,7 +1736,7 @@ export type Database = {
         | "previous_institution" | "current_grade" | "medical_aid_name" | "medical_aid_number" | "medical_aid_principal_member"
         | "emergency_treatment_consent" | "allergies" | "medical_conditions" | "medication" | "medical_notes" | "vaccination_notes"
         | "student_completed_at" | "medical_completed_at" | "family_completed_at" | "emergency_completed_at"
-        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed",
+        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed" | "mismatch_flags" | "prefilled_count" | "prefill_changed_count",
         [Rel<"registrations_application_id_fkey", "application_id", "applications", true>]
       >;
       registration_contacts: TableOf<
@@ -1634,7 +1751,7 @@ export type Database = {
       documents: TableOf<
         DocumentRow,
         | "storage_bucket" | "uploaded_by_staff_id" | "scan_status" | "scanner" | "review_status" | "reviewed_by" | "reviewed_at"
-        | "review_note" | "extraction_status" | "extracted_fields" | "superseded_by" | "deleted_at" | "uploaded_at",
+        | "review_note" | "extraction_status" | "extracted_fields" | "extraction_model" | "extraction_error" | "extracted_at" | "superseded_by" | "deleted_at" | "uploaded_at",
         [
           Rel<"documents_application_id_fkey", "application_id", "applications">,
           Rel<"documents_requirement_code_fkey", "requirement_code", "document_requirements">,
@@ -1645,12 +1762,12 @@ export type Database = {
       >;
       agreement_templates: TableOf<
         AgreementTemplateRow,
-        "version" | "description" | "required" | "is_active" | "created_by",
+        "version" | "description" | "required" | "document_url" | "sort_order" | "is_active" | "created_by",
         [Rel<"agreement_templates_created_by_fkey", "created_by", "staff_profiles">]
       >;
       agreement_acceptances: TableOf<
         AgreementAcceptanceRow,
-        "ip_hash" | "user_agent" | "accepted_at",
+        "signature_svg" | "ip_hash" | "user_agent" | "accepted_at",
         [
           Rel<"agreement_acceptances_application_id_fkey", "application_id", "applications">,
           Rel<"agreement_acceptances_agreement_template_id_fkey", "agreement_template_id", "agreement_templates">,
@@ -1658,10 +1775,11 @@ export type Database = {
       >;
       student_records: TableOf<
         StudentRecordRow,
-        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error",
+        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error" | "export_batch_id" | "export_count",
         [
           Rel<"student_records_application_id_fkey", "application_id", "applications", true>,
           Rel<"student_records_generated_by_fkey", "generated_by", "staff_profiles">,
+          Rel<"student_records_export_batch_id_fkey", "export_batch_id", "student_exports">,
         ]
       >;
       funnel_events: TableOf<
@@ -1671,6 +1789,40 @@ export type Database = {
           Rel<"funnel_events_application_id_fkey", "application_id", "applications">,
           Rel<"funnel_events_campus_id_fkey", "campus_id", "campuses">,
           Rel<"funnel_events_grade_id_fkey", "grade_id", "grades">,
+        ]
+      >;
+      message_templates: TableOf<
+        MessageTemplateRow,
+        "meta_template_name" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
+      >;
+      messages: TableOf<
+        MessageRow,
+        | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
+        | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at",
+        [
+          Rel<"messages_application_id_fkey", "application_id", "applications">,
+          Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"messages_email_message_id_fkey", "email_message_id", "email_messages">,
+        ]
+      >;
+      export_columns: TableOf<ExportColumnRow, "position" | "transform" | "is_active">;
+      student_exports: TableOf<
+        StudentExportRow,
+        "campus_id" | "intake_id" | "record_count" | "columns_snapshot" | "created_by",
+        [
+          Rel<"student_exports_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"student_exports_intake_id_fkey", "intake_id", "intakes">,
+          Rel<"student_exports_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      maintenance_runs: TableOf<MaintenanceRunRow, "last_run_at" | "detail">;
+      application_summaries: TableOf<
+        ApplicationSummaryRow,
+        "facts" | "flags" | "model" | "prompt_version" | "validation_errors" | "generated_at" | "generated_by",
+        [
+          Rel<"application_summaries_application_id_fkey", "application_id", "applications", true>,
+          Rel<"application_summaries_generated_by_fkey", "generated_by", "staff_profiles">,
         ]
       >;
     };
@@ -1712,6 +1864,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      v_application_facts: {
+        Row: {
+          application_id: string;
+          campus_id: string;
+          campus_name: string;
+          grade_id: string;
+          grade_name: string;
+          grade_sort: number;
+          intake_id: string;
+          intake_label: string;
+          intake_starts_on: string;
+          academic_year_id: string;
+          entry_route: EntryRoute;
+          source: ApplicationSource;
+          requires_assessment: boolean;
+          status: ApplicationStatus;
+          enquired_at: string;
+          booked_at: string | null;
+          attended_at: string | null;
+          no_show_at: string | null;
+          assessed_at: string | null;
+          decided_at: string | null;
+          offered_at: string | null;
+          accepted_at: string | null;
+          paid_at: string | null;
+          enrolled_at: string | null;
+          withdrawn_at: string | null;
+          decision_outcome: string | null;
+          offer_status: string | null;
+          paid_minor: number;
+          emails_sent: number;
+          messages_sent: number;
+          no_show_count: number;
+          prefilled_count: number;
+          prefill_changed_count: number;
+          registration_submitted: boolean;
+        };
+        Relationships: [];
+      };
       v_funnel_effort: {
         Row: {
           sessions_started: number;
@@ -1726,12 +1917,18 @@ export type Database = {
     };
     Functions: {
       publish_agreement_template: {
-        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean };
+        Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean; p_document_url?: string | null };
         Returns: string;
       };
       required_document_codes: {
         Args: { p_grade_sort: number };
         Returns: string[];
+      };
+      anonymise_application: { Args: { p_application_id: string }; Returns: undefined };
+      campus_dashboard_counts: { Args: { p_campus_id: string }; Returns: Json };
+      mark_student_records_exported: {
+        Args: { p_record_ids: string[]; p_batch_id: string };
+        Returns: number;
       };
       current_staff_id: { Args: Record<string, never>; Returns: string | null };
       has_permission: { Args: { p_code: string }; Returns: boolean };

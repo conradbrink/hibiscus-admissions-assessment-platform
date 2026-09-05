@@ -9,8 +9,12 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { RELATIONSHIP_LABELS } from "@/lib/registration/schema";
+import { signatureDataUrl } from "@/lib/registration/signature";
 import { requireStaff } from "@/lib/staff/session";
-import { confirmEnrolment, reviewDocument, sendRegistrationReminder } from "../actions";
+import { parseMismatchFlags } from "@/lib/documents/compare";
+import { isExtractable } from "@/lib/documents/extraction-schemas";
+import { DocumentReading } from "@/components/staff/document-reading";
+import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder } from "../actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -42,7 +46,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
     supabase.from("registration_contacts").select("*").eq("application_id", id).order("kind").order("position"),
     supabase.from("documents").select("*, staff_profiles!documents_reviewed_by_fkey(full_name)").eq("application_id", id).is("deleted_at", null).order("uploaded_at", { ascending: false }),
     supabase.from("document_requirements").select("*").eq("is_active", true).order("sort_order"),
-    supabase.from("agreement_templates").select("*").eq("is_active", true),
+    supabase.from("agreement_templates").select("*").eq("is_active", true).order("sort_order").order("name"),
     supabase.from("agreement_acceptances").select("*").eq("application_id", id),
     supabase.from("student_records").select("*").eq("application_id", id).maybeSingle(),
   ]);
@@ -61,6 +65,13 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
   const liveDocs = (documents ?? []).filter((d) => !d.superseded_by);
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
   const changed = Array.isArray(r?.prefill_changed) ? (r.prefill_changed as string[]) : [];
+  const flags = parseMismatchFlags(r?.mismatch_flags);
+  const extractorOn = (process.env.DOCUMENT_EXTRACTOR ?? "none") !== "none";
+  // One drawing signs every agreement accepted in the same sitting; show each distinct one once.
+  const signatures: Array<{ id: string; svg: string; name: string; at: string }> = [];
+  for (const a of acceptances ?? []) {
+    if (a.signature_svg && !signatures.some((s) => s.svg === a.signature_svg)) signatures.push({ id: a.id, svg: a.signature_svg, name: a.signature_name, at: a.accepted_at });
+  }
 
   return (
     <>
@@ -106,8 +117,14 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                               <Input name="note" placeholder="Why (sent to the parent)" className="h-7 w-56 md:h-7" required minLength={3} />
                             </ActionForm>
                           ) : null}
+                          {canWrite && extractorOn && isExtractable(d.requirement_code) && d.extraction_status !== "pending" ? (
+                            <ActionForm action={extractDocument} label={d.extraction_status === "done" ? "Read again" : "Read with AI"} size="xs" variant="ghost">
+                              {idField}<input type="hidden" name="documentId" value={d.id} />
+                            </ActionForm>
+                          ) : null}
                         </div>
                       ) : null}
+                      {d && isExtractable(d.requirement_code) ? <DocumentReading document={d} /> : null}
                     </li>
                   );
                 })}
@@ -117,6 +134,17 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
           <section className="rounded-xl border border-border bg-card p-4">
             <h2 className="text-sm font-semibold">Student</h2>
             {changed.length ? <p className="mt-1 rounded-md bg-warning/15 px-3 py-2 text-xs">The parent entered a different {changed.map((f) => f.replace("child_", "").replace(/_/g, " ")).join(", ")} from the application. Check against the birth certificate.</p> : null}
+            {flags.length ? (
+              <div className="mt-1 rounded-md bg-warning/15 px-3 py-2 text-xs">
+                <p className="font-medium">A document disagrees with the form — nothing has been changed:</p>
+                <ul className="mt-1 list-disc pl-4">
+                  {flags.map((f) => <li key={`${f.document_id}-${f.field}`}>{f.label}: the {f.requirement_code.replace(/_/g, " ")} shows <strong>{f.document_value ?? "—"}</strong>; the form says <strong>{f.registration_value ?? "—"}</strong></li>)}
+                </ul>
+                {canWrite && app.status === "registration_incomplete" ? (
+                  <ActionForm action={askParentToConfirm} label="Ask the parent to check" size="xs" variant="outline" className="mt-2">{idField}</ActionForm>
+                ) : <p className="mt-1 text-muted-foreground">The parent can only correct the form while registration is open.</p>}
+              </div>
+            ) : null}
             <dl className="mt-2">
               <Row label="Legal name" value={[r?.legal_first_name, r?.legal_middle_names, r?.legal_last_name].filter(Boolean).join(" ")} />
               <Row label="Preferred name" value={r?.preferred_name} />
@@ -156,9 +184,20 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             <ul className="mt-2 text-sm">
               {(templates ?? []).map((t) => {
                 const a = (acceptances ?? []).find((x) => x.agreement_template_id === t.id);
-                return <li key={t.id} className="flex flex-wrap gap-2 py-1"><span className="font-medium">{t.name}</span>{a ? <span className="text-xs text-muted-foreground">v{a.template_version} · signed &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}</span> : <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "not accepted" : "optional, not accepted"}</Badge>}</li>;
+                return <li key={t.id} className="flex flex-wrap gap-2 py-1"><span className="font-medium">{t.name}</span>{t.document_url ? <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-2">document</a> : null}{a ? <span className="text-xs text-muted-foreground">v{a.template_version} · signed &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}{a.signature_svg ? "" : " (typed name only)"}</span> : <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "not accepted" : "optional, not accepted"}</Badge>}</li>;
               })}
             </ul>
+            {signatures.length ? (
+              <div className="mt-3 flex flex-wrap gap-3">
+                {signatures.map((s) => (
+                  <figure key={s.id} className="rounded-lg border border-border bg-white p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={signatureDataUrl(s.svg)} alt={`Signature of ${s.name}`} className="h-16 w-auto" />
+                    <figcaption className="mt-1 text-xs text-muted-foreground">{s.name} · {formatDateTime(s.at)}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            ) : null}
           </section>
         </div>
 

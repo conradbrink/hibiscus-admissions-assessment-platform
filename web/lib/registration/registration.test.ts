@@ -10,10 +10,10 @@ const req = (code: string, required = true, min: number | null = null): Document
 const doc = (code: string, review: DocumentRow["review_status"] = "pending"): DocumentRow => ({
   id: code, application_id: "a", requirement_code: code, storage_bucket: "b", storage_path: `p/${code}`, original_filename: "f", mime_type: "application/pdf",
   size_bytes: 1, sha256: "x", uploaded_by: "parent", uploaded_by_staff_id: null, scan_status: "not_scanned", scanner: "none", review_status: review,
-  reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, superseded_by: null, deleted_at: null,
+  reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, extraction_model: null, extraction_error: null, extracted_at: null, superseded_by: null, deleted_at: null,
   uploaded_at: "", created_at: "", updated_at: "",
 });
-const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, is_active: true, created_by: null, created_at: "", updated_at: "" });
+const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, document_url: null, sort_order: 100, is_active: true, created_by: null, created_at: "", updated_at: "" });
 const contact = (kind: RegistrationContactRow["kind"]): RegistrationContactRow => ({
   id: kind, application_id: "a", kind, position: 1, contact_id: null, first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",
 });
@@ -32,7 +32,7 @@ describe("applicable requirements", () => {
 });
 
 describe("completeness", () => {
-  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [{ id: "x", application_id: "a", agreement_template_id: "policies", template_key: "policies", template_version: 1, body_hash: "h", signature_name: "K M", ip_hash: null, user_agent: null, accepted_at: "" }] };
+  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [{ id: "x", application_id: "a", agreement_template_id: "policies", template_key: "policies", template_version: 1, body_hash: "h", signature_name: "K M", signature_svg: null, ip_hash: null, user_agent: null, accepted_at: "" }] };
 
   it("is complete when every section is stamped, required documents are uploaded and agreements accepted", () => {
     const c = registrationCompleteness({ ...base, documents: [doc("birth_certificate"), doc("vaccination_card"), doc("school_report")] });

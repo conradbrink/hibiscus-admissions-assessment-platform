@@ -52,6 +52,7 @@ export type EmailExtras = {
   paymentReference?: string | null;
   paymentDate?: string | null;
   missingDocuments?: string | null;
+  mismatchDetails?: string | null;
 };
 
 /** The variables every template may draw on, built from the application graph. */
@@ -83,6 +84,7 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     payment_reference: extras.paymentReference ?? null,
     payment_date: extras.paymentDate ?? null,
     missing_documents: extras.missingDocuments ?? null,
+    mismatch_details: extras.mismatchDetails ?? null,
     start_date: formatDateLong(graph.intake.starts_on),
   };
 }
@@ -102,6 +104,8 @@ export type SendTemplatedOptions = {
   paymentId?: string | null;
   /** Free text for the documents-missing emails. */
   missingDocuments?: string | null;
+  /** Free text for the document-mismatch email. */
+  mismatchDetails?: string | null;
 };
 
 /**
@@ -109,7 +113,7 @@ export type SendTemplatedOptions = {
  * the graph stays the parent journey's shape; the offer tables arrive with
  * a later migration and this stays a no-op until then.
  */
-async function offerExtras(admin: AdminClient, offerId: string | null | undefined): Promise<EmailExtras & { expiresAt: Date | null }> {
+export async function offerExtras(admin: AdminClient, offerId: string | null | undefined): Promise<EmailExtras & { expiresAt: Date | null }> {
   if (!offerId) return { expiresAt: null };
   const { data, error } = await admin
     .from("offers")
@@ -131,7 +135,7 @@ async function offerExtras(admin: AdminClient, offerId: string | null | undefine
  * date (which take precedence over the offer's provisional figure), the
  * bank details for the campus and currency, and for a receipt the payment.
  */
-async function paymentExtras(
+export async function paymentExtras(
   admin: AdminClient,
   graph: ApplicationGraph,
   requestId: string | null | undefined,
@@ -168,6 +172,24 @@ async function paymentExtras(
   return out;
 }
 
+/**
+ * How long a purpose-specific link lives. An offer link must outlive the
+ * offer by a margin, so a parent opening the email on the last day is not
+ * told the link has expired; a payment link outlives the due date, because
+ * paying late is still paying. Shared with the WhatsApp companion so both
+ * channels' links expire together.
+ */
+export function linkTtlDays(
+  purpose: LinkPurpose | "next_step",
+  bounds: { expiresAt: Date | null; dueAt: Date | null },
+  nextStepTokenDays: number
+): number {
+  const outlive = (until: Date | null) => (until ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 86_400_000) + 7) : nextStepTokenDays);
+  if (purpose === "offer") return outlive(bounds.expiresAt);
+  if (purpose === "payment") return Math.max(outlive(bounds.dueAt), nextStepTokenDays);
+  return nextStepTokenDays;
+}
+
 type ReceiptAttachment = {
   receiptNumber: string;
   currency: string;
@@ -199,7 +221,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null };
+  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",
@@ -208,12 +230,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   });
   const links: EmailLinks = { nextStep: nextStep.url };
   for (const purpose of opts.links ?? []) {
-    // An offer link must outlive the offer by a margin, so a parent opening
-    // the email on the last day is not told the link has expired.
-    // Likewise a payment link outlives the due date: paying late is still paying.
-    const outlive = (until: Date | null) => (until ? Math.max(1, Math.ceil((until.getTime() - Date.now()) / 86_400_000) + 7) : settings.nextStepTokenDays);
-    const ttlDays =
-      purpose === "offer" ? outlive(extras.expiresAt) : purpose === "payment" ? Math.max(outlive(pay.dueAt), settings.nextStepTokenDays) : settings.nextStepTokenDays;
+    const ttlDays = linkTtlDays(purpose, { expiresAt: extras.expiresAt, dueAt: pay.dueAt }, settings.nextStepTokenDays);
     const minted = await mintToken(admin, {
       applicationId: graph.application.id,
       purpose,
@@ -326,5 +343,71 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
     payload: { email_message_id: message.id, template_key: template.key, subject },
   });
 
+  return { status: "sent", messageId: message.id };
+}
+
+// ---------------------------------------------------------------------------
+// Staff email: a template with audience 'staff', no application, no tokens
+// ---------------------------------------------------------------------------
+
+export type SendStaffOptions = {
+  staffId: string;
+  templateKey: string;
+  variables: Record<string, string>;
+  idempotencyKey: string;
+};
+
+/**
+ * Sends one templated email to a member of staff — the daily digest — and
+ * records it against them. Same renderer, layout and provider as the
+ * parent emails; no magic links, because staff sign in.
+ */
+export async function sendStaffEmail(admin: AdminClient, opts: SendStaffOptions): Promise<SendTemplatedResult> {
+  const [{ data: staff }, { data: template, error: tErr }] = await Promise.all([
+    admin.from("staff_profiles").select("id, full_name, email, is_active").eq("id", opts.staffId).maybeSingle(),
+    admin.from("email_templates").select("*").eq("key", opts.templateKey).eq("is_active", true).maybeSingle(),
+  ]);
+  if (tErr) return { status: "failed", error: tErr.message, retryable: true };
+  if (!template) return { status: "failed", error: `No active template for "${opts.templateKey}"`, retryable: false };
+  if (template.audience !== "staff") return { status: "failed", error: `Template "${opts.templateKey}" is not a staff template`, retryable: false };
+  if (!staff || !staff.is_active) return { status: "skipped", reason: "staff member missing or inactive" };
+
+  let subject: string;
+  let html: string;
+  let text: string;
+  try {
+    subject = renderSubject(template.subject, opts.variables, template.allowed_variables);
+    html = wrapHtml(renderHtml(template.body_html, opts.variables, template.allowed_variables));
+    text = renderText(template.body_text, opts.variables, template.allowed_variables);
+  } catch (e) {
+    return { status: "failed", error: (e as Error).message, retryable: false };
+  }
+
+  const provider = await getEmailProvider();
+  const { data: message, error: mErr } = await admin
+    .from("email_messages")
+    .insert({
+      application_id: null,
+      contact_id: null,
+      recipient_staff_id: staff.id,
+      template_key: template.key,
+      template_version: template.version,
+      to_email: staff.email,
+      subject,
+      body_html: html,
+      body_text: text,
+      provider: provider.name,
+      status: "queued",
+    })
+    .select("id")
+    .single();
+  if (mErr || !message) return { status: "failed", error: mErr?.message ?? "insert failed", retryable: true };
+
+  const result = await provider.send({ to: staff.email, subject, html, text, idempotencyKey: opts.idempotencyKey });
+  if (!result.ok) {
+    await admin.from("email_messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    return { status: "failed", error: result.error, retryable: result.retryable };
+  }
+  await admin.from("email_messages").update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() }).eq("id", message.id);
   return { status: "sent", messageId: message.id };
 }

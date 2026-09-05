@@ -30,6 +30,9 @@ only where judgement is needed.
 | `web/lib/offers/` | Fee snapshots and offer rendering |
 | `web/lib/payments/` | The gateway seam: DPO Pay adapter, a dev adapter, checkout, the reconciler that is the only path to "paid" |
 | `web/lib/registration/`, `web/lib/documents/`, `web/lib/enrolment/` | Registration schemas and the completeness rule, document storage and sniffing, the enrolment record and the student-system seam |
+| `web/lib/messaging/` | The WhatsApp seam: Meta Cloud API adapter, a dev adapter, the companion sender, replies |
+| `web/lib/summary/`, `web/lib/analytics/` | Applicant facts and flags with optional validated prose; the funnel, breakdown and forecast arithmetic |
+| `web/lib/workflow/automation/` | Waitlist promotion, data retention, the morning digest, and the pure rules behind them |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
 | `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only |
@@ -93,4 +96,17 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
   a person. The AI writes the learning-profile narrative over numbers the
   code computed, and a validator rejects any sentence that adds a number,
   diagnoses or ranks; the deterministic wording is used instead.
+- **A WhatsApp message is an approved template** sent beside an email to a
+  parent who opted in; there is no free text, and the engine does not know
+  the channel exists.
+- **Document extraction proposes, the parent confirms.** A reading never
+  writes a registration field; a disagreement is a flag on the form and a
+  task for a person.
+- **Every automation ships off**, behind a setting, and runs from the cron
+  drain idempotently. Retention removes personal data through one database
+  function, after a preview, and keeps the analytics row.
+- **The parent signs the school's own words.** The four policy documents are
+  the agreement bodies, verbatim, with the PDFs served by the site; the
+  signature is drawn, validated and rendered on the server, and stored with
+  the version and hash of what was signed.
 - **Migrations are never edited once applied.** CI blocks it.
