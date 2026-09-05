@@ -35,6 +35,16 @@ export const LIMITS = {
   kioskCode: { bucket: "kiosk_code", limit: 20, windowSeconds: 600 },
   /** Autosaving answers, per attempt. Generous: a quick child answers a question every few seconds. */
   kioskResponse: { bucket: "kiosk_response", limit: 900, windowSeconds: 3600 },
+  /** Accepting or declining an offer, per application. One click is the norm; ten is a stuck button. */
+  offerDecision: { bucket: "offer_decision", limit: 10, windowSeconds: 3600 },
+  /** Starting an online payment, per application. Each start creates a gateway transaction. */
+  paymentStart: { bucket: "payment_start", limit: 10, windowSeconds: 3600 },
+  /** Asking the gateway to re-check, per application. */
+  paymentCheck: { bucket: "payment_check", limit: 30, windowSeconds: 3600 },
+  /** Uploading a document, per application. */
+  documentUpload: { bucket: "document_upload", limit: 30, windowSeconds: 3600 },
+  /** Saving a registration section, per application. */
+  registrationSave: { bucket: "registration_save", limit: 120, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };

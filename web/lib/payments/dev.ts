@@ -9,7 +9,9 @@ import type { CheckoutRequest, CheckoutResult, PaymentProvider, VerifyResult } f
  * outcome onto the payment row first. In production it refuses to exist.
  */
 
-if (process.env.VERCEL_ENV === "production" || (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_PAYMENTS !== "1")) {
+// VERCEL_ENV, not NODE_ENV: `next build` and preview deployments both run
+// with NODE_ENV=production, and previews are exactly where this belongs.
+if (process.env.VERCEL_ENV === "production") {
   throw new Error("PAYMENT_PROVIDER=dev is not allowed in production. Set PAYMENT_PROVIDER=dpo.");
 }
 
