@@ -7,7 +7,7 @@ import { parseMismatchFlags } from "@/lib/documents/compare";
 import { drainSoon } from "@/lib/parent/actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
-import { changedFromApplication } from "@/lib/registration/prefill";
+import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
 import { registrationForSession } from "@/lib/registration/session";
 import { requestContext } from "@/lib/request";
@@ -71,6 +71,9 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
         prefill_changed: changedFromApplication(graph.application, d),
         // The parent has looked at the document check and saved: the flags are answered.
         mismatch_flags: [],
+        // Parent-effort metric: how much of this section we could fill for them, and how much they changed.
+        prefilled_count: prefillRegistration(graph, null, null).prefilledFields.length,
+        prefill_changed_count: changedFromApplication(graph.application, d).length,
       })
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");

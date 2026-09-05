@@ -995,6 +995,8 @@ export type RegistrationRow = {
   submitted_ip_hash: string | null;
   prefill_changed: Json;
   mismatch_flags: Json;
+  prefilled_count: number;
+  prefill_changed_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -1101,6 +1103,8 @@ export type StudentRecordRow = {
   exported_at: string | null;
   external_ref: string | null;
   export_error: string | null;
+  export_batch_id: string | null;
+  export_count: number;
   created_at: string;
 };
 
@@ -1149,6 +1153,31 @@ export type ApplicationSummaryRow = {
   generated_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ExportTransform = "none" | "upper" | "date_dmy" | "date_ymd" | "yes_no" | "money";
+
+export type ExportColumnRow = {
+  id: string;
+  position: number;
+  header: string;
+  source_path: string;
+  transform: ExportTransform;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudentExportRow = {
+  id: string;
+  campus_id: string | null;
+  intake_id: string | null;
+  format: "csv" | "json";
+  record_count: number;
+  filename: string;
+  columns_snapshot: Json;
+  created_by: string | null;
+  created_at: string;
 };
 
 export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" | "skipped" | "received";
@@ -1689,7 +1718,7 @@ export type Database = {
         | "previous_institution" | "current_grade" | "medical_aid_name" | "medical_aid_number" | "medical_aid_principal_member"
         | "emergency_treatment_consent" | "allergies" | "medical_conditions" | "medication" | "medical_notes" | "vaccination_notes"
         | "student_completed_at" | "medical_completed_at" | "family_completed_at" | "emergency_completed_at"
-        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed" | "mismatch_flags",
+        | "documents_completed_at" | "agreements_completed_at" | "submitted_at" | "submitted_ip_hash" | "prefill_changed" | "mismatch_flags" | "prefilled_count" | "prefill_changed_count",
         [Rel<"registrations_application_id_fkey", "application_id", "applications", true>]
       >;
       registration_contacts: TableOf<
@@ -1728,10 +1757,11 @@ export type Database = {
       >;
       student_records: TableOf<
         StudentRecordRow,
-        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error",
+        "schema_version" | "generated_at" | "generated_by" | "export_status" | "exported_at" | "external_ref" | "export_error" | "export_batch_id" | "export_count",
         [
           Rel<"student_records_application_id_fkey", "application_id", "applications", true>,
           Rel<"student_records_generated_by_fkey", "generated_by", "staff_profiles">,
+          Rel<"student_records_export_batch_id_fkey", "export_batch_id", "student_exports">,
         ]
       >;
       funnel_events: TableOf<
@@ -1756,6 +1786,16 @@ export type Database = {
           Rel<"messages_application_id_fkey", "application_id", "applications">,
           Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
           Rel<"messages_email_message_id_fkey", "email_message_id", "email_messages">,
+        ]
+      >;
+      export_columns: TableOf<ExportColumnRow, "position" | "transform" | "is_active">;
+      student_exports: TableOf<
+        StudentExportRow,
+        "campus_id" | "intake_id" | "record_count" | "columns_snapshot" | "created_by",
+        [
+          Rel<"student_exports_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"student_exports_intake_id_fkey", "intake_id", "intakes">,
+          Rel<"student_exports_created_by_fkey", "created_by", "staff_profiles">,
         ]
       >;
       application_summaries: TableOf<
@@ -1805,6 +1845,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      v_application_facts: {
+        Row: {
+          application_id: string;
+          campus_id: string;
+          campus_name: string;
+          grade_id: string;
+          grade_name: string;
+          grade_sort: number;
+          intake_id: string;
+          intake_label: string;
+          intake_starts_on: string;
+          academic_year_id: string;
+          entry_route: EntryRoute;
+          source: ApplicationSource;
+          requires_assessment: boolean;
+          status: ApplicationStatus;
+          enquired_at: string;
+          booked_at: string | null;
+          attended_at: string | null;
+          no_show_at: string | null;
+          assessed_at: string | null;
+          decided_at: string | null;
+          offered_at: string | null;
+          accepted_at: string | null;
+          paid_at: string | null;
+          enrolled_at: string | null;
+          withdrawn_at: string | null;
+          decision_outcome: string | null;
+          offer_status: string | null;
+          paid_minor: number;
+          emails_sent: number;
+          messages_sent: number;
+          no_show_count: number;
+          prefilled_count: number;
+          prefill_changed_count: number;
+          registration_submitted: boolean;
+        };
+        Relationships: [];
+      };
       v_funnel_effort: {
         Row: {
           sessions_started: number;
@@ -1825,6 +1904,10 @@ export type Database = {
       required_document_codes: {
         Args: { p_grade_sort: number };
         Returns: string[];
+      };
+      mark_student_records_exported: {
+        Args: { p_record_ids: string[]; p_batch_id: string };
+        Returns: number;
       };
       current_staff_id: { Args: Record<string, never>; Returns: string | null };
       has_permission: { Args: { p_code: string }; Returns: boolean };

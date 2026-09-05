@@ -39,11 +39,15 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/staff/payments", label: "Payments", permission: "finance.read" },
       { href: "/staff/registrations", label: "Registrations", permission: "applications.read" },
+      { href: "/staff/enrolment/exports", label: "Student export", permission: "data.export" },
     ],
   },
   {
     label: "Insight",
-    items: [{ href: "/staff/analytics", label: "Analytics", permission: "analytics.read" }],
+    items: [
+      { href: "/staff/analytics", label: "Analytics", permission: "analytics.read" },
+      { href: "/staff/analytics/forecast", label: "Forecast", permission: "analytics.read" },
+    ],
   },
   {
     label: "Assessment content",
@@ -65,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/admin/fees", label: "Fees", permission: "finance.write" },
       { href: "/staff/admin/agreements", label: "Agreements", permission: "templates.write" },
       { href: "/staff/admin/document-requirements", label: "Document requirements", permission: "settings.write" },
+      { href: "/staff/admin/export-columns", label: "Export columns", permission: "settings.write" },
       { href: "/staff/admin/rules", label: "Admission rules", permission: "rules.write" },
       { href: "/staff/admin/campuses", label: "Campuses", permission: "settings.write" },
       { href: "/staff/admin/grades", label: "Grades", permission: "settings.write" },
