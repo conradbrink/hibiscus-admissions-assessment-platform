@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
@@ -71,16 +72,17 @@ export function StaffSidebar({ groups, email }: { groups: NavGroup[]; email: str
     <>
       <aside className="hidden w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
         <div className="px-4 py-4">
-          <Link href="/staff" className="text-base font-bold text-primary">
-            Hibiscus Admissions
+          <Link href="/staff" aria-label="Hibiscus Admissions" className="block">
+            <Logo className="h-10 w-auto" />
+            <span className="mt-1 block text-xs font-semibold tracking-wide text-muted-foreground uppercase">Admissions</span>
           </Link>
         </div>
         {nav}
         {footer}
       </aside>
       <div className="flex h-12 items-center justify-between border-b border-border bg-card px-3 md:hidden">
-        <Link href="/staff" className="text-sm font-bold text-primary">
-          Hibiscus Admissions
+        <Link href="/staff" aria-label="Hibiscus Admissions">
+          <Logo className="h-7 w-auto" />
         </Link>
         <button type="button" aria-label="Menu" onClick={() => setOpen((o) => !o)} className="rounded-md p-1.5">
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
