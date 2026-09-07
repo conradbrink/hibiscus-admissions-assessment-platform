@@ -126,3 +126,66 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /*
+   * Rich text that comes from a template a person edits: the offer letter,
+   * the terms, the agreements, the previews in the editors. There is no
+   * typography plugin here, so these rules are what "prose" means: space
+   * between paragraphs, headings that stand out, and the fee table laid
+   * out with its amounts on the right.
+   */
+  .prose {
+    @apply text-[15px] leading-relaxed text-foreground;
+  }
+  .prose-sm {
+    @apply text-sm;
+  }
+  .prose > * + * {
+    @apply mt-3;
+  }
+  .prose h1 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+  .prose h2 {
+    @apply text-base font-semibold;
+  }
+  .prose h3 {
+    @apply text-sm font-semibold;
+  }
+  .prose ul {
+    @apply list-disc pl-5;
+  }
+  .prose ol {
+    @apply list-decimal pl-5;
+  }
+  .prose li + li {
+    @apply mt-1;
+  }
+  .prose a {
+    @apply text-primary underline underline-offset-2;
+  }
+  .prose hr {
+    @apply border-border;
+  }
+  .prose table {
+    @apply w-full border-collapse text-inherit;
+  }
+  .prose table td,
+  .prose table th {
+    @apply border-t border-border/70 px-2 py-1.5 align-top;
+  }
+  .prose table tr:first-child td,
+  .prose table tr:first-child th {
+    @apply border-t-0;
+  }
+  .prose table td:last-child {
+    @apply text-right whitespace-nowrap tabular-nums;
+  }
+  .prose table.details {
+    @apply my-1 rounded-lg bg-muted/40;
+  }
+  .prose table.details td {
+    @apply px-3 py-2;
+  }
+}
