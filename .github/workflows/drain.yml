@@ -1,0 +1,35 @@
+# Drains the job queue every five minutes by calling the deployed site.
+#
+# Vercel's Hobby plan allows one cron run a day, which is far too slow for
+# reminders, payment checks and the automations, so the five-minute cadence
+# runs from here instead. web/vercel.json keeps a daily Vercel cron as a
+# safety net. Two repository secrets are needed:
+#   DRAIN_URL    https://<site>/api/jobs/drain
+#   CRON_SECRET  the same value as the Vercel CRON_SECRET environment variable
+# GitHub schedules can run a few minutes late under load; that is fine here.
+name: Drain job queue
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: drain
+  cancel-in-progress: false
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/jobs/drain
+        env:
+          DRAIN_URL: ${{ secrets.DRAIN_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$DRAIN_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "DRAIN_URL and CRON_SECRET repository secrets are not set; nothing to do."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/drain.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$DRAIN_URL")
+          echo "HTTP $code"
+          cat /tmp/drain.json; echo
+          [ "$code" = "200" ]

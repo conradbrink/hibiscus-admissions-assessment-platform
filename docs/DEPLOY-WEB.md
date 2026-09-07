@@ -50,8 +50,14 @@ deploy token lives in GitHub.
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
 
-3. `web/vercel.json` registers the cron (`/api/jobs/drain` every five minutes).
-   Confirm it appears under the project's Cron Jobs after the first deploy.
+3. The job queue is drained every five minutes by the GitHub Actions
+   workflow `.github/workflows/drain.yml`, which calls `/api/jobs/drain`
+   with the secret. Set two repository secrets in GitHub (Settings →
+   Secrets and variables → Actions): `DRAIN_URL`
+   (`https://<domain>/api/jobs/drain`) and `CRON_SECRET` (the same value as
+   in Vercel). `web/vercel.json` also registers a daily Vercel cron as a
+   safety net; Vercel's Hobby plan allows nothing more frequent, and on a
+   Pro plan the schedule there can be returned to `*/5 * * * *`.
    The drain is also what runs the delayed jobs — a timed-out sitting's
    auto-submit, offer reminders and offer expiry — and, from Phase 4, the
    payment sweep, waitlist promotion, the daily retention run, the morning
