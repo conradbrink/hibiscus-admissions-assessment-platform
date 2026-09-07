@@ -314,6 +314,8 @@ export type ApplicationRow = {
   /** "How did you hear about us?" — keys in web/lib/heard-from.ts; null when never asked (staff-created, older rows). */
   heard_from: HeardFrom | null;
   heard_from_detail: string | null;
+  /** The promo code the parent typed at enquiry, kept even when it did not match. */
+  promo_code: string | null;
   owner_staff_id: string | null;
   next_action: string | null;
   next_action_due_at: string | null;
@@ -323,6 +325,48 @@ export type ApplicationRow = {
   retention_hold_reason: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PromotionEffectKind = "waive_fee" | "discount_fixed" | "discount_percent" | "gift";
+
+export type PromotionRow = {
+  id: string;
+  code: string | null;
+  name: string;
+  letter_text: string | null;
+  campus_id: string | null;
+  academic_year_id: string | null;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  entry_route: EntryRoute | null;
+  heard_from: HeardFrom | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  max_redemptions: number | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PromotionEffectRow = {
+  id: string;
+  promotion_id: string;
+  position: number;
+  kind: PromotionEffectKind;
+  fee_code: FeeCode | null;
+  amount_minor: number | null;
+  percent: number | null;
+  label: string;
+};
+
+export type ApplicationPromotionRow = {
+  application_id: string;
+  promotion_id: string;
+  source: "code" | "rule" | "staff";
+  applied_by: string | null;
+  reason: string | null;
+  applied_at: string;
 };
 
 export type ApplicationGuardianRow = {
@@ -879,6 +923,8 @@ export type OfferRow = {
   first_viewed_at: string | null;
   conditions: string | null;
   withdrawn_reason: string | null;
+  /** The deal frozen into this offer, for reporting; the effects live in `fees`. */
+  promotion_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -890,8 +936,8 @@ export type OfferRow = {
 export type OfferDecision = "accepted" | "declined";
 export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
 export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
-export type PaymentMethod = "online" | "eft";
-export type PaymentProviderName = "dev" | "dpo" | "paygate" | "bank";
+export type PaymentMethod = "online" | "eft" | "waived";
+export type PaymentProviderName = "dev" | "dpo" | "paygate" | "bank" | "none";
 
 export type OfferAcceptanceRow = {
   id: string;
@@ -1291,6 +1337,20 @@ export type Database = {
         CampusRow,
         "descriptor" | "country" | "currency" | "address" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
+      promotions: TableOf<
+        PromotionRow,
+        | "code" | "letter_text" | "campus_id" | "academic_year_id" | "grade_sort_min" | "grade_sort_max"
+        | "entry_route" | "heard_from" | "starts_on" | "ends_on" | "max_redemptions" | "is_active" | "created_by"
+      >;
+      promotion_effects: TableOf<PromotionEffectRow, "position" | "fee_code" | "amount_minor" | "percent">;
+      application_promotions: TableOf<
+        ApplicationPromotionRow,
+        "applied_by" | "reason" | "applied_at",
+        [
+          Rel<"application_promotions_application_id_fkey", "application_id", "applications">,
+          Rel<"application_promotions_promotion_id_fkey", "promotion_id", "promotions">,
+        ]
+      >;
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
@@ -1328,7 +1388,7 @@ export type Database = {
         | "status"
         | "status_changed_at"
         | "source"
-        | "heard_from" | "heard_from_detail"
+        | "heard_from" | "heard_from_detail" | "promo_code"
         | "owner_staff_id"
         | "next_action"
         | "next_action_due_at"
@@ -1691,6 +1751,7 @@ export type Database = {
       offers: TableOf<
         OfferRow,
         | "fee_schedule_id"
+        | "promotion_id"
         | "start_date"
         | "expires_at"
         | "status"
@@ -1934,6 +1995,8 @@ export type Database = {
           prefill_changed_count: number;
           registration_submitted: boolean;
           heard_from: HeardFrom | null;
+          promotion_code: string | null;
+          promotion_name: string | null;
         };
         Relationships: [];
       };

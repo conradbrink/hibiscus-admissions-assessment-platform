@@ -31,7 +31,7 @@ export type ReceiptDocumentProps = {
   currency: string;
   lines: Array<{ label: string; amount_minor: number }>;
   amountMinor: number;
-  method: "online" | "eft";
+  method: "online" | "eft" | "waived";
   providerLabel: string;
   paymentReference: string;
   approvalCode: string | null;
@@ -50,7 +50,7 @@ export function ReceiptDocument(p: ReceiptDocumentProps) {
           <View style={s.meta}><Text style={s.small}>Application reference</Text><Text>{p.reference}</Text></View>
           <View style={s.meta}><Text style={s.small}>Received from</Text><Text>{p.payerName}</Text></View>
           <View style={s.meta}><Text style={s.small}>For</Text><Text>{p.studentName} — {p.grade}, {p.campus}</Text></View>
-          <View style={s.meta}><Text style={s.small}>Paid by</Text><Text>{p.method === "eft" ? "Bank transfer" : `Online (${p.providerLabel})`}</Text></View>
+          <View style={s.meta}><Text style={s.small}>Paid by</Text><Text>{p.method === "eft" ? "Bank transfer" : p.method === "waived" ? "Waived by the school" : `Online (${p.providerLabel})`}</Text></View>
           <View style={s.meta}><Text style={s.small}>Payment reference</Text><Text>{p.paymentReference}</Text></View>
           {p.approvalCode ? <View style={s.meta}><Text style={s.small}>Approval code</Text><Text>{p.approvalCode}</Text></View> : null}
         </View>

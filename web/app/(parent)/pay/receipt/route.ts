@@ -45,7 +45,7 @@ export async function GET(): Promise<Response> {
     lines: requestLines(request),
     amountMinor: Number(payment.amount_minor),
     method: payment.method,
-    providerLabel: payment.provider === "dpo" ? "DPO Pay" : payment.provider,
+    providerLabel: payment.provider === "dpo" ? "DPO Pay" : payment.provider === "paygate" ? "PayGate" : payment.provider === "none" ? "" : payment.provider,
     paymentReference: reference,
     approvalCode: payment.approval_code,
     paidOn: formatDateLong(payment.received_on ?? payment.updated_at),

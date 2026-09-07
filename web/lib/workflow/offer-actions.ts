@@ -5,6 +5,9 @@ import type { ApplicationRow, Json, OfferRow } from "@/lib/supabase/types";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildOfferVariables, feeSnapshotFrom, loadActiveOfferTemplate, renderOffer, resolveFeeSchedule, snapshotFees, type FeeSnapshot } from "@/lib/offers/render";
 import { createPaymentRequest, loadBankInstructions } from "@/lib/payments/requests";
+import { applyPromotion, fullyWaived } from "@/lib/promotions/apply";
+import { resolvePromotion } from "@/lib/promotions/load";
+import { onPaymentVerified } from "@/lib/workflow/payment-actions";
 import { getSettings } from "@/lib/settings";
 import { commit, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
 
@@ -42,11 +45,13 @@ export async function onOfferDrafted(
   actor: Actor,
   opts: { conditions?: string | null } = {}
 ): Promise<{ offerId: string; blocked: boolean }> {
-  if (app.status !== "approved" && app.status !== "offer_draft") {
+  // A re-draft is allowed while the offer is still a draft or waiting for
+  // approval (staff applying or removing a promotion); never once sent.
+  if (app.status !== "approved" && app.status !== "offer_draft" && app.status !== "offer_pending_approval") {
     throw new WorkflowError(`Application is ${app.status}; an offer can be drafted from approved or offer_draft`, "status_conflict");
   }
   const existing = await liveOffer(admin, app.id);
-  if (existing && existing.status !== "draft") {
+  if (existing && existing.status !== "draft" && existing.status !== "pending_approval") {
     throw new WorkflowError(`An offer is already ${existing.status}`, "status_conflict");
   }
 
@@ -63,7 +68,9 @@ export async function onOfferDrafted(
     academicYearId: graph.intake.academic_year_id,
     gradeSort: graph.grade.sort_order,
   });
-  const fees: FeeSnapshot | null = resolved ? snapshotFees(resolved.schedule, resolved.lines) : null;
+  const promotion = await resolvePromotion(admin, graph);
+  const base: FeeSnapshot | null = resolved ? snapshotFees(resolved.schedule, resolved.lines) : null;
+  const fees: FeeSnapshot | null = base && promotion ? applyPromotion(base, promotion.promo) : base;
   const conditions = opts.conditions ?? existing?.conditions ?? null;
   // Provisional expiry for the preview; the real one is stamped at approval.
   const provisionalExpiry = new Date(Date.now() + settings.offerExpiryDays * DAY);
@@ -83,6 +90,7 @@ export async function onOfferDrafted(
     fees: (fees ?? {}) as unknown as Json,
     start_date: graph.intake.starts_on,
     conditions,
+    promotion_id: promotion?.promo.id ?? null,
     status: fees ? "pending_approval" : "draft",
   } as const;
 
@@ -133,12 +141,26 @@ export async function onOfferDrafted(
     return { offerId, blocked: true };
   }
 
+  if (app.status === "offer_pending_approval") {
+    // Re-drafted while waiting for approval: the queue entry stands, the letter changed.
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: "offer_pending_approval",
+      newStatus: null,
+      nextAction: null,
+      event: { type: "offer.redrafted", summary: promotion ? `Offer re-drafted with the promotion ${promotion.promo.name}` : "Offer re-drafted without a promotion", payload: { offer_id: offerId, promotion_id: promotion?.promo.id ?? null } },
+      audit: { action: "offer.redrafted", entityType: "offer", entityId: offerId, after: { promotion_id: promotion?.promo.id ?? null } },
+      actor,
+    });
+    return { offerId, blocked: false };
+  }
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: "offer_draft",
     newStatus: "offer_pending_approval",
     nextAction: "await_offer",
-    event: { type: "offer.pending_approval", summary: "Offer ready for approval", payload: { offer_id: offerId } },
+    event: { type: "offer.pending_approval", summary: promotion ? `Offer ready for approval (promotion: ${promotion.promo.name})` : "Offer ready for approval", payload: { offer_id: offerId, promotion_id: promotion?.promo.id ?? null } },
     resolveTaskTypes: ["configure_fees"],
     tasks: [
       {
@@ -405,6 +427,40 @@ export async function onOfferAccepted(
     audit: { action: "offer.accepted", entityType: "offer", entityId: offer.id, after: { acceptance_id: acceptance.id, terms_hash: offerSnapshotHash(offer) } },
     actor,
   });
+
+  if (fullyWaived(feeSnapshotFrom(offer.fees))) {
+    // Nothing to pay: a "waived" payment record says why nothing was
+    // collected, and the paid path runs as it would after a gateway
+    // confirmation, so registration opens at once.
+    const snapshot = feeSnapshotFrom(offer.fees);
+    const promoName = (snapshot as { promotion?: { name?: string } | null } | null)?.promotion?.name ?? "a promotion";
+    const { data: waived, error: wErr } = await admin
+      .from("payments")
+      .insert({
+        payment_request_id: request.id,
+        application_id: app.id,
+        method: "waived",
+        provider: "none",
+        company_ref: `${offer.id.slice(0, 8).toUpperCase()}-WAIVED`,
+        amount_minor: 0,
+        currency: request.currency,
+        status: "pending",
+        note: `Fees waived under ${promoName}`,
+      })
+      .select("*")
+      .single();
+    if (wErr || !waived) throw new WorkflowError(wErr?.message ?? "waived payment insert failed", "database");
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: "offer_accepted",
+      newStatus: "payment_required",
+      nextAction: "pay_fees",
+      event: { type: "payment.waived", summary: `Fees waived under ${promoName}; nothing to pay`, payload: { payment_request_id: request.id, promotion: promoName } },
+      actor: { type: "system", label: "System" },
+    });
+    await onPaymentVerified(admin, { ...app, status: "payment_required" }, request, waived, { approvalCode: null }, { type: "system", label: "System" });
+    return { acceptanceId: acceptance.id, paymentRequestId: request.id };
+  }
 
   const jobs: JobSpec[] = [
     {

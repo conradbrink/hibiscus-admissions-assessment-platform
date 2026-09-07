@@ -2,6 +2,7 @@ import type { ApplicationGraph } from "@/lib/applications";
 import { renderHtml, type TemplateVariables } from "@/lib/email/render";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { promotionVariables } from "@/lib/promotions/apply";
 import type { FeeCode, FeeLineRow, FeeScheduleRow, OfferTemplateRow } from "@/lib/supabase/types";
 
 /**
@@ -12,7 +13,15 @@ import type { FeeCode, FeeLineRow, FeeScheduleRow, OfferTemplateRow } from "@/li
 
 export type FeeSnapshot = {
   currency: "BWP" | "ZAR";
-  lines: Array<{ code: FeeCode; label: string; amount_minor: number; payable_at_acceptance: boolean }>;
+  lines: Array<{
+    code: FeeCode;
+    label: string;
+    amount_minor: number;
+    payable_at_acceptance: boolean;
+    /** Set once a promotion has touched the line: what the schedule said, and whether nothing is left. */
+    original_minor?: number;
+    waived?: boolean;
+  }>;
   total_minor: number;
   payable_at_acceptance_minor: number;
 };
@@ -46,7 +55,10 @@ export function buildOfferVariables(
   const { application, contact, campus, grade, intake } = graph;
   const line = (code: FeeCode) => {
     const l = fees?.lines.find((x) => x.code === code);
-    return l && fees ? formatMoney(l.amount_minor, fees.currency) : null;
+    if (!l || !fees) return null;
+    // A waived line still prints, so the parent sees what the deal covered.
+    if (l.waived && l.original_minor) return `Waived (was ${formatMoney(l.original_minor, fees.currency)})`;
+    return formatMoney(l.amount_minor, fees.currency);
   };
   return {
     parent_first_name: contact.first_name,
@@ -68,6 +80,7 @@ export function buildOfferVariables(
     conditions: opts.conditions,
     // One line, so it reads the same in the letter's HTML and in the PDF.
     bank_details: opts.bankDetails ? opts.bankDetails.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(" · ") : null,
+    ...promotionVariables(fees),
   };
 }
 

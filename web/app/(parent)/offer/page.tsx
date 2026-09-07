@@ -54,7 +54,7 @@ export default async function OfferPage() {
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Fees ({fees.currency})</p>
           <ul className="mt-2 divide-y divide-border">
             {fees.lines.map((l) => (
-              <li key={l.code} className="flex justify-between py-2"><span>{l.label}</span><span className="tabular-nums">{formatMoney(l.amount_minor, fees.currency)}</span></li>
+              <li key={l.code} className="flex justify-between py-2"><span>{l.label}{l.waived ? <span className="ml-2 rounded-full bg-success/15 px-2 py-0.5 text-xs text-success">Waived</span> : null}</span><span className="tabular-nums">{l.waived && l.original_minor ? <s className="text-muted-foreground">{formatMoney(l.original_minor, fees.currency)}</s> : formatMoney(l.amount_minor, fees.currency)}</span></li>
             ))}
             <li className="flex justify-between py-2 font-semibold"><span>Payable on acceptance</span><span className="tabular-nums">{formatMoney(fees.payable_at_acceptance_minor, fees.currency)}</span></li>
           </ul>

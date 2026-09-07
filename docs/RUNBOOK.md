@@ -106,6 +106,22 @@ usual marking task is opened and a person marks as before.
 - **No active offer template**: `/staff/admin/offer-templates` — publish a
   version.
 
+## Running a promotion
+
+Settings → **Promotions**. Name the deal, tick the fees it waives, set a
+discount on the admission fee if any, list the gifts one per line as the
+parent should read them, and switch it on. Give it a **code** if it is
+advertised (the enquiry form asks for a code only while a coded deal is
+live); leave the code blank and set the rules instead if it should apply to
+everyone who qualifies, for example every Block 7 enquiry in October.
+The deal appears on the offer when it is drafted, on the Offers page for
+the approver to see, and on the letter. To give a deal to one family who did
+not type the code, use **Apply** in the Promotion box on the Offers page
+with a reason; **Remove** takes it off. Both re-draft the offer, which still
+waits for approval. A deal that waives everything sends the parent straight
+to registration with the "fees waived" email; no payment record is invented.
+Switch a deal off rather than deleting it once it has been used.
+
 ## An offer went out with a mistake
 
 **Withdraw & re-draft** on the applicant's **Offer** tab or the Offers page.
