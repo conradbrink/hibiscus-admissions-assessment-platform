@@ -20,6 +20,8 @@ export type EnquiryFormState = {
 export type EnquiryFormProps = {
   route: EntryRoute;
   campuses: Array<{ id: string; name: string; descriptor: string | null }>;
+  /** Shown only while a deal with a code is running, so the form stays eight fields the rest of the year. */
+  promoCodesLive?: boolean;
   action: (state: EnquiryFormState, formData: FormData) => Promise<EnquiryFormState>;
 };
 
@@ -56,7 +58,7 @@ function Field({
  * or never. Field order follows how a parent thinks: who am I, how do you
  * reach me, who is my child, where.
  */
-export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
+export function EnquiryForm({ route, campuses, promoCodesLive = false, action }: EnquiryFormProps) {
   const [state, formAction, pending] = useActionState(action, {});
   const started = useRef(false);
   const f = state.fields ?? {};
@@ -159,6 +161,11 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
         {heardFrom === "other" ? (
           <Field id="heardFromDetail" label="Where did you hear about us?" error={f.heardFromDetail}>
             <Input id="heardFromDetail" name="heardFromDetail" maxLength={120} defaultValue={v.heardFromDetail} placeholder="For example, a church notice board" />
+          </Field>
+        ) : null}
+        {promoCodesLive ? (
+          <Field id="promoCode" label="Promotion code (if you have one)" error={f.promoCode} hint="From an advert or a flyer. Leave blank if you do not have one.">
+            <Input id="promoCode" name="promoCode" maxLength={24} autoCapitalize="characters" autoComplete="off" defaultValue={v.promoCode} placeholder="For example, LAUNCH2027" className="uppercase" {...invalid("promoCode")} />
           </Field>
         ) : null}
       </fieldset>

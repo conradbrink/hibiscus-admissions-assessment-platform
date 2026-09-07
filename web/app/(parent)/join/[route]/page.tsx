@@ -4,6 +4,7 @@ import { EnquiryForm } from "@/components/parent/enquiry-form";
 import { PageHeader, StepIndicator } from "@/components/parent/page-header";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCatalogue } from "@/lib/enquiry";
+import { codedPromotionLive } from "@/lib/promotions/load";
 import type { EntryRoute } from "@/lib/supabase/types";
 import { submitEnquiry } from "../actions";
 
@@ -38,7 +39,8 @@ export default async function JoinRoutePage({ params }: { params: Promise<{ rout
   const config = ROUTES[route];
   if (!config) notFound();
 
-  const catalogue = await loadCatalogue(createAdminClient());
+  const admin = createAdminClient();
+  const [catalogue, promoCodesLive] = await Promise.all([loadCatalogue(admin), codedPromotionLive(admin)]);
   const action = submitEnquiry.bind(null, config.entry);
 
   return (
@@ -48,6 +50,7 @@ export default async function JoinRoutePage({ params }: { params: Promise<{ rout
       <EnquiryForm
         route={config.entry}
         campuses={catalogue.campuses.map((c) => ({ id: c.id, name: c.name, descriptor: c.descriptor }))}
+        promoCodesLive={promoCodesLive}
         action={action}
       />
     </>

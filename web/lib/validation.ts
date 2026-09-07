@@ -43,6 +43,8 @@ export const enquirySchema = z.object({
   /** "How did you hear about us?" — for the school's advertising, one pick from a fixed list. */
   heardFrom: z.enum(HEARD_FROM_KEYS, { error: "Choose one" }),
   heardFromDetail: z.string().trim().max(120, "Too long").optional(),
+  /** A promotion code from an advert, optional; checked against live deals in the action. */
+  promoCode: z.string().trim().max(24, "Too long").optional(),
   /** Funnel timing: when the parent first saw the form. */
   t0: z.coerce.number().int().nonnegative().optional(),
 });

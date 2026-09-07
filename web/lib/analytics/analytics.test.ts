@@ -37,6 +37,8 @@ function row(over: Partial<FactRow>): FactRow {
     prefill_changed_count: 0,
     registration_submitted: false,
     heard_from: null,
+    promotion_code: null,
+    promotion_name: null,
     ...over,
   };
 }

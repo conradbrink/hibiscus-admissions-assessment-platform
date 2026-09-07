@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createEnquiry, loadCatalogue } from "@/lib/enquiry";
 import { funnelSessionKey } from "@/lib/funnel-session";
 import { recordFunnelStep } from "@/lib/funnel";
+import { normaliseCode } from "@/lib/promotions/apply";
+import { promotionForCode } from "@/lib/promotions/load";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
@@ -58,6 +60,18 @@ export async function submitEnquiry(
     return { error: "Applications are not open at the moment. Please try again later or request a call.", values };
   }
 
+  // A typed code is checked before anything is saved, so a typo is fixed on
+  // the spot rather than discovered at the offer. The code itself is stored
+  // on the application; the deal is applied when the offer is drafted.
+  let promoCode: string | null = null;
+  if (parsed.data.promoCode) {
+    const promo = await promotionForCode(admin, parsed.data.promoCode);
+    if (!promo) {
+      return { fields: { promoCode: "We do not recognise that code. Check it, or leave it blank." }, values };
+    }
+    promoCode = normaliseCode(parsed.data.promoCode);
+  }
+
   let result;
   try {
     result = await createEnquiry(admin, catalogue, {
@@ -78,6 +92,10 @@ export async function submitEnquiry(
   } catch (e) {
     console.error("[enquiry] create failed", (e as Error).message);
     return { error: "Something went wrong saving your enquiry. Please try again.", values };
+  }
+
+  if (promoCode && result.created) {
+    await admin.from("applications").update({ promo_code: promoCode }).eq("id", result.applicationId);
   }
 
   const sessionKey = await funnelSessionKey();

@@ -1343,7 +1343,14 @@ export type Database = {
         | "entry_route" | "heard_from" | "starts_on" | "ends_on" | "max_redemptions" | "is_active" | "created_by"
       >;
       promotion_effects: TableOf<PromotionEffectRow, "position" | "fee_code" | "amount_minor" | "percent">;
-      application_promotions: TableOf<ApplicationPromotionRow, "applied_by" | "reason" | "applied_at">;
+      application_promotions: TableOf<
+        ApplicationPromotionRow,
+        "applied_by" | "reason" | "applied_at",
+        [
+          Rel<"application_promotions_application_id_fkey", "application_id", "applications">,
+          Rel<"application_promotions_promotion_id_fkey", "promotion_id", "promotions">,
+        ]
+      >;
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,

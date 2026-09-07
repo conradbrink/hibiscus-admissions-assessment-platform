@@ -4,12 +4,13 @@ import { EmptyState, PageTitle } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
-import { approveOffer, generateOffer, sendOutcome, withdrawOffer } from "./actions";
+import { applyPromotionToOffer, approveOffer, generateOffer, removePromotionFromOffer, sendOutcome, withdrawOffer } from "./actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -27,14 +28,18 @@ export default async function OffersPage() {
     .in("status", ["offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
-  const [{ data: offers }, { data: profiles }, { data: tasks }] = ids.length
+  const [{ data: offers }, { data: profiles }, { data: tasks }, { data: applied }, { data: promotions }] = ids.length
     ? await Promise.all([
         supabase.from("offers").select("*").in("application_id", ids).in("status", ["draft", "pending_approval", "sent", "viewed", "expired"]),
         supabase.from("learning_profiles").select("application_id, narrative_source, validation_status, published_at").in("application_id", ids),
         supabase.from("tasks").select("application_id, type").in("application_id", ids).eq("status", "open").eq("type", "send_outcome"),
+        supabase.from("application_promotions").select("application_id, source, reason, promotions(name, code)").in("application_id", ids),
+        supabase.from("promotions").select("id, name, code").eq("is_active", true).order("name"),
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
   const offerByApp = new Map((offers ?? []).map((o) => [o.application_id, o]));
+  const dealByApp = new Map((applied ?? []).map((d) => [d.application_id, d]));
+  const activeDeals = promotions ?? [];
   const profileByApp = new Map((profiles ?? []).map((p) => [p.application_id, p]));
   const outcomePending = new Set((tasks ?? []).map((t) => t.application_id));
 
@@ -55,6 +60,45 @@ export default async function OffersPage() {
       <StatusBadge status={a.status} />
     </div>
   );
+
+  /** The deal on this offer, and the buttons to put one on or take it off before the letter goes out. */
+  const Deal = ({ a }: { a: App }) => {
+    const d = dealByApp.get(a.id);
+    const deal = one(d?.promotions);
+    const sourceLabel = d?.source === "code" ? "from the parent's code" : d?.source === "rule" ? "applied by rule" : d?.source === "staff" ? `applied by staff${d.reason ? `: ${d.reason}` : ""}` : "";
+    return (
+      <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm">
+        <p className="text-xs font-semibold text-muted-foreground uppercase">Promotion</p>
+        {deal ? (
+          <p className="mt-1">{deal.name}{deal.code ? ` (${deal.code})` : ""} · {sourceLabel}</p>
+        ) : (
+          <p className="mt-1 text-muted-foreground">None on this offer.</p>
+        )}
+        {canApprove ? (
+          <div className="mt-2 flex flex-wrap items-start gap-2">
+            {activeDeals.length ? (
+              <ActionForm action={applyPromotionToOffer} label={deal ? "Change" : "Apply"} size="xs" variant="outline" className="flex flex-wrap items-center gap-2" confirm="Re-draft this offer with the promotion? It still waits for approval.">
+                <input type="hidden" name="applicationId" value={a.id} />
+                <NativeSelect name="promotionId" className="h-8 w-56 md:h-8" defaultValue="">
+                  <option value="" disabled>Choose a promotion</option>
+                  {activeDeals.map((p) => <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ""}</option>)}
+                </NativeSelect>
+                <Input name="reason" placeholder="Reason (required)" required minLength={3} className="h-8 w-64 md:h-8" />
+              </ActionForm>
+            ) : (
+              <p className="text-xs text-muted-foreground">No live promotions. Create one under Settings → Promotions.</p>
+            )}
+            {deal ? (
+              <ActionForm action={removePromotionFromOffer} label="Remove" size="xs" variant="ghost" className="flex flex-wrap items-center gap-2" confirm="Re-draft this offer without the promotion?">
+                <input type="hidden" name="applicationId" value={a.id} />
+                <Input name="reason" placeholder="Reason (required)" required minLength={3} className="h-8 w-56 md:h-8" />
+              </ActionForm>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -95,6 +139,7 @@ export default async function OffersPage() {
                       ) : <p className="mt-1 text-warning-foreground">No fees on this offer.</p>}
                     </div>
                   </div>
+                  <Deal a={a} />
                   {o ? (
                     <details className="mt-3 text-sm">
                       <summary className="cursor-pointer text-primary">Preview the offer as the parent will read it</summary>

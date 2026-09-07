@@ -42,6 +42,9 @@ export type FactRow = {
   registration_submitted: boolean;
   /** "How did you hear about us?" — null when the question was never asked. */
   heard_from: string | null;
+  /** The promotion on the application, if any: a code the parent typed or a deal staff applied. */
+  promotion_code: string | null;
+  promotion_name: string | null;
 };
 
 export const APPROVED_STATUSES: ReadonlySet<string> = new Set([
@@ -135,7 +138,7 @@ export function cycleTimes(rows: FactRow[]) {
   };
 }
 
-export const DIMENSIONS = ["campus", "grade", "month", "week", "heard_from", "source", "entry_route", "outcome"] as const;
+export const DIMENSIONS = ["campus", "grade", "month", "week", "heard_from", "promotion", "source", "entry_route", "outcome"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 export const DIMENSION_LABELS: Record<Dimension, string> = {
@@ -144,6 +147,7 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   month: "Month enquired",
   week: "Week enquired",
   heard_from: "How they heard about us",
+  promotion: "Promotion",
   source: "Lead source",
   entry_route: "Entry route",
   outcome: "Assessment outcome",
@@ -174,6 +178,10 @@ export function dimensionKey(r: FactRow, dim: Dimension): { key: string; label: 
     case "heard_from": {
       const h = r.heard_from ?? "not_asked";
       return { key: h, label: heardFromLabel(r.heard_from), sort: h };
+    }
+    case "promotion": {
+      const name = r.promotion_name ?? "No promotion";
+      return { key: r.promotion_name ?? "none", label: r.promotion_code ? `${name} (${r.promotion_code})` : name, sort: r.promotion_name ? `0${name}` : "1" };
     }
     case "source":
       return { key: r.source, label: r.source.replace(/_/g, " "), sort: r.source };

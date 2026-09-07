@@ -16,7 +16,7 @@ export type NavIcon =
   | "payments" | "registrations" | "export" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
-  | "fees" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
+  | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
 
 export type NavItem = {
   href: string;
@@ -104,6 +104,7 @@ export const SETTINGS_SECTIONS: NavGroup[] = [
     label: "Fees",
     items: [
       { href: "/staff/admin/fees", label: "Fees and bank details", icon: "fees", permission: "finance.write", blurb: "What an offer shows and what secures a place" },
+      { href: "/staff/admin/promotions", label: "Promotions", icon: "promotions", permission: "settings.write", blurb: "Waived fees, discounts and gifts on an offer" },
     ],
   },
   {
