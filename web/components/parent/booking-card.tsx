@@ -6,6 +6,7 @@ export function BookingCard({
   startsAt,
   campusName,
   location,
+  address,
   reference,
   qrDataUrl,
 }: {
@@ -13,9 +14,12 @@ export function BookingCard({
   startsAt: string;
   campusName: string;
   location: string | null;
+  /** The campus's address and phone lines, one per line. */
+  address?: string | null;
   reference: string;
   qrDataUrl?: string | null;
 }) {
+  const addressLines = (address ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
   return (
     <div className="overflow-hidden surface">
       <div className="bg-primary px-5 py-4 text-primary-foreground">
@@ -31,6 +35,9 @@ export function BookingCard({
           <span>
             <span className="font-medium">{campusName}</span>
             {location ? <span className="block text-muted-foreground">{location}</span> : null}
+            {addressLines.map((line) => (
+              <span key={line} className="block text-muted-foreground">{line}</span>
+            ))}
           </span>
         </p>
         <p className="text-muted-foreground">

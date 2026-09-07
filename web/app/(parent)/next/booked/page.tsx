@@ -42,6 +42,7 @@ export default async function BookedPage() {
         startsAt={booking.session.starts_at}
         campusName={campus.name}
         location={booking.session.location}
+        address={campus.address}
         reference={app.reference}
         qrDataUrl={qr}
       />

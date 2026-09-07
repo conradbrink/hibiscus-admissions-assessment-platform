@@ -10,7 +10,8 @@ import { formatDateTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { BenchmarkBand, Json, QuestionType } from "@/lib/supabase/types";
-import { abandonAttempt, markWriting, remarkAttempt, submitForChild } from "../../actions";
+import { LaunchDialog } from "@/components/staff/launch-dialog";
+import { abandonAttempt, launchAttempt, markWriting, reissueCode, remarkAttempt, submitForChild } from "../../actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -95,6 +96,15 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
       </PageTitle>
 
       {attempt.accommodation_note ? <p className="mb-4 rounded-md bg-muted px-3 py-2 text-sm">Accommodation: {attempt.accommodation_note}</p> : null}
+
+      {attempt.status === "ready" ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          <p>
+            Waiting for the code. The child opens <span className="font-mono">/sit</span> on the assessment computer and types the six-letter code shown when the assessment is launched. The code works once and is not stored; issue a new one here if it was lost.
+          </p>
+          {canDeliver ? <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={attempt.id} /> : null}
+        </div>
+      ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
         {canDeliver && live ? (
