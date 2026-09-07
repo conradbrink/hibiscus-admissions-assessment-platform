@@ -5,9 +5,6 @@ import type { RubricBand } from "@/lib/supabase/types";
  * token answer earns, and what marks a chosen band is worth. Pure; tested.
  */
 
-/** Fewer characters than this is not an attempt at the question. */
-export const MIN_ANSWER_CHARS = 10;
-
 export function lowestBand(bands: RubricBand[]): RubricBand {
   return [...bands].sort((a, b) => a.min_marks - b.min_marks)[0];
 }
@@ -20,12 +17,12 @@ export function marksForBand(bands: RubricBand[], key: string, maxMarks: number)
 }
 
 /**
- * What to record without asking the model: a blank or token answer earns
- * the lowest band. Anything else needs a reading.
+ * What to record without asking the model: a blank answer earns the lowest
+ * band. Anything written at all, however short ("6 1/2" can be a full
+ * answer), needs a reading.
  */
 export function markWithoutModel(text: unknown, bands: RubricBand[]): { band: string; rationale: string } | null {
   const t = typeof text === "string" ? text.trim() : "";
-  if (t.length >= MIN_ANSWER_CHARS) return null;
-  const band = lowestBand(bands);
-  return { band: band.key, rationale: t.length === 0 ? "No answer was written." : "Too little was written to be an answer." };
+  if (t.length > 0) return null;
+  return { band: lowestBand(bands).key, rationale: "No answer was written." };
 }
