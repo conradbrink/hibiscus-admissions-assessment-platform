@@ -19,7 +19,7 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * row-level security decides what this person may see; rendered from the
  * stored profile and marks; nothing is written.
  */
-export async function GET(_request: Request, ctx: { params: Promise<{ attemptId: string }> }): Promise<Response> {
+export async function GET(request: Request, ctx: { params: Promise<{ attemptId: string }> }): Promise<Response> {
   const { attemptId } = await ctx.params;
   const { supabase } = await requireStaff("applications.read");
 
@@ -67,7 +67,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ attemptId:
   return new Response(new Uint8Array(buffer), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `inline; filename="hibiscus-assessment-report-${app.reference}.pdf"`,
+      "content-disposition": `${new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline"}; filename="hibiscus-assessment-report-${app.reference}.pdf"`,
       "cache-control": "private, no-store",
     },
   });
