@@ -75,8 +75,20 @@ export const paygateProvider: PaymentProvider = {
     if (!row) throw new Error("no payment carries this PayGate request id");
     const reply = await post(`${apiUrl}query.trans`, encodeForm(buildQueryFields(paygateId, providerRef, row.company_ref, key)));
     const m = fieldMap(reply);
-    if (m.ERROR) throw new Error(`PayGate query failed: ${m.ERROR}`);
-    if (!checksumValid(reply, key)) throw new Error("PayGate's query reply failed its checksum");
+    if (m.ERROR) {
+      // A configuration error will not fix itself and must be seen. Any
+      // other error (a request PayGate has not finished with, a transient
+      // refusal) leaves the payment pending for the next check.
+      if (/DATA_CHK|DATA_PGID|PGID_NOT_EN|NOT_LIVE/.test(m.ERROR)) throw new Error(`PayGate query failed: ${m.ERROR}`);
+      return { status: "pending", amountMinor: null, currency: null, approvalCode: null, raw: { ERROR: m.ERROR } };
+    }
+    if (!checksumValid(reply, key)) {
+      // A reply that fails its seal can never mark a payment paid. Anything
+      // else it says is treated as "not yet", and the reply is kept for the
+      // record.
+      if (m.TRANSACTION_STATUS === "1") throw new Error("PayGate's query reply failed its checksum");
+      return { status: "pending", amountMinor: null, currency: null, approvalCode: null, raw: { ...keepFields(reply), CHECKSUM_VALID: "no" } };
+    }
     return {
       status: mapTransactionStatus(m.TRANSACTION_STATUS),
       amountMinor: m.AMOUNT && /^\d+$/.test(m.AMOUNT) ? Number(m.AMOUNT) : null,
