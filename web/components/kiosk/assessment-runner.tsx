@@ -20,7 +20,20 @@ import type { SubmitState } from "@/app/(kiosk)/sit/actions";
  * sweep does.
  */
 
-type Step = { kind: "intro"; sectionIndex: number } | { kind: "question"; question: DeliveryQuestion; number: number };
+type Step =
+  | { kind: "intro"; sectionIndex: number }
+  | {
+      kind: "question";
+      question: DeliveryQuestion;
+      /** Running number across the whole paper (0 for a practice item). */
+      number: number;
+      sectionIndex: number;
+      /** Number within the section, which is how the child counts. */
+      sectionNumber: number;
+      sectionTotal: number;
+      /** The first question to show this passage: the passage opens; on later ones it starts folded. */
+      firstOfPassage: boolean;
+    };
 
 type Responses = Record<string, Json>;
 
@@ -46,11 +59,27 @@ export function AssessmentRunner({
   const steps = useMemo<Step[]>(() => {
     const out: Step[] = [];
     let n = 0;
+    let lastPassage: string | null = null;
     form.sections.forEach((s, i) => {
       out.push({ kind: "intro", sectionIndex: i });
+      const total = s.questions.filter((q) => !q.isPractice).length;
+      let k = 0;
       for (const q of s.questions) {
-        if (!q.isPractice) n += 1;
-        out.push({ kind: "question", question: q, number: q.isPractice ? 0 : n });
+        if (!q.isPractice) {
+          n += 1;
+          k += 1;
+        }
+        const key = q.passage ? `${q.passage.title}\n${q.passage.body}` : null;
+        out.push({
+          kind: "question",
+          question: q,
+          number: q.isPractice ? 0 : n,
+          sectionIndex: i,
+          sectionNumber: q.isPractice ? 0 : k,
+          sectionTotal: total,
+          firstOfPassage: key !== null && key !== lastPassage,
+        });
+        lastPassage = key;
       }
     });
     return out;
@@ -58,6 +87,8 @@ export function AssessmentRunner({
 
   const [index, setIndex] = useState(0);
   const [responses, setResponses] = useState<Responses>(initialResponses);
+  // Whether the child has opened or folded a passage; keyed by its text.
+  const [passageOpen, setPassageOpen] = useState<Record<string, boolean>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [now, setNow] = useState(() => Date.now());
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -164,7 +195,25 @@ export function AssessmentRunner({
           <p className="mt-3 text-base text-muted-foreground">{form.sections[step.sectionIndex].questions.filter((q) => !q.isPractice).length} questions.</p>
         </section>
       ) : (
-        <QuestionView key={step.question.id} question={step.question} number={step.number} value={responses[step.question.id]} onAnswer={(r) => answer(step.question, r)} disabled={timeUp} />
+        <QuestionView
+          key={step.question.id}
+          question={step.question}
+          label={step.question.isPractice ? "Practice — have a go" : `${form.sections[step.sectionIndex].title} · Question ${step.sectionNumber} of ${step.sectionTotal}`}
+          passageShown={
+            step.question.passage
+              ? (passageOpen[`${step.question.passage.title}\n${step.question.passage.body}`] ?? step.firstOfPassage)
+              : false
+          }
+          onTogglePassage={() => {
+            if (!step.question.passage) return;
+            const key = `${step.question.passage.title}\n${step.question.passage.body}`;
+            const shown = passageOpen[key] ?? step.firstOfPassage;
+            setPassageOpen((o) => ({ ...o, [key]: !shown }));
+          }}
+          value={responses[step.question.id]}
+          onAnswer={(r) => answer(step.question, r)}
+          disabled={timeUp}
+        />
       )}
 
       <div className="flex items-center justify-between gap-3">
@@ -202,13 +251,17 @@ export function AssessmentRunner({
 
 function QuestionView({
   question: q,
-  number,
+  label,
+  passageShown,
+  onTogglePassage,
   value,
   onAnswer,
   disabled,
 }: {
   question: DeliveryQuestion;
-  number: number;
+  label: string;
+  passageShown: boolean;
+  onTogglePassage: () => void;
   value: Json | undefined;
   onAnswer: (r: Json) => void;
   disabled: boolean;
@@ -216,11 +269,22 @@ function QuestionView({
   const v = obj(value);
   return (
     <section className="rounded-2xl border border-border bg-card p-6">
-      <p className="text-xs font-semibold tracking-wide text-primary uppercase">{q.isPractice ? "Practice — have a go" : `Question ${number}`}</p>
+      <p className="text-xs font-semibold tracking-wide text-primary uppercase">{label}</p>
       {q.passage ? (
         <div className="mt-3 rounded-xl bg-muted/60 p-4">
-          <p className="text-sm font-semibold">{q.passage.title}</p>
-          <p className="mt-1 text-base leading-relaxed whitespace-pre-line">{q.passage.body}</p>
+          <button
+            type="button"
+            onClick={onTogglePassage}
+            className="flex w-full items-center justify-between gap-3 text-left text-sm font-semibold"
+            aria-expanded={passageShown}
+          >
+            <span>{q.passage.title}</span>
+            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-primary">
+              {passageShown ? "Hide the passage" : "Show the passage"}
+              {passageShown ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </span>
+          </button>
+          {passageShown ? <p className="mt-2 text-base leading-relaxed whitespace-pre-line">{q.passage.body}</p> : null}
         </div>
       ) : null}
       <h2 className="mt-3 text-xl leading-relaxed font-semibold whitespace-pre-line">{q.stem}</h2>
