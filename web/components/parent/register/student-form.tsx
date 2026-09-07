@@ -19,6 +19,7 @@ export function StudentForm({
   prefilled,
   readOnly,
   grades,
+  fromDocument = [],
 }: {
   action: (state: RegisterFormState, formData: FormData) => Promise<RegisterFormState>;
   initial: Record<string, string>;
@@ -26,13 +27,17 @@ export function StudentForm({
   readOnly: boolean;
   /** The school's grade names, for "current grade". */
   grades: string[];
+  /** Fields filled from the birth certificate's reading. */
+  fromDocument?: string[];
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const f = state.fields ?? {};
   const v = { ...initial, ...(state.values ?? {}) };
   const pre = (name: string) => prefilled.includes(name);
+  const READ = "read from the birth certificate — please check";
+  const note = (name: string) => (fromDocument.includes(name) ? READ : undefined);
   const text = (name: string, label: string, opts: { hint?: string; required?: boolean; autoComplete?: string } = {}) => (
-    <Field id={name} label={label} error={f[name]} hint={opts.hint} prefilled={pre(name)}>
+    <Field id={name} label={label} error={f[name]} hint={opts.hint} prefilled={pre(name)} note={note(name)}>
       <Input id={name} name={name} defaultValue={v[name] ?? ""} required={opts.required} autoComplete={opts.autoComplete} readOnly={readOnly} {...invalidProps(f, name)} />
     </Field>
   );
@@ -48,7 +53,7 @@ export function StudentForm({
       </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">About the child</legend>
-        <Field id="gender" label="Gender" error={f.gender}>
+        <Field id="gender" label="Gender" error={f.gender} note={note("gender")}>
           <NativeSelect id="gender" name="gender" defaultValue={v.gender ?? ""} disabled={readOnly} {...invalidProps(f, "gender")}>
             <option value="">Choose…</option>
             {GENDERS.map((g) => <option key={g} value={g}>{GENDER_LABELS[g]}</option>)}
@@ -64,7 +69,7 @@ export function StudentForm({
       </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Identity</legend>
-        <Field id="identityType" label="Identity document" error={f.identityType}>
+        <Field id="identityType" label="Identity document" error={f.identityType} note={note("identityType")}>
           <NativeSelect id="identityType" name="identityType" defaultValue={v.identityType ?? ""} disabled={readOnly} {...invalidProps(f, "identityType")}>
             <option value="">Choose…</option>
             {IDENTITY_TYPES.map((t) => <option key={t} value={t}>{ID_LABELS[t]}</option>)}

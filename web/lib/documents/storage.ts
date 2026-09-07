@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { getDocumentScanner } from "@/lib/documents/scanner";
 import { sanitiseFilename, sniffMime } from "@/lib/documents/sniff";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { DocumentRow } from "@/lib/supabase/types";
+import type { DocumentMime, DocumentRow } from "@/lib/supabase/types";
 
 /**
  * Documents live in one private bucket that only the service role touches.
@@ -35,28 +35,23 @@ export async function ensureBucket(admin: AdminClient): Promise<void> {
   ensured = true;
 }
 
-export async function storeDocument(
-  admin: AdminClient,
-  opts: { applicationId: string; requirementCode: string; bytes: Uint8Array; originalFilename: string; uploadedBy: "parent" | "staff"; staffId?: string | null }
-): Promise<DocumentRow> {
-  if (opts.bytes.length === 0) throw new DocumentError("empty");
-  if (opts.bytes.length > MAX_BYTES) throw new DocumentError("too_large");
-  const mime = sniffMime(opts.bytes);
-  if (!mime) throw new DocumentError("bad_type");
+type Recorded = { applicationId: string; requirementCode: string; path: string; mime: DocumentMime; bytes: Uint8Array; originalFilename: string; uploadedBy: "parent" | "staff"; staffId?: string | null };
 
-  await ensureBucket(admin);
-  const sha256 = createHash("sha256").update(opts.bytes).digest("hex");
-  const path = `applications/${opts.applicationId}/${randomUUID()}`;
-  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, opts.bytes, { contentType: mime, upsert: false });
-  if (upErr) throw new Error(`storage upload: ${upErr.message}`);
-
-  const scan = await getDocumentScanner().scan(opts.bytes, mime);
+/**
+ * Scans the bytes and records the row for an object already in the bucket.
+ * Shared by the two ways a file arrives: through the server (multipart) and
+ * straight from the browser (signed upload, then `adoptUploadedObject`).
+ * On any failure the object is removed so nothing unrecorded stays behind.
+ */
+async function recordDocument(admin: AdminClient, r: Recorded): Promise<DocumentRow> {
+  const sha256 = createHash("sha256").update(r.bytes).digest("hex");
+  const scan = await getDocumentScanner().scan(r.bytes, r.mime);
 
   const { data: previous } = await admin
     .from("documents")
     .select("id")
-    .eq("application_id", opts.applicationId)
-    .eq("requirement_code", opts.requirementCode)
+    .eq("application_id", r.applicationId)
+    .eq("requirement_code", r.requirementCode)
     .is("superseded_by", null)
     .is("deleted_at", null)
     .maybeSingle();
@@ -67,7 +62,7 @@ export async function storeDocument(
   if (previous) {
     const { error: stepAside } = await admin.from("documents").update({ superseded_by: previous.id }).eq("id", previous.id);
     if (stepAside) {
-      await admin.storage.from(BUCKET).remove([path]);
+      await admin.storage.from(BUCKET).remove([r.path]);
       throw new Error(`document supersede: ${stepAside.message}`);
     }
   }
@@ -75,23 +70,23 @@ export async function storeDocument(
   const { data, error } = await admin
     .from("documents")
     .insert({
-      application_id: opts.applicationId,
-      requirement_code: opts.requirementCode,
+      application_id: r.applicationId,
+      requirement_code: r.requirementCode,
       storage_bucket: BUCKET,
-      storage_path: path,
-      original_filename: sanitiseFilename(opts.originalFilename),
-      mime_type: mime,
-      size_bytes: opts.bytes.length,
+      storage_path: r.path,
+      original_filename: sanitiseFilename(r.originalFilename),
+      mime_type: r.mime,
+      size_bytes: r.bytes.length,
       sha256,
-      uploaded_by: opts.uploadedBy,
-      uploaded_by_staff_id: opts.staffId ?? null,
+      uploaded_by: r.uploadedBy,
+      uploaded_by_staff_id: r.staffId ?? null,
       scan_status: scan.status,
       scanner: getDocumentScanner().name,
     })
     .select("*")
     .single();
   if (error || !data) {
-    await admin.storage.from(BUCKET).remove([path]);
+    await admin.storage.from(BUCKET).remove([r.path]);
     if (previous) await admin.from("documents").update({ superseded_by: null }).eq("id", previous.id);
     throw new Error(error?.message ?? "document insert failed");
   }
@@ -100,6 +95,72 @@ export async function storeDocument(
     await admin.from("documents").update({ superseded_by: data.id }).eq("id", previous.id);
   }
   return data;
+}
+
+function objectPath(applicationId: string): string {
+  return `applications/${applicationId}/${randomUUID()}`;
+}
+
+/** Bytes that came through the server: checked, stored, recorded. */
+export async function storeDocument(
+  admin: AdminClient,
+  opts: { applicationId: string; requirementCode: string; bytes: Uint8Array; originalFilename: string; uploadedBy: "parent" | "staff"; staffId?: string | null }
+): Promise<DocumentRow> {
+  if (opts.bytes.length === 0) throw new DocumentError("empty");
+  if (opts.bytes.length > MAX_BYTES) throw new DocumentError("too_large");
+  const mime = sniffMime(opts.bytes);
+  if (!mime) throw new DocumentError("bad_type");
+
+  await ensureBucket(admin);
+  const path = objectPath(opts.applicationId);
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(path, opts.bytes, { contentType: mime, upsert: false });
+  if (upErr) throw new Error(`storage upload: ${upErr.message}`);
+  return recordDocument(admin, { ...opts, path, mime });
+}
+
+/**
+ * A one-off destination for the browser to upload to directly: a path under
+ * the application and a signed URL good for a short while. The browser then
+ * calls `adoptUploadedObject` with the path. Nothing is recorded until then;
+ * a refused object is deleted, and an upload abandoned half-way leaves a
+ * small unrecorded object under the application that the retention run's
+ * bucket sweep removes with the rest.
+ */
+export async function createUploadTarget(admin: AdminClient, applicationId: string): Promise<{ path: string; signedUrl: string }> {
+  await ensureBucket(admin);
+  const path = objectPath(applicationId);
+  const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
+  if (error || !data) throw new Error(`signed upload url: ${error?.message ?? "failed"}`);
+  return { path, signedUrl: data.signedUrl };
+}
+
+/** True when the path is one this application's upload target could have produced. */
+export function isApplicationPath(applicationId: string, path: string): boolean {
+  return new RegExp(`^applications/${applicationId}/[0-9a-f-]{36}$`).test(path);
+}
+
+/**
+ * The object the browser uploaded becomes a document: the bytes are read
+ * back from the bucket and judged exactly as a server-side upload would be
+ * (size, first bytes, scan). A bad object is deleted, not kept.
+ */
+export async function adoptUploadedObject(
+  admin: AdminClient,
+  opts: { applicationId: string; requirementCode: string; path: string; originalFilename: string; uploadedBy: "parent" | "staff"; staffId?: string | null }
+): Promise<DocumentRow> {
+  if (!isApplicationPath(opts.applicationId, opts.path)) throw new DocumentError("failed");
+  const { data, error } = await admin.storage.from(BUCKET).download(opts.path);
+  if (error || !data) throw new DocumentError("empty");
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  const reject = async (code: DocumentError["code"]) => {
+    await admin.storage.from(BUCKET).remove([opts.path]);
+    return new DocumentError(code);
+  };
+  if (bytes.length === 0) throw await reject("empty");
+  if (bytes.length > MAX_BYTES) throw await reject("too_large");
+  const mime = sniffMime(bytes);
+  if (!mime) throw await reject("bad_type");
+  return recordDocument(admin, { ...opts, bytes, mime });
 }
 
 /** A URL good for one minute. Minted only after the caller has read the row under RLS. */
@@ -126,6 +187,15 @@ export async function removeDocumentObjects(admin: AdminClient, applicationId: s
   if (error) throw new Error(error.message);
   const byBucket = new Map<string, string[]>();
   for (const d of docs ?? []) byBucket.set(d.storage_bucket, [...(byBucket.get(d.storage_bucket) ?? []), d.storage_path]);
+  // Plus anything under the application's folder that no row names: an
+  // upload abandoned between the browser's PUT and the "complete" call.
+  const { data: listed, error: listErr } = await admin.storage.from(BUCKET).list(`applications/${applicationId}`, { limit: 1000 });
+  if (listErr && !/not found/i.test(listErr.message)) throw new Error(`storage list: ${listErr.message}`);
+  const known = new Set(byBucket.get(BUCKET) ?? []);
+  for (const o of listed ?? []) {
+    const path = `applications/${applicationId}/${o.name}`;
+    if (!known.has(path)) byBucket.set(BUCKET, [...(byBucket.get(BUCKET) ?? []), path]);
+  }
   let removed = 0;
   for (const [bucket, paths] of byBucket) {
     const { error: rmErr } = await admin.storage.from(bucket).remove(paths);

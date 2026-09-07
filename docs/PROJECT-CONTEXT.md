@@ -342,7 +342,17 @@ known), staff editing of submitted registration data, AI email drafting.
   on the document row, the disagreement on `registrations.mismatch_flags`,
   and `saveStudent` clears the flags. A grep in the security suite's spirit:
   nothing under `lib/documents` or `handlers/documents.ts` updates
-  `registrations` fields.
+  `registrations` fields. The student step also *offers* the reading: with
+  the extractor on, it invites the birth certificate first and
+  `applyCertificateReading` fills the form's empty fields (middle names,
+  place of birth, gender, registration number) marked "please check"; the
+  enquiry's names and date of birth are never overwritten.
+- **Uploads go straight to the bucket.** `/api/register/document/start`
+  hands the browser a signed upload URL under `applications/<id>/`,
+  `/complete` reads the object back and judges it exactly like a server
+  upload (`adoptUploadedObject`), so Vercel's request-size limit never
+  meets a photo. Big images are shrunk on the phone (`lib/documents/shrink.ts`).
+  The multipart route stays as the no-JavaScript fallback.
 - **The summary's flags are code, its prose is optional.** `summaryFacts` is
   pure and runs on every page load; the stored prose is shown only while its
   input hash matches, so a stale paragraph is never presented as current.
