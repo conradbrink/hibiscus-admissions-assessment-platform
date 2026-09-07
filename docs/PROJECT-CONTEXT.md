@@ -166,7 +166,14 @@ known), staff editing of submitted registration data, AI email drafting.
   applicant goes to the review queue until the school activates one at
   `/staff/admin/rules`. The dev seed's ruleset is a draft.
 - **The question bank.** `supabase/seed/dev_phase2.sql` holds a sample bank
-  flagged `is_sample`, for development databases only.
+  flagged `is_sample`, for development databases only. The school's real
+  secondary papers (Form 1 to Form 4, English and Mathematics) are in
+  `supabase/seed/secondary_intake_2026.sql`, loaded on the live project on
+  7 September 2026 as the bank "Secondary intake tests 2026" with four active
+  templates. Comprehension and writing answers are marker-judged against
+  rubrics whose descriptors quote the school's model answers; the Part C
+  writing bands are a draft for the school to confirm. Primary (Stage 1 to 7)
+  papers have not been supplied yet.
 - **Fee amounts.** With no active fee schedule an approved applicant rests
   at `offer_draft` with a task for finance, and approval is blocked.
 

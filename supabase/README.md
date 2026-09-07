@@ -98,6 +98,20 @@ band, a Block 7 fee schedule with placeholder amounts and a draft ruleset,
 so the assessment → decision → offer journey can be walked on a laptop. It
 refuses to run on a database that already holds a real bank.
 
+## The school's intake papers
+
+`seed/secondary_intake_2026.sql` is content, not schema: the school's own
+English and Mathematics intake papers for Form 1 to Form 4, transcribed from
+the Word documents supplied in September 2026. It creates the bank
+"Secondary intake tests 2026", a rubric per marker-judged question (the band
+descriptors carry the school's model answer, so the marker sees the key
+beside the child's writing), and four active templates, one per intake year,
+each an English section and a Mathematics section of 20 minutes. Four
+multiple-choice items that cannot be marked as printed are loaded as drafts
+outside the sittings; the header of the file lists them. Loaded on the live
+project on 7 September 2026; from then on the bank is maintained under
+Set up → Question banks. Refuses to run twice.
+
 ## Local rehearsal
 
 ```sh
