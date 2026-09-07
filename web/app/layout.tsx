@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hibiscus Schools Admissions",
-    template: "%s · Hibiscus Schools",
+    default: "Hibiscus International Schools Admissions",
+    template: "%s · Hibiscus International Schools",
   },
-  description: "Take the first step towards joining Hibiscus Schools.",
+  description: "Take the first step towards joining Hibiscus International Schools.",
   // Parent pages are reached from emailed links and must never be indexed:
   // a search engine landing on /offer would be a data leak with a URL.
   robots: { index: false, follow: false },

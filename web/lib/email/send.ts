@@ -8,9 +8,10 @@ import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
-import { mintToken } from "@/lib/tokens";
+import { mintToken, siteUrl } from "@/lib/tokens";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
+import { logoUrlFor } from "@/lib/documents/letterhead";
 import { ReceiptDocument } from "@/lib/documents/receipt-pdf";
 import { loadBankInstructions, requestLines } from "@/lib/payments/requests";
 
@@ -257,6 +258,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const attachments: Array<{ filename: string; content: string | Uint8Array; contentType: string }> = [];
   if (opts.templateKey === "payment_received" && pay.receipt) {
     const element = createElement(ReceiptDocument, {
+      logoUrl: logoUrlFor(siteUrl()),
       reference: graph.application.reference,
       studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
       payerName: `${graph.contact.first_name} ${graph.contact.last_name}`,
@@ -280,7 +282,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
         summary:
           s.kind === "assessment"
             ? `${graph.application.child_first_name} — Hibiscus assessment`
-            : `Hibiscus Schools visit — ${graph.campus.name}`,
+            : `Hibiscus International Schools visit — ${graph.campus.name}`,
         description: `Reference ${graph.application.reference}`,
         location: [graph.campus.name, s.location].filter(Boolean).join(", "),
         startsAt: new Date(s.starts_at),

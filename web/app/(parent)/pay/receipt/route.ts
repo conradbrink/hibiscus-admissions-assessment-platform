@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { createElement, type ReactElement } from "react";
 import { loadApplicationGraph } from "@/lib/applications";
 import { ReceiptDocument } from "@/lib/documents/receipt-pdf";
+import { logoUrlFor } from "@/lib/documents/letterhead";
 import { formatDateLong } from "@/lib/format-date";
 import { loadLatestPaymentRequest, requestLines } from "@/lib/payments/requests";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteUrl } from "@/lib/tokens";
 import { requireParentSession } from "@/lib/tokens/server";
 
 export const runtime = "nodejs";
@@ -31,6 +33,7 @@ export async function GET(): Promise<Response> {
 
   const reference = payment.method === "eft" ? (payment.bank_reference ?? payment.company_ref) : payment.company_ref;
   const element = createElement(ReceiptDocument, {
+    logoUrl: logoUrlFor(siteUrl()),
     reference: graph.application.reference,
     receiptNumber: `R-${payment.id.slice(0, 8).toUpperCase()}`,
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,

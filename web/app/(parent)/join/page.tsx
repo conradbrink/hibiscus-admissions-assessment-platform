@@ -4,7 +4,7 @@ import { CalendarCheck, Phone, School } from "lucide-react";
 import { FunnelBeacon } from "@/components/parent/funnel-beacon";
 import { PageHeader } from "@/components/parent/page-header";
 
-export const metadata: Metadata = { title: "Join Hibiscus Schools" };
+export const metadata: Metadata = { title: "Join Hibiscus International Schools" };
 
 const CHOICES = [
   {
@@ -35,8 +35,8 @@ export default function JoinPage() {
     <>
       <FunnelBeacon step="join.viewed" />
       <PageHeader
-        eyebrow="Join Hibiscus Schools"
-        title="Take the first step towards joining Hibiscus Schools."
+        eyebrow="Join Hibiscus International Schools"
+        title="Take the first step towards joining Hibiscus International Schools."
         description="Tell us a little about your child and choose how you would like to begin. No account, no password, no paperwork."
       />
       <div className="space-y-3">

@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { createElement, type ReactElement } from "react";
 import { loadApplicationGraph } from "@/lib/applications";
 import { ProfileDocument } from "@/lib/documents/profile-pdf";
+import { logoUrlFor } from "@/lib/documents/letterhead";
 import { formatDateLong } from "@/lib/format-date";
 import { loadVisibleProfile } from "@/lib/profile/load";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteUrl } from "@/lib/tokens";
 import { requireParentSession } from "@/lib/tokens/server";
 
 export const runtime = "nodejs";
@@ -23,6 +25,7 @@ export async function GET(): Promise<Response> {
   // react-pdf types renderToBuffer's argument as a <Document> element; a
   // component that returns one is the same thing at runtime.
   const element = createElement(ProfileDocument, {
+    logoUrl: logoUrlFor(siteUrl()),
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
     gradeName: graph.grade.name,
     campusName: graph.campus.name,

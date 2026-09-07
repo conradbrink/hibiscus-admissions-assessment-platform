@@ -1,4 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
 import type { FeeSnapshot } from "@/lib/offers/snapshot";
 import { formatMoney } from "@/lib/money";
 
@@ -9,21 +10,20 @@ import { formatMoney } from "@/lib/money";
  */
 
 const s = StyleSheet.create({
-  page: { padding: 44, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.45 },
-  brand: { fontSize: 10, color: "#f26a2e", fontFamily: "Helvetica-Bold", letterSpacing: 1 },
-  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 6, marginBottom: 12 },
+  page: { paddingTop: 36, paddingBottom: 56, paddingHorizontal: 44, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.45 },
+  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 4, marginBottom: 12, lineHeight: 1.2 },
   h2: { fontSize: 13, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6 },
   para: { marginBottom: 6 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   bold: { fontFamily: "Helvetica-Bold" },
   small: { fontSize: 9, color: "#6b7280" },
-  footer: { position: "absolute", bottom: 28, left: 44, right: 44, fontSize: 8, color: "#9ca3af" },
 });
 
-export function htmlToParagraphs(html: string): string[] {
-  return html
+export function htmlToParagraphs(html: string, opts: { dropLeadingHeading?: string } = {}): string[] {
+  const lines = html
     .replace(/<\/(p|h[1-6]|li|tr)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/?(strong|em|b|i|u|a|span)\b[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -32,11 +32,15 @@ export function htmlToParagraphs(html: string): string[] {
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&quot;/g, '"')
     .split("\n")
-    .map((l) => l.replace(/\s+/g, " ").trim())
+    .map((l) => l.replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim())
     .filter(Boolean);
+  // The template may open with the same heading the page already prints.
+  const heading = opts.dropLeadingHeading?.trim().toLowerCase();
+  return heading && lines[0]?.toLowerCase() === heading ? lines.slice(1) : lines;
 }
 
 export type OfferDocumentProps = {
+  logoUrl: string | null;
   studentName: string;
   reference: string;
   bodyHtml: string;
@@ -48,13 +52,13 @@ export type OfferDocumentProps = {
 
 export function OfferDocument(p: OfferDocumentProps) {
   return (
-    <Document title={`${p.studentName} — Hibiscus offer of admission`} author="Hibiscus Schools">
+    <Document title={`${p.studentName} — ${SCHOOL_NAME} offer of admission`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Text style={s.brand}>HIBISCUS SCHOOLS</Text>
+        <Letterhead logoUrl={p.logoUrl} lines={["Offer of admission", `Reference ${p.reference}`]} />
         <Text style={s.title}>Offer of Admission</Text>
-        <Text style={s.small}>Reference {p.reference}{p.sentOn ? ` · issued ${p.sentOn}` : ""}{p.expiresOn ? ` · open until ${p.expiresOn}` : ""}</Text>
+        <Text style={s.small}>{p.sentOn ? `Issued ${p.sentOn}` : "Draft"}{p.expiresOn ? ` · open until ${p.expiresOn}` : ""}</Text>
         <View style={{ marginTop: 12 }}>
-          {htmlToParagraphs(p.bodyHtml).map((line, i) => (
+          {htmlToParagraphs(p.bodyHtml, { dropLeadingHeading: "Offer of Admission" }).map((line, i) => (
             <Text key={i} style={s.para}>{line}</Text>
           ))}
         </View>
@@ -68,10 +72,10 @@ export function OfferDocument(p: OfferDocumentProps) {
           </>
         ) : null}
         <Text style={s.h2}>Terms</Text>
-        {htmlToParagraphs(p.termsHtml).map((line, i) => (
+        {htmlToParagraphs(p.termsHtml, { dropLeadingHeading: "Terms" }).map((line, i) => (
           <Text key={i} style={{ ...s.para, fontSize: 10 }}>{line}</Text>
         ))}
-        <Text style={s.footer} fixed>Hibiscus Schools · Admissions · This document was generated from the offer template in force on the date of issue.</Text>
+        <LetterFoot text="Admissions · Generated from the offer template in force on the date of issue." />
       </Page>
     </Document>
   );

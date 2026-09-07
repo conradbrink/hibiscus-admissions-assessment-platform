@@ -1,5 +1,6 @@
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { BAND_LABELS } from "@/lib/assessment/bands";
+import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import type { Narrative } from "@/lib/profile/narrative";
 
@@ -11,13 +12,8 @@ import type { Narrative } from "@/lib/profile/narrative";
  * database.
  */
 
-const BRAND = "#e8632b";
-
 const s = StyleSheet.create({
   page: { paddingTop: 36, paddingBottom: 56, paddingHorizontal: 44, fontSize: 10.5, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.4 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 },
-  logo: { width: 110 },
-  headerRight: { textAlign: "right", fontSize: 9, color: "#6b7280" },
   title: { fontSize: 20, fontFamily: "Helvetica-Bold", lineHeight: 1.2 },
   subtitle: { fontSize: 10.5, color: "#6b7280", marginTop: 3 },
   h2: { fontSize: 12.5, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6, color: "#111827" },
@@ -35,8 +31,6 @@ const s = StyleSheet.create({
   line: { borderBottomWidth: 0.6, borderBottomColor: "#9ca3af", height: 20 },
   sign: { flexDirection: "row", justifyContent: "space-between", marginTop: 22 },
   signCell: { width: "45%", borderTopWidth: 0.8, borderTopColor: "#1f2937", paddingTop: 4, fontSize: 9, color: "#6b7280" },
-  footer: { position: "absolute", bottom: 24, left: 44, right: 44, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.3 },
-  pageNo: { position: "absolute", bottom: 24, right: 44, fontSize: 8, color: "#9ca3af" },
 });
 
 export type AssessmentReportProps = {
@@ -65,17 +59,9 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
     ? []
     : [...p.computed.competencies].filter((c) => c.percent < 100).sort((a, b) => a.percent - b.percent).slice(0, 2);
   return (
-    <Document title={`${p.studentName} — Hibiscus assessment report`} author="Hibiscus International Schools">
+    <Document title={`${p.studentName} — ${SCHOOL_NAME} assessment report`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <View style={s.header} fixed>
-          {/* react-pdf's Image has no alt prop; the mark is decorative here. */}
-          {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          {p.logoUrl ? <Image src={p.logoUrl} style={s.logo} /> : <Text style={{ fontFamily: "Helvetica-Bold", color: BRAND }}>HIBISCUS INTERNATIONAL SCHOOLS</Text>}
-          <View style={s.headerRight}>
-            <Text>Admissions assessment report</Text>
-            <Text>{p.reference} · printed {p.printedOn}</Text>
-          </View>
-        </View>
+        <Letterhead logoUrl={p.logoUrl} lines={["Admissions assessment report", `${p.reference} · printed ${p.printedOn}`]} />
 
         <Text style={s.title}>{p.studentName}</Text>
         <Text style={s.subtitle}>Applying for {p.gradeName} at {p.campusName} · assessed {p.assessedOn}</Text>
@@ -179,10 +165,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
           </View>
         </View>
 
-        <Text style={s.footer} fixed>
-          This report summarises an academic assessment of English and Mathematics skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for. It is not an admission decision.
-        </Text>
-        <Text style={s.pageNo} fixed render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        <LetterFoot text={"This report summarises an academic assessment of English and Mathematics skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for. It is not an admission decision."} />
       </Page>
     </Document>
   );

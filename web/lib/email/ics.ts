@@ -15,7 +15,7 @@ export function buildIcs(opts: {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Hibiscus Schools//Admissions//EN",
+    "PRODID:-//Hibiscus International Schools//Admissions//EN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:${opts.uid}@admissions.hibiscus`,

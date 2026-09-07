@@ -44,7 +44,7 @@ export function wrapHtml(bodyHtml: string, opts: { preheader?: string } = {}): s
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hibiscus Schools</title>
+<title>Hibiscus International Schools</title>
 </head>
 <body style="margin:0;padding:0;background:${PAPER};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:${INK};">
 ${preheader}
@@ -56,7 +56,7 @@ ${preheader}
 ${body}
 </td></tr>
 <tr><td style="padding:20px 28px;font-size:13px;line-height:1.5;color:${MUTED};border-top:1px solid #eee7df;">
-This email was sent by Hibiscus Schools Admissions. If you did not expect it, you can safely ignore it. Links in this email are personal to you — please do not forward them.
+This email was sent by Hibiscus International Schools Admissions. If you did not expect it, you can safely ignore it. Links in this email are personal to you — please do not forward them.
 </td></tr>
 </table>
 </td></tr>

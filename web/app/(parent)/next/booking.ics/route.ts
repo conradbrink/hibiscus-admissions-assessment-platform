@@ -19,7 +19,7 @@ export async function GET() {
     summary:
       booking.kind === "assessment"
         ? `${app.child_first_name} — Hibiscus assessment`
-        : `Hibiscus Schools visit — ${campus.name}`,
+        : `Hibiscus International Schools visit — ${campus.name}`,
     description: `Reference ${app.reference}`,
     location: [campus.name, booking.session.location].filter(Boolean).join(", "),
     startsAt: new Date(booking.session.starts_at),

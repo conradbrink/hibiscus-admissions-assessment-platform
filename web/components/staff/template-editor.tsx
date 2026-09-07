@@ -27,7 +27,7 @@ const SAMPLE: TemplateVariables = {
   payment_link: "https://example.invalid/pay",
   registration_link: "https://example.invalid/register",
   payment_due_date: "Friday 25 September 2026",
-  bank_details: "Hibiscus Schools (Pty) Ltd\nFirst National Bank Botswana\nAccount 62012345678\nBranch 281467",
+  bank_details: "Hibiscus International Schools (Pty) Ltd\nFirst National Bank Botswana\nAccount 62012345678\nBranch 281467",
   amount_paid: "P 7,500.00",
   payment_reference: "HBS-2026-00482-3F2A9C1B",
   payment_date: "Monday 14 September 2026",
