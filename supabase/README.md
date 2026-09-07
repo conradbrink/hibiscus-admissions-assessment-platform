@@ -106,11 +106,13 @@ the Word documents supplied in September 2026. It creates the bank
 "Secondary intake tests 2026", a rubric per marker-judged question (the band
 descriptors carry the school's model answer, so the marker sees the key
 beside the child's writing), and four active templates, one per intake year,
-each an English section and a Mathematics section of 20 minutes. Four
-multiple-choice items that cannot be marked as printed are loaded as drafts
-outside the sittings; the header of the file lists them. Loaded on the live
-project on 7 September 2026; from then on the bank is maintained under
-Set up → Question banks. Refuses to run twice.
+each an English section and a Mathematics section of 20 minutes. Seven
+corrections to the papers were made on the school's instruction and are
+marked "Corrected" in the file: two marking keys that contradicted the
+passage, one Section B question whose wording contradicted its numbers, and
+four multiple-choice items whose printed options held no single correct
+answer. Loaded on the live project on 7 September 2026; from then on the bank
+is maintained under Set up → Question banks. Refuses to run twice.
 
 ## Local rehearsal
 

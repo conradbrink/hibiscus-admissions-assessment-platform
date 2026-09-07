@@ -17,12 +17,14 @@
 --
 -- Transcription notes (also reported to the school):
 --   - Marker-judged questions (extended_text) are used wherever the marking
---     key gives a model answer rather than an exact word, and wherever the
---     key looked doubtful; the descriptor says so in those cases.
---   - Four multiple-choice items cannot be marked as printed and are loaded
---     as drafts, outside the sitting, for the school to correct: Form 1
---     Maths Q5 (two correct options) and Q7, Form 4 Maths Q1 and Q7 (no
---     correct option).
+--     key gives a model answer rather than an exact word.
+--   - Corrections made on the school's instruction (7 September 2026), each
+--     marked "corrected" in a comment below: two marking keys that
+--     contradicted the passage (Form 2 English B3, Form 3 English B3), one
+--     Section B question whose wording contradicted its numbers (Form 4
+--     Maths B1), and four multiple-choice items whose printed options held
+--     no single correct answer (Form 1 Maths Q5 and Q7, Form 4 Maths Q1
+--     and Q7), where one distractor was replaced by the intended answer.
 --   - Multiple-choice answer keys for the Mathematics papers were not
 --     supplied; the answers here were worked from the questions.
 --
@@ -290,8 +292,9 @@ What figure of speech is used in the phrase "the large and placid White''s tree 
   perform pg_temp.add_short(q, array['present', 'present tense', 'the present tense', 'simple present', 'present simple', 'simple present tense', 'present simple tense', 'the simple present', 'the present simple', 'present passive', 'present simple passive', 'simple present passive']);
   eng2 := eng2 || q;
 
-  q := pg_temp.add_q(v_bank, c_gram, v_passage, 'extended_text', 'Part B, question 3. In the phrase "when starting with tree frogs," what part of speech is "tree frogs"? (1 mark)', 1, 140, 140);
-  perform pg_temp.add_rubric(q, 'Form 2 English B3 (key to confirm)', c_gram, 1, pg_temp.bands1('The school''s key says "a gerund, functioning as a noun". Note for the school: "tree frogs" is a (compound) noun; the gerund in the phrase is "starting". Award the mark for "noun" or "gerund" until the school settles the key.'));
+  -- Corrected: the supplied key said "gerund"; "tree frogs" is a noun (the gerund in the phrase is "starting").
+  q := pg_temp.add_q(v_bank, c_gram, v_passage, 'short_text', 'Part B, question 3. In the phrase "when starting with tree frogs," what part of speech is "tree frogs"? (1 mark)', 1, 140, 140);
+  perform pg_temp.add_short(q, array['noun', 'a noun', 'nouns', 'compound noun', 'a compound noun', 'plural noun', 'a plural noun', 'noun (plural)', 'common noun', 'a common noun', 'noun phrase', 'a noun phrase']);
   eng2 := eng2 || q;
 
   q := pg_temp.add_q(v_bank, c_gram, v_passage, 'extended_text', 'Part B, question 4. Rewrite the sentence "They become active in the evenings, calling with their high-pitched, loud voices" by changing it to the passive voice. (1 mark)', 1, 140, 140);
@@ -358,8 +361,9 @@ Yusuf, the skipper, guided us past mangroves and hidden sandbanks using modern n
   perform pg_temp.add_choice(q, array['sing', 'sings', 'singing', 'sung'], array[1]);
   eng3 := eng3 || q;
 
-  q := pg_temp.add_q(v_bank, c_gram, v_passage, 'extended_text', 'Part B, question 3. In the passage, to whom does the pronoun "it" in the sentence "It now sails as far as Mozambique" refer? (1 mark)', 1, 150, 150);
-  perform pg_temp.add_rubric(q, 'Form 3 English B3 (key to confirm)', c_gram, 1, pg_temp.bands1('The school''s key says "Fishing dhows". Note for the school: in the passage the sentence follows "Tusitiri, a 65-foot dhow...", so "it" refers to Tusitiri. Award the mark for "Tusitiri" or "the dhow" until the school settles the key.'));
+  -- Corrected: the supplied key said "Fishing dhows"; the sentence follows "Tusitiri, a 65-foot dhow...", so "it" is Tusitiri.
+  q := pg_temp.add_q(v_bank, c_gram, v_passage, 'short_text', 'Part B, question 3. In the passage, to what does the pronoun "it" in the sentence "It now sails as far as Mozambique" refer? (1 mark)', 1, 150, 150);
+  perform pg_temp.add_short(q, array['tusitiri', 'the dhow', 'the dhow tusitiri', 'tusitiri, the dhow', 'tusitiri the dhow', 'the dhow, tusitiri', 'the 65-foot dhow', 'the 65-foot dhow tusitiri', 'the boat', 'the boat tusitiri', 'the vessel', 'the ship', 'to tusitiri', 'tusitiri (the dhow)', 'the dhow (tusitiri)']);
   eng3 := eng3 || q;
 
   q := pg_temp.add_q(v_bank, c_gram, v_passage, 'short_text', 'Part B, question 4. Identify the adjective in the phrase "hand-carved Lamu chairs." (1 mark)', 1, 150, 150);
@@ -458,13 +462,15 @@ $t$Part C. Describe, in a six-sentence paragraph, an experience you had in which
   q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '4. Which of the following is a factor of 12?', 1, 130, 130);
   perform pg_temp.add_choice(q, array['7', '11', '24', '3'], array[4]); mat1 := mat1 || q;
   -- Q5 offers two correct options (19 and 37 are both prime). Draft, not in the sitting, until the school picks one.
-  q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '5. Which of the following is a prime number?', 1, 130, 130, 'draft');
-  perform pg_temp.add_choice(q, array['1', '9', '19', '37'], array[3]);
+  -- Corrected: the paper offered 19 and 37, both prime; 37 replaced by 27.
+  q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '5. Which of the following is a prime number?', 1, 130, 130);
+  perform pg_temp.add_choice(q, array['1', '9', '19', '27'], array[3]); mat1 := mat1 || q;
   q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '6. Which of the following is a square number?', 1, 130, 130);
   perform pg_temp.add_choice(q, array['4', '15', '3', '11'], array[1]); mat1 := mat1 || q;
   -- Q7 has no correct option on the paper (½ base × height is the area of a triangle; the options are kite, circle, rectangle, square). Draft, not in the sitting.
-  q := pg_temp.add_q(v_bank, c_geom, null, 'single_choice', '7. The formula ½ base × height is used to find the area of', 1, 130, 130, 'draft');
-  perform pg_temp.add_choice(q, array['kite', 'circle', 'rectangle', 'square'], array[1]);
+  -- Corrected: the paper offered kite, circle, rectangle, square; "kite" replaced by "triangle".
+  q := pg_temp.add_q(v_bank, c_geom, null, 'single_choice', '7. The formula ½ base × height is used to find the area of', 1, 130, 130);
+  perform pg_temp.add_choice(q, array['triangle', 'circle', 'rectangle', 'square'], array[1]); mat1 := mat1 || q;
   q := pg_temp.add_q(v_bank, c_patt, null, 'single_choice', '8. a + a + a + a is equal to', 1, 130, 130);
   perform pg_temp.add_choice(q, array['a × a × a', '4a', '4 − a', 'a⁴'], array[2]); mat1 := mat1 || q;
   q := pg_temp.add_q(v_bank, c_geom, null, 'single_choice', '9. Any shape with 4 sides is called a', 1, 130, 130);
@@ -557,8 +563,9 @@ $t$Part C. Describe, in a six-sentence paragraph, an experience you had in which
   -- Mathematics: Form 4 entrance test (applicants to Form 4 or 5, sort 160–170)
   -- =========================================================================
   -- Q1 has no correct option on the paper (the gradient of y = 3x − 3 is 3; the options are −3, 2, y, x). Draft, not in the sitting.
-  q := pg_temp.add_q(v_bank, c_patt, null, 'single_choice', '1. The gradient of the line y = 3x − 3 is', 1, 160, 170, 'draft');
-  perform pg_temp.add_choice(q, array['−3', '2', 'y', 'x'], array[1]);
+  -- Corrected: the paper offered −3, 2, y, x; "2" replaced by "3".
+  q := pg_temp.add_q(v_bank, c_patt, null, 'single_choice', '1. The gradient of the line y = 3x − 3 is', 1, 160, 170);
+  perform pg_temp.add_choice(q, array['−3', '3', 'y', 'x'], array[2]); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_prob, null, 'single_choice', '2. A school employs 1 200 people of whom 240 are men. The percentage of employees who are men is', 1, 160, 170);
   perform pg_temp.add_choice(q, array['40%', '10%', '15%', '20%'], array[4]); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_geom, null, 'single_choice', '3. The 3 angles in a triangle are 2x, 3x and x. The largest angle is', 1, 160, 170);
@@ -570,8 +577,9 @@ $t$Part C. Describe, in a six-sentence paragraph, an experience you had in which
   q := pg_temp.add_q(v_bank, c_geom, null, 'single_choice', '6. Each exterior angle of a regular polygon with n sides is 10°. n =', 1, 160, 170);
   perform pg_temp.add_choice(q, array['9', '18', '30', '36'], array[4]); mat4 := mat4 || q;
   -- Q7 has no correct option on the paper (1 − 0.05 = 0.95 = 19/20; the options are 1/20, 9/10, 10/20, 5/100). Draft, not in the sitting.
-  q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '7. What is the value of 1 − 0.05 as a fraction?', 1, 160, 170, 'draft');
-  perform pg_temp.add_choice(q, array['1/20', '9/10', '10/20', '5/100'], array[1]);
+  -- Corrected: the paper offered 1/20, 9/10, 10/20, 5/100; "10/20" replaced by "19/20".
+  q := pg_temp.add_q(v_bank, c_num, null, 'single_choice', '7. What is the value of 1 − 0.05 as a fraction?', 1, 160, 170);
+  perform pg_temp.add_choice(q, array['1/20', '9/10', '19/20', '5/100'], array[3]); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_patt, null, 'single_choice', '8. What is the value of the expression (x − 2)(x + 4) when x = −1?', 1, 160, 170);
   perform pg_temp.add_choice(q, array['−9', '9', '−5', '5'], array[1]); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_prob, null, 'single_choice', '9. A school has 400 students of whom 250 are boys. The ratio of boys to girls is', 1, 160, 170);
@@ -580,7 +588,8 @@ $t$Part C. Describe, in a six-sentence paragraph, an experience you had in which
   perform pg_temp.add_choice(q, array['100', '10', '1', '180'], array[1]); mat4 := mat4 || q;
   -- Section B (2 marks each)
   q := pg_temp.add_q(v_bank, c_prob, null, 'extended_text', 'Section B, question 1. The price of a television changed from $340 to $300. Calculate the percentage change. (2 marks)', 2, 160, 170);
-  perform pg_temp.add_rubric(q, 'Form 4 Maths B1 (wording to confirm)', c_prob, 2, pg_temp.bands2('Method shown (40 ÷ 340 × 100) with an arithmetic slip, or 40 found but not turned into a percentage.', 'Correct: a decrease of about 11.8% (40/340 × 100 = 11.76%). Note for the school: the paper says "increase" from $340 to $300, which is a decrease; the wording here says "change".')); mat4 := mat4 || q;
+  -- Corrected: the paper said "increase" from $340 to $300, which is a decrease; asked as "percentage change".
+  perform pg_temp.add_rubric(q, 'Form 4 Maths B1', c_prob, 2, pg_temp.bands2('Method shown (40 ÷ 340 × 100) with an arithmetic slip, or 40 found but not turned into a percentage.', 'Correct: a decrease of about 11.8% (40 ÷ 340 × 100 = 11.76%).')); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_geom, null, 'numeric', 'Section B, question 2. The bearing of A from B is 120°. Calculate the bearing of B from A. Type the number only. (2 marks)', 2, 160, 170);
   perform pg_temp.add_num(q, 300); mat4 := mat4 || q;
   q := pg_temp.add_q(v_bank, c_patt, null, 'numeric', 'Section B, question 3. Numbers m, x and y satisfy the equation y = mx². When m = ½ and x = 4, find the value of y. Type the number only. (2 marks)', 2, 160, 170);

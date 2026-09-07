@@ -172,8 +172,9 @@ known), staff editing of submitted registration data, AI email drafting.
   7 September 2026 as the bank "Secondary intake tests 2026" with four active
   templates. Comprehension and writing answers are marker-judged against
   rubrics whose descriptors quote the school's model answers; the Part C
-  writing bands are a draft for the school to confirm. Primary (Stage 1 to 7)
-  papers have not been supplied yet.
+  writing bands are a draft for the school to confirm. Seven printed errors
+  were corrected on the school's instruction (listed in the seed's header).
+  Primary (Stage 1 to 7) papers have not been supplied yet.
 - **Fee amounts.** With no active fee schedule an approved applicant rests
   at `offer_draft` with a task for finance, and approval is blocked.
 
