@@ -35,7 +35,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
   const canWrite = can(permissions, "applications.write");
   const { data: app } = await supabase
     .from("applications")
-    .select("*, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts(first_name, last_name, email, mobile)")
+    .select("*, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts!applications_contact_id_fkey(first_name, last_name, email, mobile)")
     .eq("id", id)
     .maybeSingle();
   if (!app) notFound();

@@ -38,7 +38,7 @@ export async function requestFreshLink(_prev: FreshLinkState, formData: FormData
 
   const { data: app } = await admin
     .from("applications")
-    .select("id, status, contacts!inner(email_normalised)")
+    .select("id, status, contacts!applications_contact_id_fkey!inner(email_normalised)")
     .eq("reference", parsed.data.reference)
     .eq("contacts.email_normalised", email)
     .neq("status", "withdrawn")

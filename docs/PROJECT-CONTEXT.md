@@ -276,6 +276,23 @@ known), staff editing of submitted registration data, AI email drafting.
   cancellation email, one `rebook_nudge` with a `booking_none` precondition,
   the online cutoff, and the missed session named on the page.
 
+### Learned on the live walkthrough (7 September 2026)
+
+- **Name the foreign key when embedding `contacts` from `applications`.**
+  PostgREST sees two paths (the direct `contact_id` and the many-to-many
+  through `application_guardians`) and refuses the bare `contacts(...)`
+  with PGRST201. The local replay never runs PostgREST, so this only
+  showed on the deployed site: the pipeline, the applicant page,
+  assessment day, the registration page and the fresh-link action all
+  threw. Every embed is now `contacts!applications_contact_id_fkey(...)`.
+  Any table with two routes to another needs the same hint.
+- **Vercel's Hobby plan allows only daily crons.** The five-minute drain
+  runs from `.github/workflows/drain.yml` (repository secrets `DRAIN_URL`
+  and `CRON_SECRET`); `web/vercel.json` keeps a daily call as a fallback.
+- **Vercel needs Root Directory `web` and Framework Preset Next.js.** With
+  the defaults it builds the repository root as a static site and serves
+  `NOT_FOUND` on every path.
+
 ## 4. Reference data to confirm with the school
 
 Seeded from the current website on 4 September 2026. Where the site

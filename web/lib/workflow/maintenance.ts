@@ -19,7 +19,7 @@ export async function sweepUnroutedEnquiries(admin: AdminClient): Promise<number
   const cutoff = new Date(Date.now() - 10 * 60_000).toISOString();
   const { data, error } = await admin
     .from("applications")
-    .select("id, reference, status, entry_route, requires_assessment, child_first_name, contacts(first_name, last_name)")
+    .select("id, reference, status, entry_route, requires_assessment, child_first_name, contacts!applications_contact_id_fkey(first_name, last_name)")
     .eq("status", "new_enquiry")
     .is("next_action", null)
     .lt("created_at", cutoff)
