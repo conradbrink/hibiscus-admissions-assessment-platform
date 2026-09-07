@@ -12,13 +12,13 @@ const ROUTES: Record<string, { entry: EntryRoute; title: string; description: st
   assessment: {
     entry: "assessment",
     title: "Book an assessment",
-    description: "Eight quick details, then choose a date. About two minutes.",
+    description: "For children joining Reception to Form 5. Eight quick details, then choose a date. About two minutes. A younger child is offered a visit instead.",
     steps: 3,
   },
   visit: {
     entry: "visit",
     title: "Book a school visit",
-    description: "Eight quick details, then choose a time to come and see us.",
+    description: "For any age; Nursery to Pre-Reception begin here. Eight quick details, then choose a time to come and see us.",
     steps: 3,
   },
   call: {
