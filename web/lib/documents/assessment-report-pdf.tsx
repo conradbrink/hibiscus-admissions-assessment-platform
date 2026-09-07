@@ -1,0 +1,205 @@
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { BAND_LABELS } from "@/lib/assessment/bands";
+import type { ComputedProfile } from "@/lib/profile/compute";
+import type { Narrative } from "@/lib/profile/narrative";
+
+/**
+ * The assessment report an assessor prints and talks a parent through: the
+ * learning profile (numbers computed by code, prose behind the validator)
+ * plus, for each written answer, the band it earned and the marker's note,
+ * and room at the end for the assessor's own comments and a signature.
+ * Takes a snapshot as props and touches no database.
+ */
+
+const BRAND = "#e8632b";
+
+const s = StyleSheet.create({
+  page: { paddingTop: 36, paddingBottom: 56, paddingHorizontal: 44, fontSize: 10.5, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.4 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 },
+  logo: { width: 110 },
+  headerRight: { textAlign: "right", fontSize: 9, color: "#6b7280" },
+  title: { fontSize: 20, fontFamily: "Helvetica-Bold" },
+  subtitle: { fontSize: 10.5, color: "#6b7280", marginTop: 2 },
+  h2: { fontSize: 12.5, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6, color: "#111827" },
+  h3: { fontSize: 10.5, fontFamily: "Helvetica-Bold", marginTop: 8, marginBottom: 2 },
+  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
+  rowBold: { fontFamily: "Helvetica-Bold" },
+  muted: { color: "#6b7280" },
+  para: { marginBottom: 6 },
+  big: { fontSize: 28, fontFamily: "Helvetica-Bold" },
+  bandBox: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 4 },
+  pill: { borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6, paddingVertical: 5, paddingHorizontal: 9, flexGrow: 1 },
+  pillLabel: { fontSize: 8.5, color: "#6b7280" },
+  pillValue: { fontSize: 12, fontFamily: "Helvetica-Bold", marginTop: 1 },
+  item: { marginBottom: 7, paddingBottom: 6, borderBottomWidth: 0.5, borderBottomColor: "#eeeae4" },
+  itemHead: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
+  itemQ: { fontFamily: "Helvetica-Bold", flexShrink: 1 },
+  itemMarks: { fontFamily: "Helvetica-Bold", color: BRAND, flexShrink: 0 },
+  itemNote: { marginTop: 2, color: "#374151" },
+  lines: { marginTop: 6 },
+  line: { borderBottomWidth: 0.6, borderBottomColor: "#9ca3af", height: 20 },
+  sign: { flexDirection: "row", justifyContent: "space-between", marginTop: 22 },
+  signCell: { width: "45%", borderTopWidth: 0.8, borderTopColor: "#1f2937", paddingTop: 4, fontSize: 9, color: "#6b7280" },
+  footer: { position: "absolute", bottom: 24, left: 44, right: 44, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.3 },
+  pageNo: { position: "absolute", bottom: 24, right: 44, fontSize: 8, color: "#9ca3af" },
+});
+
+export type WrittenItem = {
+  section: string;
+  question: string;
+  marksAwarded: number;
+  marksAvailable: number;
+  bandLabel: string | null;
+  note: string | null;
+};
+
+export type AssessmentReportProps = {
+  logoUrl: string | null;
+  studentName: string;
+  firstName: string;
+  gradeName: string;
+  campusName: string;
+  reference: string;
+  assessedOn: string;
+  printedOn: string;
+  computed: ComputedProfile;
+  narrative: Narrative;
+  written: WrittenItem[];
+};
+
+function pct(n: number): string {
+  return `${Number.isInteger(n) ? n : Math.round(n * 10) / 10}%`;
+}
+
+export function AssessmentReportDocument(p: AssessmentReportProps) {
+  const subjectOf = (id?: string) => p.computed.subjects.find((x) => x.id === id)?.name ?? "";
+  return (
+    <Document title={`${p.studentName} — Hibiscus assessment report`} author="Hibiscus International Schools">
+      <Page size="A4" style={s.page}>
+        <View style={s.header} fixed>
+          {/* react-pdf's Image has no alt prop; the mark is decorative here. */}
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          {p.logoUrl ? <Image src={p.logoUrl} style={s.logo} /> : <Text style={{ fontFamily: "Helvetica-Bold", color: BRAND }}>HIBISCUS INTERNATIONAL SCHOOLS</Text>}
+          <View style={s.headerRight}>
+            <Text>Admissions assessment report</Text>
+            <Text>{p.reference} · printed {p.printedOn}</Text>
+          </View>
+        </View>
+
+        <Text style={s.title}>{p.studentName}</Text>
+        <Text style={s.subtitle}>Applying for {p.gradeName} at {p.campusName} · assessed {p.assessedOn}</Text>
+
+        {p.computed.overall ? (
+          <View style={{ marginTop: 12, flexDirection: "row", alignItems: "flex-end" }}>
+            <Text style={s.big}>{pct(p.computed.overall.percent)}</Text>
+            <Text style={{ marginLeft: 10, marginBottom: 5, ...s.muted }}>overall · {BAND_LABELS[p.computed.overall.band]} the expectation for {p.gradeName}</Text>
+          </View>
+        ) : null}
+        {p.computed.subjects.length ? (
+          <View style={s.bandBox}>
+            {p.computed.subjects.map((x) => (
+              <View key={x.id} style={s.pill}>
+                <Text style={s.pillLabel}>{x.name}</Text>
+                <Text style={s.pillValue}>{pct(x.percent)} · {BAND_LABELS[x.band]}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <Text style={s.h2}>In summary</Text>
+        <Text style={s.para}>{p.narrative.summary}</Text>
+
+        {p.computed.strengths.length ? (
+          <>
+            <Text style={s.h2}>Where {p.firstName} did well</Text>
+            {p.narrative.strengths_text ? <Text style={s.para}>{p.narrative.strengths_text}</Text> : null}
+            {p.computed.strengths.map((x) => (
+              <View key={x.id} style={s.row}>
+                <Text>{x.name}{subjectOf(x.subjectId) ? ` (${subjectOf(x.subjectId)})` : ""}</Text>
+                <Text style={s.rowBold}>{pct(x.percent)} · {BAND_LABELS[x.band]}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        {p.computed.development.length ? (
+          <>
+            <Text style={s.h2}>Where practice would help most</Text>
+            {p.narrative.development_text ? <Text style={s.para}>{p.narrative.development_text}</Text> : null}
+            {p.computed.development.map((x) => (
+              <View key={x.id} style={s.row}>
+                <Text>{x.name}{subjectOf(x.subjectId) ? ` (${subjectOf(x.subjectId)})` : ""}</Text>
+                <Text style={s.rowBold}>{pct(x.percent)} · {BAND_LABELS[x.band]}</Text>
+              </View>
+            ))}
+            {p.computed.focus.length ? (
+              <>
+                <Text style={s.h3}>Suggested focus at home and at school</Text>
+                {p.computed.focus.map((f, i) => (
+                  <Text key={i} style={s.para}>{i + 1}. {f}</Text>
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={s.h2}>Where practice would help most</Text>
+            <Text style={s.para}>{p.narrative.development_text || "No area stood out as needing particular attention on the day."}</Text>
+          </>
+        )}
+
+        {p.written.length ? (
+          <View break>
+            <Text style={s.h2}>{p.firstName}&apos;s written answers</Text>
+            <Text style={{ ...s.para, ...s.muted }}>
+              Each written answer was marked against the school&apos;s marking scheme. The note beside each one says what earned the mark.
+            </Text>
+            {p.written.map((w, i) => (
+              <View key={i} style={s.item} wrap={false}>
+                <View style={s.itemHead}>
+                  <Text style={s.itemQ}>{w.section}: {w.question}</Text>
+                  <Text style={s.itemMarks}>{w.marksAwarded} / {w.marksAvailable}{w.bandLabel ? ` · ${w.bandLabel}` : ""}</Text>
+                </View>
+                {w.note ? <Text style={s.itemNote}>{w.note}</Text> : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <View wrap={false}>
+          <Text style={s.h2}>All results</Text>
+          {p.computed.subjects.map((x) => (
+            <View key={x.id}>
+              <View style={s.row}>
+                <Text style={s.rowBold}>{x.name}</Text>
+                <Text style={s.rowBold}>{pct(x.percent)} · {BAND_LABELS[x.band]}</Text>
+              </View>
+              {p.computed.competencies.filter((c) => c.subjectId === x.id).map((c) => (
+                <View key={c.id} style={s.row}>
+                  <Text style={{ marginLeft: 12 }}>{c.name}</Text>
+                  <Text>{pct(c.percent)} · {BAND_LABELS[c.band]}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+
+        <View wrap={false}>
+          <Text style={s.h2}>Assessor&apos;s comments</Text>
+          <View style={s.lines}>
+            <View style={s.line} /><View style={s.line} /><View style={s.line} /><View style={s.line} />
+          </View>
+          <View style={s.sign}>
+            <View style={s.signCell}><Text>Assessor</Text></View>
+            <View style={s.signCell}><Text>Discussed with parent on</Text></View>
+          </View>
+        </View>
+
+        <Text style={s.footer} fixed>
+          This report summarises an academic assessment of English and Mathematics skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for. It is not an admission decision.
+        </Text>
+        <Text style={s.pageNo} fixed render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+      </Page>
+    </Document>
+  );
+}

@@ -112,6 +112,9 @@ export async function ApplicantPhase2({
                 <div key={at.id} className="rounded-lg border border-border p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Link href={`/staff/assessments/attempts/${at.id}`} className="font-medium hover:underline">Sitting on {formatDate(at.launched_at)}</Link>
+                    {at.marking_status === "complete" ? (
+                      <a href={`/staff/assessments/attempts/${at.id}/report`} target="_blank" rel="noopener" className="ml-2 text-xs font-medium text-primary hover:underline">Print report (PDF)</a>
+                    ) : null}
                     <Badge variant={at.status === "marked" ? "success" : at.status === "abandoned" ? "secondary" : "info"}>{at.status.replace("_", " ")}</Badge>
                     {at.status === "submitted" ? <Badge variant={at.marking_status === "awaiting_rubric" ? "warning" : "secondary"}>{at.marking_status.replace("_", " ")}</Badge> : null}
                     {at.auto_submitted ? <span className="text-xs text-muted-foreground">auto-submitted at time limit</span> : null}
