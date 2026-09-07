@@ -1,39 +1,31 @@
 import type { Metadata } from "next";
-import { CheckCircle2, Upload } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { DocumentUploader } from "@/components/parent/register/document-uploader";
 import { RegisterShell } from "@/components/parent/register/shell";
 import { SubmitButton } from "@/components/parent/register/submit-button";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format-date";
+import { uploadErrorText } from "@/lib/documents/upload-errors";
 import { applicableRequirements, liveDocument } from "@/lib/registration/completeness";
 import { registrationForSession } from "@/lib/registration/session";
 import { continueFromDocuments } from "../actions";
 
 export const metadata: Metadata = { title: "Registration — documents" };
 
-const ERRORS: Record<string, string> = {
-  too_large: "That file is larger than 10 MB. A photo from a phone or a PDF is usually well under that.",
-  bad_type: "We can accept a PDF, a JPEG or a PNG. That file was something else.",
-  empty: "That file was empty. Please choose it again.",
-  unknown_requirement: "We did not recognise which document that was for. Please try again.",
-  not_open: "Documents can only be changed while registration is open.",
-  busy: "Too many uploads in a short time. Please wait a minute and try again.",
-  failed: "The upload did not go through. Please try again.",
-};
-
 /**
- * One upload form per applicable document. A plain multipart form to a
- * route handler: no JavaScript needed, and a phone camera works as a file
- * picker. Rejected documents can be replaced even after submission.
+ * One uploader per applicable document. Choosing a file sends it at once,
+ * straight to storage, so nothing is lost between choosing and pressing a
+ * button. Without JavaScript the plain multipart form still works.
+ * Rejected documents can be replaced even after submission.
  */
 export default async function DocumentsStep({ searchParams }: { searchParams: Promise<{ error?: string; req?: string }> }) {
   const sp = await searchParams;
   const { graph, bundle, editable } = await registrationForSession();
   const requirements = applicableRequirements(bundle.requirements, graph.grade.sort_order);
-  const error = sp.error ? ERRORS[sp.error] ?? ERRORS.failed : null;
+  const error = sp.error ? uploadErrorText(sp.error) : null;
 
   return (
-    <RegisterShell step="documents" title="Documents" description="A clear photo taken with a phone is fine, as is a PDF. Up to 10 MB each." readOnly={!editable}>
+    <RegisterShell step="documents" title="Documents" description="A clear photo taken with a phone is fine, as is a PDF. Choosing a file uploads it straight away; big photos are shrunk first." readOnly={!editable}>
       <ul className="space-y-3">
         {requirements.map((q) => {
           const doc = liveDocument(bundle.documents, q.code);
@@ -56,13 +48,7 @@ export default async function DocumentsStep({ searchParams }: { searchParams: Pr
               ) : null}
               {rejected && doc?.review_note ? <p className="mt-1 text-sm text-destructive">{doc.review_note}</p> : null}
               {sp.req === q.code && error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
-              {canUpload ? (
-                <form method="post" action="/api/register/document" encType="multipart/form-data" className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <input type="hidden" name="requirement" value={q.code} />
-                  <input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium" />
-                  <Button type="submit" variant={doc && !rejected ? "outline" : "default"} size="sm"><Upload data-icon="inline-start" /> {doc ? "Replace" : "Upload"}</Button>
-                </form>
-              ) : null}
+              {canUpload ? <DocumentUploader requirement={q.code} replace={!!doc && !rejected} label={doc ? "Replace" : `Upload ${q.label.toLowerCase()}`} /> : null}
             </li>
           );
         })}

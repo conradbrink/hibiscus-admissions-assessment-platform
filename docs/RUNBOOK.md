@@ -151,13 +151,33 @@ payment and opens a task for the balance.
 
 ## A document will not upload
 
-1. Only PDF, JPEG and PNG are accepted, decided by the file's contents, and
-   up to 10 MB. A Word file, a HEIC photo straight from an iPhone, or a
-   renamed file is refused with a message saying which.
-2. Ask the parent to take a fresh photo with the camera set to "most
-   compatible" (JPEG), or to print to PDF.
-3. Staff cannot upload on a parent's behalf in this phase; email the file to
+1. Choosing the file is the upload: there is no second button. The phone
+   sends the file straight to the school's private storage (a big photo is
+   shrunk to about 2,000 px first), then the server checks it and records
+   it. "Uploaded" with a green tick means it is there; the Documents page
+   shows it as "received".
+2. Only PDF, JPEG and PNG are accepted, decided by the file's contents, and
+   up to 10 MB. A Word file or a renamed file is refused with a message
+   saying which. An iPhone HEIC photo is converted to JPEG on the phone when
+   the browser can read it; if not, ask for the camera set to "most
+   compatible" (JPEG), or a print to PDF.
+3. If the parent's browser has JavaScript off, a plain form still works,
+   one file at a time, up to the hosting limit of about 4 MB.
+4. Staff cannot upload on a parent's behalf in this phase; email the file to
    admissions and note it on the applicant until the parent uploads it.
+
+## "Upload the birth certificate and we fill it in"
+
+With `DOCUMENT_EXTRACTOR=anthropic` set on the hosting and
+**ai_extraction_enabled** on under Workflow settings, the student step
+offers the birth certificate upload first. The reading fills only what the
+family has not told us: middle names, place of birth, gender and the
+registration number. The names and date of birth from the enquiry are never
+changed by a document; a disagreement is shown as a flag for the parent to
+resolve and a task for staff. Every filled field is marked "read from the
+birth certificate — please check", and the parent's save is what writes it.
+If the reading fails or takes longer than a minute, the form simply stays
+as it was.
 
 ## Enrolment will not confirm
 

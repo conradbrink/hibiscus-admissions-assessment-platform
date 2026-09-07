@@ -64,6 +64,33 @@ describe("completeness", () => {
   });
 });
 
+describe("certificate reading prefill", () => {
+  it("fills only what the family has not typed, and never the enquiry's names or date", async () => {
+    const { applyCertificateReading } = await import("@/lib/registration/prefill");
+    const student: Record<string, string> = { legalFirstName: "Naledi", legalMiddleNames: "", legalLastName: "Moeti", dateOfBirth: "2019-04-15", placeOfBirth: "", gender: "", identityType: "", identityNumber: "" };
+    const filled = applyCertificateReading(student, {
+      fields: { first_names: "Naledi Grace", last_name: "Mokoena", date_of_birth: "2019-04-16", place_of_birth: "Gaborone", sex: "female", registration_number: "BC 12345", confidence: 0.9 },
+    });
+    expect(student.legalFirstName).toBe("Naledi");
+    expect(student.legalLastName).toBe("Moeti");
+    expect(student.dateOfBirth).toBe("2019-04-15");
+    expect(student.legalMiddleNames).toBe("Grace");
+    expect(student.placeOfBirth).toBe("Gaborone");
+    expect(student.gender).toBe("female");
+    expect(student.identityNumber).toBe("BC 12345");
+    expect(student.identityType).toBe("birth_certificate");
+    expect(filled.sort()).toEqual(["gender", "identityNumber", "identityType", "legalMiddleNames", "placeOfBirth"]);
+  });
+  it("does not split middle names off a different first name, and does nothing without a reading", async () => {
+    const { applyCertificateReading } = await import("@/lib/registration/prefill");
+    const student: Record<string, string> = { legalFirstName: "Naledi", legalMiddleNames: "", identityNumber: "999", identityType: "omang" };
+    expect(applyCertificateReading(student, { fields: { first_names: "Grace Naledi", registration_number: "BC 1" } })).toEqual([]);
+    expect(student.legalMiddleNames).toBe("");
+    expect(student.identityNumber).toBe("999");
+    expect(applyCertificateReading(student, null)).toEqual([]);
+  });
+});
+
 describe("schemas", () => {
   it("rejects a date of birth in the future or before 1990", () => {
     const ok = { legalFirstName: "Naledi", legalLastName: "Moeti", gender: "female", dateOfBirth: "2019-04-15", nationality: "Motswana", countryOfBirth: "Botswana", homeLanguage: "Setswana", identityType: "birth_certificate", identityNumber: "123" };

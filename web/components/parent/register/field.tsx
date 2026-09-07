@@ -15,6 +15,7 @@ export function Field({
   error,
   hint,
   prefilled,
+  note,
   children,
 }: {
   id: string;
@@ -23,6 +24,8 @@ export function Field({
   error?: string;
   hint?: string;
   prefilled?: boolean;
+  /** A short note beside the label, e.g. where a value was read from. */
+  note?: string;
   children: React.ReactNode;
 }) {
   void name;
@@ -31,6 +34,7 @@ export function Field({
       <Label htmlFor={id}>
         {label}
         {prefilled ? <span className="ml-2 text-xs font-normal text-muted-foreground">from your enquiry — still correct?</span> : null}
+        {note ? <span className="ml-2 text-xs font-normal text-primary">{note}</span> : null}
       </Label>
       {children}
       {error ? (

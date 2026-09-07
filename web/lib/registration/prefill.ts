@@ -1,5 +1,5 @@
 import type { ApplicationGraph } from "@/lib/applications";
-import type { RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
+import type { Json, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 /**
  * "We already have this — is it still correct?" The application and the
@@ -11,12 +11,56 @@ export type RegistrationPrefill = {
   student: Record<string, string>;
   primary: Record<string, string>;
   prefilledFields: string[];
+  /** Student fields filled from the birth certificate's reading, for the form to mark "please check". */
+  fromDocument: string[];
 };
+
+/** What the extractor read from the live birth certificate, when there is one. */
+export type CertificateReading = { fields: Record<string, Json> };
+
+const str = (v: Json | undefined): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/**
+ * The birth certificate fills what the family has not told us yet, and
+ * only that: the names and date of birth from the enquiry stay as typed
+ * (a disagreement is a flag, never a silent change), so the reading adds
+ * middle names, place of birth, gender and the registration number. The
+ * parent still saves the form: that is the write.
+ */
+export function applyCertificateReading(student: Record<string, string>, reading: CertificateReading | null): string[] {
+  if (!reading) return [];
+  const filled: string[] = [];
+  const set = (key: string, value: string | null) => {
+    if (value && !student[key]) {
+      student[key] = value;
+      filled.push(key);
+    }
+  };
+  const f = reading.fields;
+  const names = (str(f.first_names) ?? "").split(/\s+/).filter(Boolean);
+  if (names.length) {
+    set("legalFirstName", names[0]);
+    const first = student.legalFirstName?.trim().toLowerCase();
+    if (names.length > 1 && names[0].toLowerCase() === first) set("legalMiddleNames", names.slice(1).join(" "));
+  }
+  set("legalLastName", str(f.last_name));
+  set("dateOfBirth", str(f.date_of_birth));
+  set("placeOfBirth", str(f.place_of_birth));
+  const sex = str(f.sex);
+  if (sex === "female" || sex === "male") set("gender", sex);
+  const number = str(f.registration_number);
+  if (number && !student.identityNumber) {
+    set("identityNumber", number);
+    set("identityType", "birth_certificate");
+  }
+  return filled;
+}
 
 export function prefillRegistration(
   graph: Pick<ApplicationGraph, "application" | "contact" | "grade">,
   registration: RegistrationRow | null,
-  primary: RegistrationContactRow | null
+  primary: RegistrationContactRow | null,
+  reading: CertificateReading | null = null
 ): RegistrationPrefill {
   const a = graph.application;
   const c = graph.contact;
@@ -37,6 +81,8 @@ export function prefillRegistration(
     previousInstitution: registration?.previous_institution ?? a.current_school ?? "",
     currentGrade: registration?.current_grade ?? a.current_grade ?? "",
   };
+  // The certificate only fills a form the parent has not yet saved.
+  const fromDocument = registration?.student_completed_at ? [] : applyCertificateReading(student, reading);
   if (!registration?.student_completed_at) {
     prefilled.push("legalFirstName", "legalLastName", "dateOfBirth");
     if (a.child_preferred_name) prefilled.push("preferredName");
@@ -57,7 +103,7 @@ export function prefillRegistration(
     prefilled.push("primary.firstName", "primary.lastName", "primary.email");
     if (c.mobile) prefilled.push("primary.mobile");
   }
-  return { student, primary: primaryValues, prefilledFields: prefilled };
+  return { student, primary: primaryValues, prefilledFields: prefilled, fromDocument };
 }
 
 /** Which of the application's own facts the parent changed: the review task lists them. */
