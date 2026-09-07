@@ -124,9 +124,10 @@ export async function onEnquiryCreated(
   }
 
   // Assessment track, arriving via the assessment door or the visit door.
-  // The funnel books a slot in the same sitting, so the "enquiry received"
-  // email is delayed a few minutes and skipped if a booking lands first —
-  // the parent then gets "booking confirmed" instead of two emails.
+  // The "enquiry received" email goes at once, so the parent has the
+  // reference and the link in hand before they book. A parent who books
+  // in the same sitting also gets "booking confirmed"; the school prefers
+  // two prompt emails to one late one.
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: "new_enquiry",
@@ -139,10 +140,7 @@ export async function onEnquiryCreated(
       payload: { entry_route: app.entry_route },
     },
     jobs: [
-      emailJob(app.id, "enquiry_received", {
-        runAfter: new Date(Date.now() + 10 * 60_000),
-        precondition: { application_status: ["new_enquiry"] },
-      }),
+      emailJob(app.id, "enquiry_received"),
       emailJob(app.id, "enquiry_nudge", {
         runAfter: hoursFromNow(settings.enquiryNudgeHours),
         precondition: { application_status: ["new_enquiry"] },
