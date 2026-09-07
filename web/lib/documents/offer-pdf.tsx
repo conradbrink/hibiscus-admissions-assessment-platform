@@ -1,5 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
+import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
 import type { FeeSnapshot } from "@/lib/offers/snapshot";
 import { formatMoney } from "@/lib/money";
 
@@ -21,6 +21,7 @@ const s = StyleSheet.create({
 
 export function htmlToParagraphs(html: string, opts: { dropLeadingHeading?: string } = {}): string[] {
   const lines = html
+    .replace(/<table\b[\s\S]*?<\/table>/gi, "\n")
     .replace(/<\/(p|h[1-6]|li|tr)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/?(strong|em|b|i|u|a|span)\b[^>]*>/gi, "")
@@ -41,6 +42,7 @@ export function htmlToParagraphs(html: string, opts: { dropLeadingHeading?: stri
 
 export type OfferDocumentProps = {
   logoUrl: string | null;
+  letterhead: LetterheadCampus | null;
   studentName: string;
   reference: string;
   bodyHtml: string;
@@ -54,7 +56,7 @@ export function OfferDocument(p: OfferDocumentProps) {
   return (
     <Document title={`${p.studentName} — ${SCHOOL_NAME} offer of admission`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Letterhead logoUrl={p.logoUrl} lines={["Offer of admission", `Reference ${p.reference}`]} />
+        <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Offer of admission", `Reference ${p.reference}`]} />
         <Text style={s.title}>Offer of Admission</Text>
         <Text style={s.small}>{p.sentOn ? `Issued ${p.sentOn}` : "Draft"}{p.expiresOn ? ` · open until ${p.expiresOn}` : ""}</Text>
         <View style={{ marginTop: 12 }}>

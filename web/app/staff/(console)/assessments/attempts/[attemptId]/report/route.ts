@@ -25,7 +25,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ attemptId:
 
   const { data: attempt } = await supabase
     .from("attempts")
-    .select("id, application_id, launched_at, marking_status, applications(reference, child_first_name, child_last_name, campuses(name), grades!applications_grade_id_fkey(name))")
+    .select("id, application_id, launched_at, marking_status, applications(reference, child_first_name, child_last_name, campuses(name, descriptor, address), grades!applications_grade_id_fkey(name))")
     .eq("id", attemptId)
     .maybeSingle();
   if (!attempt) return new Response("Not found", { status: 404 });
@@ -52,6 +52,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ attemptId:
 
   const element = createElement(AssessmentReportDocument, {
     logoUrl: logoUrlFor(siteUrl()),
+    letterhead: campus ?? null,
     studentName: `${app.child_first_name} ${app.child_last_name}`,
     firstName: app.child_first_name,
     gradeName: grade?.name ?? "",

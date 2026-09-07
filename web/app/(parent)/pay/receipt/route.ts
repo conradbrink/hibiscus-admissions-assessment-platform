@@ -34,6 +34,7 @@ export async function GET(): Promise<Response> {
   const reference = payment.method === "eft" ? (payment.bank_reference ?? payment.company_ref) : payment.company_ref;
   const element = createElement(ReceiptDocument, {
     logoUrl: logoUrlFor(siteUrl()),
+    letterhead: graph.campus,
     reference: graph.application.reference,
     receiptNumber: `R-${payment.id.slice(0, 8).toUpperCase()}`,
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,

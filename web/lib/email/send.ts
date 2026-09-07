@@ -259,6 +259,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   if (opts.templateKey === "payment_received" && pay.receipt) {
     const element = createElement(ReceiptDocument, {
       logoUrl: logoUrlFor(siteUrl()),
+      letterhead: graph.campus,
       reference: graph.application.reference,
       studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
       payerName: `${graph.contact.first_name} ${graph.contact.last_name}`,

@@ -1,6 +1,7 @@
 import { ActionForm } from "@/components/staff/action-form";
 import { PageTitle } from "@/components/staff/page-title";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { requireStaff } from "@/lib/staff/session";
 import { createCampus, saveCampus } from "./actions";
@@ -22,7 +23,7 @@ export default async function CampusesPage() {
               <NativeSelect name="country" defaultValue={c.country}><option value="BW">BW</option><option value="ZA">ZA</option></NativeSelect></div>
             <div><span className="text-xs text-muted-foreground">Currency</span>
               <NativeSelect name="currency" defaultValue={c.currency}><option value="BWP">BWP</option><option value="ZAR">ZAR</option></NativeSelect></div>
-            <div><span className="text-xs text-muted-foreground">Address</span><Input name="address" defaultValue={c.address ?? ""} /></div>
+            <div><span className="text-xs text-muted-foreground">Address and phone (one per line; printed on letters)</span><Textarea name="address" rows={3} defaultValue={c.address ?? ""} /></div>
             <label className="flex h-9 items-center gap-1.5 text-sm"><input type="checkbox" name="isActive" value="1" defaultChecked={c.is_active} /> Active</label>
           </ActionForm>
         ))}

@@ -41,7 +41,7 @@ export function feeSnapshotFrom(value: unknown): FeeSnapshot | null {
 export function buildOfferVariables(
   graph: Pick<ApplicationGraph, "application" | "contact" | "campus" | "grade" | "intake">,
   fees: FeeSnapshot | null,
-  opts: { expiresAt: Date | null; conditions: string | null }
+  opts: { expiresAt: Date | null; conditions: string | null; bankDetails?: string | null }
 ): TemplateVariables {
   const { application, contact, campus, grade, intake } = graph;
   const line = (code: FeeCode) => {
@@ -66,6 +66,8 @@ export function buildOfferVariables(
     amount_due: fees ? formatMoney(fees.payable_at_acceptance_minor, fees.currency) : null,
     currency: fees?.currency ?? campus.currency,
     conditions: opts.conditions,
+    // One line, so it reads the same in the letter's HTML and in the PDF.
+    bank_details: opts.bankDetails ? opts.bankDetails.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).join(" · ") : null,
   };
 }
 

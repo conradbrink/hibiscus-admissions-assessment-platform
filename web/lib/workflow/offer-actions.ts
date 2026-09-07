@@ -4,7 +4,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, Json, OfferRow } from "@/lib/supabase/types";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildOfferVariables, feeSnapshotFrom, loadActiveOfferTemplate, renderOffer, resolveFeeSchedule, snapshotFees, type FeeSnapshot } from "@/lib/offers/render";
-import { createPaymentRequest } from "@/lib/payments/requests";
+import { createPaymentRequest, loadBankInstructions } from "@/lib/payments/requests";
 import { getSettings } from "@/lib/settings";
 import { commit, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
 
@@ -67,7 +67,8 @@ export async function onOfferDrafted(
   const conditions = opts.conditions ?? existing?.conditions ?? null;
   // Provisional expiry for the preview; the real one is stamped at approval.
   const provisionalExpiry = new Date(Date.now() + settings.offerExpiryDays * DAY);
-  const vars = buildOfferVariables(graph, fees, { expiresAt: provisionalExpiry, conditions });
+  const bank = await loadBankInstructions(admin, { currency: fees?.currency ?? graph.campus.currency, campusId: graph.application.campus_id });
+  const vars = buildOfferVariables(graph, fees, { expiresAt: provisionalExpiry, conditions, bankDetails: bank?.body_text ?? null });
   const rendered = renderOffer(template, vars);
 
   const row = {
@@ -190,7 +191,8 @@ export async function onOfferApproved(
 
   const expiresAt = new Date(Date.now() + settings.offerExpiryDays * DAY);
   const fees = feeSnapshotFrom(offer.fees);
-  const vars = buildOfferVariables(graph, fees, { expiresAt, conditions: offer.conditions });
+  const bank = await loadBankInstructions(admin, { currency: fees?.currency ?? graph.campus.currency, campusId: graph.application.campus_id });
+  const vars = buildOfferVariables(graph, fees, { expiresAt, conditions: offer.conditions, bankDetails: bank?.body_text ?? null });
   const rendered = renderOffer(template, vars);
   const now = new Date().toISOString();
   const { error } = await admin

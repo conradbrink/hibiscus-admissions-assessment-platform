@@ -23,6 +23,7 @@ export async function GET(): Promise<Response> {
 
   const element = createElement(OfferDocument, {
     logoUrl: logoUrlFor(siteUrl()),
+    letterhead: graph.campus,
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
     reference: graph.application.reference,
     bodyHtml: offer.rendered_html,

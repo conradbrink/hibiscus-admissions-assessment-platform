@@ -1,5 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
+import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -21,6 +21,7 @@ const s = StyleSheet.create({
 
 export type ReceiptDocumentProps = {
   logoUrl: string | null;
+  letterhead: LetterheadCampus | null;
   reference: string;
   receiptNumber: string;
   studentName: string;
@@ -41,7 +42,7 @@ export function ReceiptDocument(p: ReceiptDocumentProps) {
   return (
     <Document title={`Receipt ${p.receiptNumber} — ${SCHOOL_NAME}`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Letterhead logoUrl={p.logoUrl} lines={["Receipt", p.receiptNumber]} />
+        <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Receipt", p.receiptNumber]} />
         <Text style={s.title}>Receipt</Text>
         <View style={{ marginBottom: 10 }}>
           <View style={s.meta}><Text style={s.small}>Receipt number</Text><Text>{p.receiptNumber}</Text></View>

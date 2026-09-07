@@ -26,6 +26,7 @@ export async function GET(): Promise<Response> {
   // component that returns one is the same thing at runtime.
   const element = createElement(ProfileDocument, {
     logoUrl: logoUrlFor(siteUrl()),
+    letterhead: graph.campus,
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
     gradeName: graph.grade.name,
     campusName: graph.campus.name,
