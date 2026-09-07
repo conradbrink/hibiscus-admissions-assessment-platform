@@ -186,6 +186,10 @@ export type CampusRow = {
   country: "BW" | "ZA";
   currency: "BWP" | "ZAR";
   address: string | null;
+  /** Who signs this campus's offer letters, and their signature as a small PNG or JPEG data URL. */
+  head_name: string | null;
+  head_title: string | null;
+  signature_data_url: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -1285,7 +1289,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "address" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "address" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<

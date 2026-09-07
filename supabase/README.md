@@ -35,6 +35,7 @@ change.
 | `…100300_automation` | Retention columns and `anonymise_application()`, `staff_profiles.digest_enabled`, staff-audience templates, `campus_dashboard_counts()`, `maintenance_runs`, the automation settings and templates; replaces `dashboard_counts()` |
 | `…123000_ai_marking` (7 Sep) | `marking_method` may be `ai`; the `ai_auto_mark_enabled` switch |
 | `…150000_school_name` (7 Sep) | Data only: every template a parent reads says Hibiscus International Schools; agreements already signed keep their text |
+| `…220000_campus_signatures` (7 Sep) | `campuses.head_name`, `head_title`, `signature_data_url`: who signs each campus's offer letter, with the signature held inline as a small data URL |
 | `…160000_offer_letter` (7 Sep) | Data only: offer template v2 in the school's own words (with `bank_details`), campus addresses and phones for the letterhead, the BWP account details |
 | `…210000_venue_in_booking_messages` (7 Sep) | Data only: the booking confirmation, both reminders and the visit confirmation print the campus address and phone lines (`campus_address`), in plain English |
 | `…200000_heard_from_and_withdrawn` (7 Sep) | `applications.heard_from` (+ detail) for "How did you hear about us?", `create_application` takes it, `v_application_facts` exposes it, `dashboard_counts()` adds `visits_booked` and `withdrawn` |

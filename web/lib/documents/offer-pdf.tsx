@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
 import type { FeeSnapshot } from "@/lib/offers/snapshot";
 import { formatMoney } from "@/lib/money";
@@ -25,6 +25,9 @@ const s = StyleSheet.create({
   bankTitle: { fontFamily: "Helvetica-Bold", marginBottom: 2 },
   bankRow: { flexDirection: "row" },
   bankLabel: { width: 110, fontFamily: "Helvetica-Bold" },
+  signature: { marginTop: 4, marginBottom: 6 },
+  signatureImage: { height: 42, width: 150, objectFit: "contain", objectPosition: "left", marginTop: 4, marginBottom: 2 },
+  signatureName: { fontFamily: "Helvetica-Bold" },
   terms: { marginTop: 10, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: "#e5e7eb", fontSize: 8.5, color: "#6b7280", lineHeight: 1.3 },
   termsHead: { fontFamily: "Helvetica-Bold", fontSize: 8.5, color: "#6b7280", marginBottom: 2 },
 });
@@ -86,7 +89,41 @@ export type OfferDocumentProps = {
   bankDetails: string | null;
   expiresOn: string | null;
   sentOn: string | null;
+  /** The head of the campus who signs the letter. Absent, the template's own closing line stands. */
+  signatory?: Signatory | null;
 };
+
+export type Signatory = { name: string | null; title: string | null; imageDataUrl: string | null };
+
+/** A closing line such as "Kind regards, Admissions, Hibiscus…" that the signature block replaces. */
+const CLOSING = /^(kind|warm|best) regards|^yours (sincerely|faithfully)/i;
+
+/**
+ * When a signatory is known, the letter closes with "Kind regards," and
+ * the signature instead of the template's generic closing paragraph.
+ * Returns the blocks to print and whether the block belongs at the end.
+ */
+export function withSignatory<T extends { kind: string; text: string }>(blocks: T[], signatory: Signatory | null | undefined): { blocks: T[]; sign: boolean } {
+  const sign = Boolean(signatory && (signatory.name || signatory.imageDataUrl));
+  if (!sign) return { blocks, sign: false };
+  const last = blocks.at(-1);
+  if (last && last.kind === "para" && CLOSING.test(last.text.trim())) return { blocks: blocks.slice(0, -1), sign: true };
+  return { blocks, sign: true };
+}
+
+function SignatureBlock({ signatory, campusName }: { signatory: Signatory; campusName: string | null }) {
+  return (
+    <View style={s.signature} wrap={false} minPresenceAhead={80}>
+      <Text style={s.para}>Kind regards,</Text>
+      {/* react-pdf's Image has no alt prop; the name beneath says whose signature it is. */}
+      {/* eslint-disable-next-line jsx-a11y/alt-text */}
+      {signatory.imageDataUrl ? <Image src={signatory.imageDataUrl} style={s.signatureImage} /> : <View style={{ height: 22 }} />}
+      {signatory.name ? <Text style={s.signatureName}>{signatory.name}</Text> : null}
+      <Text>{[signatory.title, campusName ? `${campusName} Campus` : null].filter(Boolean).join(", ")}</Text>
+      <Text>{SCHOOL_NAME}</Text>
+    </View>
+  );
+}
 
 /** The fees as the letter lists them: the amounts payable to accept, numbered; anything invoiced later beneath; the total in bold. */
 function FeeList({ fees }: { fees: FeeSnapshot | null }) {
@@ -148,7 +185,7 @@ export function OfferDocument(p: OfferDocumentProps) {
         <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Offer of admission", `Reference ${p.reference}`]} />
         <Text style={s.date}>{p.sentOn ?? "Draft"}</Text>
         {(() => {
-          const blocks = htmlToBlocks(p.bodyHtml, { dropLeadingHeading: "Offer of Admission" });
+          const { blocks, sign } = withSignatory(htmlToBlocks(p.bodyHtml, { dropLeadingHeading: "Offer of Admission" }), p.signatory);
           const placed = blocks.some((b) => b.kind === "fees");
           const out = blocks.map((b, i) => {
             if (b.kind === "fees") return <FeeList key={i} fees={p.fees} />;
@@ -157,6 +194,7 @@ export function OfferDocument(p: OfferDocumentProps) {
             return <Text key={i} style={s.para}>{b.text}</Text>;
           });
           if (!placed && p.fees) out.push(<FeeList key="fees" fees={p.fees} />);
+          if (sign && p.signatory) out.push(<SignatureBlock key="sign" signatory={p.signatory} campusName={p.letterhead?.name ?? null} />);
           return out;
         })()}
         <View style={s.terms} wrap={false}>

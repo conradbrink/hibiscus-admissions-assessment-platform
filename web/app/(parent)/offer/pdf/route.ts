@@ -32,6 +32,7 @@ export async function GET(): Promise<Response> {
     bankDetails: typeof (offer.variables as { bank_details?: unknown })?.bank_details === "string" ? ((offer.variables as { bank_details: string }).bank_details ?? null) : null,
     expiresOn: offer.expires_at ? formatDateLong(offer.expires_at) : null,
     sentOn: offer.sent_at ? formatDateLong(offer.sent_at) : null,
+    signatory: { name: graph.campus.head_name, title: graph.campus.head_title, imageDataUrl: graph.campus.signature_data_url },
   }) as unknown as ReactElement<DocumentProps>;
   const buffer = await renderToBuffer(element);
   return new Response(new Uint8Array(buffer), {
