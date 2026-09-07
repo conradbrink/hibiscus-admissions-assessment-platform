@@ -96,6 +96,21 @@ usual marking task is opened and a person marks as before.
    fallback, and why. A profile that says "AI text failed validation" is not
    broken: the validator refused a sentence and the safe wording was used.
 
+## Putting conditions on an offer
+
+On the Offers page (or the applicant's Offer tab) an offer waiting for
+approval has **Add conditions to this offer**. Tick the ones that apply:
+a learning facilitator, a place in a lower stage (choose the stage: the
+application, the fees and the letter move to it), extra tutoring, an
+occupational therapist's, educational psychologist's or speech therapist's
+report, English language support, a probationary first term, the previous
+school's report and transfer certificate, or a meeting with the head. Add
+anything else in a sentence the parent will read. **Apply conditions and
+re-draft** rewrites the letter, which still waits for approval; the
+conditions appear as numbered sentences under "This offer is made on the
+following conditions". The wording of the standard conditions lives in
+`web/lib/offers/conditions.ts`; a letter already sent keeps its text.
+
 ## An offer cannot be approved
 
 - **"Waiting for profile"**: see above. The results email links the profile,

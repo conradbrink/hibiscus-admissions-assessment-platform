@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
+import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
@@ -24,7 +25,7 @@ export default async function OffersPage() {
 
   const { data: apps } = await supabase
     .from("applications")
-    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name), intakes(label)")
+    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label)")
     .in("status", ["offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
@@ -37,6 +38,8 @@ export default async function OffersPage() {
         supabase.from("promotions").select("id, name, code").eq("is_active", true).order("name"),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
+  const { data: gradeRows } = await supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order");
+  const grades = gradeRows ?? [];
   const offerByApp = new Map((offers ?? []).map((o) => [o.application_id, o]));
   const dealByApp = new Map((applied ?? []).map((d) => [d.application_id, d]));
   const activeDeals = promotions ?? [];
@@ -140,6 +143,16 @@ export default async function OffersPage() {
                     </div>
                   </div>
                   <Deal a={a} />
+                  {o?.conditions ? <p className="mt-3 text-sm"><span className="font-semibold">Conditions on this offer:</span> {o.conditions}</p> : null}
+                  {canApprove ? (
+                    <details className="mt-3 text-sm">
+                      <summary className="cursor-pointer text-primary">{o?.conditions ? "Change the conditions" : "Add conditions to this offer"}</summary>
+                      <ActionForm action={generateOffer} label="Apply conditions and re-draft" size="sm" variant="outline" className="mt-2 space-y-3" confirm="Re-draft this offer with these conditions? It still waits for approval.">
+                        <input type="hidden" name="applicationId" value={a.id} />
+                        <OfferConditionsFields grades={grades} currentGradeSort={one(a.grades)?.sort_order ?? 0} />
+                      </ActionForm>
+                    </details>
+                  ) : null}
                   {o ? (
                     <details className="mt-3 text-sm">
                       <summary className="cursor-pointer text-primary">Preview the offer as the parent will read it</summary>
@@ -173,9 +186,9 @@ export default async function OffersPage() {
               <section key={a.id} className="rounded-xl border border-warning bg-card p-4">
                 <Head a={a} />
                 {canApprove ? (
-                  <ActionForm action={generateOffer} label="Generate offer" size="sm" className="mt-3 flex flex-wrap items-center gap-2">
+                  <ActionForm action={generateOffer} label="Generate offer" size="sm" className="mt-3 space-y-3">
                     <input type="hidden" name="applicationId" value={a.id} />
-                    <Input name="conditions" placeholder="Conditions (optional)" className="h-8 w-72 md:h-8" />
+                    <OfferConditionsFields grades={grades} currentGradeSort={one(a.grades)?.sort_order ?? 0} />
                   </ActionForm>
                 ) : null}
               </section>

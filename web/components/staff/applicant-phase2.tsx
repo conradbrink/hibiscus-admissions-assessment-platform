@@ -7,6 +7,7 @@ import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { MessagesPanel } from "@/components/staff/messages-panel";
+import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
@@ -81,6 +82,8 @@ export async function ApplicantPhase2({
     supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
     supabase.from("message_templates").select("key, name, is_active, meta_template_name").eq("is_active", true).order("name"),
   ]);
+  const { data: gradeRows } = await supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order");
+  const grades = gradeRows ?? [];
   const scopeName = (scope: string, id: string | null) =>
     scope === "overall" ? "Overall" : scope === "subject" ? subjects?.find((s) => s.id === id)?.name ?? "?" : competencies?.find((c) => c.id === id)?.name ?? "?";
 
@@ -236,6 +239,15 @@ export async function ApplicantPhase2({
                 );
               })()}
               {liveOffer.conditions ? <p className="text-xs"><span className="font-medium">Conditions:</span> {liveOffer.conditions}</p> : null}
+              {canApprove && (liveOffer.status === "draft" || liveOffer.status === "pending_approval") ? (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-primary">{liveOffer.conditions ? "Change the conditions" : "Add conditions"}</summary>
+                  <ActionForm action={generateOffer} label="Apply conditions and re-draft" size="sm" variant="outline" className="mt-2 space-y-3" confirm="Re-draft this offer with these conditions? It still waits for approval.">
+                    {idField}
+                    <OfferConditionsFields grades={grades} currentGradeSort={gradeSort} compact />
+                  </ActionForm>
+                </details>
+              ) : null}
               <details>
                 <summary className="cursor-pointer text-primary">Preview as the parent reads it</summary>
                 <div className="prose prose-sm mt-2 max-w-none rounded-lg border border-border bg-background p-4" dangerouslySetInnerHTML={{ __html: liveOffer.rendered_html + liveOffer.terms_html }} />
@@ -250,7 +262,6 @@ export async function ApplicantPhase2({
                   {liveOffer.status === "draft" ? (
                     <ActionForm action={generateOffer} label="Generate offer" size="sm" className="flex flex-wrap items-center gap-2">
                       {idField}
-                      <Input name="conditions" defaultValue={liveOffer.conditions ?? ""} placeholder="Conditions (optional)" className="h-8 w-64 md:h-8" />
                     </ActionForm>
                   ) : null}
                   <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="sm" variant="ghost" className="flex items-center gap-2" confirm="Withdraw this offer? The parent's link stops working and a corrected one can be issued.">
@@ -265,9 +276,9 @@ export async function ApplicantPhase2({
             <div className="space-y-2">
               <p className="text-muted-foreground">Approved; the offer is being drafted. If nothing appears in a minute, generate it here.</p>
               {canApprove ? (
-                <ActionForm action={generateOffer} label="Generate offer" size="sm" className="flex flex-wrap items-center gap-2">
+                <ActionForm action={generateOffer} label="Generate offer" size="sm" className="space-y-3">
                   {idField}
-                  <Input name="conditions" placeholder="Conditions (optional)" className="h-8 w-64 md:h-8" />
+                  <OfferConditionsFields grades={grades} currentGradeSort={gradeSort} compact />
                 </ActionForm>
               ) : null}
             </div>
