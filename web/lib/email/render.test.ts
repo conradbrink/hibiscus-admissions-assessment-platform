@@ -29,6 +29,13 @@ describe("template rendering", () => {
     expect(renderText(t, { location: null }, ALLOWED)).toBe("At .");
     expect(renderText(t, {}, ALLOWED)).toBe("At .");
   });
+  it("resolves an #if inside an #if, inside-out", () => {
+    const t = "{{#if location}}<p>At {{location}}.{{#if parent_first_name}} Ask for {{parent_first_name}}.{{/if}}</p>{{/if}}";
+    expect(renderText(t, { location: "Block 7", parent_first_name: "S" }, ALLOWED)).toBe("<p>At Block 7. Ask for S.</p>");
+    expect(renderText(t, { location: "Block 7" }, ALLOWED)).toBe("<p>At Block 7.</p>");
+    expect(renderText(t, { parent_first_name: "S" }, ALLOWED)).toBe("");
+    expect(extractVariables(t)).toEqual(["location", "parent_first_name"]);
+  });
   it("refuses an unknown variable rather than mailing it", () => {
     expect(() => renderText("{{parent_frist_name}}", {}, ALLOWED)).toThrow(TemplateRenderError);
   });

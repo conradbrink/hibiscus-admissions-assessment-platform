@@ -16,7 +16,19 @@
 export type TemplateVariables = Record<string, string | null | undefined>;
 
 const VAR = /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/g;
-const IF_BLOCK = /\{\{#if\s+([a-z][a-z0-9_]*)\s*\}\}([\s\S]*?)\{\{\/if\}\}/g;
+/** An innermost #if block: one whose body holds no other #if. Nested blocks resolve inside-out. */
+const IF_BLOCK = /\{\{#if\s+([a-z][a-z0-9_]*)\s*\}\}((?:(?!\{\{#if)[\s\S])*?)\{\{\/if\}\}/g;
+
+/** Resolves every #if, innermost first, so a block inside a block works. */
+function resolveIfs(text: string, keep: (name: string) => boolean): string {
+  let out = text;
+  for (let i = 0; i < 20; i++) {
+    const next = out.replace(IF_BLOCK, (_m: string, name: string, inner: string) => (keep(name) ? inner : ""));
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
 
 export function escapeHtml(s: string): string {
   return s
@@ -30,7 +42,7 @@ export function escapeHtml(s: string): string {
 /** Every variable name a template text refers to, including inside #if. */
 export function extractVariables(text: string): string[] {
   const found = new Set<string>();
-  for (const m of text.matchAll(IF_BLOCK)) found.add(m[1]);
+  for (const m of text.matchAll(/\{\{#if\s+([a-z][a-z0-9_]*)\s*\}\}/g)) found.add(m[1]);
   for (const m of text.matchAll(VAR)) found.add(m[1]);
   return [...found].sort();
 }
@@ -70,9 +82,7 @@ function render(
 ): string {
   const problems = validateTemplate(text, allowed);
   if (problems.length) throw new TemplateRenderError(problems);
-  const withBlocks = text.replace(IF_BLOCK, (_m, name: string, inner: string) =>
-    vars[name] ? inner : ""
-  );
+  const withBlocks = resolveIfs(text, (name) => !!vars[name]);
   return withBlocks.replace(VAR, (_m, name: string) => escape(vars[name] ?? ""));
 }
 
