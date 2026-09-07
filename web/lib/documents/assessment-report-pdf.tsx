@@ -5,10 +5,10 @@ import type { Narrative } from "@/lib/profile/narrative";
 
 /**
  * The assessment report an assessor prints and talks a parent through: the
- * learning profile (numbers computed by code, prose behind the validator)
- * plus, for each written answer, the band it earned and the marker's note,
- * and room at the end for the assessor's own comments and a signature.
- * Takes a snapshot as props and touches no database.
+ * learning profile (numbers computed by code, prose behind the validator),
+ * every result by subject and skill, and room at the end for the assessor's
+ * own comments and a signature. Takes a snapshot as props and touches no
+ * database.
  */
 
 const BRAND = "#e8632b";
@@ -31,11 +31,6 @@ const s = StyleSheet.create({
   pill: { borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6, paddingVertical: 5, paddingHorizontal: 9, flexGrow: 1 },
   pillLabel: { fontSize: 8.5, color: "#6b7280" },
   pillValue: { fontSize: 12, fontFamily: "Helvetica-Bold", marginTop: 1 },
-  item: { marginBottom: 7, paddingBottom: 6, borderBottomWidth: 0.5, borderBottomColor: "#eeeae4" },
-  itemHead: { flexDirection: "row", alignItems: "flex-start" },
-  itemQ: { fontFamily: "Helvetica-Bold", flexGrow: 1, flexShrink: 1, flexBasis: 0, paddingRight: 10 },
-  itemMarks: { fontFamily: "Helvetica-Bold", color: BRAND, width: 96, textAlign: "right", flexShrink: 0 },
-  itemNote: { marginTop: 2, color: "#374151" },
   lines: { marginTop: 6 },
   line: { borderBottomWidth: 0.6, borderBottomColor: "#9ca3af", height: 20 },
   sign: { flexDirection: "row", justifyContent: "space-between", marginTop: 22 },
@@ -43,15 +38,6 @@ const s = StyleSheet.create({
   footer: { position: "absolute", bottom: 24, left: 44, right: 44, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.3 },
   pageNo: { position: "absolute", bottom: 24, right: 44, fontSize: 8, color: "#9ca3af" },
 });
-
-export type WrittenItem = {
-  section: string;
-  question: string;
-  marksAwarded: number;
-  marksAvailable: number;
-  bandLabel: string | null;
-  note: string | null;
-};
 
 export type AssessmentReportProps = {
   logoUrl: string | null;
@@ -64,7 +50,6 @@ export type AssessmentReportProps = {
   printedOn: string;
   computed: ComputedProfile;
   narrative: Narrative;
-  written: WrittenItem[];
 };
 
 function pct(n: number): string {
@@ -164,24 +149,6 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
             ) : null}
           </>
         )}
-
-        {p.written.length ? (
-          <View style={{ marginTop: 4 }}>
-            <Text style={s.h2}>{p.firstName}&apos;s written answers</Text>
-            <Text style={{ ...s.para, ...s.muted }}>
-              Each written answer was marked against the school&apos;s marking scheme. The note beside each one says what earned the mark.
-            </Text>
-            {p.written.map((w, i) => (
-              <View key={i} style={s.item} wrap={false}>
-                <View style={s.itemHead}>
-                  <Text style={s.itemQ}>{w.section}: {w.question}</Text>
-                  <Text style={s.itemMarks}>{w.marksAwarded} / {w.marksAvailable}{w.bandLabel ? ` · ${w.bandLabel}` : ""}</Text>
-                </View>
-                {w.note ? <Text style={s.itemNote}>{w.note}</Text> : null}
-              </View>
-            ))}
-          </View>
-        ) : null}
 
         <View wrap={false}>
           <Text style={s.h2}>All results</Text>
