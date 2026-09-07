@@ -27,7 +27,7 @@ export default async function StaffAdminPage() {
     <>
       <PageTitle title="Staff & roles" description="Who can sign in, what each role may do, and which campuses a person is limited to." />
 
-      <section className="mb-6 rounded-xl border border-border bg-card p-4">
+      <section className="mb-6 surface p-4">
         <h2 className="mb-3 text-sm font-semibold">Invite a member of staff</h2>
         <ActionForm action={inviteStaff} label="Send invitation" className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -59,7 +59,7 @@ export default async function StaffAdminPage() {
           const mine = rolesOf(s.id);
           const myCampuses = campusesOf(s.id);
           return (
-            <div key={s.id} className="rounded-xl border border-border bg-card p-4">
+            <div key={s.id} className="surface p-4">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span className="font-medium">{s.full_name}</span>
                 <span className="text-sm text-muted-foreground">{s.email}</span>
@@ -87,8 +87,8 @@ export default async function StaffAdminPage() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">What each role may do</h2>
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-xs">
+        <div className="overflow-x-auto surface">
+          <table className="data-table text-xs">
             <thead className="bg-muted/60 text-left text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Permission</th>

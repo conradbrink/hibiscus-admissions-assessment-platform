@@ -56,7 +56,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
             const assignee = one(t.staff_profiles);
             const overdue = t.due_at ? hasStarted(t.due_at) : false;
             return (
-              <li key={t.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
+              <li key={t.id} className="flex flex-wrap items-center gap-3 surface px-4 py-3 text-sm">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{t.title}</p>
                   {t.details ? <p className="text-xs text-muted-foreground">{t.details}</p> : null}

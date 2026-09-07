@@ -20,7 +20,7 @@ export function MessagePreferences({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
-    <section aria-label="Message preferences" className="mt-5 rounded-2xl border border-border bg-card p-4 text-sm">
+    <section aria-label="Message preferences" className="mt-5 surface p-4 text-sm">
       <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">WhatsApp updates</p>
       <p className="mt-1">
         {optedIn ? <>On, to {mobile}. Emails still arrive as the full record.</> : <>Off. We can also send short updates to {mobile} on WhatsApp.</>}

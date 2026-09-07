@@ -186,7 +186,7 @@ export function AssessmentRunner({
       </div>
 
       {step.kind === "intro" ? (
-        <section className="rounded-2xl border border-border bg-card p-6">
+        <section className="surface p-6">
           <p className="text-xs font-semibold tracking-wide text-primary uppercase">Part {step.sectionIndex + 1} of {form.sections.length}</p>
           <h1 className="mt-1 text-2xl font-bold">{form.sections[step.sectionIndex].title}</h1>
           {form.sections[step.sectionIndex].instructions ? (
@@ -268,7 +268,7 @@ function QuestionView({
 }) {
   const v = obj(value);
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
+    <section className="surface p-6">
       <p className="text-xs font-semibold tracking-wide text-primary uppercase">{label}</p>
       {q.passage ? (
         <div className="mt-3 rounded-xl bg-muted/60 p-4">

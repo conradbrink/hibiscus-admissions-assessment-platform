@@ -15,7 +15,7 @@ export default async function CampusesPage() {
       <PageTitle title="Campuses" description="Inactive campuses are never offered to parents. Country and currency drive fees and legal wording later." />
       <div className="space-y-3">
         {(campuses ?? []).map((c) => (
-          <ActionForm key={c.id} action={saveCampus} label="Save" size="sm" variant="outline" className="grid gap-2 rounded-xl border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_100px_100px_1fr_auto] sm:items-end">
+          <ActionForm key={c.id} action={saveCampus} label="Save" size="sm" variant="outline" className="grid gap-2 surface p-4 sm:grid-cols-[1fr_1fr_100px_100px_1fr_auto] sm:items-end">
             <input type="hidden" name="campusId" value={c.id} />
             <div><span className="text-xs text-muted-foreground">Name · <span className="font-mono">{c.code}</span></span><Input name="name" defaultValue={c.name} required /></div>
             <div><span className="text-xs text-muted-foreground">Descriptor</span><Input name="descriptor" defaultValue={c.descriptor ?? ""} /></div>
@@ -28,7 +28,7 @@ export default async function CampusesPage() {
           </ActionForm>
         ))}
       </div>
-      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+      <section className="mt-6 surface p-4">
         <h2 className="mb-2 text-sm font-semibold">Add a campus</h2>
         <ActionForm action={createCampus} label="Add" size="sm" className="grid gap-2 sm:grid-cols-3">
           <Input name="code" placeholder="code, e.g. mogoditshane" required pattern="[a-z0-9_]+" />

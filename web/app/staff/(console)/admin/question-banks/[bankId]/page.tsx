@@ -67,7 +67,7 @@ export default async function BankPage({
       ) : null}
 
       <h2 className="mb-2 text-sm font-semibold">Add a question</h2>
-      <ActionForm action={createQuestion} label="Add question" size="sm" className="mb-6 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-4">
+      <ActionForm action={createQuestion} label="Add question" size="sm" className="mb-6 grid gap-2 surface p-3 md:grid-cols-4">
         <input type="hidden" name="bankId" value={bank.id} />
         <NativeSelect name="type" required>
           {QUESTION_TYPES.map((t) => <option key={t} value={t}>{QUESTION_TYPE_LABELS[t]}</option>)}
@@ -120,8 +120,8 @@ export default async function BankPage({
         </form>
       </div>
       {list.length ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto surface">
+          <table className="data-table">
             <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Question</th>
@@ -158,7 +158,7 @@ export default async function BankPage({
       <p className="mb-3 text-xs text-muted-foreground">A passage is shown above every question that references it. It is copied into the sitting at launch, so editing it later does not change what a child read.</p>
       <div className="space-y-3">
         {(passages ?? []).map((p) => (
-          <div key={p.id} className="rounded-xl border border-border bg-card p-3">
+          <div key={p.id} className="surface p-3">
             <ActionForm action={savePassage} label="Save" size="xs" variant="outline" className="space-y-2">
               <input type="hidden" name="bankId" value={bank.id} /><input type="hidden" name="passageId" value={p.id} />
               <Input name="title" defaultValue={p.title} required />

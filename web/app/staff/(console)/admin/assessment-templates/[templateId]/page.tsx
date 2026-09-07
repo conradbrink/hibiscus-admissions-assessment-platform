@@ -48,7 +48,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
         <Link href="/staff/admin/assessment-templates" className="text-sm text-muted-foreground hover:underline">All templates</Link>
       </PageTitle>
 
-      <ActionForm action={saveTemplate} label="Save" size="sm" variant="outline" className="mb-6 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5">
+      <ActionForm action={saveTemplate} label="Save" size="sm" variant="outline" className="mb-6 grid gap-2 surface p-3 md:grid-cols-5">
         {hidden}
         <Input name="name" defaultValue={template.name} required className="md:col-span-2" />
         <NativeSelect name="gradeSortMin" defaultValue={template.grade_sort_min}>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>From {g.name}</option>)}</NativeSelect>
@@ -67,7 +67,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
             return (comp as { subject_id: string } | null)?.subject_id === s.subject_id;
           });
           return (
-            <div key={s.id} className="rounded-xl border border-border bg-card p-4">
+            <div key={s.id} className="surface p-4">
               <ActionForm action={saveSection} label="Save section" size="xs" variant="outline" className="grid gap-2 md:grid-cols-6">
                 {hidden}<input type="hidden" name="sectionId" value={s.id} />
                 <Input name="position" type="number" min={1} defaultValue={s.position} className="h-8 md:h-8" title="Position" />

@@ -91,7 +91,7 @@ export async function ApplicantPhase2({
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    <section className="surface p-4">
       <Tabs defaultValue={app.requires_assessment ? "assessment" : "decision"}>
         <TabsList>
           <TabsTrigger value="assessment">Assessment</TabsTrigger>

@@ -19,8 +19,8 @@ export default async function GradesPage() {
         title="Grades"
         description="The age rule is 'turning N before the cut-off'. Grades without an assessment skip that step entirely. Seeded from the current website; the contradictions in it are flagged in PROJECT-CONTEXT.md."
       />
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto surface">
+        <table className="data-table">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-2 font-medium">Grade</th>
@@ -54,7 +54,7 @@ export default async function GradesPage() {
       <p className="mb-3 text-xs text-muted-foreground">Parents are only ever offered ticked combinations. This is what stops a Form 4 application at a pre-school.</p>
       <div className="space-y-3">
         {(campuses ?? []).map((c) => (
-          <ActionForm key={c.id} action={saveCampusGrades} label="Save" size="xs" variant="outline" className="rounded-xl border border-border bg-card p-3">
+          <ActionForm key={c.id} action={saveCampusGrades} label="Save" size="xs" variant="outline" className="surface p-3">
             <input type="hidden" name="campusId" value={c.id} />
             <p className="mb-2 text-sm font-medium">{c.name}{!c.is_active ? <span className="ml-2 text-xs text-muted-foreground">(inactive)</span> : null}</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">

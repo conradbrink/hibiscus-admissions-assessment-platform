@@ -29,7 +29,7 @@ export function AgreementsForm({
   return (
     <form action={formAction} className="space-y-5" noValidate>
       {agreements.map((a) => (
-        <section key={a.key} className="rounded-2xl border border-border bg-card p-4">
+        <section key={a.key} className="surface p-4">
           <div className="prose prose-sm max-h-96 max-w-none overflow-y-auto pr-2" dangerouslySetInnerHTML={{ __html: a.bodyHtml }} />
           {a.documentUrl ? (
             <a href={a.documentUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm font-medium text-primary underline underline-offset-2">
@@ -45,7 +45,7 @@ export function AgreementsForm({
         </section>
       ))}
       {!readOnly ? (
-        <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+        <section className="space-y-4 surface p-4">
           <h2 className="text-base font-semibold">Your signature</h2>
           <div className="space-y-1.5">
             <Label>Sign in the box</Label>
@@ -62,7 +62,7 @@ export function AgreementsForm({
           </Button>
         </section>
       ) : signed?.signatureDataUrl ? (
-        <section className="rounded-2xl border border-border bg-card p-4">
+        <section className="surface p-4">
           <h2 className="text-base font-semibold">Your signature</h2>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={signed.signatureDataUrl} alt={`Signature of ${signed.signatureName}`} className="mt-2 h-24 w-auto max-w-full rounded-xl border border-border bg-white" />

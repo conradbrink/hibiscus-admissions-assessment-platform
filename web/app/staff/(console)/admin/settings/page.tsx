@@ -14,7 +14,7 @@ export default async function SettingsPage() {
       <PageTitle title="Workflow settings" description="The numbers the automation consults. Changes apply to emails and reminders queued from now on." />
       <div className="space-y-2">
         {(settings ?? []).map((s) => (
-          <ActionForm key={s.key} action={saveSetting} label="Save" size="xs" variant="outline" className="grid grid-cols-[1fr_160px_auto] items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <ActionForm key={s.key} action={saveSetting} label="Save" size="xs" variant="outline" className="grid grid-cols-[1fr_160px_auto] items-center gap-3 surface px-4 py-3">
             <input type="hidden" name="key" value={s.key} />
             <div>
               <p className="font-mono text-sm">{s.key}</p>

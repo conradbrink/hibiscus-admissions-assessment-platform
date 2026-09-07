@@ -31,7 +31,7 @@ export default async function RulesPage() {
       {!active.length ? (
         <p className="mb-4 rounded-md bg-warning/20 px-3 py-2 text-sm text-warning-foreground">No ruleset is active. Every assessed applicant is currently routed to staff review — the safe default, but a person has to decide each one.</p>
       ) : null}
-      <ActionForm action={createRuleset} label="Create draft ruleset" size="sm" className="mb-5 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5">
+      <ActionForm action={createRuleset} label="Create draft ruleset" size="sm" className="mb-5 grid gap-2 surface p-3 md:grid-cols-5">
         <Input name="name" placeholder="Name, e.g. Primary entry 2027" required className="md:col-span-2" />
         <NativeSelect name="gradeSortMin" defaultValue=""><option value="">From any grade</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>From {g.name}</option>)}</NativeSelect>
         <NativeSelect name="gradeSortMax" defaultValue=""><option value="">To any grade</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>To {g.name}</option>)}</NativeSelect>
@@ -39,7 +39,7 @@ export default async function RulesPage() {
         <Input name="description" placeholder="Why these thresholds (optional)" className="md:col-span-5" />
       </ActionForm>
       {rulesets?.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border surface">
           {rulesets.map((r) => {
             const campus = Array.isArray(r.campuses) ? r.campuses[0] : r.campuses;
             return (

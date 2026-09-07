@@ -27,12 +27,12 @@ export default async function QuestionBanksPage() {
         title="Question banks"
         description="Everything a child can be asked. Questions are authored here and drawn into assessment templates; what a child actually sat is frozen at launch, so editing here never changes a past result."
       />
-      <ActionForm action={createBank} label="Create bank" size="sm" className="mb-5 flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3">
+      <ActionForm action={createBank} label="Create bank" size="sm" className="mb-5 flex flex-wrap items-end gap-2 surface p-3">
         <div className="min-w-56 flex-1"><Input name="name" placeholder="Bank name, e.g. Primary English 2027" required /></div>
         <div className="min-w-56 flex-1"><Input name="description" placeholder="What it covers (optional)" /></div>
       </ActionForm>
       {banks?.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border surface">
           {banks.map((b) => {
             const t = tally.get(b.id) ?? { total: 0, active: 0 };
             return (

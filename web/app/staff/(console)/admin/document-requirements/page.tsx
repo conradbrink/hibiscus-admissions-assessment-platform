@@ -12,7 +12,7 @@ export default async function DocumentRequirementsPage() {
     supabase.from("grades").select("name, sort_order").eq("is_active", true).order("sort_order"),
   ]);
   const form = (r: NonNullable<typeof requirements>[number] | null) => (
-    <ActionForm key={r?.code ?? "new"} action={saveRequirement} label={r ? "Save" : "Add"} size="sm" variant={r ? "outline" : "default"} className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-[140px_1fr_1fr_110px_110px_70px_auto]">
+    <ActionForm key={r?.code ?? "new"} action={saveRequirement} label={r ? "Save" : "Add"} size="sm" variant={r ? "outline" : "default"} className="grid gap-2 surface p-3 md:grid-cols-[140px_1fr_1fr_110px_110px_70px_auto]">
       {r ? <input type="hidden" name="code" value={r.code} /> : <Input name="code" placeholder="code" pattern="[a-z0-9_]+" required className="h-8 font-mono text-xs md:h-8" />}
       {r ? <span className="self-center font-mono text-xs text-muted-foreground">{r.code}</span> : null}
       <Input name="label" defaultValue={r?.label ?? ""} placeholder="Label parents see" required className="h-8 md:h-8" />

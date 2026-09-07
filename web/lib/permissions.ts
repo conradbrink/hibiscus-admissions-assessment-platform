@@ -104,7 +104,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/rubrics", "assessments.author"],
   ["/staff/admin/benchmarks", "assessments.author"],
   ["/staff/admin/competencies", "assessments.author"],
-  ["/staff/admin", "settings.write"],
+  ["/staff/admin", "applications.read"],
   ["/staff/analytics/export", "data.export"],
   ["/staff/analytics", "analytics.read"],
   ["/staff/enrolment", "data.export"],

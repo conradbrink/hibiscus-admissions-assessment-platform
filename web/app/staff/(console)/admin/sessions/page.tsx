@@ -35,7 +35,7 @@ export default async function SessionsAdminPage() {
     <>
       <PageTitle title="Sessions" description="The dates and times parents can book. Only published sessions are offered. A sitting and a visit are created for every weekday at every campus automatically, except on the dates under School holidays; add extra sessions here." />
 
-      <section className="mb-6 rounded-xl border border-border bg-card p-4">
+      <section className="mb-6 surface p-4">
         <h2 className="mb-3 text-sm font-semibold">Add sessions</h2>
         <ActionForm action={createSessions} label="Create" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1"><Label htmlFor="kind">Kind</Label>
@@ -73,8 +73,8 @@ export default async function SessionsAdminPage() {
       </section>
 
       {sessions && sessions.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto surface">
+          <table className="data-table">
             <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">When</th>

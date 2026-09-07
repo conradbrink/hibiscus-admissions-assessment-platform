@@ -11,7 +11,7 @@ import type { SummaryView } from "@/lib/summary/generate";
  */
 export function SummaryPanel({ applicationId, view, action }: { applicationId: string; view: SummaryView; action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState> }) {
   return (
-    <section className="rounded-xl border border-border bg-card p-4" aria-label="Summary">
+    <section className="surface p-4" aria-label="Summary">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Summary</p>

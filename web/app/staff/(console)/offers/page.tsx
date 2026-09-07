@@ -70,7 +70,7 @@ export default async function OffersPage() {
               const profile = profileByApp.get(a.id);
               const profileReady = !a.requires_assessment || !!profile?.published_at;
               return (
-                <section key={a.id} className="rounded-xl border border-border bg-card p-4">
+                <section key={a.id} className="surface p-4">
                   <Head a={a} />
                   <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                     <div className="rounded-lg border border-border p-3">
@@ -146,7 +146,7 @@ export default async function OffersPage() {
             {outcomes.map((a) => {
               const profile = profileByApp.get(a.id);
               return (
-                <section key={a.id} className="rounded-xl border border-border bg-card p-4">
+                <section key={a.id} className="surface p-4">
                   <Head a={a} />
                   <p className="mt-2 text-sm text-muted-foreground">
                     {a.status === "waitlisted" ? "Waitlist email" : "Decline email"}{a.requires_assessment ? (profile?.published_at ? ", with the learning profile link" : " — the learning profile is not ready yet; the email will go without it") : ""}.
@@ -167,8 +167,8 @@ export default async function OffersPage() {
       <section>
         <h2 className="mb-2 text-sm font-semibold">Sent and expired ({sent.length})</h2>
         {sent.length ? (
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto surface">
+            <table className="data-table">
               <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Sent</th><th className="px-3 py-2 font-medium">Opened</th><th className="px-3 py-2 font-medium">Expires</th><th className="px-3 py-2"></th></tr></thead>
               <tbody className="divide-y divide-border">
                 {sent.map((a) => {

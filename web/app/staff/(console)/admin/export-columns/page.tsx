@@ -13,7 +13,7 @@ export default async function ExportColumnsPage() {
   const { supabase } = await requireStaff("settings.write");
   const { data: columns } = await supabase.from("export_columns").select("*").order("position");
   const form = (c: NonNullable<typeof columns>[number] | null) => (
-    <ActionForm key={c?.id ?? "new"} action={saveColumn} label={c ? "Save" : "Add"} size="sm" variant={c ? "outline" : "default"} className="grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-[70px_1fr_1fr_120px_auto_auto]">
+    <ActionForm key={c?.id ?? "new"} action={saveColumn} label={c ? "Save" : "Add"} size="sm" variant={c ? "outline" : "default"} className="grid gap-2 surface p-3 md:grid-cols-[70px_1fr_1fr_120px_auto_auto]">
       {c ? <input type="hidden" name="id" value={c.id} /> : null}
       <Input name="position" type="number" defaultValue={c?.position ?? 1000} className="h-8 md:h-8" />
       <Input name="header" defaultValue={c?.header ?? ""} placeholder="Column header" required className="h-8 md:h-8" />

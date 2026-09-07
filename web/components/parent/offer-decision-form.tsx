@@ -37,7 +37,7 @@ export function OfferDecisionForm({ accept, decline }: { accept: Action; decline
       </form>
 
       {showDecline ? (
-        <form action={declineAction} className="rounded-2xl border border-border bg-card p-5" noValidate>
+        <form action={declineAction} className="surface p-5" noValidate>
           <p className="text-sm font-semibold">Decline this offer</p>
           <div className="mt-2 space-y-1.5">
             <Label htmlFor="reason">Would you tell us why? (optional)</Label>

@@ -124,7 +124,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           {summary ? <SummaryPanel applicationId={app.id} view={summary} action={refreshSummary} /> : null}
 
           {/* Next action */}
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Next action</p>
             <p className="mt-1 text-base font-semibold">{na?.staffLabel ?? "—"}</p>
             {app.next_action_due_at ? (
@@ -136,7 +136,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Booking */}
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">{app.requires_assessment ? "Assessment" : "Visit"}</h2>
               {booking ? <BookingBadge status={booking.status} /> : null}
@@ -184,7 +184,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} />
 
           {/* Timeline */}
-          <section className="rounded-xl border border-border bg-card">
+          <section className="surface">
             <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">Timeline</h2>
             {events && events.length > 0 ? (
               <ol className="divide-y divide-border">
@@ -204,7 +204,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Emails */}
-          <section className="rounded-xl border border-border bg-card">
+          <section className="surface">
             <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">Emails</h2>
             {emails && emails.length > 0 ? (
               <ul className="divide-y divide-border">
@@ -225,7 +225,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
           {/* Audit */}
           {audit ? (
-            <section className="rounded-xl border border-border bg-card">
+            <section className="surface">
               <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">Audit trail</h2>
               {audit.length > 0 ? (
                 <ul className="divide-y divide-border">
@@ -245,7 +245,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
         <aside className="space-y-5">
           {/* Parent */}
-          <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Parent</h2>
             <p className="mt-1 font-medium">{contact?.first_name} {contact?.last_name}</p>
             <p className="text-muted-foreground">{contact?.email}</p>
@@ -284,7 +284,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Owner */}
-          <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Owner</h2>
             <p className="mt-1 text-muted-foreground">{owner?.full_name ?? "Unassigned"}</p>
             {canWrite ? (
@@ -301,7 +301,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Tasks */}
-          <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Tasks</h2>
             {openTasks.length > 0 ? (
               <ul className="mt-2 space-y-3">
@@ -342,7 +342,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
           {/* Decision */}
           {canDecide && !terminal && ["awaiting_decision", "staff_review", "new_enquiry", "visit_booked", "callback_requested", "waitlisted"].includes(app.status) ? (
-            <section className="rounded-xl border border-border bg-card p-4 text-sm">
+            <section className="surface p-4 text-sm">
               <h2 className="text-sm font-semibold">Record a decision</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {app.requires_assessment
@@ -362,7 +362,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           ) : null}
 
           {/* Notes */}
-          <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Notes</h2>
             {canWrite ? (
               <ActionForm action={addNote} label="Add note" size="sm" variant="outline" className="mt-2">
@@ -386,7 +386,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
           {/* Withdraw */}
           {canWrite && !terminal ? (
-            <section className="rounded-xl border border-border bg-card p-4 text-sm">
+            <section className="surface p-4 text-sm">
               <h2 className="text-sm font-semibold">Withdraw</h2>
               <ActionForm action={withdraw} label="Withdraw application" variant="destructive" size="sm" className="mt-2" confirm="Withdraw this application? Bookings and open tasks are cancelled.">
                 {idField}

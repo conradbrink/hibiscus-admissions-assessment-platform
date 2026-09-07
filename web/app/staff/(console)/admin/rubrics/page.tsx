@@ -48,7 +48,7 @@ export default async function RubricsPage() {
       />
       <div className="space-y-4">
         {(rubrics ?? []).map((r) => (
-          <ActionForm key={r.id} action={saveRubric} label="Save rubric" size="sm" variant="outline" className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <ActionForm key={r.id} action={saveRubric} label="Save rubric" size="sm" variant="outline" className="space-y-3 surface p-4">
             <input type="hidden" name="rubricId" value={r.id} />
             <div className="grid gap-2 sm:grid-cols-3">
               <Input name="name" defaultValue={r.name} required />

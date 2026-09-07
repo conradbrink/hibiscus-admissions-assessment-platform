@@ -61,8 +61,8 @@ export default async function RegistrationsPage() {
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>
           {g.note ? <p className="mb-2 text-xs text-muted-foreground">{g.note}</p> : null}
           {g.rows.length ? (
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto surface">
+              <table className="data-table">
                 <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Since</th><th className="px-3 py-2 font-medium">Outstanding</th><th className="px-3 py-2 font-medium">Documents to check</th></tr></thead>
                 <tbody className="divide-y divide-border">
                   {g.rows.map(({ a, c, pendingDocs, campus, grade }) => {
