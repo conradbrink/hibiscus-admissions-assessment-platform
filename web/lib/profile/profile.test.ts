@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeProfile } from "@/lib/profile/compute";
-import { fallbackNarrative, validateNarrative } from "@/lib/profile/narrative";
+import { buildEvidence, fallbackNarrative, marksWord, outcomeWord, validateNarrative, type EvidenceRow } from "@/lib/profile/narrative";
 
 const ENG = "11111111-1111-4111-8111-111111111111";
 const MAT = "22222222-2222-4222-8222-222222222222";
@@ -73,5 +73,27 @@ describe("validateNarrative", () => {
   it("rejects the surname", () => {
     const n = { summary: "John Smith scored 78% overall in the assessment.", strengths_text: "", development_text: "" };
     expect(validateNarrative(n, p, names).map((x) => x.kind)).toContain("name");
+  });
+});
+
+describe("buildEvidence", () => {
+  const row = (over: Partial<EvidenceRow>): EvidenceRow => ({
+    skill: "Arithmetic", type: "single_choice", task: "Add.", isCorrect: true, marksAwarded: 1, marksAvailable: 1, bandLabel: null, note: null, ...over,
+  });
+  it("turns objective marks into words per skill and never counts", () => {
+    const e = buildEvidence([row({}), row({}), row({ isCorrect: false }), row({ skill: "Reading", isCorrect: true }), row({ skill: "Geometry", isCorrect: null })]);
+    expect(e.objective).toEqual([{ skill: "Arithmetic", outcome: "most correct" }, { skill: "Reading", outcome: "all correct" }]);
+    expect(JSON.stringify(e)).not.toMatch(/\d/);
+  });
+  it("keeps the marker's note without its digits", () => {
+    const e = buildEvidence([row({ type: "extended_text", skill: "Written Language", marksAwarded: 16, marksAvailable: 20, bandLabel: "Strong", note: "Gives 6 1/2 and 2 × 2 × 3 correctly." })]);
+    expect(e.written[0].result).toBe("Strong");
+    expect(e.written[0].note).toBe("Gives [number] [number] and [number] × [number] × [number] correctly.");
+  });
+  it("describes a rubric mark in words when no band is known", () => {
+    expect(marksWord(20, 20)).toBe("full marks");
+    expect(marksWord(16, 20)).toBe("most of the marks");
+    expect(marksWord(0, 20)).toBe("no marks");
+    expect(outcomeWord(2, 5)).toBe("about half correct");
   });
 });

@@ -1,13 +1,16 @@
 import "server-only";
 import { getAiProvider } from "@/lib/ai/provider";
 import { computeProfile, type CompetencyMeta, type SubjectMeta } from "@/lib/profile/compute";
+import { parseRubricBands } from "@/lib/assessment/bands";
 import {
+  buildEvidence,
   fallbackNarrative,
   NARRATIVE_SCHEMA,
   narrativeInput,
   narrativeSystemPrompt,
   PROMPT_VERSION,
   validateNarrative,
+  type EvidenceRow,
   type Narrative,
 } from "@/lib/profile/narrative";
 import { getSettings } from "@/lib/settings";
@@ -20,8 +23,10 @@ import { commit, SYSTEM_ACTOR } from "@/lib/workflow/engine";
  *
  * Compute → (AI narrative → validate) → else fallback → persist. What
  * reaches the AI is pseudonymised: a first name, a grade name, competency
- * names and the numbers. Never a surname, date of birth, contact detail or
- * anything a parent typed. Idempotent: re-running replaces the profile.
+ * names, the numbers, and what the marking showed (which kinds of question
+ * went well, the band each written answer earned and the marker's note).
+ * Never a surname, date of birth, contact detail or anything a parent
+ * typed. Idempotent: re-running replaces the profile.
  */
 export async function generateLearningProfile(
   admin: AdminClient,
@@ -31,7 +36,7 @@ export async function generateLearningProfile(
   if (aErr || !attempt) throw new Error(aErr?.message ?? "attempt missing");
   if (attempt.marking_status !== "complete") throw new Error("Attempt is not fully marked");
 
-  const [{ data: app }, { data: scores }, { data: competencies }, { data: subjects }, settings] = await Promise.all([
+  const [{ data: app }, { data: scores }, { data: competencies }, { data: subjects }, { data: responses }, settings] = await Promise.all([
     admin
       .from("applications")
       .select("id, status, child_first_name, child_last_name, grades!applications_grade_id_fkey(name)")
@@ -40,6 +45,10 @@ export async function generateLearningProfile(
     admin.from("attempt_scores").select("scope, scope_id, percent, band").eq("attempt_id", attemptId),
     admin.from("competencies").select("id, name, subject_id, focus_label, reportable, sort_order"),
     admin.from("subjects").select("id, name, sort_order"),
+    admin
+      .from("attempt_responses")
+      .select("is_correct, marks_awarded, marking_method, ai_suggestion, form_questions(type, stem, marks, competency_id, rubric_snapshot)")
+      .eq("attempt_id", attemptId),
     getSettings(admin),
   ]);
   if (!app) throw new Error("application missing");
@@ -65,6 +74,29 @@ export async function generateLearningProfile(
   );
 
   const firstName = app.child_first_name;
+  const competencyName = new Map((competencies ?? []).map((c) => [c.id, c.name]));
+  const evidence = buildEvidence(
+    (responses ?? []).flatMap<EvidenceRow>((r) => {
+      const q = Array.isArray(r.form_questions) ? r.form_questions[0] : r.form_questions;
+      if (!q || !q.competency_id) return [];
+      const suggestion = r.ai_suggestion && typeof r.ai_suggestion === "object" && !Array.isArray(r.ai_suggestion) ? (r.ai_suggestion as { band?: string; rationale?: string; applied?: boolean }) : null;
+      const rubric = q.rubric_snapshot && typeof q.rubric_snapshot === "object" && !Array.isArray(q.rubric_snapshot) ? (q.rubric_snapshot as { bands?: Json }) : null;
+      const bands = parseRubricBands(rubric?.bands ?? null);
+      const applied = r.marking_method === "ai" && suggestion?.applied === true;
+      return [
+        {
+          skill: competencyName.get(q.competency_id) ?? "",
+          type: q.type,
+          task: String(q.stem).split("\n").map((l: string) => l.trim()).filter(Boolean).join(" ").slice(0, 200),
+          isCorrect: r.is_correct,
+          marksAwarded: r.marks_awarded === null ? null : Number(r.marks_awarded),
+          marksAvailable: Number(q.marks),
+          bandLabel: applied && suggestion?.band ? (bands.find((b) => b.key === suggestion.band)?.label ?? null) : null,
+          note: applied && typeof suggestion?.rationale === "string" ? suggestion.rationale : null,
+        },
+      ];
+    })
+  );
   const fallback = fallbackNarrative(computed, firstName);
   let narrative: Narrative = fallback;
   let source: "ai" | "fallback" = "fallback";
@@ -77,7 +109,7 @@ export async function generateLearningProfile(
     const result = await provider.generateStructured({
       schema: NARRATIVE_SCHEMA,
       system: narrativeSystemPrompt(),
-      input: narrativeInput(computed, firstName, gradeName),
+      input: narrativeInput(computed, firstName, gradeName, evidence),
       devOutput: () => fallback,
     });
     if (result.ok) {
