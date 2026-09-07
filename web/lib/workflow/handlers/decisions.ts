@@ -1,7 +1,9 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { JobRow } from "@/lib/supabase/types";
+import { autoMarkResponse } from "@/lib/ai/auto-mark";
 import { suggestWritingBand } from "@/lib/ai/writing-band";
+import { runMarking } from "@/lib/workflow/assessment-actions";
 import { generateLearningProfile } from "@/lib/profile/generate";
 import { evaluateAndDecide, onOutcomeSent } from "@/lib/workflow/decision-actions";
 import { SYSTEM_ACTOR } from "@/lib/workflow/engine";
@@ -33,6 +35,25 @@ export async function suggestWritingBandHandler(admin: AdminClient, job: JobRow)
   }
   const result = await suggestWritingBand(admin, p.attempt_id, p.form_question_id);
   return result === "suggested" ? { outcome: "done" } : { outcome: "skipped", reason: "nothing to suggest" };
+}
+
+/**
+ * Marks one written answer by the model, then runs marking again so the
+ * attempt completes when every answer is in. An answer the model cannot
+ * mark hands the whole attempt to a person, as before the switch existed.
+ */
+export async function aiMarkResponseHandler(admin: AdminClient, job: JobRow): Promise<HandlerResult> {
+  const p = job.payload as { attempt_id?: string; form_question_id?: string };
+  if (!p.attempt_id || !p.form_question_id) {
+    return { outcome: "failed", error: "ai_mark_response job missing ids", retryable: false };
+  }
+  const result = await autoMarkResponse(admin, p.attempt_id, p.form_question_id);
+  if (result === "marked") {
+    await runMarking(admin, p.attempt_id, SYSTEM_ACTOR);
+    return { outcome: "done" };
+  }
+  await runMarking(admin, p.attempt_id, SYSTEM_ACTOR, { forceHuman: true });
+  return { outcome: "skipped", reason: "could not be marked automatically; handed to a person" };
 }
 
 /** The automation switch's version of clicking Send. */

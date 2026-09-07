@@ -637,7 +637,7 @@ export type BenchmarkRow = {
 
 export type AttemptStatus = "ready" | "in_progress" | "submitted" | "marked" | "abandoned";
 export type MarkingStatus = "pending" | "auto_marked" | "awaiting_rubric" | "complete";
-export type MarkingMethod = "auto" | "rubric";
+export type MarkingMethod = "auto" | "rubric" | "ai";
 
 export type AssessmentFormRow = {
   id: string;

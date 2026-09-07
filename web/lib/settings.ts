@@ -49,6 +49,7 @@ export type Settings = {
   autoVisitStartMinutes: number;
   autoVisitDurationMinutes: number;
   autoSessionCapacity: number;
+  aiAutoMarkEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +89,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoVisitStartMinutes: 600,
   autoVisitDurationMinutes: 60,
   autoSessionCapacity: 6,
+  aiAutoMarkEnabled: true,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -127,6 +129,7 @@ const KEYS: Record<keyof Settings, string> = {
   autoVisitStartMinutes: "auto_visit_start_minutes",
   autoVisitDurationMinutes: "auto_visit_duration_minutes",
   autoSessionCapacity: "auto_session_capacity",
+  aiAutoMarkEnabled: "ai_auto_mark_enabled",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -203,5 +206,6 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     autoVisitStartMinutes: asMinutes(map.get(KEYS.autoVisitStartMinutes), d.autoVisitStartMinutes),
     autoVisitDurationMinutes: asPositiveInt(map.get(KEYS.autoVisitDurationMinutes), d.autoVisitDurationMinutes),
     autoSessionCapacity: asPositiveInt(map.get(KEYS.autoSessionCapacity), d.autoSessionCapacity),
+    aiAutoMarkEnabled: asBoolean(map.get(KEYS.aiAutoMarkEnabled), d.aiAutoMarkEnabled),
   };
 }

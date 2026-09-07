@@ -60,6 +60,17 @@ questions score zero. If a child needs more time for a known reason, set the
 **time multiplier** in the Launch dialog *before* they start; it is recorded
 on the attempt so the assessor can see it.
 
+## A written answer was marked wrongly, or is still waiting
+
+Written answers are marked by the AI on submission when `ai_auto_mark_enabled`
+is on and the site runs with a real AI provider. On the attempt page each
+such answer shows "AI mark", the band and the reason. To change one, pick the
+band or type the marks and save: your mark replaces the AI's and the scores
+recompute. If answers are still "waiting for a person", either the switch is
+off, the site is running the development AI adapter (`AI_PROVIDER` unset),
+the question has no rubric, or the model could not mark it; in every case the
+usual marking task is opened and a person marks as before.
+
 ## The learning profile has not appeared
 
 1. Applicant → **Assessment** tab. If the sitting shows **awaiting rubric**,

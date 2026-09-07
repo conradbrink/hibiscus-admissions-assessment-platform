@@ -78,7 +78,9 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
   const bandVariant = (band: string) => (band === "exceeding" || band === "meeting" ? "success" : band === "approaching" ? "warning" : "destructive");
 
   const live = attempt.status === "ready" || attempt.status === "in_progress";
-  const unmarked = (questions ?? []).filter((q) => !q.is_practice && responseByQ.has(q.id) && responseByQ.get(q.id)!.marks_awarded === null);
+  const waiting = (questions ?? []).filter((q) => !q.is_practice && responseByQ.has(q.id) && responseByQ.get(q.id)!.marks_awarded === null);
+  const aiMarked = (questions ?? []).filter((q) => !q.is_practice && responseByQ.get(q.id)?.marking_method === "ai");
+  const unmarked = [...waiting, ...aiMarked];
   const statusVariant = attempt.status === "marked" ? "success" : attempt.status === "abandoned" ? "muted" : live ? "warning" : "info";
 
   return (
@@ -136,8 +138,14 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
 
       {canMark && unmarked.length && !live ? (
         <section className="mb-6 rounded-xl border-2 border-warning bg-card p-4">
-          <h2 className="text-sm font-semibold">{unmarked.length} response{unmarked.length === 1 ? "" : "s"} waiting for a person</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Read the writing, pick the band that fits, and enter the marks. A suggested band, where shown, is advice from the AI and is never applied on its own.</p>
+          <h2 className="text-sm font-semibold">
+            {waiting.length ? `${waiting.length} response${waiting.length === 1 ? "" : "s"} waiting for a person` : `${aiMarked.length} response${aiMarked.length === 1 ? "" : "s"} marked by the AI`}
+            {waiting.length && aiMarked.length ? ` · ${aiMarked.length} marked by the AI` : ""}
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {waiting.length ? "Read the writing, pick the band that fits, and enter the marks. " : ""}
+            {aiMarked.length ? "A mark the AI gave shows its band and reason; enter marks only for the ones you want to change, and yours will stand." : "A suggested band, where shown, is advice from the AI and is never applied on its own."}
+          </p>
           <ActionForm action={markWriting} label="Save marks" size="sm" className="space-y-5">
             <input type="hidden" name="attemptId" value={attempt.id} />
             {unmarked.map((q) => {
@@ -147,15 +155,19 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
                 : null;
               const bands = parseRubricBands(rubric?.bands ?? null);
               const suggestion = r.ai_suggestion && typeof r.ai_suggestion === "object" && !Array.isArray(r.ai_suggestion)
-                ? (r.ai_suggestion as { band?: string; rationale?: string })
+                ? (r.ai_suggestion as { band?: string; rationale?: string; applied?: boolean })
                 : null;
+              const aiMark = r.marking_method === "ai" && r.marks_awarded !== null;
               return (
                 <div key={q.id} className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">{competencyName.get(q.competency_id)} · {QUESTION_TYPE_LABELS[q.type]} · up to {q.marks} marks</p>
                   <p className="mt-1 text-sm font-medium">{q.stem}</p>
                   <blockquote className="mt-2 rounded-md bg-muted/60 p-3 text-sm whitespace-pre-line">{renderResponse(q.type, r.response, options(q.options))}</blockquote>
                   {suggestion?.band ? (
-                    <p className="mt-2 rounded-md bg-info/10 px-3 py-2 text-xs text-info">Suggested band: <strong>{bands.find((b) => b.key === suggestion.band)?.label ?? suggestion.band}</strong>{suggestion.rationale ? ` — ${suggestion.rationale}` : ""}</p>
+                    <p className="mt-2 rounded-md bg-info/10 px-3 py-2 text-xs text-info">
+                      {aiMark ? `AI mark: ${r.marks_awarded} of ${q.marks}, band ` : "Suggested band: "}
+                      <strong>{bands.find((b) => b.key === suggestion.band)?.label ?? suggestion.band}</strong>{suggestion.rationale ? ` — ${suggestion.rationale}` : ""}
+                    </p>
                   ) : null}
                   {bands.length ? (
                     <div className="mt-2 grid gap-1 sm:grid-cols-2">
@@ -194,7 +206,7 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
                   <p className="text-xs tabular-nums">
                     {r?.marks_awarded !== null && r?.marks_awarded !== undefined ? (
                       <span className={r.is_correct === false && Number(r.marks_awarded) === 0 ? "text-destructive" : "text-success"}>
-                        {r.marks_awarded} / {q.marks}{r.marking_method === "rubric" ? ` · marked by ${marker?.full_name ?? "staff"}` : ""}
+                        {r.marks_awarded} / {q.marks}{r.marking_method === "rubric" ? ` · marked by ${marker?.full_name ?? "staff"}` : r.marking_method === "ai" ? " · marked by the AI" : ""}
                       </span>
                     ) : r ? (
                       <span className="text-warning-foreground">unmarked / {q.marks}</span>

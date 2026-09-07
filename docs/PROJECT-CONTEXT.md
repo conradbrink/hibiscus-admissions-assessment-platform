@@ -42,9 +42,16 @@ is in the pull request that introduced this repository. The short version:
 - **Answers never leave the server.** Keys are readable by content authors
   and the marker (service role). The kiosk reads the frozen form; a unit test
   greps the delivery code for the key tables.
-- **The AI never decides.** Outcomes come from the rules engine or a person.
-  The AI writes prose over computed numbers behind a validator; no active
-  ruleset means every assessed applicant is reviewed by a person.
+- **The AI never decides an outcome.** Outcomes come from the rules engine
+  or a person. The AI writes prose over computed numbers behind a validator;
+  no active ruleset means every assessed applicant is reviewed by a person.
+  Since 7 September 2026, on the school's instruction, it does mark written
+  answers against each question's rubric (`ai_auto_mark_enabled`, migration
+  `20260907123000`): the mark is recorded as `marking_method = 'ai'` with the
+  band and rationale, is visible and overridable on the attempt page, and
+  applies only when `AI_PROVIDER` is a real provider. Blank answers get the
+  lowest band without a model call; an answer the model cannot mark hands
+  the attempt to a person as before.
 - **A human clicks before anything reaches a parent after a decision.**
   Offer approval and outcome emails are buttons in Phase 2. The switches
   `offer_auto_approve` and `auto_send_outcomes` exist, default off, and are
