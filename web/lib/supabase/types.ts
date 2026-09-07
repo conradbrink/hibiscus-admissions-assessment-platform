@@ -80,6 +80,9 @@ export type ApplicationStatus =
   | "withdrawn";
 
 export type EntryRoute = "assessment" | "visit" | "callback";
+export type HeardFrom =
+  | "search" | "social_media" | "friend_family" | "current_parent" | "school_event" | "radio_print" | "signage" | "other";
+
 export type ApplicationSource =
   | "website"
   | "staff"
@@ -304,6 +307,9 @@ export type ApplicationRow = {
   status_changed_at: string;
   entry_route: EntryRoute;
   source: ApplicationSource;
+  /** "How did you hear about us?" — keys in web/lib/heard-from.ts; null when never asked (staff-created, older rows). */
+  heard_from: HeardFrom | null;
+  heard_from_detail: string | null;
   owner_staff_id: string | null;
   next_action: string | null;
   next_action_due_at: string | null;
@@ -1318,6 +1324,7 @@ export type Database = {
         | "status"
         | "status_changed_at"
         | "source"
+        | "heard_from" | "heard_from_detail"
         | "owner_staff_id"
         | "next_action"
         | "next_action_due_at"
@@ -1922,6 +1929,7 @@ export type Database = {
           prefilled_count: number;
           prefill_changed_count: number;
           registration_submitted: boolean;
+          heard_from: HeardFrom | null;
         };
         Relationships: [];
       };
@@ -2051,6 +2059,8 @@ export type Database = {
           p_source?: ApplicationSource;
           p_current_school?: string | null;
           p_current_grade?: string | null;
+          p_heard_from?: HeardFrom | null;
+          p_heard_from_detail?: string | null;
         };
         Returns: {
           application_id: string;

@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
+import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
 import { recommendGrade } from "@/lib/grades";
 
@@ -79,6 +80,9 @@ export type EnquiryInput = {
   currentGrade?: string | null;
   /** The parent ticked "also on WhatsApp". */
   whatsappOptIn?: boolean;
+  /** "How did you hear about us?" — a key from HEARD_FROM_OPTIONS, and a free line when it is "other". */
+  heardFrom?: HeardFrom | null;
+  heardFromDetail?: string | null;
 };
 
 export type EnquiryResult = {
@@ -142,6 +146,8 @@ export async function createEnquiry(
     p_source: "website",
     p_current_school: input.currentSchool?.trim() || null,
     p_current_grade: input.currentGrade?.trim() || null,
+    p_heard_from: input.heardFrom ?? null,
+    p_heard_from_detail: input.heardFrom === "other" ? input.heardFromDetail?.trim() || null : null,
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];

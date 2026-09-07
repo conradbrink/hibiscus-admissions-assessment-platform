@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HEARD_FROM_KEYS } from "@/lib/heard-from";
 import { isPlausibleDateOfBirth } from "@/lib/grades";
 import { toSchoolDateString } from "@/lib/format-date";
 
@@ -39,6 +40,9 @@ export const enquirySchema = z.object({
   currentGrade: z.string().trim().max(40).optional(),
   /** "Send updates on WhatsApp too": ticked by default beside a plain notice, and unticked in one tap. */
   whatsappOptIn: z.literal("1").optional(),
+  /** "How did you hear about us?" — for the school's advertising, one pick from a fixed list. */
+  heardFrom: z.enum(HEARD_FROM_KEYS, { error: "Choose one" }),
+  heardFromDetail: z.string().trim().max(120, "Too long").optional(),
   /** Funnel timing: when the parent first saw the form. */
   t0: z.coerce.number().int().nonnegative().optional(),
 });

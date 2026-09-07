@@ -63,12 +63,14 @@ export default async function DashboardPage() {
 
   const pipeline = [
     { label: "New enquiries", value: n("new_enquiries"), href: "/staff/applications?group=enquiry" },
+    { label: "Visits booked", value: n("visits_booked"), href: "/staff/applications?status=visit_booked" },
     { label: "Assessments this week", value: n("assessments_this_week"), href: "/staff/assessments/today" },
     { label: "Awaiting a decision", value: n("awaiting_decision"), href: "/staff/decisions" },
     { label: "Offers out with parents", value: n("offers_outstanding"), href: "/staff/applications?status=offer_sent" },
     { label: "Paying", value: n("payments_outstanding"), href: "/staff/payments" },
     { label: "Registering", value: n("registrations_incomplete"), href: "/staff/registrations" },
     { label: "Enrolled", value: n("enrolled"), href: "/staff/applications?status=enrolled" },
+    { label: "Withdrawn", value: n("withdrawn"), href: "/staff/applications?status=withdrawn" },
   ];
 
   return (

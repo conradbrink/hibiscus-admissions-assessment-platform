@@ -1,3 +1,4 @@
+import { heardFromLabel } from "@/lib/heard-from";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/staff/action-form";
@@ -258,6 +259,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             <p className="mt-2 text-xs text-muted-foreground">
               Child born {formatDate(app.child_date_of_birth)} · came via {app.entry_route}
             </p>
+            <p className="text-xs text-muted-foreground">Heard about us: {heardFromLabel(app.heard_from, app.heard_from_detail)}</p>
             {canWrite && !terminal ? (
               <div className="mt-3 space-y-2">
                 <ActionForm action={resendLink} label="Email a fresh link" variant="outline" size="sm">{idField}</ActionForm>

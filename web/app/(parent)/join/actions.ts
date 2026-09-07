@@ -72,6 +72,8 @@ export async function submitEnquiry(
       intakeId: parsed.data.intakeId ?? null,
       entryRoute: route,
       whatsappOptIn: parsed.data.whatsappOptIn === "1",
+      heardFrom: parsed.data.heardFrom,
+      heardFromDetail: parsed.data.heardFromDetail ?? null,
     });
   } catch (e) {
     console.error("[enquiry] create failed", (e as Error).message);

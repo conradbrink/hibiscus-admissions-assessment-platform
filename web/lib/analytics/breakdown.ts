@@ -1,4 +1,5 @@
 import type { ApplicationStatus } from "@/lib/supabase/types";
+import { heardFromLabel } from "@/lib/heard-from";
 
 /**
  * The analytics arithmetic over the facts view, pure and tested: the
@@ -39,6 +40,8 @@ export type FactRow = {
   prefilled_count: number;
   prefill_changed_count: number;
   registration_submitted: boolean;
+  /** "How did you hear about us?" — null when the question was never asked. */
+  heard_from: string | null;
 };
 
 export const APPROVED_STATUSES: ReadonlySet<string> = new Set([
@@ -132,7 +135,7 @@ export function cycleTimes(rows: FactRow[]) {
   };
 }
 
-export const DIMENSIONS = ["campus", "grade", "month", "week", "source", "entry_route", "outcome"] as const;
+export const DIMENSIONS = ["campus", "grade", "month", "week", "heard_from", "source", "entry_route", "outcome"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 export const DIMENSION_LABELS: Record<Dimension, string> = {
@@ -140,6 +143,7 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   grade: "Grade",
   month: "Month enquired",
   week: "Week enquired",
+  heard_from: "How they heard about us",
   source: "Lead source",
   entry_route: "Entry route",
   outcome: "Assessment outcome",
@@ -167,6 +171,10 @@ export function dimensionKey(r: FactRow, dim: Dimension): { key: string; label: 
       return { key: monthKey(r.enquired_at), label: monthKey(r.enquired_at), sort: monthKey(r.enquired_at) };
     case "week":
       return { key: weekKey(r.enquired_at), label: `w/c ${weekKey(r.enquired_at)}`, sort: weekKey(r.enquired_at) };
+    case "heard_from": {
+      const h = r.heard_from ?? "not_asked";
+      return { key: h, label: heardFromLabel(r.heard_from), sort: h };
+    }
     case "source":
       return { key: r.source, label: r.source.replace(/_/g, " "), sort: r.source };
     case "entry_route":

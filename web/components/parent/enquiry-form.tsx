@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { FunnelT0Field } from "@/components/parent/funnel-beacon";
 import type { EntryRoute } from "@/lib/supabase/types";
+import { HEARD_FROM_OPTIONS } from "@/lib/heard-from";
 
 export type EnquiryFormState = {
   error?: string;
@@ -60,6 +61,7 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
   const started = useRef(false);
   const f = state.fields ?? {};
   const v = state.values ?? {};
+  const [heardFrom, setHeardFrom] = useState(v.heardFrom ?? "");
 
   const onFirstFocus = () => {
     if (started.current) return;
@@ -131,6 +133,34 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
             ))}
           </NativeSelect>
         </Field>
+      </fieldset>
+
+      <fieldset className="space-y-4">
+        <legend className="mb-1 text-sm font-semibold text-foreground">One last question</legend>
+        <Field id="heardFrom" label="How did you hear about us?" error={f.heardFrom}>
+          <NativeSelect
+            id="heardFrom"
+            name="heardFrom"
+            value={heardFrom}
+            onChange={(e) => setHeardFrom(e.target.value)}
+            required
+            {...invalid("heardFrom")}
+          >
+            <option value="" disabled>
+              Choose one
+            </option>
+            {HEARD_FROM_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        {heardFrom === "other" ? (
+          <Field id="heardFromDetail" label="Where did you hear about us?" error={f.heardFromDetail}>
+            <Input id="heardFromDetail" name="heardFromDetail" maxLength={120} defaultValue={v.heardFromDetail} placeholder="For example, a church notice board" />
+          </Field>
+        ) : null}
       </fieldset>
 
       {route === "callback" ? (
