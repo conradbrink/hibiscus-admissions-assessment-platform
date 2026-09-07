@@ -89,7 +89,7 @@ export default async function OffersPage() {
                       <p className="text-xs font-semibold text-muted-foreground uppercase">Fees ({f?.currency ?? o?.currency})</p>
                       {f ? (
                         <ul className="mt-1">
-                          {f.lines.map((l) => <li key={l.code} className="flex justify-between"><span>{l.label}{l.payable_at_acceptance ? " *" : ""}</span><span className="tabular-nums">{formatMoney(l.amount_minor, f.currency)}</span></li>)}
+                          {f.lines.map((l) => <li key={l.code} className="flex justify-between"><span>{l.label}{l.payable_at_acceptance ? " *" : ""}{l.waived ? " (waived)" : ""}</span><span className="tabular-nums">{l.waived && l.original_minor ? <s className="text-muted-foreground">{formatMoney(l.original_minor, f.currency)}</s> : formatMoney(l.amount_minor, f.currency)}</span></li>)}
                           <li className="mt-1 flex justify-between border-t border-border pt-1 font-semibold"><span>Payable on acceptance</span><span className="tabular-nums">{formatMoney(f.payable_at_acceptance_minor, f.currency)}</span></li>
                         </ul>
                       ) : <p className="mt-1 text-warning-foreground">No fees on this offer.</p>}

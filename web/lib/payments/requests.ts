@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
+import { fullyWaived } from "@/lib/promotions/apply";
 import type { ApplicationRow, BankInstructionRow, Json, OfferRow, PaymentRequestRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
 
@@ -26,7 +27,8 @@ export async function createPaymentRequest(
   opts: { app: Pick<ApplicationRow, "id">; offer: Pick<OfferRow, "id" | "fees" | "currency">; acceptanceId: string; dueAt: Date }
 ): Promise<PaymentRequestRow> {
   const payable = payableLines(opts.offer);
-  if (!payable || payable.amountMinor <= 0) {
+  const waived = fullyWaived(feeSnapshotFrom(opts.offer.fees));
+  if (!payable || (payable.amountMinor <= 0 && !waived)) {
     throw new WorkflowError("This offer has no fees payable on acceptance; finance must set a fee schedule before it can be accepted.", "status_conflict");
   }
   const { data, error } = await admin

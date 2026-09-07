@@ -135,8 +135,8 @@ function FeeList({ fees }: { fees: FeeSnapshot | null }) {
       {upfront.map((l, i) => (
         <View key={l.code} style={s.listRow}>
           <Text style={s.listNo}>{i + 1}.</Text>
-          <Text style={s.listLabel}><Text style={s.bold}>{l.label}</Text> (non-refundable)</Text>
-          <Text style={s.listAmount}>{formatMoney(l.amount_minor, fees.currency)}</Text>
+          <Text style={s.listLabel}><Text style={s.bold}>{l.label}</Text> (non-refundable){l.waived ? " — waived" : ""}</Text>
+          <Text style={s.listAmount}>{l.waived && l.original_minor ? <Text style={{ textDecoration: "line-through", color: "#6b7280" }}>{formatMoney(l.original_minor, fees.currency)}</Text> : formatMoney(l.amount_minor, fees.currency)}</Text>
         </View>
       ))}
       <View style={s.listRow}>

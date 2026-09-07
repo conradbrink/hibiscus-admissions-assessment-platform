@@ -14,6 +14,8 @@ import { createElement, type ReactElement } from "react";
 import { logoUrlFor } from "@/lib/documents/letterhead";
 import { ReceiptDocument } from "@/lib/documents/receipt-pdf";
 import { loadBankInstructions, requestLines } from "@/lib/payments/requests";
+import { feeSnapshotFrom } from "@/lib/offers/snapshot";
+import { promotionLines, type PromotionFeeSnapshot } from "@/lib/promotions/apply";
 
 /**
  * Sends one templated email to the parent on an application, and records it.
@@ -54,7 +56,17 @@ export type EmailExtras = {
   paymentDate?: string | null;
   missingDocuments?: string | null;
   mismatchDetails?: string | null;
+  /** "Application fee waived · P1,000 uniform voucher", from the offer's frozen deal. */
+  promotionText?: string | null;
 };
+
+/** The deal's one-line description from an offer's fee snapshot, or null. */
+export function promotionTextFrom(fees: unknown): string | null {
+  const applied = (feeSnapshotFrom(fees) as PromotionFeeSnapshot | null)?.promotion ?? null;
+  if (!applied) return null;
+  const text = promotionLines(applied);
+  return text || null;
+}
 
 /** The variables every template may draw on, built from the application graph. */
 export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extras: EmailExtras = {}): TemplateVariables {
@@ -89,6 +101,7 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     payment_date: extras.paymentDate ?? null,
     missing_documents: extras.missingDocuments ?? null,
     mismatch_details: extras.mismatchDetails ?? null,
+    promotion_text: extras.promotionText ?? null,
     start_date: formatDateLong(graph.intake.starts_on),
   };
 }
@@ -131,6 +144,7 @@ export async function offerExtras(admin: AdminClient, offerId: string | null | u
     expiresAt: data.expires_at ? new Date(data.expires_at) : null,
     offerExpiryDate: data.expires_at ? formatDateLong(data.expires_at) : null,
     amountDue: dueMinor !== null ? formatMoney(dueMinor, data.currency) : null,
+    promotionText: promotionTextFrom(data.fees),
   };
 }
 
@@ -153,6 +167,8 @@ export async function paymentExtras(
   if (request) {
     out.dueAt = new Date(request.due_at);
     out.paymentDueDate = formatDateLong(request.due_at);
+    const { data: offerRow } = await admin.from("offers").select("fees").eq("id", request.offer_id).maybeSingle();
+    out.promotionText = promotionTextFrom(offerRow?.fees);
     out.amountDue = formatMoney(Number(request.amount_minor) - Number(request.paid_minor), request.currency);
     const bank = await loadBankInstructions(admin, { currency: request.currency, campusId: graph.application.campus_id });
     out.bankDetails = bank?.body_text ?? null;
@@ -167,7 +183,7 @@ export async function paymentExtras(
       lines: request ? requestLines(request) : [],
       amountMinor: Number(payment.amount_minor),
       method: payment.method,
-      providerLabel: payment.provider === "dpo" ? "DPO Pay" : payment.provider,
+      providerLabel: payment.provider === "dpo" ? "DPO Pay" : payment.provider === "paygate" ? "PayGate" : payment.provider === "none" ? "" : payment.provider,
       paymentReference: out.paymentReference,
       approvalCode: payment.approval_code,
       paidOn: out.paymentDate,
@@ -199,7 +215,7 @@ type ReceiptAttachment = {
   currency: string;
   lines: Array<{ label: string; amount_minor: number }>;
   amountMinor: number;
-  method: "online" | "eft";
+  method: "online" | "eft" | "waived";
   providerLabel: string;
   paymentReference: string;
   approvalCode: string | null;
