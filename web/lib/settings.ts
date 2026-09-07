@@ -42,6 +42,14 @@ export type Settings = {
   digestHour: number;
   rescheduleCutoffHours: number;
   rebookNudgeDays: number;
+  autoSessionsEnabled: boolean;
+  autoSessionsWeeksAhead: number;
+  autoAssessmentStartMinutes: number;
+  autoAssessmentDurationMinutes: number;
+  autoVisitStartMinutes: number;
+  autoVisitDurationMinutes: number;
+  autoSessionCapacity: number;
+  aiAutoMarkEnabled: boolean;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -74,6 +82,14 @@ export const DEFAULT_SETTINGS: Settings = {
   digestHour: 7,
   rescheduleCutoffHours: 24,
   rebookNudgeDays: 3,
+  autoSessionsEnabled: true,
+  autoSessionsWeeksAhead: 6,
+  autoAssessmentStartMinutes: 540,
+  autoAssessmentDurationMinutes: 90,
+  autoVisitStartMinutes: 600,
+  autoVisitDurationMinutes: 60,
+  autoSessionCapacity: 6,
+  aiAutoMarkEnabled: true,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -106,6 +122,14 @@ const KEYS: Record<keyof Settings, string> = {
   digestHour: "digest_hour",
   rescheduleCutoffHours: "reschedule_cutoff_hours",
   rebookNudgeDays: "rebook_nudge_days",
+  autoSessionsEnabled: "auto_sessions_enabled",
+  autoSessionsWeeksAhead: "auto_sessions_weeks_ahead",
+  autoAssessmentStartMinutes: "auto_assessment_start_minutes",
+  autoAssessmentDurationMinutes: "auto_assessment_duration_minutes",
+  autoVisitStartMinutes: "auto_visit_start_minutes",
+  autoVisitDurationMinutes: "auto_visit_duration_minutes",
+  autoSessionCapacity: "auto_session_capacity",
+  aiAutoMarkEnabled: "ai_auto_mark_enabled",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -116,6 +140,11 @@ function asPositiveIntArray(v: Json | undefined, fallback: number[]): number[] {
   if (!Array.isArray(v)) return fallback;
   const nums = v.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
   return nums.length ? nums : fallback;
+}
+
+/** A clock reading in minutes after midnight. */
+function asMinutes(v: Json | undefined, fallback: number): number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1440 ? v : fallback;
 }
 
 function asHour(v: Json | undefined, fallback: number): number {
@@ -170,5 +199,13 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     digestHour: asHour(map.get(KEYS.digestHour), d.digestHour),
     rescheduleCutoffHours: asPositiveInt(map.get(KEYS.rescheduleCutoffHours), d.rescheduleCutoffHours),
     rebookNudgeDays: asPositiveInt(map.get(KEYS.rebookNudgeDays), d.rebookNudgeDays),
+    autoSessionsEnabled: asBoolean(map.get(KEYS.autoSessionsEnabled), d.autoSessionsEnabled),
+    autoSessionsWeeksAhead: asPositiveInt(map.get(KEYS.autoSessionsWeeksAhead), d.autoSessionsWeeksAhead),
+    autoAssessmentStartMinutes: asMinutes(map.get(KEYS.autoAssessmentStartMinutes), d.autoAssessmentStartMinutes),
+    autoAssessmentDurationMinutes: asPositiveInt(map.get(KEYS.autoAssessmentDurationMinutes), d.autoAssessmentDurationMinutes),
+    autoVisitStartMinutes: asMinutes(map.get(KEYS.autoVisitStartMinutes), d.autoVisitStartMinutes),
+    autoVisitDurationMinutes: asPositiveInt(map.get(KEYS.autoVisitDurationMinutes), d.autoVisitDurationMinutes),
+    autoSessionCapacity: asPositiveInt(map.get(KEYS.autoSessionCapacity), d.autoSessionCapacity),
+    aiAutoMarkEnabled: asBoolean(map.get(KEYS.aiAutoMarkEnabled), d.aiAutoMarkEnabled),
   };
 }

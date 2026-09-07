@@ -35,7 +35,7 @@ only where judgement is needed.
 | `web/lib/workflow/automation/` | Waitlist promotion, data retention, the morning digest, and the pure rules behind them |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
-| `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only |
+| `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only. `secondary_intake_2026.sql`: the school's Form 1–4 English and Mathematics intake papers, loaded once on the live project |
 | `supabase/migrations/` | The schema, replayable from empty |
 | `supabase/tests/` | `replay_local.sh` rebuilds a local database; `security_regression.sql` attacks it |
 | `docs/` | Project context, deployment, runbook |
@@ -92,10 +92,12 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
 - **Every school's team sees its own school.** Campus scoping is in the
   policies, fails closed for campus-scoped roles, and binds staff actions as
   well as pages.
-- **The AI never decides.** Admission outcomes come from the rules engine or
-  a person. The AI writes the learning-profile narrative over numbers the
-  code computed, and a validator rejects any sentence that adds a number,
-  diagnoses or ranks; the deterministic wording is used instead.
+- **The AI never decides an outcome.** Admission outcomes come from the
+  rules engine or a person. The AI writes the learning-profile narrative over
+  numbers the code computed, and a validator rejects any sentence that adds
+  a number, diagnoses or ranks; the deterministic wording is used instead.
+  On the school's instruction it also marks written answers against each
+  question's rubric, visibly and overridably (`ai_auto_mark_enabled`).
 - **A WhatsApp message is an approved template** sent beside an email to a
   parent who opted in; there is no free text, and the engine does not know
   the channel exists.

@@ -33,7 +33,7 @@ export default async function SessionsAdminPage() {
 
   return (
     <>
-      <PageTitle title="Sessions" description="The dates and times parents can book. Only published sessions are offered." />
+      <PageTitle title="Sessions" description="The dates and times parents can book. Only published sessions are offered. A sitting and a visit are created for every weekday at every campus automatically, except on the dates under School holidays; add extra sessions here." />
 
       <section className="mb-6 rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold">Add sessions</h2>

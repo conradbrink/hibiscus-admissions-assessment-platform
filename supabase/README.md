@@ -33,6 +33,8 @@ change.
 | `…100200_export_and_analytics` | `export_columns` (seeded, medical off), `student_exports`, `mark_student_records_exported()`, prefill counters, `v_application_facts` |
 | `…100400_agreement_documents` | `agreement_templates.document_url`, `publish_agreement_template()` with the link, the two published agreements seeded, placeholders retired |
 | `…100300_automation` | Retention columns and `anonymise_application()`, `staff_profiles.digest_enabled`, staff-audience templates, `campus_dashboard_counts()`, `maintenance_runs`, the automation settings and templates; replaces `dashboard_counts()` |
+| `…123000_ai_marking` (7 Sep) | `marking_method` may be `ai`; the `ai_auto_mark_enabled` switch |
+| `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |
 | `…100500_policy_documents_and_signatures` | `agreement_templates.sort_order`, links that may be a path on this site, `agreement_acceptances.signature_svg`; the four January 2026 documents (Learner Code of Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement) in their own words |
 
 ## Rules for new migrations
@@ -98,6 +100,22 @@ band, a Block 7 fee schedule with placeholder amounts and a draft ruleset,
 so the assessment → decision → offer journey can be walked on a laptop. It
 refuses to run on a database that already holds a real bank.
 
+## The school's intake papers
+
+`seed/secondary_intake_2026.sql` is content, not schema: the school's own
+English and Mathematics intake papers for Form 1 to Form 4, transcribed from
+the Word documents supplied in September 2026. It creates the bank
+"Secondary intake tests 2026", a rubric per marker-judged question (the band
+descriptors carry the school's model answer, so the marker sees the key
+beside the child's writing), and four active templates, one per intake year,
+each an English section and a Mathematics section of 20 minutes. Seven
+corrections to the papers were made on the school's instruction and are
+marked "Corrected" in the file: two marking keys that contradicted the
+passage, one Section B question whose wording contradicted its numbers, and
+four multiple-choice items whose printed options held no single correct
+answer. Loaded on the live project on 7 September 2026; from then on the bank
+is maintained under Set up → Question banks. Refuses to run twice.
+
 ## Local rehearsal
 
 ```sh
@@ -106,6 +124,6 @@ su postgres -c "supabase/tests/replay_local.sh"
 
 Creates `hibiscus_local` from scratch on a stock Ubuntu Postgres, applies
 `tests/local_supabase_stub.sql` (roles, `auth.uid()`), every migration in
-order, then `tests/security_regression.sql` (40 attacks, each with a control
+order, then `tests/security_regression.sql` (41 attacks, each with a control
 that the legitimate case still works). Exit code 0 means both "the schema
 builds" and "the schema refuses what it should".

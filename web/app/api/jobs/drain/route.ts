@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { drainJobs } from "@/lib/workflow/jobs";
 import { queueDigests } from "@/lib/workflow/automation/digest";
 import { anonymiseExpired } from "@/lib/workflow/automation/retention";
+import { ensureWeekdaySessions } from "@/lib/workflow/automation/sessions";
 import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
 import { pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
 
@@ -53,6 +54,10 @@ export async function GET(request: Request) {
     console.error("[digest] queue failed", e);
     return -1;
   });
+  const sessionsCreated = await ensureWeekdaySessions(admin).catch((e) => {
+    console.error("[sessions] weekday schedule failed", e);
+    return -1;
+  });
   const summary = await drainJobs(admin, 50);
   const pruned = await pruneRateLimits(admin);
   return Response.json({
@@ -64,5 +69,6 @@ export async function GET(request: Request) {
     waitlist_tasks: waitlist.tasks,
     retention_anonymised: retention.anonymised,
     digests_queued: digests,
+    sessions_created: sessionsCreated,
   });
 }

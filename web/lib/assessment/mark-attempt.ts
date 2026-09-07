@@ -11,7 +11,7 @@ import { computeScores, type BenchmarkRule, type ScoredItem } from "@/lib/assess
  *
  * Runs under the service role because it reads the keys. Idempotent: it
  * re-marks every objective item from scratch and never touches a mark a
- * person gave against a rubric, so it can run after the child submits,
+ * person or the AI gave against a rubric, so it can run after the child submits,
  * after an assessor marks the writing, and after somebody clicks Re-mark.
  *
  * The outcome says whether the attempt is now fully marked. The caller
@@ -86,8 +86,8 @@ export async function markAttempt(admin: AdminClient, attemptId: string): Promis
       continue;
     }
 
-    // A rubric mark a person has given stands.
-    if (response.marking_method === "rubric" && response.marks_awarded !== null) {
+    // A rubric mark stands, whether a person or the AI gave it.
+    if ((response.marking_method === "rubric" || response.marking_method === "ai") && response.marks_awarded !== null) {
       items.push({ competencyId: q.competency_id, subjectId, marks, marksAwarded: Number(response.marks_awarded) });
       continue;
     }

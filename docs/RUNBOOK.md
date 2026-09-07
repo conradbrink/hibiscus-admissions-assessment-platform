@@ -60,6 +60,17 @@ questions score zero. If a child needs more time for a known reason, set the
 **time multiplier** in the Launch dialog *before* they start; it is recorded
 on the attempt so the assessor can see it.
 
+## A written answer was marked wrongly, or is still waiting
+
+Written answers are marked by the AI on submission when `ai_auto_mark_enabled`
+is on and the site runs with a real AI provider. On the attempt page each
+such answer shows "AI mark", the band and the reason. To change one, pick the
+band or type the marks and save: your mark replaces the AI's and the scores
+recompute. If answers are still "waiting for a person", either the switch is
+off, the site is running the development AI adapter (`AI_PROVIDER` unset),
+the question has no rubric, or the model could not mark it; in every case the
+usual marking task is opened and a person marks as before.
+
 ## The learning profile has not appeared
 
 1. Applicant → **Assessment** tab. If the sitting shows **awaiting rubric**,
@@ -142,6 +153,16 @@ rejection emails the parent with your reason and asks for it again.
    registration, or their application page. Replying STOP turns it off;
    START turns it back on. Staff can turn it on for a parent who asked by
    phone, from the applicant page — that is audited.
+
+## Closing the school for a day, or changing the daily times
+
+Sittings and visits appear on every weekday at every campus by themselves,
+six weeks ahead. To keep a day free, add it under **Set up → School
+holidays** before the day is created; deleting a session by hand only frees
+the day until the next run adds one back. To change the times, places or
+how far ahead they run, edit the `auto_sessions_*` rows under **Workflow
+settings**; existing days keep their old times, new days take the new ones.
+To stop the schedule altogether, set `auto_sessions_enabled` to false.
 
 ## A parent replied on WhatsApp
 

@@ -74,6 +74,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/admin/campuses", label: "Campuses", permission: "settings.write" },
       { href: "/staff/admin/grades", label: "Grades", permission: "settings.write" },
       { href: "/staff/admin/intakes", label: "Intakes", permission: "settings.write" },
+      { href: "/staff/admin/closures", label: "School holidays", permission: "settings.write" },
       { href: "/staff/admin/settings", label: "Workflow settings", permission: "settings.write" },
       { href: "/staff/admin/retention", label: "Data retention", permission: "settings.write" },
       { href: "/staff/admin/staff", label: "Staff & roles", permission: "staff.write" },

@@ -67,9 +67,13 @@ AI writes the learning-profile narrative from numbers `lib/profile/compute.ts`
 produced, and `lib/profile/narrative.ts` validates the result: any number not
 in the computed set, any banned term, or the child's surname, and the
 deterministic fallback is stored instead, with the reason. Admission outcomes
-come from `lib/rules/evaluate.ts` or a person's recorded decision. Do not add
-an AI call that writes a mark, an outcome, or anything a parent reads without
-that validator in front of it.
+come from `lib/rules/evaluate.ts` or a person's recorded decision. One
+exception, on the school's instruction of 7 September 2026: with
+`ai_auto_mark_enabled` and a real provider, `lib/ai/auto-mark.ts` marks
+written answers against the question's rubric (`marking_method = 'ai'`), the
+band and rationale are shown on the attempt page, and a person's mark
+overrides it. Do not add any other AI call that writes a mark, an outcome, or
+anything a parent reads without a validator in front of it.
 
 ## Paid means verified
 

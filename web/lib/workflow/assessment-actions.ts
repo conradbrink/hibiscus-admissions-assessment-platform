@@ -1,9 +1,10 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, AttemptRow, BookingRow } from "@/lib/supabase/types";
-import { markAttempt } from "@/lib/assessment/mark-attempt";
+import { getAiProvider } from "@/lib/ai/provider";
+import { markAttempt, type MarkOutcome } from "@/lib/assessment/mark-attempt";
 import { getSettings } from "@/lib/settings";
-import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
+import { commit, enqueueJobs, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
 
 /**
  * The sitting, from Launch to a fully marked attempt. Same shape as the
@@ -171,7 +172,12 @@ export async function onAssessmentAbandoned(
  * task for the assessor if writing is waiting, or the move to a decision if
  * everything is marked. Safe to call repeatedly.
  */
-export async function runMarking(admin: AdminClient, attemptId: string, actor: Actor = SYSTEM_ACTOR): Promise<void> {
+export async function runMarking(
+  admin: AdminClient,
+  attemptId: string,
+  actor: Actor = SYSTEM_ACTOR,
+  opts: { forceHuman?: boolean } = {}
+): Promise<void> {
   const outcome = await markAttempt(admin, attemptId);
   const attempt = outcome.attempt;
   const { data: app, error } = await admin
@@ -182,6 +188,7 @@ export async function runMarking(admin: AdminClient, attemptId: string, actor: A
   if (error || !app) throw new WorkflowError(error?.message ?? "application missing", "database");
 
   if (!outcome.complete) {
+    if (!opts.forceHuman && (await queueAutomaticMarking(admin, outcome, app.id))) return;
     // Only open the assessor's task once, however many times marking runs.
     const { data: open } = await admin
       .from("tasks")
@@ -233,6 +240,49 @@ export async function runMarking(admin: AdminClient, attemptId: string, actor: A
 
   if (app.status !== "assessment_completed") return; // already moved on, or a re-mark after the decision
   await onAssessmentMarked(admin, app, attempt, actor);
+}
+
+/**
+ * With the switch on and a real AI provider, written answers are marked by
+ * the model instead of waiting for a person: one job per answer, each of
+ * which records its mark and runs marking again, so the attempt completes
+ * when the last one lands. A question with an unusable key still needs a
+ * person, so those attempts take the human path. Returns whether the
+ * automatic path was taken.
+ */
+async function queueAutomaticMarking(admin: AdminClient, outcome: MarkOutcome, applicationId: string): Promise<boolean> {
+  if (outcome.unmarkable.length || !outcome.awaiting.length) return false;
+  const settings = await getSettings(admin);
+  if (!settings.aiAutoMarkEnabled) return false;
+  const provider = await getAiProvider();
+  if (provider.name === "dev") return false;
+
+  const attemptId = outcome.attempt.id;
+  const { data: existing } = await admin.from("jobs").select("id").like("idempotency_key", `aimark:${attemptId}:%`).limit(1);
+  const jobs = outcome.awaiting.map((formQuestionId) => ({
+    type: "ai_mark_response",
+    payload: { attempt_id: attemptId, form_question_id: formQuestionId },
+    idempotencyKey: `aimark:${attemptId}:${formQuestionId}`,
+    applicationId,
+  }));
+  if (existing?.length) {
+    await enqueueJobs(admin, jobs);
+    return true;
+  }
+  await commit(admin, {
+    applicationId,
+    expectedStatus: null,
+    newStatus: null,
+    nextAction: null,
+    event: {
+      type: "assessment.ai_marking",
+      summary: `${outcome.awaiting.length} written response${outcome.awaiting.length === 1 ? "" : "s"} being marked automatically`,
+      payload: { attempt_id: attemptId, awaiting: outcome.awaiting },
+    },
+    jobs,
+    actor: SYSTEM_ACTOR,
+  });
+  return true;
 }
 
 /** Every item marked: the application moves to a decision, and the two follow-ups are queued. */

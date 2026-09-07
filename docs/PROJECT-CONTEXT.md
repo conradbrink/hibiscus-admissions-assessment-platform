@@ -42,9 +42,16 @@ is in the pull request that introduced this repository. The short version:
 - **Answers never leave the server.** Keys are readable by content authors
   and the marker (service role). The kiosk reads the frozen form; a unit test
   greps the delivery code for the key tables.
-- **The AI never decides.** Outcomes come from the rules engine or a person.
-  The AI writes prose over computed numbers behind a validator; no active
-  ruleset means every assessed applicant is reviewed by a person.
+- **The AI never decides an outcome.** Outcomes come from the rules engine
+  or a person. The AI writes prose over computed numbers behind a validator;
+  no active ruleset means every assessed applicant is reviewed by a person.
+  Since 7 September 2026, on the school's instruction, it does mark written
+  answers against each question's rubric (`ai_auto_mark_enabled`, migration
+  `20260907123000`): the mark is recorded as `marking_method = 'ai'` with the
+  band and rationale, is visible and overridable on the attempt page, and
+  applies only when `AI_PROVIDER` is a real provider. Blank answers get the
+  lowest band without a model call; an answer the model cannot mark hands
+  the attempt to a person as before.
 - **A human clicks before anything reaches a parent after a decision.**
   Offer approval and outcome emails are buttons in Phase 2. The switches
   `offer_auto_approve` and `auto_send_outcomes` exist, default off, and are
@@ -127,7 +134,7 @@ automation and every AI feature is behind a setting that ships off.
 | **Student export** (the Ed-admin integration until its API is known): CSV/JSON batches with configurable columns, medical off by default, records remember their batch; `StudentManagementSystem` seam unchanged | Done |
 | **Analytics**: `v_application_facts`, the Stage 27 funnel by campus, grade, period, lead source or assessment outcome, conversions, cycle times, Stage 28 parent-effort figures, a weekly trend, CSV export; **forecast** of expected enrolments against capacity with every rate and sample size shown | Done |
 | **Automation**: waitlist promotion (task, or decision with the switch); data retention through one function with preview and holds; the morning digest per campus team; the rebooking gaps (cancellation email, one nudge that stops on rebooking, an online cutoff) | Done |
-| Security regression suite: 40 attacks with controls | Done |
+| Security regression suite: 41 attacks with controls | Done |
 
 **The agreements are the school's four January 2026 documents, in their
 own words, and the parent signs them.** The Parent Acknowledgement and
@@ -166,7 +173,23 @@ known), staff editing of submitted registration data, AI email drafting.
   applicant goes to the review queue until the school activates one at
   `/staff/admin/rules`. The dev seed's ruleset is a draft.
 - **The question bank.** `supabase/seed/dev_phase2.sql` holds a sample bank
-  flagged `is_sample`, for development databases only.
+  flagged `is_sample`, for development databases only. The school's real
+  secondary papers (Form 1 to Form 4, English and Mathematics) are in
+  `supabase/seed/secondary_intake_2026.sql`, loaded on the live project on
+  7 September 2026 as the bank "Secondary intake tests 2026" with four active
+  templates. Comprehension and writing answers are marker-judged against
+  rubrics whose descriptors quote the school's model answers; the Part C
+  writing bands are a draft for the school to confirm. Seven printed errors
+  were corrected on the school's instruction (listed in the seed's header).
+  Primary (Stage 1 to 7) papers have not been supplied yet.
+- **Sessions.** The school asked (7 September) for a sitting and a visit to
+  be bookable every weekday at every campus except on school holidays. The
+  drain keeps them created six weeks ahead from the `auto_sessions_*`
+  settings (`lib/workflow/automation/sessions.ts`), skipping the dates in
+  `school_closures`, which is seeded with the 2026 term calendar and edited
+  at `/staff/admin/closures`. A day that already has a session of that kind
+  at that campus is left alone, so hand-made sessions replace rather than
+  duplicate the automatic one.
 - **Fee amounts.** With no active fee schedule an approved applicant rests
   at `offer_draft` with a task for finance, and approval is blocked.
 

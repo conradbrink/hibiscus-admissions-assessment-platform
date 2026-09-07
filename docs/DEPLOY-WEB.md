@@ -35,7 +35,7 @@ deploy token lives in GitHub.
 | `EMAIL_PROVIDER` | | `dev` until the domain is verified, then `resend` |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET` | **Secret** | |
 | `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
-| `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic` |
+| `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic`. Without a real provider, written answers wait for a person even with `ai_auto_mark_enabled` on |
 | `AI_MODEL` | | Optional; defaults to `claude-opus-5` |
 | `PAYMENT_PROVIDER` | | `dev` (charges nothing, cannot say "paid" on its own, refuses to load in production) or `dpo` |
 | `DPO_COMPANY_TOKEN`, `DPO_SERVICE_TYPE` | **Secret** | From the DPO Pay merchant portal; only read when `PAYMENT_PROVIDER=dpo` |

@@ -3,6 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { JobRow } from "@/lib/supabase/types";
 import { expireAttemptHandler, markAttemptHandler } from "@/lib/workflow/handlers/assessment";
 import {
+  aiMarkResponseHandler,
   evaluateAdmissionHandler,
   generateProfileHandler,
   sendOutcomeHandler,
@@ -36,6 +37,7 @@ export const HANDLERS: Record<string, Handler> = {
   mark_attempt: markAttemptHandler,
   expire_attempt: expireAttemptHandler,
   suggest_writing_band: suggestWritingBandHandler,
+  ai_mark_response: aiMarkResponseHandler,
   evaluate_admission: evaluateAdmissionHandler,
   generate_learning_profile: generateProfileHandler,
   send_outcome: sendOutcomeHandler,
