@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Logo } from "@/components/brand/logo";
 
 export const metadata: Metadata = { title: "Hibiscus assessment", robots: { index: false, follow: false } };
 
@@ -11,7 +12,7 @@ export default function KioskLayout({ children }: { children: React.ReactNode })
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-3xl items-center px-4">
-          <span className="text-base font-bold tracking-tight text-primary">Hibiscus Schools</span>
+          <Logo />
         </div>
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 
 /**
  * The parent shell. One narrow column, a wordmark, and nothing to navigate:
@@ -10,8 +11,8 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
-          <Link href="/join" className="text-base font-bold tracking-tight text-primary">
-            Hibiscus Schools
+          <Link href="/join" aria-label="Hibiscus International Schools">
+            <Logo />
           </Link>
           <span className="text-xs font-medium text-muted-foreground">Admissions</span>
         </div>
