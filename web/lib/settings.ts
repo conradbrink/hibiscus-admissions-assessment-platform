@@ -30,6 +30,8 @@ export type Settings = {
   paymentReminderDaysBefore: number[];
   paymentVerifyMinutes: number;
   registrationReminderDays: number[];
+  /** Days after a submission with items outstanding before the parent is reminded. */
+  documentsReminderDays: number;
   autoEnrol: boolean;
   whatsappEnabled: boolean;
   aiExtractionEnabled: boolean;
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paymentReminderDaysBefore: [7, 2],
   paymentVerifyMinutes: 10,
   registrationReminderDays: [7, 14],
+  documentsReminderDays: 2,
   autoEnrol: false,
   whatsappEnabled: false,
   aiExtractionEnabled: false,
@@ -110,6 +113,7 @@ const KEYS: Record<keyof Settings, string> = {
   paymentReminderDaysBefore: "payment_reminder_days_before",
   paymentVerifyMinutes: "payment_verify_minutes",
   registrationReminderDays: "registration_reminder_days",
+  documentsReminderDays: "documents_reminder_days",
   autoEnrol: "auto_enrol",
   whatsappEnabled: "whatsapp_enabled",
   aiExtractionEnabled: "ai_extraction_enabled",
@@ -186,6 +190,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     paymentReminderDaysBefore: asPositiveIntArray(map.get(KEYS.paymentReminderDaysBefore), d.paymentReminderDaysBefore),
     paymentVerifyMinutes: asPositiveInt(map.get(KEYS.paymentVerifyMinutes), d.paymentVerifyMinutes),
     registrationReminderDays: asPositiveIntArray(map.get(KEYS.registrationReminderDays), d.registrationReminderDays),
+    documentsReminderDays: asPositiveInt(map.get(KEYS.documentsReminderDays), d.documentsReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
     aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),

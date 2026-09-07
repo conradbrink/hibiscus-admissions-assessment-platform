@@ -144,3 +144,14 @@ describe("prefill diff", () => {
     expect(changedFromApplication(a, { legalFirstName: "Naledi Grace", legalLastName: "Moeti", dateOfBirth: "2019-04-16" })).toEqual(["child_first_name", "child_date_of_birth"]);
   });
 });
+
+describe("outstanding items after a submission", () => {
+  it("names the sections not filled in, then the documents still needed", async () => {
+    const { outstandingItemsText } = await import("@/lib/registration/completeness");
+    const sections = { student: true, medical: false, family: true, emergency: true, documents: false, agreements: true };
+    expect(outstandingItemsText({ sections, missingDocuments: [{ code: "birth_certificate", label: "Birth certificate" }] as never, rejectedDocuments: [] })).toBe(
+      "the Medical section; these documents: Birth certificate"
+    );
+    expect(outstandingItemsText({ sections: { ...sections, medical: true, documents: true }, missingDocuments: [], rejectedDocuments: [] })).toBeNull();
+  });
+});

@@ -58,6 +58,9 @@ export type EmailExtras = {
   mismatchDetails?: string | null;
   /** "Application fee waived · P1,000 uniform voucher", from the offer's frozen deal. */
   promotionText?: string | null;
+  /** After a registration submission: what is still outstanding, or "yes" in `allReceived` when nothing is. */
+  outstandingItems?: string | null;
+  allReceived?: boolean;
 };
 
 /** The deal's one-line description from an offer's fee snapshot, or null. */
@@ -102,6 +105,8 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     missing_documents: extras.missingDocuments ?? null,
     mismatch_details: extras.mismatchDetails ?? null,
     promotion_text: extras.promotionText ?? null,
+    outstanding_items: extras.outstandingItems ?? null,
+    all_received: extras.allReceived ? "yes" : null,
     start_date: formatDateLong(graph.intake.starts_on),
   };
 }
@@ -123,6 +128,8 @@ export type SendTemplatedOptions = {
   missingDocuments?: string | null;
   /** Free text for the document-mismatch email. */
   mismatchDetails?: string | null;
+  outstandingItems?: string | null;
+  allReceived?: boolean;
 };
 
 /**
@@ -241,7 +248,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null };
+  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null, outstandingItems: opts.outstandingItems ?? null, allReceived: opts.allReceived ?? false };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",

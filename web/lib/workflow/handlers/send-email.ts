@@ -18,6 +18,8 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     payment_id?: string | null;
     missing_documents?: string | null;
     mismatch_details?: string | null;
+    outstanding_items?: string | null;
+    all_received?: boolean | null;
   };
   if (!payload.template_key || !job.application_id) {
     return { outcome: "failed", error: "send_email job missing template_key or application", retryable: false };
@@ -34,6 +36,8 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     paymentId: payload.payment_id ?? null,
     missingDocuments: payload.missing_documents ?? null,
     mismatchDetails: payload.mismatch_details ?? null,
+    outstandingItems: payload.outstanding_items ?? null,
+    allReceived: payload.all_received ?? false,
   });
   if (result.status === "sent") {
     // The WhatsApp companion of this moment: one job, keyed on the email's
