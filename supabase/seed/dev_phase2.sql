@@ -62,7 +62,7 @@ begin
   -- Bank, rubric, questions (grade band Stage 1–6: sort_order 60–110)
   -- -------------------------------------------------------------------------
   insert into public.question_banks (name, description, status, is_sample)
-  values ('SAMPLE bank — Stage 1 to 6', 'Development sample. One question of each type so the kiosk, marker and profile can be exercised. Replace with the school''s own bank.', 'active', true)
+  values ('SAMPLE bank — Stage 1 to 7', 'Development sample. One question of each type so the kiosk, marker and profile can be exercised. Replace with the school''s own bank.', 'active', true)
   returning id into v_bank;
 
   insert into public.rubrics (name, competency_id, max_marks, bands)
@@ -78,7 +78,7 @@ begin
 
   -- 1. single_choice (Reading)
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_reading, 'single_choice', 'Which word rhymes with "cat"?', 1, 2, 60, 110, 'active') returning id into q;
+  values (v_bank, c_reading, 'single_choice', 'Which word rhymes with "cat"?', 1, 2, 60, 120, 'active') returning id into q;
   insert into public.question_options (question_id, position, label) values (q, 1, 'dog') returning id into o1;
   insert into public.question_options (question_id, position, label) values (q, 2, 'hat') returning id into o2;
   insert into public.question_options (question_id, position, label) values (q, 3, 'sun') returning id into o3;
@@ -86,7 +86,7 @@ begin
 
   -- 2. multi_select (Vocabulary)
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_vocabulary, 'multi_select', 'Choose all the words that mean "big".', 2, 3, 60, 110, 'active') returning id into q;
+  values (v_bank, c_vocabulary, 'multi_select', 'Choose all the words that mean "big".', 2, 3, 60, 120, 'active') returning id into q;
   insert into public.question_options (question_id, position, label) values (q, 1, 'large') returning id into o1;
   insert into public.question_options (question_id, position, label) values (q, 2, 'tiny') returning id into o2;
   insert into public.question_options (question_id, position, label) values (q, 3, 'huge') returning id into o3;
@@ -96,17 +96,17 @@ begin
   -- 3. short_text (Comprehension, with a passage)
   insert into public.passages (bank_id, title, body) values (v_bank, 'SAMPLE: The Red Kite', 'Naledi made a red kite with her grandfather. On Saturday the wind was strong, so they walked to the top of the hill. The kite flew so high that it looked like a small red bird.') returning id into o1;
   insert into public.questions (bank_id, competency_id, passage_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_comprehension, o1, 'short_text', 'What colour was the kite?', 1, 2, 60, 110, 'active') returning id into q;
+  values (v_bank, c_comprehension, o1, 'short_text', 'What colour was the kite?', 1, 2, 60, 120, 'active') returning id into q;
   insert into public.question_answers (question_id, answer) values (q, '{"accepted": ["red", "it was red", "a red kite"]}'::jsonb);
 
   -- 4. numeric (Arithmetic)
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_arithmetic, 'numeric', 'What is 27 + 15?', 1, 3, 60, 110, 'active') returning id into q;
+  values (v_bank, c_arithmetic, 'numeric', 'What is 27 + 15?', 1, 3, 60, 120, 'active') returning id into q;
   insert into public.question_answers (question_id, answer) values (q, '{"value": 42, "tolerance": 0}'::jsonb);
 
   -- 5. matching (Number Sense)
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_number, 'matching', 'Match each number to its word.', 3, 2, 60, 110, 'active') returning id into q;
+  values (v_bank, c_number, 'matching', 'Match each number to its word.', 3, 2, 60, 120, 'active') returning id into q;
   insert into public.question_options (question_id, position, label, side) values (q, 1, '7', 'left') returning id into l1;
   insert into public.question_options (question_id, position, label, side) values (q, 2, '12', 'left') returning id into l2;
   insert into public.question_options (question_id, position, label, side) values (q, 3, '20', 'left') returning id into l3;
@@ -118,7 +118,7 @@ begin
 
   -- 6. ordering (Patterns) — the authored order is the key
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_patterns, 'ordering', 'Put these numbers in order from smallest to largest.', 2, 2, 60, 110, 'active') returning id into q;
+  values (v_bank, c_patterns, 'ordering', 'Put these numbers in order from smallest to largest.', 2, 2, 60, 120, 'active') returning id into q;
   insert into public.question_options (question_id, position, label) values (q, 1, '3') returning id into o1;
   insert into public.question_options (question_id, position, label) values (q, 2, '8') returning id into o2;
   insert into public.question_options (question_id, position, label) values (q, 3, '15') returning id into o3;
@@ -127,12 +127,12 @@ begin
 
   -- 7. extended_text (Written Language) — rubric, no key
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_written, 'extended_text', 'Write three or four sentences about your favourite day.', 6, 3, 60, 110, 'active') returning id into q;
+  values (v_bank, c_written, 'extended_text', 'Write three or four sentences about your favourite day.', 6, 3, 60, 120, 'active') returning id into q;
   insert into public.question_answers (question_id, answer, rubric_id) values (q, null, v_rubric);
 
   -- 8. single_choice (Logical Reasoning) — a second choice item so a random section has something to draw
   insert into public.questions (bank_id, competency_id, type, stem, marks, difficulty, grade_sort_min, grade_sort_max, status)
-  values (v_bank, c_logic, 'single_choice', 'All the birds in the tree are blue. Tumi sees a bird fly out of the tree. What colour is it?', 1, 3, 60, 110, 'active') returning id into q;
+  values (v_bank, c_logic, 'single_choice', 'All the birds in the tree are blue. Tumi sees a bird fly out of the tree. What colour is it?', 1, 3, 60, 120, 'active') returning id into q;
   insert into public.question_options (question_id, position, label) values (q, 1, 'Blue') returning id into o1;
   insert into public.question_options (question_id, position, label) values (q, 2, 'Red') returning id into o2;
   insert into public.question_options (question_id, position, label) values (q, 3, 'It cannot be known') returning id into o3;
@@ -142,7 +142,7 @@ begin
   -- Template: three fixed sections, one per subject
   -- -------------------------------------------------------------------------
   insert into public.assessment_templates (name, description, grade_sort_min, grade_sort_max, time_limit_minutes, status)
-  values ('SAMPLE Stage 1–6 sitting', 'Development sample covering every question type. Retire it once a real template is active.', 60, 110, 30, 'active')
+  values ('SAMPLE Stage 1–6 sitting', 'Development sample covering every question type. Retire it once a real template is active.', 60, 120, 30, 'active')
   returning id into v_template;
 
   insert into public.template_sections (template_id, position, title, subject_id, instructions, selection, practice_question_id)
