@@ -143,6 +143,16 @@ rejection emails the parent with your reason and asks for it again.
    START turns it back on. Staff can turn it on for a parent who asked by
    phone, from the applicant page — that is audited.
 
+## Closing the school for a day, or changing the daily times
+
+Sittings and visits appear on every weekday at every campus by themselves,
+six weeks ahead. To keep a day free, add it under **Set up → School
+holidays** before the day is created; deleting a session by hand only frees
+the day until the next run adds one back. To change the times, places or
+how far ahead they run, edit the `auto_sessions_*` rows under **Workflow
+settings**; existing days keep their old times, new days take the new ones.
+To stop the schedule altogether, set `auto_sessions_enabled` to false.
+
 ## A parent replied on WhatsApp
 
 Replies land as a task (**WhatsApp replies** on the dashboard) with the text

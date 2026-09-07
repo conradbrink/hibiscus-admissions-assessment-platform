@@ -1191,6 +1191,18 @@ export type StudentExportRow = {
   created_at: string;
 };
 
+export type SchoolClosureRow = {
+  id: string;
+  /** Null: every campus. */
+  campus_id: string | null;
+  starts_on: string;
+  ends_on: string;
+  label: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type MaintenanceRunRow = {
   key: string;
   last_run_at: string;
@@ -1819,6 +1831,14 @@ export type Database = {
         ]
       >;
       maintenance_runs: TableOf<MaintenanceRunRow, "last_run_at" | "detail">;
+      school_closures: TableOf<
+        SchoolClosureRow,
+        "campus_id" | "created_by",
+        [
+          Rel<"school_closures_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"school_closures_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
       application_summaries: TableOf<
         ApplicationSummaryRow,
         "facts" | "flags" | "model" | "prompt_version" | "validation_errors" | "generated_at" | "generated_by",

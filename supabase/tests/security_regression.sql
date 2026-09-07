@@ -1279,6 +1279,39 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 41. School closures: any staff member reads them, only settings.write
+  --     changes them, and the 2026 calendar is seeded
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.school_closures;
+    if v_count < 10 then v_fail := v_fail || E'\n  - ' || ('41: staff cannot read the seeded closures (' || v_count || ')'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('41: reading closures as staff failed: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    insert into public.school_closures (starts_on, ends_on, label, created_by) values ('2030-01-01', '2030-01-02', 'Sec closure', u_staff);
+    v_fail := v_fail || E'\n  - ' || ('41: admissions staff inserted a closure');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('41: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_admin);
+    insert into public.school_closures (starts_on, ends_on, label, created_by) values ('2030-01-01', '2030-01-02', 'Sec closure', u_admin) returning id into v_id;
+    delete from public.school_closures where id = v_id;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('41 control: settings.write cannot manage closures: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

@@ -92,6 +92,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/message-templates", "templates.write"],
   ["/staff/admin/export-columns", "settings.write"],
   ["/staff/admin/retention", "settings.write"],
+  ["/staff/admin/closures", "settings.write"],
   ["/staff/admin/offer-templates", "templates.write"],
   ["/staff/admin/agreements", "templates.write"],
   ["/staff/admin/document-requirements", "settings.write"],

@@ -127,7 +127,7 @@ automation and every AI feature is behind a setting that ships off.
 | **Student export** (the Ed-admin integration until its API is known): CSV/JSON batches with configurable columns, medical off by default, records remember their batch; `StudentManagementSystem` seam unchanged | Done |
 | **Analytics**: `v_application_facts`, the Stage 27 funnel by campus, grade, period, lead source or assessment outcome, conversions, cycle times, Stage 28 parent-effort figures, a weekly trend, CSV export; **forecast** of expected enrolments against capacity with every rate and sample size shown | Done |
 | **Automation**: waitlist promotion (task, or decision with the switch); data retention through one function with preview and holds; the morning digest per campus team; the rebooking gaps (cancellation email, one nudge that stops on rebooking, an online cutoff) | Done |
-| Security regression suite: 40 attacks with controls | Done |
+| Security regression suite: 41 attacks with controls | Done |
 
 **The agreements are the school's four January 2026 documents, in their
 own words, and the parent signs them.** The Parent Acknowledgement and
@@ -175,6 +175,14 @@ known), staff editing of submitted registration data, AI email drafting.
   writing bands are a draft for the school to confirm. Seven printed errors
   were corrected on the school's instruction (listed in the seed's header).
   Primary (Stage 1 to 7) papers have not been supplied yet.
+- **Sessions.** The school asked (7 September) for a sitting and a visit to
+  be bookable every weekday at every campus except on school holidays. The
+  drain keeps them created six weeks ahead from the `auto_sessions_*`
+  settings (`lib/workflow/automation/sessions.ts`), skipping the dates in
+  `school_closures`, which is seeded with the 2026 term calendar and edited
+  at `/staff/admin/closures`. A day that already has a session of that kind
+  at that campus is left alone, so hand-made sessions replace rather than
+  duplicate the automatic one.
 - **Fee amounts.** With no active fee schedule an approved applicant rests
   at `offer_draft` with a task for finance, and approval is blocked.
 
