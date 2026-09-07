@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
+import { CountryField } from "@/components/parent/register/country-field";
 import { Field, invalidProps, type RegisterFormState } from "@/components/parent/register/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,7 @@ export function FamilyForm({
         {input("primary.mobile", "Mobile", p("mobile"), { required: true, type: "tel", prefilled: pre("mobile") })}
         {input("primary.phone", "Other phone", p("phone"), { type: "tel" })}
         {input("primary.address", "Home address", p("address"))}
-        {input("primary.nationality", "Nationality", p("nationality"))}
+        <CountryField name="primary.nationality" label="Nationality" kind="nationality" initial={p("nationality")} error={f["primary.nationality"]} fields={f} readOnly={readOnly} />
         <label className="flex items-start gap-3 text-sm">
           <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={sv.whatsappOptIn ? sv.whatsappOptIn === "1" : whatsappOptIn} disabled={readOnly} className="mt-0.5 size-5 shrink-0 accent-primary" />
           <span>
@@ -77,7 +78,7 @@ export function FamilyForm({
         {input("secondaryMobile", "Mobile", s("mobile"), { type: "tel" })}
         {input("secondaryPhone", "Other phone", s("phone"), { type: "tel" })}
         {input("secondaryAddress", "Home address, if different", s("address"))}
-        {input("secondaryNationality", "Nationality", s("nationality"))}
+        <CountryField name="secondaryNationality" label="Nationality" kind="nationality" initial={s("nationality")} error={f.secondaryNationality} fields={f} readOnly={readOnly} />
       </fieldset>
       {state.error ? <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{state.error}</p> : null}
       {!readOnly ? (

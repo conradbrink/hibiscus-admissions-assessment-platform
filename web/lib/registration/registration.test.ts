@@ -74,6 +74,26 @@ describe("schemas", () => {
     expect(bad.success).toBe(false);
     if (!bad.success) expect(issuesToFields(bad.error).legalFirstName).toContain("first name");
   });
+  it("saves countries and nationalities in the list's spelling and refuses unknown ones", () => {
+    const ok = { legalFirstName: "Naledi", legalLastName: "Moeti", gender: "female", dateOfBirth: "2019-04-15", nationality: "botswana", countryOfBirth: "rsa", homeLanguage: "setswana", identityType: "birth_certificate", identityNumber: "123" };
+    const parsed = studentSchema.safeParse(ok);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.nationality).toBe("Motswana");
+      expect(parsed.data.countryOfBirth).toBe("South Africa");
+      expect(parsed.data.homeLanguage).toBe("Setswana");
+    }
+    const bad = studentSchema.safeParse({ ...ok, countryOfBirth: "Narnia", nationality: "Narnian" });
+    expect(bad.success).toBe(false);
+    if (!bad.success) {
+      const f = issuesToFields(bad.error);
+      expect(f.countryOfBirth).toContain("from the list");
+      expect(f.nationality).toContain("from the list");
+    }
+    // A language nobody listed is still accepted as typed.
+    const rare = studentSchema.safeParse({ ...ok, homeLanguage: "Klingon" });
+    expect(rare.success && rare.data.homeLanguage).toBe("Klingon");
+  });
   it("secondary guardian is all-or-nothing", () => {
     const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com", mobile: "71234567" };
     expect(familySchema.safeParse({ primary }).success).toBe(true);

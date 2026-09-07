@@ -2,11 +2,13 @@
 
 import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
+import { CountryField, ListField } from "@/components/parent/register/country-field";
 import { Field, invalidProps, type RegisterFormState } from "@/components/parent/register/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { GENDERS, IDENTITY_TYPES } from "@/lib/registration/schema";
+import { LANGUAGES } from "@/lib/pick-lists";
+import { GENDERS, IDENTITY_TYPES, NOT_AT_SCHOOL } from "@/lib/registration/schema";
 
 const GENDER_LABELS: Record<(typeof GENDERS)[number], string> = { female: "Female", male: "Male", other: "Other", undisclosed: "Prefer not to say" };
 const ID_LABELS: Record<(typeof IDENTITY_TYPES)[number], string> = { omang: "Omang", passport: "Passport", birth_certificate: "Birth certificate number", other: "Other" };
@@ -16,11 +18,14 @@ export function StudentForm({
   initial,
   prefilled,
   readOnly,
+  grades,
 }: {
   action: (state: RegisterFormState, formData: FormData) => Promise<RegisterFormState>;
   initial: Record<string, string>;
   prefilled: string[];
   readOnly: boolean;
+  /** The school's grade names, for "current grade". */
+  grades: string[];
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const f = state.fields ?? {};
@@ -52,10 +57,10 @@ export function StudentForm({
         <Field id="dateOfBirth" label="Date of birth" error={f.dateOfBirth} prefilled={pre("dateOfBirth")}>
           <Input id="dateOfBirth" name="dateOfBirth" type="date" defaultValue={v.dateOfBirth ?? ""} required readOnly={readOnly} {...invalidProps(f, "dateOfBirth")} />
         </Field>
-        {text("nationality", "Nationality", { required: true })}
-        {text("countryOfBirth", "Country of birth", { required: true })}
+        <CountryField name="nationality" label="Nationality" kind="nationality" initial={v.nationality ?? ""} error={f.nationality} fields={f} required readOnly={readOnly} prefilled={pre("nationality")} />
+        <CountryField name="countryOfBirth" label="Country of birth" kind="country" initial={v.countryOfBirth ?? ""} error={f.countryOfBirth} fields={f} required readOnly={readOnly} prefilled={pre("countryOfBirth")} />
         {text("placeOfBirth", "Town or city of birth")}
-        {text("homeLanguage", "Language spoken at home", { required: true })}
+        <ListField name="homeLanguage" label="Language spoken at home" options={LANGUAGES} initial={v.homeLanguage ?? ""} error={f.homeLanguage} fields={f} required readOnly={readOnly} hint="Start typing and choose, or write it in if it is not listed." />
       </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Identity</legend>
@@ -70,7 +75,14 @@ export function StudentForm({
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Schooling so far</legend>
         {text("previousInstitution", "Current or previous school", { hint: "Leave blank if this is their first school." })}
-        {text("currentGrade", "Current grade")}
+        <Field id="currentGrade" label="Current grade" error={f.currentGrade} prefilled={pre("currentGrade")}>
+          <NativeSelect id="currentGrade" name="currentGrade" defaultValue={v.currentGrade ?? ""} disabled={readOnly} {...invalidProps(f, "currentGrade")}>
+            <option value="">Choose…</option>
+            <option value={NOT_AT_SCHOOL}>{NOT_AT_SCHOOL}</option>
+            {grades.map((g) => <option key={g} value={g}>{g}</option>)}
+            {v.currentGrade && v.currentGrade !== NOT_AT_SCHOOL && !grades.includes(v.currentGrade) ? <option value={v.currentGrade}>{v.currentGrade}</option> : null}
+          </NativeSelect>
+        </Field>
       </fieldset>
       {state.error ? <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{state.error}</p> : null}
       {!readOnly ? (

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { canonicalCountry, canonicalNationality } from "@/lib/countries";
+import { canonicalFromList, LANGUAGES, MEDICAL_AIDS } from "@/lib/pick-lists";
 
 /**
  * What each registration step accepts. Shared by the server actions (the
@@ -11,6 +13,8 @@ const required = (max: number, message: string) => z.string().trim().min(1, mess
 const optional = (max: number) => text(max).optional().transform((v) => (v ? v : null));
 
 export const GENDERS = ["female", "male", "other", "undisclosed"] as const;
+/** The "current grade" answer for a child who has not started school. */
+export const NOT_AT_SCHOOL = "Not at school yet";
 export const IDENTITY_TYPES = ["omang", "passport", "birth_certificate", "other"] as const;
 export const RELATIONSHIPS = ["mother", "father", "parent", "guardian", "grandparent", "other"] as const;
 
@@ -31,6 +35,26 @@ const dateOfBirth = z
     return !Number.isNaN(d.getTime()) && d.getUTCFullYear() >= 1990 && d.getTime() < Date.now();
   }, "That date of birth does not look right.");
 
+/** A country from the list, in the list's own spelling; the parent picks it from a search box. */
+const countryField = (message: string) =>
+  z.string().trim().max(80).transform((v, ctx) => {
+    const c = canonicalCountry(v);
+    if (!c) ctx.addIssue({ code: "custom", message });
+    return c ?? v;
+  });
+const nationalityField = (message: string) =>
+  z.string().trim().max(80).transform((v, ctx) => {
+    const n = canonicalNationality(v);
+    if (!n) ctx.addIssue({ code: "custom", message });
+    return n ?? v;
+  });
+const optionalNationality = z.string().trim().max(80).optional().transform((v, ctx) => {
+  if (!v) return null;
+  const n = canonicalNationality(v);
+  if (!n) ctx.addIssue({ code: "custom", message: "Choose a nationality from the list, or leave it blank." });
+  return n ?? v;
+});
+
 export const studentSchema = z.object({
   legalFirstName: required(80, "Enter the child's first name as it appears on the birth certificate."),
   legalMiddleNames: optional(120),
@@ -38,10 +62,10 @@ export const studentSchema = z.object({
   preferredName: optional(80),
   gender: z.enum(GENDERS, { error: "Choose one." }),
   dateOfBirth,
-  nationality: required(80, "Enter the child's nationality."),
-  countryOfBirth: required(80, "Enter the country of birth."),
+  nationality: nationalityField("Choose the child's nationality from the list."),
+  countryOfBirth: countryField("Choose the country of birth from the list."),
   placeOfBirth: optional(120),
-  homeLanguage: required(60, "Enter the language spoken at home."),
+  homeLanguage: required(60, "Choose or enter the language spoken at home.").transform((v) => canonicalFromList(LANGUAGES, v) ?? v),
   identityType: z.enum(IDENTITY_TYPES, { error: "Choose the identity document." }),
   identityNumber: required(40, "Enter the identity or registration number."),
   previousInstitution: optional(160),
@@ -49,7 +73,7 @@ export const studentSchema = z.object({
 });
 
 export const medicalSchema = z.object({
-  medicalAidName: optional(120),
+  medicalAidName: text(120).optional().transform((v) => canonicalFromList(MEDICAL_AIDS, v)),
   medicalAidNumber: optional(60),
   medicalAidPrincipalMember: optional(120),
   emergencyTreatmentConsent: z.enum(["yes", "no"], { error: "Tell us whether the school may authorise emergency treatment." }),
@@ -68,7 +92,7 @@ const guardian = z.object({
   mobile: optional(40),
   phone: optional(40),
   address: optional(300),
-  nationality: optional(80),
+  nationality: optionalNationality,
 });
 
 const emptyGuardian = (g: Record<string, unknown>) => Object.values(g).every((v) => v === null || v === undefined || v === "");
