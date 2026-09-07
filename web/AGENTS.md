@@ -40,6 +40,25 @@ will come from `offer_templates`. If a string is going to be read by a parent in
 an email or a document, it belongs in the database where an administrator can
 change it.
 
+## Plain English for parents
+
+Everything the platform writes to a parent is at CEFR level B1 to B2:
+the offer letter, every email and WhatsApp message, the assessment
+report, the learning profile, and the parent pages. The rules, which the
+AI prompts also carry (`PLAIN_ENGLISH_RULES` in `lib/profile/narrative.ts`):
+
+- Short sentences, 10 to 20 words. One idea per sentence.
+- Common words: use, not utilise; help, not facilitate.
+- Active voice: "The school invoices tuition", not "Tuition is invoiced".
+- No idioms, no slang, nothing that only makes sense in one country.
+- Be direct. No filler, no corporate language.
+- Explain a technical word in the same sentence if it cannot be avoided.
+- One word for one thing: "assessment", never also "test" or "exam".
+- International formats: 21 September 2026, P 5,300.00.
+- Write for someone whose English is their second or third language.
+
+Staff-facing text may be denser, but the same rules make it better.
+
 ## Answers never leave the server
 
 Anything under `lib/assessment/` that builds a delivery payload for the kiosk
