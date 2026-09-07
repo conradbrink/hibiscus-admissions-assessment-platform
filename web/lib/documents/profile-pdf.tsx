@@ -1,6 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { BAND_LABELS } from "@/lib/assessment/bands";
-import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
+import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import type { Narrative } from "@/lib/profile/narrative";
 
@@ -23,6 +23,7 @@ const s = StyleSheet.create({
 
 export type ProfileDocumentProps = {
   logoUrl: string | null;
+  letterhead: LetterheadCampus | null;
   studentName: string;
   gradeName: string;
   campusName: string;
@@ -36,7 +37,7 @@ export function ProfileDocument(p: ProfileDocumentProps) {
   return (
     <Document title={`${p.studentName} — ${SCHOOL_NAME} learning profile`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Letterhead logoUrl={p.logoUrl} lines={["Learning profile", p.reference]} />
+        <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Learning profile", p.reference]} />
         <Text style={s.title}>{p.studentName}</Text>
         <Text style={s.subtitle}>Learning profile · {p.gradeName}, {p.campusName} · {p.reference} · {p.generatedOn}</Text>
 

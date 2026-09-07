@@ -1,6 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { BAND_LABELS } from "@/lib/assessment/bands";
-import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
+import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import type { Narrative } from "@/lib/profile/narrative";
 
@@ -35,6 +35,7 @@ const s = StyleSheet.create({
 
 export type AssessmentReportProps = {
   logoUrl: string | null;
+  letterhead: LetterheadCampus | null;
   studentName: string;
   firstName: string;
   gradeName: string;
@@ -61,7 +62,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
   return (
     <Document title={`${p.studentName} — ${SCHOOL_NAME} assessment report`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Letterhead logoUrl={p.logoUrl} lines={["Admissions assessment report", `${p.reference} · printed ${p.printedOn}`]} />
+        <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Admissions assessment report", `${p.reference} · printed ${p.printedOn}`]} />
 
         <Text style={s.title}>{p.studentName}</Text>
         <Text style={s.subtitle}>Applying for {p.gradeName} at {p.campusName} · assessed {p.assessedOn}</Text>
