@@ -12,7 +12,7 @@ import type { CheckoutRequest, CheckoutResult, PaymentProvider, VerifyResult } f
 // VERCEL_ENV, not NODE_ENV: `next build` and preview deployments both run
 // with NODE_ENV=production, and previews are exactly where this belongs.
 if (process.env.VERCEL_ENV === "production") {
-  throw new Error("PAYMENT_PROVIDER=dev is not allowed in production. Set PAYMENT_PROVIDER=dpo.");
+  throw new Error("PAYMENT_PROVIDER=dev is not allowed in production. Set PAYMENT_PROVIDER=paygate or dpo.");
 }
 
 export type DevSimulation = { dev_simulated: "paid" | "failed" | "cancelled"; simulated_at: string };

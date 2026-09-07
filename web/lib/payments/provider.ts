@@ -2,8 +2,9 @@ import "server-only";
 import type { Json } from "@/lib/supabase/types";
 
 /**
- * The one seam every payment goes through. Two adapters: DPO Pay for
- * production and a development one that charges nothing and can never
+ * The one seam every payment goes through. Three adapters: PayGate (the
+ * school's gateway) and DPO Pay for production, and a development one that
+ * charges nothing and can never
  * report a payment as made on its own. Chosen by PAYMENT_PROVIDER; unset
  * means dev, so a misconfigured deploy cannot take money — or claim to.
  *
@@ -40,7 +41,7 @@ export type VerifyResult = {
 };
 
 export interface PaymentProvider {
-  readonly name: "dev" | "dpo";
+  readonly name: "dev" | "dpo" | "paygate";
   createCheckout(request: CheckoutRequest): Promise<CheckoutResult>;
   verify(providerRef: string): Promise<VerifyResult>;
 }
@@ -48,15 +49,21 @@ export interface PaymentProvider {
 /** How long a hosted checkout stays open. */
 export const CHECKOUT_TTL_HOURS = 24;
 
-export function paymentProviderName(): "dev" | "dpo" {
+export function paymentProviderName(): "dev" | "dpo" | "paygate" {
   const which = process.env.PAYMENT_PROVIDER ?? "dev";
+  if (which === "paygate") return "paygate";
   if (which === "dpo") return "dpo";
   if (which === "dev") return "dev";
-  throw new Error(`PAYMENT_PROVIDER "${which}" is not one of dev, dpo.`);
+  throw new Error(`PAYMENT_PROVIDER "${which}" is not one of dev, dpo, paygate.`);
 }
 
 export async function getPaymentProvider(): Promise<PaymentProvider> {
-  if (paymentProviderName() === "dpo") {
+  const which = paymentProviderName();
+  if (which === "paygate") {
+    const { paygateProvider } = await import("@/lib/payments/paygate");
+    return paygateProvider;
+  }
+  if (which === "dpo") {
     const { dpoProvider } = await import("@/lib/payments/dpo");
     return dpoProvider;
   }

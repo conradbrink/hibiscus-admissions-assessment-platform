@@ -891,7 +891,7 @@ export type OfferDecision = "accepted" | "declined";
 export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
 export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
 export type PaymentMethod = "online" | "eft";
-export type PaymentProviderName = "dev" | "dpo" | "bank";
+export type PaymentProviderName = "dev" | "dpo" | "paygate" | "bank";
 
 export type OfferAcceptanceRow = {
   id: string;

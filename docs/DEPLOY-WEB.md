@@ -38,7 +38,9 @@ deploy token lives in GitHub.
 | `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
 | `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic`. Without a real provider, written answers wait for a person even with `ai_auto_mark_enabled` on |
 | `AI_MODEL` | | Optional; defaults to `claude-opus-5` |
-| `PAYMENT_PROVIDER` | | `dev` (charges nothing, cannot say "paid" on its own, refuses to load in production) or `dpo` |
+| `PAYMENT_PROVIDER` | | `dev` (charges nothing, cannot say "paid" on its own, refuses to load in production), `paygate` (the school's gateway) or `dpo` |
+| `PAYGATE_ID`, `PAYGATE_ENCRYPTION_KEY` | **Secret** | From the PayGate merchant portal (map.paygate.co.za): the PayGate ID and the encryption key set under the PayWeb 3 configuration; only read when `PAYMENT_PROVIDER=paygate` |
+| `PAYGATE_API_URL` | | Defaults to live `https://secure.paygate.co.za/payweb3/`; PayGate's test merchant `10011072130` with key `secret` runs against the same host |
 | `DPO_COMPANY_TOKEN`, `DPO_SERVICE_TYPE` | **Secret** | From the DPO Pay merchant portal; only read when `PAYMENT_PROVIDER=dpo` |
 | `DPO_API_URL` | | Defaults to live; the sandbox is `https://secure1.sandbox.directpay.online/API/v6/` |
 | `DOCUMENT_SCANNER` | | `none` until a scanner is implemented |
@@ -68,12 +70,16 @@ compiled into the JavaScript every visitor downloads.
 
 ### Payments
 
-Set `PAYMENT_PROVIDER=dpo` only on production, with the live DPO token and
-service type. Preview deployments keep `dev`: the `/pay/dev` screen stands in
-for the gateway and nothing is charged. DPO sends no signed webhook; the site
-verifies each payment with DPO when the parent returns and again from the
-cron every few minutes until it is paid or its time limit passes, so the
-cron must be running for payments to confirm without the parent's browser.
+Set `PAYMENT_PROVIDER=paygate` (or `dpo`) only on production, with the live
+credentials. Preview deployments keep `dev`: the `/pay/dev` screen stands in
+for the gateway and nothing is charged. Neither gateway's browser return is
+trusted: the site verifies each payment with the gateway when the parent
+returns, when PayGate's notify post arrives at `/api/webhooks/paygate`, and
+again from the cron every few minutes until it is paid or its time limit
+passes, so the cron must be running for payments to confirm without the
+parent's browser. PayGate: set the notify URL to
+`https://<site>/api/webhooks/paygate` in the merchant portal as well; the
+site also sends it with every request.
 Enter the bank details for transfers under **Set up → Fees**.
 
 ### Documents
