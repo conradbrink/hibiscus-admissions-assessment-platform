@@ -3,6 +3,8 @@ import { drainSoon } from "@/lib/parent/actions";
 import { reconcilePayment } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readParentSession } from "@/lib/tokens/server";
+import { paymentProviderName } from "@/lib/payments/provider";
+import { fieldMap, parseWire } from "@/lib/payments/paygate-wire";
 import { PARENT_ACTOR } from "@/lib/workflow/engine";
 
 export const runtime = "nodejs";
@@ -36,4 +38,27 @@ export async function GET(request: Request): Promise<Response> {
   }
   drainSoon();
   redirect("/pay");
+}
+
+/**
+ * PayGate sends the parent back with a POST. A cross-site POST arrives
+ * without the parent's session cookie, so the payment is found by the
+ * request id PayGate posted, verified with PayGate, and the parent is then
+ * redirected to the payment page, where the cookie is present again.
+ */
+export async function POST(request: Request): Promise<Response> {
+  if (paymentProviderName() === "paygate") {
+    const m = fieldMap(parseWire(await request.text()));
+    const admin = createAdminClient();
+    const { data: payment } = await admin.from("payments").select("*").eq("provider_ref", m.PAY_REQUEST_ID ?? "").maybeSingle();
+    if (payment && payment.status === "processing") {
+      try {
+        await reconcilePayment(admin, payment, PARENT_ACTOR);
+      } catch (e) {
+        console.warn("[pay] return verify failed", payment.id, (e as Error).message);
+      }
+    }
+    drainSoon();
+  }
+  return Response.redirect(new URL("/pay", request.url), 303);
 }
