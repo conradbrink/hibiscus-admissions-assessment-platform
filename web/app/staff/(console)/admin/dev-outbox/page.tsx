@@ -30,11 +30,12 @@ export default async function OutboxPage() {
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
   const provider = process.env.EMAIL_PROVIDER ?? "dev";
   const messaging = process.env.MESSAGING_PROVIDER ?? "dev";
+  const payments = process.env.PAYMENT_PROVIDER ?? "dev";
   const canSimulate = process.env.VERCEL_ENV !== "production";
 
   return (
     <>
-      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging}.`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging} · Payment provider: ${payments}.`} />
       <h2 className="mb-2 text-sm font-semibold">Emails</h2>
       {messages && messages.length > 0 ? (
         <ul className="mb-6 divide-y divide-border surface text-sm">
