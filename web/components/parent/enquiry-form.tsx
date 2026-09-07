@@ -156,7 +156,7 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
         {!pending ? <ArrowRight data-icon="inline-end" /> : null}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        By continuing you agree to Hibiscus Schools using these details to process an enquiry.
+        By continuing you agree to Hibiscus International Schools using these details to process an enquiry.
       </p>
     </form>
   );

@@ -34,6 +34,7 @@ change.
 | `…100400_agreement_documents` | `agreement_templates.document_url`, `publish_agreement_template()` with the link, the two published agreements seeded, placeholders retired |
 | `…100300_automation` | Retention columns and `anonymise_application()`, `staff_profiles.digest_enabled`, staff-audience templates, `campus_dashboard_counts()`, `maintenance_runs`, the automation settings and templates; replaces `dashboard_counts()` |
 | `…123000_ai_marking` (7 Sep) | `marking_method` may be `ai`; the `ai_auto_mark_enabled` switch |
+| `…150000_school_name` (7 Sep) | Data only: every template a parent reads says Hibiscus International Schools; agreements already signed keep their text |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |
 | `…100500_policy_documents_and_signatures` | `agreement_templates.sort_order`, links that may be a path on this site, `agreement_acceptances.signature_svg`; the four January 2026 documents (Learner Code of Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement) in their own words |
 

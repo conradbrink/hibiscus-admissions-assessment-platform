@@ -1,4 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -9,18 +10,17 @@ import { formatMoney } from "@/lib/money";
  */
 
 const s = StyleSheet.create({
-  page: { padding: 44, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.45 },
-  brand: { fontSize: 10, color: "#f26a2e", fontFamily: "Helvetica-Bold", letterSpacing: 1 },
-  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 6, marginBottom: 12 },
+  page: { paddingTop: 36, paddingBottom: 56, paddingHorizontal: 44, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937", lineHeight: 1.45 },
+  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 4, marginBottom: 12, lineHeight: 1.2 },
   h2: { fontSize: 13, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   bold: { fontFamily: "Helvetica-Bold" },
   small: { fontSize: 9, color: "#6b7280" },
   meta: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2 },
-  footer: { position: "absolute", bottom: 28, left: 44, right: 44, fontSize: 8, color: "#9ca3af" },
 });
 
 export type ReceiptDocumentProps = {
+  logoUrl: string | null;
   reference: string;
   receiptNumber: string;
   studentName: string;
@@ -39,9 +39,9 @@ export type ReceiptDocumentProps = {
 
 export function ReceiptDocument(p: ReceiptDocumentProps) {
   return (
-    <Document title={`Receipt ${p.receiptNumber} — Hibiscus Schools`} author="Hibiscus Schools">
+    <Document title={`Receipt ${p.receiptNumber} — ${SCHOOL_NAME}`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Text style={s.brand}>HIBISCUS SCHOOLS</Text>
+        <Letterhead logoUrl={p.logoUrl} lines={["Receipt", p.receiptNumber]} />
         <Text style={s.title}>Receipt</Text>
         <View style={{ marginBottom: 10 }}>
           <View style={s.meta}><Text style={s.small}>Receipt number</Text><Text>{p.receiptNumber}</Text></View>
@@ -58,7 +58,7 @@ export function ReceiptDocument(p: ReceiptDocumentProps) {
           <View key={i} style={s.row}><Text>{l.label}</Text><Text>{formatMoney(l.amount_minor, p.currency)}</Text></View>
         ))}
         <View style={s.row}><Text style={s.bold}>Amount received</Text><Text style={s.bold}>{formatMoney(p.amountMinor, p.currency)}</Text></View>
-        <Text style={s.footer} fixed>Hibiscus Schools · Admissions · Generated from the payment record on the date shown.</Text>
+        <LetterFoot text="Admissions · Generated from the payment record on the date shown." />
       </Page>
     </Document>
   );

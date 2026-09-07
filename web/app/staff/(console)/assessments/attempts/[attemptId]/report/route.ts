@@ -1,6 +1,7 @@
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import { AssessmentReportDocument } from "@/lib/documents/assessment-report-pdf";
+import { logoUrlFor } from "@/lib/documents/letterhead";
 import { formatDateLong } from "@/lib/format-date";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
 import type { ComputedProfile } from "@/lib/profile/compute";
@@ -50,7 +51,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ attemptId:
   if (!narrative.success) return new Response("The learning profile is incomplete.", { status: 409 });
 
   const element = createElement(AssessmentReportDocument, {
-    logoUrl: `${siteUrl()}/brand/hibiscus-logo.png`,
+    logoUrl: logoUrlFor(siteUrl()),
     studentName: `${app.child_first_name} ${app.child_last_name}`,
     firstName: app.child_first_name,
     gradeName: grade?.name ?? "",

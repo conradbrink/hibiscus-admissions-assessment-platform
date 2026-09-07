@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { createElement, type ReactElement } from "react";
 import { loadApplicationGraph } from "@/lib/applications";
 import { OfferDocument } from "@/lib/documents/offer-pdf";
+import { logoUrlFor } from "@/lib/documents/letterhead";
 import { formatDateLong } from "@/lib/format-date";
 import { loadVisibleOffer } from "@/lib/offers/load";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteUrl } from "@/lib/tokens";
 import { requireParentSession } from "@/lib/tokens/server";
 
 export const runtime = "nodejs";
@@ -20,6 +22,7 @@ export async function GET(): Promise<Response> {
   if (!offer) return new Response("Not found", { status: 404 });
 
   const element = createElement(OfferDocument, {
+    logoUrl: logoUrlFor(siteUrl()),
     studentName: `${graph.application.child_first_name} ${graph.application.child_last_name}`,
     reference: graph.application.reference,
     bodyHtml: offer.rendered_html,

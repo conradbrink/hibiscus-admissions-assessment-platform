@@ -1,5 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { BAND_LABELS } from "@/lib/assessment/bands";
+import { LetterFoot, Letterhead, SCHOOL_NAME } from "@/lib/documents/letterhead";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import type { Narrative } from "@/lib/profile/narrative";
 
@@ -9,9 +10,8 @@ import type { Narrative } from "@/lib/profile/narrative";
  */
 
 const s = StyleSheet.create({
-  page: { padding: 40, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937" },
-  brand: { fontSize: 10, color: "#f26a2e", fontFamily: "Helvetica-Bold", letterSpacing: 1 },
-  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 6 },
+  page: { paddingTop: 36, paddingBottom: 56, paddingHorizontal: 44, fontSize: 11, fontFamily: "Helvetica", color: "#1f2937" },
+  title: { fontSize: 22, fontFamily: "Helvetica-Bold", marginTop: 4, lineHeight: 1.2 },
   subtitle: { fontSize: 11, color: "#6b7280", marginTop: 2 },
   h2: { fontSize: 13, fontFamily: "Helvetica-Bold", marginTop: 18, marginBottom: 6 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
@@ -19,10 +19,10 @@ const s = StyleSheet.create({
   muted: { color: "#6b7280" },
   para: { lineHeight: 1.45, marginBottom: 6 },
   big: { fontSize: 30, fontFamily: "Helvetica-Bold" },
-  footer: { position: "absolute", bottom: 28, left: 40, right: 40, fontSize: 8, color: "#9ca3af", lineHeight: 1.3 },
 });
 
 export type ProfileDocumentProps = {
+  logoUrl: string | null;
   studentName: string;
   gradeName: string;
   campusName: string;
@@ -34,9 +34,9 @@ export type ProfileDocumentProps = {
 
 export function ProfileDocument(p: ProfileDocumentProps) {
   return (
-    <Document title={`${p.studentName} — Hibiscus learning profile`} author="Hibiscus Schools">
+    <Document title={`${p.studentName} — ${SCHOOL_NAME} learning profile`} author={SCHOOL_NAME}>
       <Page size="A4" style={s.page}>
-        <Text style={s.brand}>HIBISCUS SCHOOLS</Text>
+        <Letterhead logoUrl={p.logoUrl} lines={["Learning profile", p.reference]} />
         <Text style={s.title}>{p.studentName}</Text>
         <Text style={s.subtitle}>Learning profile · {p.gradeName}, {p.campusName} · {p.reference} · {p.generatedOn}</Text>
 
@@ -86,9 +86,7 @@ export function ProfileDocument(p: ProfileDocumentProps) {
           <View key={x.id} style={s.row}><Text style={{ ...s.cell, marginLeft: 12 }}>{x.name}</Text><Text style={s.cell}>{x.percent}% · {BAND_LABELS[x.band]}</Text></View>
         ))}
 
-        <Text style={s.footer} fixed>
-          This profile summarises an academic assessment of English, Mathematics and reasoning skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for.
-        </Text>
+        <LetterFoot text={"This profile summarises an academic assessment of English, Mathematics and reasoning skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for."} />
       </Page>
     </Document>
   );
