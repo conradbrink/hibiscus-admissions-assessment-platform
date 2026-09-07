@@ -48,12 +48,12 @@ export async function aiMarkResponseHandler(admin: AdminClient, job: JobRow): Pr
     return { outcome: "failed", error: "ai_mark_response job missing ids", retryable: false };
   }
   const result = await autoMarkResponse(admin, p.attempt_id, p.form_question_id);
-  if (result === "marked") {
+  if (result.status === "marked") {
     await runMarking(admin, p.attempt_id, SYSTEM_ACTOR);
     return { outcome: "done" };
   }
   await runMarking(admin, p.attempt_id, SYSTEM_ACTOR, { forceHuman: true });
-  return { outcome: "skipped", reason: "could not be marked automatically; handed to a person" };
+  return { outcome: "skipped", reason: `handed to a person: ${result.reason}` };
 }
 
 /** The automation switch's version of clicking Send. */

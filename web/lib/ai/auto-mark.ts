@@ -14,15 +14,15 @@ import type { Json } from "@/lib/supabase/types";
  * band descriptors (which carry the school's model answer), and the text
  * the child wrote. Never the child's name.
  *
- * Returns "skipped" when the answer cannot be marked this way (no rubric,
- * already marked by a person, provider refused), so the caller can hand the
- * attempt to a person instead.
+ * Returns "skipped", with the reason, when the answer cannot be marked this
+ * way (no rubric, already marked by a person, the provider refused or
+ * failed), so the caller can hand the attempt to a person instead and the
+ * job log says why.
  */
-export async function autoMarkResponse(
-  admin: AdminClient,
-  attemptId: string,
-  formQuestionId: string
-): Promise<"marked" | "skipped"> {
+export type AutoMarkResult = { status: "marked" } | { status: "skipped"; reason: string };
+
+export async function autoMarkResponse(admin: AdminClient, attemptId: string, formQuestionId: string): Promise<AutoMarkResult> {
+  const skipped = (reason: string): AutoMarkResult => ({ status: "skipped", reason });
   const [{ data: q }, { data: r }] = await Promise.all([
     admin.from("form_questions").select("stem, rubric_snapshot, marks").eq("id", formQuestionId).single(),
     admin
@@ -32,15 +32,15 @@ export async function autoMarkResponse(
       .eq("form_question_id", formQuestionId)
       .maybeSingle(),
   ]);
-  if (!q || !r) return "skipped";
-  if (r.marking_method === "rubric" && r.marks_awarded !== null) return "skipped"; // a person's mark stands
-  if (r.marking_method === "ai" && r.marks_awarded !== null) return "marked"; // already done
+  if (!q || !r) return skipped("question or response missing");
+  if (r.marking_method === "rubric" && r.marks_awarded !== null) return skipped("already marked by a person");
+  if (r.marking_method === "ai" && r.marks_awarded !== null) return { status: "marked" }; // already done
 
   const rubric = q.rubric_snapshot && typeof q.rubric_snapshot === "object" && !Array.isArray(q.rubric_snapshot)
     ? (q.rubric_snapshot as { bands?: Json })
     : null;
   const bands = parseRubricBands(rubric?.bands ?? null);
-  if (bands.length < 2) return "skipped";
+  if (bands.length < 2) return skipped("the question has no rubric");
   const text = (r.response as { text?: unknown } | null)?.text;
   const maxMarks = Number(q.marks);
 
@@ -50,7 +50,7 @@ export async function autoMarkResponse(
     const keys = bands.map((b) => b.key) as [string, ...string[]];
     const schema = z.object({ band: z.enum(keys), rationale: z.string().max(400) });
     const provider = await getAiProvider();
-    if (provider.name === "dev") return "skipped"; // the placeholder adapter must never mark a child
+    if (provider.name === "dev") return skipped("no real AI provider is configured"); // the placeholder adapter must never mark a child
     const result = await provider.generateStructured({
       schema,
       system: [
@@ -73,14 +73,14 @@ export async function autoMarkResponse(
     });
     if (!result.ok) {
       if (result.retryable) throw new Error(`AI provider: ${result.error ?? result.reason}`);
-      return "skipped";
+      return skipped(`AI provider ${result.reason}: ${result.error ?? "no detail"}`);
     }
     chosen = { band: result.output.band, rationale: result.output.rationale };
     model = result.model;
   }
 
   const marks = marksForBand(bands, chosen.band, maxMarks);
-  if (marks === null) return "skipped";
+  if (marks === null) return skipped(`the model chose a band the rubric does not have (${chosen.band})`);
   const { error } = await admin
     .from("attempt_responses")
     .update({
@@ -94,5 +94,5 @@ export async function autoMarkResponse(
     .eq("id", r.id)
     .is("marks_awarded", null);
   if (error) throw new Error(error.message);
-  return "marked";
+  return { status: "marked" };
 }

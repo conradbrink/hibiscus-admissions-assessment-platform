@@ -29,10 +29,9 @@ describe("markWithoutModel", () => {
     expect(markWithoutModel("   ", bands)?.band).toBe("b0");
     expect(markWithoutModel(undefined, bands)?.band).toBe("b0");
   });
-  it("gives a token answer the lowest band too", () => {
-    expect(markWithoutModel("yes", bands)?.rationale).toBe("Too little was written to be an answer.");
-  });
-  it("leaves a real answer for the model", () => {
+  it("leaves anything written, however short, for the model", () => {
+    expect(markWithoutModel("6 1/2", bands)).toBeNull();
+    expect(markWithoutModel("yes", bands)).toBeNull();
     expect(markWithoutModel("The skylark was singing high above the house.", bands)).toBeNull();
   });
 });
