@@ -102,14 +102,36 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
 
     const { error } = await ctx.supabase.from("staff_profiles").update({ is_active: active, digest_enabled: formData.get("digestEnabled") === "1" }).eq("id", staffId);
     if (error) throw new Error(error.message);
-    await ctx.supabase.from("staff_roles").delete().eq("staff_id", staffId);
-    if (roleIds.length) {
-      const { error: rErr } = await ctx.supabase.from("staff_roles").insert(roleIds.map((role_id) => ({ staff_id: staffId, role_id })));
+
+    // Add before removing, and only what changed. Row-level security checks
+    // the permission on every statement, so deleting a person's roles and
+    // then inserting the new list would refuse the insert whenever the
+    // person is editing their own row: their permission vanished with the
+    // delete. That once left the only administrator with no roles at all.
+    const { data: currentRoles } = await ctx.supabase.from("staff_roles").select("role_id").eq("staff_id", staffId);
+    const have = new Set((currentRoles ?? []).map((r) => r.role_id));
+    const addRoles = roleIds.filter((id) => !have.has(id));
+    const dropRoles = [...have].filter((id) => !roleIds.includes(id));
+    if (addRoles.length) {
+      const { error: rErr } = await ctx.supabase.from("staff_roles").insert(addRoles.map((role_id) => ({ staff_id: staffId, role_id })));
       if (rErr) throw new Error(rErr.message);
     }
-    await ctx.supabase.from("staff_campuses").delete().eq("staff_id", staffId);
-    if (campusIds.length) {
-      await ctx.supabase.from("staff_campuses").insert(campusIds.map((campus_id) => ({ staff_id: staffId, campus_id })));
+    if (dropRoles.length) {
+      const { error: dErr } = await ctx.supabase.from("staff_roles").delete().eq("staff_id", staffId).in("role_id", dropRoles);
+      if (dErr) throw new Error(dErr.message);
+    }
+
+    const { data: currentCampuses } = await ctx.supabase.from("staff_campuses").select("campus_id").eq("staff_id", staffId);
+    const haveCampus = new Set((currentCampuses ?? []).map((c) => c.campus_id));
+    const addCampuses = campusIds.filter((id) => !haveCampus.has(id));
+    const dropCampuses = [...haveCampus].filter((id) => !campusIds.includes(id));
+    if (addCampuses.length) {
+      const { error: cErr } = await ctx.supabase.from("staff_campuses").insert(addCampuses.map((campus_id) => ({ staff_id: staffId, campus_id })));
+      if (cErr) throw new Error(cErr.message);
+    }
+    if (dropCampuses.length) {
+      const { error: cErr } = await ctx.supabase.from("staff_campuses").delete().eq("staff_id", staffId).in("campus_id", dropCampuses);
+      if (cErr) throw new Error(cErr.message);
     }
     revalidatePath("/staff/admin/staff");
   });
