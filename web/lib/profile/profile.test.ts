@@ -52,6 +52,12 @@ describe("validateNarrative", () => {
     expect(validateNarrative(fallbackNarrative(p, "John"), p, names)).toEqual([]);
   });
 
+  it("lets the grade applied for be named, since its digits are not a result", () => {
+    const n = { summary: "John is applying for Form 1 and scored 78% overall.", strengths_text: "", development_text: "" };
+    expect(validateNarrative(n, p, { ...names, gradeName: "Form 1" }).filter((x) => x.kind === "number")).toEqual([]);
+    expect(validateNarrative({ ...n, summary: "John, entering Stage 7, scored 78% overall." }, p, names).filter((x) => x.kind === "number")).toEqual([]);
+  });
+
   it("rejects a number that was not computed", () => {
     const n = { summary: "John scored 78% overall and 79% in English, a strong result.", strengths_text: "", development_text: "" };
     expect(validateNarrative(n, p, names).map((x) => x.kind)).toContain("number");

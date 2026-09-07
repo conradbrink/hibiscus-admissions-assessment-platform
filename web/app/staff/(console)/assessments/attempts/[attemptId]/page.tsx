@@ -113,6 +113,16 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
             <input type="hidden" name="attemptId" value={attempt.id} />
           </ActionForm>
         ) : null}
+        {attempt.marking_status === "complete" ? (
+          <a
+            href={`/staff/assessments/attempts/${attempt.id}/report`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-3 text-sm font-medium hover:bg-muted"
+          >
+            Print report (PDF)
+          </a>
+        ) : null}
       </div>
 
       {scores?.length ? (

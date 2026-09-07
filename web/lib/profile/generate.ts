@@ -81,7 +81,7 @@ export async function generateLearningProfile(
       devOutput: () => fallback,
     });
     if (result.ok) {
-      const problems = validateNarrative(result.output, computed, { firstName, lastName: app.child_last_name });
+      const problems = validateNarrative(result.output, computed, { firstName, lastName: app.child_last_name, gradeName });
       model = result.model;
       if (problems.length === 0) {
         narrative = result.output;

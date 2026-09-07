@@ -1,5 +1,13 @@
-import { siteUrl } from "@/lib/tokens";
 import { escapeHtml } from "@/lib/email/render";
+
+/**
+ * Where the logo lives. Read from the public site URL directly rather than
+ * through lib/tokens, which is server-only, because the template editor
+ * (a client component) previews emails with this same frame.
+ */
+function logoUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/+$/, "");
+}
 
 /**
  * The frame around every email: header, body, footer, and the one button
@@ -43,7 +51,7 @@ ${preheader}
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${PAPER};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;">
-<tr><td style="padding:22px 28px 16px;border-bottom:3px solid ${BRAND};"><img src="${siteUrl()}/brand/hibiscus-logo.png" width="150" height="68" alt="Hibiscus International Schools" style="display:block;width:150px;height:auto;border:0;"></td></tr>
+<tr><td style="padding:22px 28px 16px;border-bottom:3px solid ${BRAND};"><img src="${logoUrl()}/brand/hibiscus-logo.png" width="150" height="68" alt="Hibiscus International Schools" style="display:block;width:150px;height:auto;border:0;"></td></tr>
 <tr><td style="padding:28px;font-size:16px;line-height:1.55;">
 ${body}
 </td></tr>

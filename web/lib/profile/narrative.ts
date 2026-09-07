@@ -80,13 +80,17 @@ export type ValidationProblem = { kind: "number" | "term" | "name" | "length"; d
 export function validateNarrative(
   narrative: Narrative,
   computed: ComputedProfile,
-  names: { firstName: string; lastName: string }
+  names: { firstName: string; lastName: string; gradeName?: string }
 ): ValidationProblem[] {
   const problems: ValidationProblem[] = [];
   const text = `${narrative.summary}\n${narrative.strengths_text}\n${narrative.development_text}`;
 
+  // "Form 1" or "Stage 7" is the grade, not a result: those digits are not
+  // claims about the child and are set aside before the numbers are checked.
+  let numeric = names.gradeName ? text.replace(new RegExp(escapeRe(names.gradeName), "gi"), " ") : text;
+  numeric = numeric.replace(/\b(Form|Stage|Grade|Year|Term|Reception)\s+\d+\b/gi, " ");
   const allowed = new Set(computed.allowedNumbers.map((n) => Math.round(n * 100)));
-  for (const m of text.matchAll(/\d+(?:[.,]\d+)?/g)) {
+  for (const m of numeric.matchAll(/\d+(?:[.,]\d+)?/g)) {
     const n = Number(m[0].replace(",", "."));
     if (!allowed.has(Math.round(n * 100))) problems.push({ kind: "number", detail: m[0] });
   }
