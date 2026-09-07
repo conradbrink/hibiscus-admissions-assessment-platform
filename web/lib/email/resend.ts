@@ -6,13 +6,16 @@ import type { DeliveryEvent, EmailProvider, OutboundEmail, SendResult } from "@/
  * Resend, over its REST API directly — the SDK adds nothing we use, and
  * keeping to `fetch` means the provider surface is this one file.
  *
- * Requires RESEND_API_KEY and EMAIL_FROM. Webhooks are signed by Svix;
+ * Requires RESEND_API_KEY and EMAIL_FROM. EMAIL_REPLY_TO is optional: set it
+ * when the sending domain is not the school's own mailbox, so a parent who
+ * presses Reply reaches the admissions inbox. Webhooks are signed by Svix;
  * RESEND_WEBHOOK_SECRET is the `whsec_…` value from the Resend dashboard.
  */
 export class ResendProvider implements EmailProvider {
   readonly name = "resend";
   private readonly apiKey: string;
   private readonly from: string;
+  private readonly replyTo: string | null;
 
   constructor() {
     const key = process.env.RESEND_API_KEY;
@@ -22,6 +25,7 @@ export class ResendProvider implements EmailProvider {
     }
     this.apiKey = key;
     this.from = from;
+    this.replyTo = process.env.EMAIL_REPLY_TO?.trim() || null;
   }
 
   async send(email: OutboundEmail): Promise<SendResult> {
@@ -34,6 +38,7 @@ export class ResendProvider implements EmailProvider {
       },
       body: JSON.stringify({
         from: this.from,
+        ...(this.replyTo ? { reply_to: this.replyTo } : {}),
         to: [email.to],
         subject: email.subject,
         html: email.html,
