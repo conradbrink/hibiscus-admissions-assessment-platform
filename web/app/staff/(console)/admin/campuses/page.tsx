@@ -25,6 +25,18 @@ export default async function CampusesPage() {
               <NativeSelect name="currency" defaultValue={c.currency}><option value="BWP">BWP</option><option value="ZAR">ZAR</option></NativeSelect></div>
             <div><span className="text-xs text-muted-foreground">Address and phone (one per line; printed on letters)</span><Textarea name="address" rows={3} defaultValue={c.address ?? ""} /></div>
             <label className="flex h-9 items-center gap-1.5 text-sm"><input type="checkbox" name="isActive" value="1" defaultChecked={c.is_active} /> Active</label>
+            <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
+              <div><span className="text-xs text-muted-foreground">Head of campus (signs the offer letter)</span><Input name="headName" defaultValue={c.head_name ?? ""} placeholder="Full name" /></div>
+              <div><span className="text-xs text-muted-foreground">Title</span><Input name="headTitle" defaultValue={c.head_title ?? ""} placeholder="Head of School" /></div>
+              <div><span className="text-xs text-muted-foreground">Signature image (PNG or JPEG, up to 300 KB, on a white or clear background)</span><input type="file" name="signature" accept="image/png,image/jpeg" className="block h-9 w-full text-sm" /></div>
+              <div className="flex items-center gap-3">
+                {c.signature_data_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a data URL held in the database, not an optimisable asset
+                  <img src={c.signature_data_url} alt={`${c.head_name ?? "Head"}'s signature`} className="h-10 rounded border border-border bg-white px-1" />
+                ) : <span className="text-xs text-muted-foreground">No signature yet</span>}
+                {c.signature_data_url ? <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name="removeSignature" value="1" /> Remove</label> : null}
+              </div>
+            </div>
           </ActionForm>
         ))}
       </div>
