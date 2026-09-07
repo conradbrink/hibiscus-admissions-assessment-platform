@@ -8,12 +8,16 @@ export function normaliseEmail(email: string): string {
 }
 
 /**
- * Best-effort E.164 for the two countries the school operates in.
+ * Best-effort E.164 for the two countries the school operates in. The two
+ * kinds of number never share a length, so a parent may type either with or
+ * without the leading 0 or the country code:
  *
  *   71 234 567        → +26771234567   (Botswana: 8 digits, mobiles start 7)
+ *   071 234 567       → +26771234567   (Botswana, typed with a 0)
  *   +267 71 234 567   → +26771234567
  *   0026771234567     → +26771234567
  *   082 123 4567      → +27821234567   (South Africa: 0 + 9 digits)
+ *   82 123 4567       → +27821234567   (South Africa, without the 0)
  *   +27 82 123 4567   → +27821234567
  *
  * Returns null when the shape is not recognised. The raw value is always
@@ -31,6 +35,8 @@ export function normaliseMobile(raw: string | null | undefined): string | null {
     return "+" + digits;
   }
   if (/^\d{8}$/.test(s)) return "+267" + s;
+  if (/^0\d{8}$/.test(s)) return "+267" + s.slice(1);
+  if (/^\d{9}$/.test(s)) return "+27" + s;
   if (/^0\d{9}$/.test(s)) return "+27" + s.slice(1);
   if (/^267\d{8}$/.test(s)) return "+" + s;
   if (/^27\d{9}$/.test(s)) return "+" + s;

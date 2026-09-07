@@ -37,7 +37,7 @@ export const enquirySchema = z.object({
   intakeId: z.uuid().nullable().optional(),
   currentSchool: z.string().trim().max(120).optional(),
   currentGrade: z.string().trim().max(40).optional(),
-  /** "Also send updates on WhatsApp": an explicit tick, never a default. */
+  /** "Send updates on WhatsApp too": ticked by default beside a plain notice, and unticked in one tap. */
   whatsappOptIn: z.literal("1").optional(),
   /** Funnel timing: when the parent first saw the form. */
   t0: z.coerce.number().int().nonnegative().optional(),

@@ -76,6 +76,15 @@ describe("validateNarrative", () => {
   });
 });
 
+describe("validateNarrative pronouns", () => {
+  const p = computeProfile(lines, competencies, subjects);
+  it("refuses a guessed gender and accepts the name or they", () => {
+    const base = { strengths_text: "", development_text: "" };
+    expect(validateNarrative({ ...base, summary: "John did well and his reading was strong." }, p, { firstName: "John", lastName: "Smith" }).map((x) => x.kind)).toContain("pronoun");
+    expect(validateNarrative({ ...base, summary: "John did well and their reading was strong." }, p, { firstName: "John", lastName: "Smith" }).filter((x) => x.kind === "pronoun")).toEqual([]);
+  });
+});
+
 describe("buildEvidence", () => {
   const row = (over: Partial<EvidenceRow>): EvidenceRow => ({
     skill: "Arithmetic", type: "single_choice", task: "Add.", isCorrect: true, marksAwarded: 1, marksAvailable: 1, bandLabel: null, note: null, ...over,

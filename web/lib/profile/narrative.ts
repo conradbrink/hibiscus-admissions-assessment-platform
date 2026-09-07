@@ -20,7 +20,7 @@ export const NARRATIVE_SCHEMA = z.object({
 
 export type Narrative = z.infer<typeof NARRATIVE_SCHEMA>;
 
-export const PROMPT_VERSION = "profile-narrative-v3";
+export const PROMPT_VERSION = "profile-narrative-v4";
 
 /**
  * Words that turn an academic summary into a diagnosis or a verdict. Matched
@@ -71,7 +71,10 @@ export const BANNED_TERMS: RegExp[] = [
   /\bcompar\w* (to|with) (other|peer)\w*/i,
 ];
 
-export type ValidationProblem = { kind: "number" | "term" | "name" | "length"; detail: string };
+export type ValidationProblem = { kind: "number" | "term" | "name" | "pronoun" | "length"; detail: string };
+
+/** The data never says whether the child is a boy or a girl, so the prose may not say either. */
+export const GENDERED_PRONOUNS = /\b(he|she|him|his|her|hers|himself|herself)\b/i;
 
 /**
  * Every number in the prose must be one we computed; no banned term; the
@@ -103,6 +106,9 @@ export function validateNarrative(
   if (names.lastName.length >= 2 && new RegExp(`\\b${escapeRe(names.lastName)}\\b`, "i").test(text)) {
     problems.push({ kind: "name", detail: "surname" });
   }
+
+  const pronoun = text.match(GENDERED_PRONOUNS);
+  if (pronoun) problems.push({ kind: "pronoun", detail: pronoun[0] });
 
   if (text.length > 2000) problems.push({ kind: "length", detail: String(text.length) });
   return problems;
@@ -240,6 +246,7 @@ export function narrativeSystemPrompt(): string {
     ...PLAIN_ENGLISH_RULES.map((r) => `- ${r}`),
     "Rules that are not negotiable:",
     "- The only digits allowed anywhere are the overall percentage, written once at most. Every other quantity is written in words or left out. Never copy a number from a note.",
+    "- The data does not say whether the child is a boy or a girl. Never use he, she, him, his or her. Use the child's first name, or they and their.",
     "- Describe academic skills the assessment measured. Never describe intelligence, ability, potential, personality, behaviour, attention, effort or emotion.",
     "- Never diagnose, label, or suggest a condition, and never compare the child to other children.",
     "- Never mention admission, offers, places, acceptance or the school's decision.",
@@ -283,7 +290,9 @@ export function narrativeInput(
                   ? `the text used the word "${p.detail}", which is not allowed`
                   : p.kind === "name"
                     ? "the text used the child's surname"
-                    : "the text was too long"
+                    : p.kind === "pronoun"
+                      ? `the text used "${p.detail}"; the data does not say whether the child is a boy or a girl, so use the first name or they`
+                      : "the text was too long"
             ),
           }
         : {}),
