@@ -104,8 +104,10 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
   });
   drainSoon();
 
-  if (fresh.requires_assessment || fresh.entry_route === "visit") redirect("/next/book");
-  redirect("/next");
+  // Everyone chooses a time next: an assessment for Reception to Form 5, a
+  // campus visit for younger children (the booking page offers only visits
+  // to them) and for anyone who came through the visit door.
+  redirect("/next/book");
 }
 
 const bookSchema = z.object({

@@ -11,14 +11,14 @@ const CHOICES = [
     href: "/join/assessment",
     icon: CalendarCheck,
     title: "Book an assessment",
-    detail: "For Reception and above. Choose a date in about a minute.",
+    detail: "Reception to Form 5. Choose a date in about a minute.",
     primary: true,
   },
   {
     href: "/join/visit",
     icon: School,
     title: "Book a school visit",
-    detail: "Come and see the campus before you decide.",
+    detail: "Nursery to Pre-Reception start here: no assessment, just come and see us. Older children welcome too.",
     primary: false,
   },
   {
@@ -69,8 +69,9 @@ export default function JoinPage() {
         ))}
       </div>
       <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
-        Children joining Nursery to Pre-Reception do not sit an assessment. Start with any option
-        and we will guide you.
+        Children joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception do not sit an
+        assessment: book a visit, and the school confirms a place after you have seen the campus.
+        Whichever option you start with, we will guide you to the right one.
       </p>
     </>
   );

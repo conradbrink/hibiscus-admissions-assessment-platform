@@ -60,7 +60,9 @@ export default async function BookPage() {
         description={
           effectiveKind === "assessment"
             ? `${grade.name} at ${campus.name}. Assessments take between 45 and 90 minutes.`
-            : `We will show you around and answer your questions.`
+            : !app.requires_assessment
+              ? `There is no assessment for ${grade.name}. Come and see the campus; the school confirms ${app.child_first_name}'s place after the visit.`
+              : `We will show you around and answer your questions.`
         }
       />
       {missedSession ? (
