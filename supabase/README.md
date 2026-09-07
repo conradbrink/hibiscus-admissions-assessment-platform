@@ -1,6 +1,6 @@
 # Database schema
 
-Twenty-three migrations, replayable from an empty database. That last property is not
+Twenty-four migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -39,6 +39,7 @@ change.
 | `…160000_offer_letter` (7 Sep) | Data only: offer template v2 in the school's own words (with `bank_details`), campus addresses and phones for the letterhead, the BWP account details |
 | `…210000_venue_in_booking_messages` (7 Sep) | Data only: the booking confirmation, both reminders and the visit confirmation print the campus address and phone lines (`campus_address`), in plain English |
 | `…200000_heard_from_and_withdrawn` (7 Sep) | `applications.heard_from` (+ detail) for "How did you hear about us?", `create_application` takes it, `v_application_facts` exposes it, `dashboard_counts()` adds `visits_booked` and `withdrawn` |
+| `…20260908000000_promotions` (8 Sep) | `promotions`, `promotion_effects`, `application_promotions`; `applications.promo_code`; `offers.promotion_id`; a zero-amount payment request and a `waived` payment (provider `none`) for a fully waived offer; `v_application_facts` gains `promotion_code`/`promotion_name`; offer template v5 and results email print the deal; new `fees_waived` email |
 | `…230000_paygate` (7 Sep) | `payments.provider` accepts `paygate`, the school's card gateway |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |

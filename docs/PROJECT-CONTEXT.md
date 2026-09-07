@@ -117,6 +117,22 @@ offer letter and eleven emails to that standard; the rest already met it.
   `campus_address`). The assessor's six-letter code exists only at launch
   on the check-in board; the attempt page can re-issue it while the sitting
   is still waiting (see the runbook).
+- **Promotions** (`promotions`, `promotion_effects`, `application_promotions`,
+  Settings → Promotions): a deal waives the application and/or admission
+  fee, takes an amount or a percentage off the admission fee, and adds
+  gifts, each with the wording the parent reads. A deal with a **code** is
+  typed by the parent at enquiry (the field only appears while a coded deal
+  is live; a wrong code is refused on the spot); a deal without one applies
+  by its rules (campus, year, grade band, entry route, heard-from, dates,
+  first N). The deal is applied **once, when the offer is drafted**
+  (`resolvePromotion` → `applyPromotion` in `web/lib/promotions/`), pinned
+  on the application and on `offers.promotion_id`, printed on the letter,
+  the PDF, the parent's offer page and the results email. Staff can apply
+  or remove a deal on the Offers page before approval (re-draft, audited,
+  reason required). A fully waived offer records a `waived` payment of zero
+  and goes straight to registration with the `fees_waived` email. Editing a
+  deal later never changes a letter already drafted: the fee snapshot on the
+  offer is what was agreed.
 
 ## 2. What is built
 
