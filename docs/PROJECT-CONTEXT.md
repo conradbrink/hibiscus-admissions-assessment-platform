@@ -301,7 +301,7 @@ contradicts itself, the choice made is recorded and must be confirmed.
 | Item | What the site says | What is seeded | Confirm |
 |---|---|---|---|
 | Form 3 / Form 4 age | Both "turning 14 before end July" | Form 3 = 14, Form 4 = 15 | **Confirmed** |
-| Stage 7 | In the dropdown as "Stage7-HPS", not in the age table | Seeded **inactive**, age 12 | Whether it exists and where |
+| Stage 7 | In the dropdown as "Stage7-HPS", not in the age table | **Confirmed by the school on 7 September: Stage 1 to 7.** Active from migration `20260907090000`, age 12 | Which campuses offer it (seeded for Broadhurst and Block 7) |
 | Form 5 | In the dropdown, not in the age table | Age 16, active | Whether it exists and where |
 | Nursery, Pre-Kindergarten | In the age table, not in the dropdown | Active, pre-school campuses only | That they are offered |
 | Which grades each campus offers | Dropdown unfiltered by campus | Pre-schools: Nursery–Pre-Reception; Broadhurst: Reception–Stage 6; Block 7: Reception–Form 5 | The whole matrix at `/staff/admin/grades` |

@@ -61,6 +61,17 @@ export async function storeDocument(
     .is("deleted_at", null)
     .maybeSingle();
 
+  // The partial unique index allows one live row per requirement, so the
+  // previous upload steps aside before the new row exists: it points at
+  // itself until the new id is known, and back to null if the insert fails.
+  if (previous) {
+    const { error: stepAside } = await admin.from("documents").update({ superseded_by: previous.id }).eq("id", previous.id);
+    if (stepAside) {
+      await admin.storage.from(BUCKET).remove([path]);
+      throw new Error(`document supersede: ${stepAside.message}`);
+    }
+  }
+
   const { data, error } = await admin
     .from("documents")
     .insert({
@@ -81,6 +92,7 @@ export async function storeDocument(
     .single();
   if (error || !data) {
     await admin.storage.from(BUCKET).remove([path]);
+    if (previous) await admin.from("documents").update({ superseded_by: null }).eq("id", previous.id);
     throw new Error(error?.message ?? "document insert failed");
   }
   if (previous) {
