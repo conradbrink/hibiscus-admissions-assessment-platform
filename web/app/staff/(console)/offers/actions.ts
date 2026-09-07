@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
+import { conditionsText, offeredGradeId, parseConditionSelection } from "@/lib/offers/conditions";
 import { clearPromotion, recordPromotion } from "@/lib/promotions/load";
+import { commit } from "@/lib/workflow/engine";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { onOutcomeSent } from "@/lib/workflow/decision-actions";
@@ -21,12 +23,43 @@ function done(applicationId: string) {
   revalidatePath("/staff");
 }
 
+/**
+ * Drafts (or re-drafts) the offer with the conditions ticked on the form.
+ * A "lower stage" condition moves the application to that stage first, so
+ * the letter, the fees and everything after it follow the stage offered.
+ */
 export async function generateOffer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
-    const p = z.object({ applicationId: z.uuid(), conditions: z.string().trim().max(1000).optional() }).parse(Object.fromEntries(formData));
+    const entries = Object.fromEntries([...formData.entries()].filter(([, v]) => typeof v === "string"));
+    const p = z.object({ applicationId: z.uuid() }).parse(entries);
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
-    const result = await onOfferDrafted(admin, app, ctx.actor, { conditions: p.conditions || null });
+    const sel = parseConditionSelection(entries);
+
+    const { data: grades } = await admin.from("grades").select("id, name, sort_order");
+    const gradeName = (id: string) => (grades ?? []).find((g) => g.id === id)?.name ?? null;
+    const applied = (grades ?? []).find((g) => g.id === app.grade_id);
+    if (!applied) throw new Error("The application's grade is missing.");
+
+    const lowerId = offeredGradeId(sel);
+    if (lowerId) {
+      const lower = (grades ?? []).find((g) => g.id === lowerId);
+      if (!lower || lower.sort_order >= applied.sort_order) throw new Error("Choose a stage below the one applied for.");
+      const { error } = await admin.from("applications").update({ grade_id: lower.id }).eq("id", app.id);
+      if (error) throw new Error(error.message);
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: null,
+        newStatus: null,
+        nextAction: null,
+        event: { type: "application.grade_changed", summary: `Offered ${lower.name} instead of ${applied.name} (assessment shows the child is not yet ready)`, payload: { from: applied.id, to: lower.id, reason: "offer_condition" } },
+        audit: { action: "application.grade_changed", entityType: "application", entityId: app.id, before: { grade_id: applied.id }, after: { grade_id: lower.id } },
+        actor: ctx.actor,
+      });
+    }
+
+    const conditions = conditionsText(sel, { childFirstName: app.child_first_name, appliedGradeName: applied.name, gradeName });
+    const result = await onOfferDrafted(admin, app, ctx.actor, { conditions });
     if (result.blocked) throw new Error("No active fee schedule covers this campus, grade and year. Configure fees, then generate again.");
     drainSoon();
     done(app.id);
