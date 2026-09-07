@@ -36,6 +36,7 @@ change.
 | `…123000_ai_marking` (7 Sep) | `marking_method` may be `ai`; the `ai_auto_mark_enabled` switch |
 | `…150000_school_name` (7 Sep) | Data only: every template a parent reads says Hibiscus International Schools; agreements already signed keep their text |
 | `…160000_offer_letter` (7 Sep) | Data only: offer template v2 in the school's own words (with `bank_details`), campus addresses and phones for the letterhead, the BWP account details |
+| `…210000_venue_in_booking_messages` (7 Sep) | Data only: the booking confirmation, both reminders and the visit confirmation print the campus address and phone lines (`campus_address`), in plain English |
 | `…200000_heard_from_and_withdrawn` (7 Sep) | `applications.heard_from` (+ detail) for "How did you hear about us?", `create_application` takes it, `v_application_facts` exposes it, `dashboard_counts()` adds `visits_booked` and `withdrawn` |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |

@@ -40,6 +40,18 @@ The parent has been emailed a rebooking link. Book them back into the same
 session from the applicant page (**Book selected**) — the no-show stays in
 the timeline as a record, which is correct.
 
+## Where the assessor gets the code
+
+The code is made when the assessment is launched, and nowhere else. On the
+day: **Dashboard → Open check-in board** (`/staff/assessments/today`), find
+the child, press **Check in**, then **Launch**. The dialog shows a six-letter
+code, a QR code and the address of the assessment page (`/sit`). On the
+assessment computer, open that page and type the code. The code is shown
+once and is not stored; while the sitting says "Waiting for code", press
+**New code** on the board or on the attempt page to issue another. Once the
+child has started there is no code to show: the sitting is already open on
+that computer. This needs the `assessments.deliver` permission.
+
 ## The assessment computer will not open a child's sitting
 
 1. Codes last fifteen minutes (**Workflow settings → kiosk_code_minutes**)

@@ -110,6 +110,13 @@ offer letter and eleven emails to that standard; the rest already met it.
   parent, an open day, radio or print, signage, other + a free line).
   Every interest form asks it; the analytics Breakdown has a "How they
   heard about us" dimension and the CSV export carries it.
+- Where the child sits: the booking card on `/next/booked` and
+  `/next/booking`, the booking confirmation, both reminders, the visit
+  confirmation and the calendar file all print the campus's address and
+  phone lines (`campuses.address`, exposed to templates as
+  `campus_address`). The assessor's six-letter code exists only at launch
+  on the check-in board; the attempt page can re-issue it while the sitting
+  is still waiting (see the runbook).
 
 ## 2. What is built
 

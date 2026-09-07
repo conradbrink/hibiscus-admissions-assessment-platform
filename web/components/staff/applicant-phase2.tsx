@@ -138,7 +138,11 @@ export async function ApplicantPhase2({
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground">Not sat yet. Launch it from the check-in board on the day.</p>
+            <p className="text-muted-foreground">
+              Not sat yet. On the day, open the{" "}
+              <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
+              , check the child in and press Launch. The six-letter code and the address of the assessment page are shown there for the assessment computer.
+            </p>
           )}
         </TabsContent>
 

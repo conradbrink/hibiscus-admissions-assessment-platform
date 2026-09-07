@@ -69,6 +69,9 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     application_reference: application.reference,
     next_step_link: links.nextStep,
     location: booking?.session.location ?? null,
+    // The campus's own lines: street address, then its phone numbers. Where
+    // the child sits, for a parent who has only the link.
+    campus_address: campus.address ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
     // Null renders as empty and satisfies an {{#if}}, so a template that
@@ -285,7 +288,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
             ? `${graph.application.child_first_name} — Hibiscus assessment`
             : `Hibiscus International Schools visit — ${graph.campus.name}`,
         description: `Reference ${graph.application.reference}`,
-        location: [graph.campus.name, s.location].filter(Boolean).join(", "),
+        location: [graph.campus.name, s.location, graph.campus.address?.split("\n")[0]].filter(Boolean).join(", "),
         startsAt: new Date(s.starts_at),
         endsAt: new Date(s.ends_at),
       }),
