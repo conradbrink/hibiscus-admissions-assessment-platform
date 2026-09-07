@@ -1,5 +1,6 @@
 import "server-only";
 import { after } from "next/server";
+import { ZodError } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ForbiddenError, type StaffContext } from "@/lib/staff/session";
@@ -7,7 +8,13 @@ import type { ApplicationRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
 import { drainJobs } from "@/lib/workflow/jobs";
 
-/** Turns thrown errors into the {error} a form can show. */
+/**
+ * Turns thrown errors into the {error} a form can show. Actions throw an
+ * Error whose message is written for the person at the screen ("No active
+ * fee schedule covers this campus, grade and year"), so the message is what
+ * they see; only a validation failure or something that is not an Error at
+ * all gets the generic line. Everything unexpected is also logged.
+ */
 export async function guarded(fn: () => Promise<void>): Promise<StaffActionState> {
   try {
     await fn();
@@ -20,7 +27,11 @@ export async function guarded(fn: () => Promise<void>): Promise<StaffActionState
       }
       return { error: e.message };
     }
+    if (e instanceof ZodError) {
+      return { error: "Some of what was entered is not valid. Check the form and try again." };
+    }
     console.error("[staff action]", e);
+    if (e instanceof Error && e.message.trim()) return { error: e.message };
     return { error: "Something went wrong. Please try again." };
   }
 }
