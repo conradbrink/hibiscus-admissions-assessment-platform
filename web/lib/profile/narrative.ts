@@ -193,7 +193,7 @@ export function buildEvidence(rows: EvidenceRow[]): NarrativeEvidence {
       if (r.marksAwarded === null) continue;
       written.push({
         skill: r.skill,
-        task: r.task,
+        task: stripDigits(r.task),
         result: r.bandLabel ?? marksWord(Number(r.marksAwarded), r.marksAvailable),
         note: r.note ? stripDigits(r.note) : null,
       });
@@ -209,7 +209,7 @@ export function buildEvidence(rows: EvidenceRow[]): NarrativeEvidence {
   return { objective, written };
 }
 
-/** A note about the answer may quote it, digits included; the narrative may not. */
+/** A question or a note about the answer may carry digits; the narrative may not, so none are shown to the model. */
 function stripDigits(text: string): string {
   return text.replace(/\d+(?:[.,\/]\d+)?/g, "[number]").slice(0, 400);
 }
@@ -233,7 +233,13 @@ export function narrativeSystemPrompt(): string {
   ].join("\n");
 }
 
-export function narrativeInput(computed: ComputedProfile, firstName: string, gradeName: string, evidence?: NarrativeEvidence): string {
+export function narrativeInput(
+  computed: ComputedProfile,
+  firstName: string,
+  gradeName: string,
+  evidence?: NarrativeEvidence,
+  previousProblems?: ValidationProblem[]
+): string {
   const roomToGrow = computed.development.length
     ? []
     : [...computed.competencies].filter((c) => c.percent < 100).sort((a, b) => a.percent - b.percent).slice(0, 2);
@@ -250,6 +256,19 @@ export function narrativeInput(computed: ComputedProfile, firstName: string, gra
       room_to_grow: roomToGrow.map((c) => ({ name: c.name, band: BAND_LABELS[c.band] })),
       recommended_focus: computed.focus,
       evidence: evidence ?? { objective: [], written: [] },
+      ...(previousProblems?.length
+        ? {
+            previous_attempt_rejected: previousProblems.map((p) =>
+              p.kind === "number"
+                ? `the text contained the number ${p.detail}, which is not the overall percentage; write it in words or leave it out`
+                : p.kind === "term"
+                  ? `the text used the word "${p.detail}", which is not allowed`
+                  : p.kind === "name"
+                    ? "the text used the child's surname"
+                    : "the text was too long"
+            ),
+          }
+        : {}),
     },
     null,
     2
