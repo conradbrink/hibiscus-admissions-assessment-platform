@@ -22,9 +22,16 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
   try {
     result = await provider.verify(payment.provider_ref);
   } catch (e) {
+    // Keep the reason on the row: a verify that keeps failing is otherwise
+    // invisible from the console.
+    const prior = payment.raw_response && typeof payment.raw_response === "object" && !Array.isArray(payment.raw_response) ? (payment.raw_response as Record<string, Json>) : {};
     await admin
       .from("payments")
-      .update({ verify_attempts: payment.verify_attempts + 1, last_verified_at: new Date().toISOString() })
+      .update({
+        verify_attempts: payment.verify_attempts + 1,
+        last_verified_at: new Date().toISOString(),
+        raw_response: { ...prior, last_verify_error: (e as Error).message.slice(0, 300) } as Json,
+      })
       .eq("id", payment.id);
     throw new WorkflowError(`verify failed: ${(e as Error).message}`, "database");
   }
