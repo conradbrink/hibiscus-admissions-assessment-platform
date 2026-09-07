@@ -96,6 +96,21 @@ offer letter and eleven emails to that standard; the rest already met it.
   child's gender. The validator refuses a guessed pronoun and the retry
   names it; the prose uses the first name or they (prompt version 4).
 
+### Where an enquiry shows up, and "How did you hear about us?" (7 September 2026)
+
+- The three doors on `/join` all create an application. A request for a
+  call is `callback_requested` (counted under "New enquiries", with a
+  `callback` task for staff); a visit is `visit_booked` (its own
+  "Visits booked" row); an assessment is `assessment_booked`. The dashboard
+  pipeline now also shows "Withdrawn". The applicants list groups all
+  three doors under "Enquiries".
+- `applications.source` is the door (website, staff, walk-in);
+  `applications.heard_from` is the advertising answer, one key from
+  `web/lib/heard-from.ts` (Google, social media, a friend, a current
+  parent, an open day, radio or print, signage, other + a free line).
+  Every interest form asks it; the analytics Breakdown has a "How they
+  heard about us" dimension and the CSV export carries it.
+
 ## 2. What is built
 
 ### Phase 1 (PR #1)
