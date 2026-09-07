@@ -22,7 +22,9 @@ type Generated = "id" | "created_at" | "updated_at";
 
 /**
  * A foreign key, in the shape supabase-js reads to type embedded selects
- * such as `applications(contacts(*))`. Names follow Postgres's default
+ * such as `applications(contacts!applications_contact_id_fkey(*))` — the hint is
+ * required wherever two paths exist, as with contacts (direct and via
+ * application_guardians). Names follow Postgres's default
  * `<table>_<column>_fkey`, which is what the migrations produce.
  */
 type Rel<

@@ -43,7 +43,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const bookingsRes = sessionIds.length
     ? await supabase
         .from("bookings")
-        .select("id, session_id, status, checked_in_at, applications(id, reference, child_first_name, child_last_name, child_date_of_birth, grades!applications_grade_id_fkey(name), contacts(first_name, last_name, mobile))")
+        .select("id, session_id, status, checked_in_at, applications(id, reference, child_first_name, child_last_name, child_date_of_birth, grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, mobile))")
         .in("session_id", sessionIds)
         .in("status", ["booked", "checked_in", "in_progress", "completed", "no_show"])
     : null;

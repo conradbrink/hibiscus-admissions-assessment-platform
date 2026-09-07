@@ -41,7 +41,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
   const { data: app } = await supabase
     .from("applications")
-    .select("*, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts(*), staff_profiles!applications_owner_staff_id_fkey(full_name)")
+    .select("*, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts!applications_contact_id_fkey(*), staff_profiles!applications_owner_staff_id_fkey(full_name)")
     .eq("id", id)
     .maybeSingle();
   if (!app) notFound();

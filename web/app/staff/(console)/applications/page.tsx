@@ -36,7 +36,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   let query = supabase
     .from("applications")
     .select(
-      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, campuses(name), grades!applications_grade_id_fkey(name), contacts(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
+      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, campuses(name), grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
