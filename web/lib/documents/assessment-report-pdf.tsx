@@ -18,23 +18,23 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 },
   logo: { width: 110 },
   headerRight: { textAlign: "right", fontSize: 9, color: "#6b7280" },
-  title: { fontSize: 20, fontFamily: "Helvetica-Bold" },
-  subtitle: { fontSize: 10.5, color: "#6b7280", marginTop: 2 },
+  title: { fontSize: 20, fontFamily: "Helvetica-Bold", lineHeight: 1.2 },
+  subtitle: { fontSize: 10.5, color: "#6b7280", marginTop: 3 },
   h2: { fontSize: 12.5, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6, color: "#111827" },
   h3: { fontSize: 10.5, fontFamily: "Helvetica-Bold", marginTop: 8, marginBottom: 2 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   rowBold: { fontFamily: "Helvetica-Bold" },
   muted: { color: "#6b7280" },
   para: { marginBottom: 6 },
-  big: { fontSize: 28, fontFamily: "Helvetica-Bold" },
-  bandBox: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 4 },
+  big: { fontSize: 28, fontFamily: "Helvetica-Bold", lineHeight: 1.15 },
+  bandBox: { flexDirection: "row", gap: 8, marginTop: 10, marginBottom: 4 },
   pill: { borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 6, paddingVertical: 5, paddingHorizontal: 9, flexGrow: 1 },
   pillLabel: { fontSize: 8.5, color: "#6b7280" },
   pillValue: { fontSize: 12, fontFamily: "Helvetica-Bold", marginTop: 1 },
   item: { marginBottom: 7, paddingBottom: 6, borderBottomWidth: 0.5, borderBottomColor: "#eeeae4" },
-  itemHead: { flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  itemQ: { fontFamily: "Helvetica-Bold", flexShrink: 1 },
-  itemMarks: { fontFamily: "Helvetica-Bold", color: BRAND, flexShrink: 0 },
+  itemHead: { flexDirection: "row", alignItems: "flex-start" },
+  itemQ: { fontFamily: "Helvetica-Bold", flexGrow: 1, flexShrink: 1, flexBasis: 0, paddingRight: 10 },
+  itemMarks: { fontFamily: "Helvetica-Bold", color: BRAND, width: 96, textAlign: "right", flexShrink: 0 },
   itemNote: { marginTop: 2, color: "#374151" },
   lines: { marginTop: 6 },
   line: { borderBottomWidth: 0.6, borderBottomColor: "#9ca3af", height: 20 },
@@ -73,6 +73,12 @@ function pct(n: number): string {
 
 export function AssessmentReportDocument(p: AssessmentReportProps) {
   const subjectOf = (id?: string) => p.computed.subjects.find((x) => x.id === id)?.name ?? "";
+  // When nothing fell below the expectation, the two lowest results that were
+  // not full marks still tell a parent where the next gains are. Numbers only;
+  // the same lines appear under "All results".
+  const roomToGrow = p.computed.development.length
+    ? []
+    : [...p.computed.competencies].filter((c) => c.percent < 100).sort((a, b) => a.percent - b.percent).slice(0, 2);
   return (
     <Document title={`${p.studentName} — Hibiscus assessment report`} author="Hibiscus International Schools">
       <Page size="A4" style={s.page}>
@@ -90,9 +96,9 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
         <Text style={s.subtitle}>Applying for {p.gradeName} at {p.campusName} · assessed {p.assessedOn}</Text>
 
         {p.computed.overall ? (
-          <View style={{ marginTop: 12, flexDirection: "row", alignItems: "flex-end" }}>
+          <View style={{ marginTop: 14, flexDirection: "row", alignItems: "baseline" }}>
             <Text style={s.big}>{pct(p.computed.overall.percent)}</Text>
-            <Text style={{ marginLeft: 10, marginBottom: 5, ...s.muted }}>overall · {BAND_LABELS[p.computed.overall.band]} the expectation for {p.gradeName}</Text>
+            <Text style={{ marginLeft: 10, ...s.muted }}>overall · {BAND_LABELS[p.computed.overall.band]} the expectation for {p.gradeName}</Text>
           </View>
         ) : null}
         {p.computed.subjects.length ? (
@@ -145,11 +151,22 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
           <>
             <Text style={s.h2}>Where practice would help most</Text>
             <Text style={s.para}>{p.narrative.development_text || "No area stood out as needing particular attention on the day."}</Text>
+            {roomToGrow.length ? (
+              <>
+                <Text style={{ ...s.para, ...s.muted }}>The areas with the most room to grow on the day, even so:</Text>
+                {roomToGrow.map((x) => (
+                  <View key={x.id} style={s.row}>
+                    <Text>{x.name}{subjectOf(x.subjectId) ? ` (${subjectOf(x.subjectId)})` : ""}</Text>
+                    <Text style={s.rowBold}>{pct(x.percent)} · {BAND_LABELS[x.band]}</Text>
+                  </View>
+                ))}
+              </>
+            ) : null}
           </>
         )}
 
         {p.written.length ? (
-          <View break>
+          <View style={{ marginTop: 4 }}>
             <Text style={s.h2}>{p.firstName}&apos;s written answers</Text>
             <Text style={{ ...s.para, ...s.muted }}>
               Each written answer was marked against the school&apos;s marking scheme. The note beside each one says what earned the mark.
