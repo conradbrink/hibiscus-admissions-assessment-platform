@@ -125,7 +125,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
             <Text style={s.para}>{p.narrative.development_text || "No area needed special attention on the day."}</Text>
             {roomToGrow.length ? (
               <>
-                <Text style={{ ...s.para, ...s.muted }}>These areas had the most room to improve on the day:</Text>
+                <Text style={{ ...s.para, ...s.muted }} minPresenceAhead={60}>These areas had the most room to improve on the day:</Text>
                 {roomToGrow.map((x) => (
                   <View key={x.id} style={s.row}>
                     <Text>{x.name}{subjectOf(x.subjectId) ? ` (${subjectOf(x.subjectId)})` : ""}</Text>
