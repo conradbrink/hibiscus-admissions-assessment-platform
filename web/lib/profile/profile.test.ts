@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeProfile } from "@/lib/profile/compute";
-import { buildEvidence, fallbackNarrative, marksWord, outcomeWord, validateNarrative, type EvidenceRow } from "@/lib/profile/narrative";
+import { buildEvidence, fallbackNarrative, marksWord, narrativeInput, outcomeWord, validateNarrative, type EvidenceRow } from "@/lib/profile/narrative";
 
 const ENG = "11111111-1111-4111-8111-111111111111";
 const MAT = "22222222-2222-4222-8222-222222222222";
@@ -95,5 +95,14 @@ describe("buildEvidence", () => {
     expect(marksWord(16, 20)).toBe("most of the marks");
     expect(marksWord(0, 20)).toBe("no marks");
     expect(outcomeWord(2, 5)).toBe("about half correct");
+  });
+});
+
+describe("narrativeInput", () => {
+  it("shows the model no digits from the evidence and names a rejected attempt's problems", () => {
+    const e = buildEvidence([{ skill: "Patterns", type: "extended_text", task: "Next 2 terms: 4, 7, 10, 13", isCorrect: null, marksAwarded: 2, marksAvailable: 2, bandLabel: null, note: "Gives 16 and 19." }]);
+    const input = narrativeInput(computeProfile(lines, competencies, subjects), "John", "Form 1", e, [{ kind: "number", detail: "2013" }]);
+    expect(input).not.toMatch(/\b(4|7|10|13|16|19)\b/);
+    expect(input).toContain("the number 2013");
   });
 });

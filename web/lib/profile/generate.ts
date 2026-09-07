@@ -12,6 +12,7 @@ import {
   validateNarrative,
   type EvidenceRow,
   type Narrative,
+  type ValidationProblem,
 } from "@/lib/profile/narrative";
 import { getSettings } from "@/lib/settings";
 import type { AdminClient } from "@/lib/supabase/admin";
@@ -106,28 +107,36 @@ export async function generateLearningProfile(
 
   if (settings.aiNarrativeEnabled) {
     const provider = await getAiProvider();
-    const result = await provider.generateStructured({
-      schema: NARRATIVE_SCHEMA,
-      system: narrativeSystemPrompt(),
-      input: narrativeInput(computed, firstName, gradeName, evidence),
-      devOutput: () => fallback,
-    });
-    if (result.ok) {
-      const problems = validateNarrative(result.output, computed, { firstName, lastName: app.child_last_name, gradeName });
-      model = result.model;
-      if (problems.length === 0) {
-        narrative = result.output;
-        source = "ai";
-        validation = "passed";
+    // Two attempts: a narrative the validator rejects is sent back once with
+    // the problems named, since a stray digit is far more common than a
+    // narrative that cannot be written. The second rejection is final.
+    const rejected: Array<{ problems: ValidationProblem[]; text: string }> = [];
+    for (let attempt = 0; attempt < 2 && source !== "ai"; attempt++) {
+      const result = await provider.generateStructured({
+        schema: NARRATIVE_SCHEMA,
+        system: narrativeSystemPrompt(),
+        input: narrativeInput(computed, firstName, gradeName, evidence, rejected.at(-1)?.problems),
+        devOutput: () => fallback,
+      });
+      if (result.ok) {
+        const problems = validateNarrative(result.output, computed, { firstName, lastName: app.child_last_name, gradeName });
+        model = result.model;
+        if (problems.length === 0) {
+          narrative = result.output;
+          source = "ai";
+          validation = "passed";
+        } else {
+          validation = "failed";
+          rejected.push({ problems, text: `${result.output.summary}\n${result.output.strengths_text}\n${result.output.development_text}` });
+          errors = rejected.map((r) => ({ problems: r.problems, rejected_text: r.text })) as unknown as Json;
+        }
+      } else if (result.retryable) {
+        // Let the job retry; a transient failure should not publish the fallback.
+        throw new Error(`AI provider: ${result.error ?? result.reason}`);
       } else {
-        validation = "failed";
-        errors = problems as unknown as Json;
+        errors = [{ kind: result.reason, detail: result.error ?? "" }] as unknown as Json;
+        break;
       }
-    } else if (result.retryable) {
-      // Let the job retry; a transient failure should not publish the fallback.
-      throw new Error(`AI provider: ${result.error ?? result.reason}`);
-    } else {
-      errors = [{ kind: result.reason, detail: result.error ?? "" }] as unknown as Json;
     }
   }
 
