@@ -34,6 +34,7 @@ deploy token lives in GitHub.
 | `CRON_SECRET` | **Secret** | Vercel sends it to `/api/jobs/drain` |
 | `EMAIL_PROVIDER` | | `dev` until the domain is verified, then `resend` |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET` | **Secret** | |
+| `EMAIL_REPLY_TO` | Optional | Replies go here. Set it when `EMAIL_FROM` is on a domain nobody reads mail at (a separate sending domain). |
 | `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
 | `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic`. Without a real provider, written answers wait for a person even with `ai_auto_mark_enabled` on |
 | `AI_MODEL` | | Optional; defaults to `claude-opus-5` |
