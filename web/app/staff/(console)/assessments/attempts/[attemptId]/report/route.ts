@@ -97,7 +97,11 @@ export async function GET(_request: Request, ctx: { params: Promise<{ attemptId:
 /** The question without its housekeeping: no marks tag, no instructions to the child about typing, one line. */
 function shorten(stem: string): string {
   const firstLine = stem.split("\n").map((l) => l.trim()).filter(Boolean);
-  let text = firstLine.length > 1 && /^Part [ABC]\.\s*$/.test(firstLine[0]) ? firstLine.slice(1).join(" ") : firstLine.join(" ");
-  text = text.replace(/\s*\(\d+ marks?\)\s*$/i, "").replace(/\s*Type the number only\.?/i, "").replace(/You have five minutes to write this answer\.\s*/i, "");
+  let text = firstLine.length > 1 && /^(Part|Section) [ABC]\.\s*$/.test(firstLine[0]) ? firstLine.slice(1).join(" ") : firstLine.join(" ");
+  text = text
+    .replace(/^(Part|Section) [ABC](,\s*question \d+)?\.\s*/i, "")
+    .replace(/\s*\(\d+ marks?\)\s*$/i, "")
+    .replace(/\s*Type the number only\.?/i, "")
+    .replace(/You have five minutes to write this answer\.\s*/i, "");
   return text.length > 160 ? `${text.slice(0, 157).trimEnd()}…` : text;
 }
