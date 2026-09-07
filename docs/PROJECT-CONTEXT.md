@@ -76,6 +76,26 @@ idioms, international formats. The AI prompts carry the same rules
 (`PLAIN_ENGLISH_RULES`). Migration `…180000_plain_english` republished the
 offer letter and eleven emails to that standard; the rest already met it.
 
+### Phones, WhatsApp and bank details (7 September 2026)
+
+- A parent may type a Botswana or South African mobile in any local shape:
+  with or without the leading 0, with or without the country code. The two
+  countries' numbers never share a length, so `normaliseMobile` needs no
+  country hint (8 digits or 0 + 8 is Botswana; 9 digits or 0 + 9 is South
+  Africa).
+- WhatsApp updates are on by default at enquiry, beside a plain notice and
+  a one-tap untick; STOP still opts out. The tick is still recorded as the
+  parent's choice (`whatsapp_opt_in_source`), which is what Meta's opt-in
+  rule asks for: a clear notice where the number is given.
+- Bank details are per campus: `bank_instructions` may carry a row per
+  campus, and the Fees page edits one per campus beside the currency
+  default a campus without its own falls back to. The offer letter, the
+  payment page and the payment emails all resolve through
+  `loadBankInstructions`, campus first.
+- The AI narrative may not use he, she, his or her: the data never says the
+  child's gender. The validator refuses a guessed pronoun and the retry
+  names it; the prose uses the first name or they (prompt version 4).
+
 ## 2. What is built
 
 ### Phase 1 (PR #1)

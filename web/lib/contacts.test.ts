@@ -8,11 +8,13 @@ describe("normaliseMobile", () => {
     expect(normaliseMobile("+267 71 234 567")).toBe("+26771234567");
     expect(normaliseMobile("0026771234567")).toBe("+26771234567");
     expect(normaliseMobile("26771234567")).toBe("+26771234567");
+    expect(normaliseMobile("071 234 567")).toBe("+26771234567");
   });
   it("handles South African numbers", () => {
     expect(normaliseMobile("082 123 4567")).toBe("+27821234567");
     expect(normaliseMobile("+27 82 123 4567")).toBe("+27821234567");
     expect(normaliseMobile("27821234567")).toBe("+27821234567");
+    expect(normaliseMobile("82 123 4567")).toBe("+27821234567");
   });
   it("returns null for shapes it cannot vouch for, and never throws", () => {
     expect(normaliseMobile("")).toBeNull();

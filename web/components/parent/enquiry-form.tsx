@@ -90,17 +90,17 @@ export function EnquiryForm({ route, campuses, action }: EnquiryFormProps) {
             <Input id="parentLastName" name="parentLastName" autoComplete="family-name" defaultValue={v.parentLastName} required {...invalid("parentLastName")} />
           </Field>
         </div>
-        <Field id="mobile" label="Mobile number" error={f.mobile} hint="We only call if you ask us to.">
-          <Input id="mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" placeholder="71 234 567" defaultValue={v.mobile} required {...invalid("mobile")} />
+        <Field id="mobile" label="Mobile number" error={f.mobile} hint="Botswana or South Africa, with or without the country code. We only call if you ask us to.">
+          <Input id="mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" placeholder="71 234 567 or 082 123 4567" defaultValue={v.mobile} required {...invalid("mobile")} />
         </Field>
         <Field id="email" label="Email address" error={f.email} hint="Everything about your application arrives here.">
           <Input id="email" name="email" type="email" inputMode="email" autoComplete="email" defaultValue={v.email} required {...invalid("email")} />
         </Field>
         <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={v.whatsappOptIn === "1"} className="mt-0.5 size-5 shrink-0 accent-primary" />
+          <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={state.values ? v.whatsappOptIn === "1" : true} className="mt-0.5 size-5 shrink-0 accent-primary" />
           <span>
-            Also send me updates about this application on WhatsApp, to the mobile number above.
-            <span className="block text-xs text-muted-foreground">Optional. Reply STOP at any time. Email remains the full record.</span>
+            Send me updates about this application on WhatsApp too, to the mobile number above.
+            <span className="block text-xs text-muted-foreground">Untick if you prefer email only. You can reply STOP at any time. Email is always the full record.</span>
           </span>
         </label>
       </fieldset>

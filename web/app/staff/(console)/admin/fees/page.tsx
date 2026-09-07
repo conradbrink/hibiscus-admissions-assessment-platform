@@ -18,7 +18,7 @@ export default async function FeesPage() {
     supabase.from("grades").select("name, sort_order").eq("is_active", true).order("sort_order"),
     supabase.from("bank_instructions").select("*").order("currency"),
   ]);
-  const bankFor = (currency: "BWP" | "ZAR") => (bank ?? []).find((b) => b.currency === currency && b.campus_id === null && b.is_active) ?? null;
+  const bankFor = (currency: "BWP" | "ZAR", campusId: string | null) => (bank ?? []).find((b) => b.currency === currency && b.campus_id === campusId && b.is_active) ?? null;
   const gradeName = (sort: number | null) => (sort === null ? "any" : grades?.find((g) => g.sort_order === sort)?.name ?? String(sort));
 
   return (
@@ -39,12 +39,21 @@ export default async function FeesPage() {
 
       <section className="mb-6 surface p-4">
         <h2 className="text-sm font-semibold">Bank transfer details</h2>
-        <p className="mb-3 text-xs text-muted-foreground">Shown to parents who pay by transfer, on the payment page and in the payment emails, with their reference. One per currency; leave blank to offer online payment only.</p>
+        <p className="mb-3 text-xs text-muted-foreground">Shown to parents who pay by transfer: in the offer letter, on the payment page and in the payment emails, with their reference. Each campus can have its own account. A campus with no details of its own uses the default for its currency. Leave everything blank to offer online payment only.</p>
         <div className="grid gap-4 md:grid-cols-2">
           {(["BWP", "ZAR"] as const).map((currency) => (
-            <ActionForm key={currency} action={saveBankInstructions} label={`Save ${currency} details`} size="sm" variant="outline" className="space-y-2">
+            <ActionForm key={currency} action={saveBankInstructions} label={`Save ${currency} default`} size="sm" variant="outline" className="space-y-2">
               <input type="hidden" name="currency" value={currency} />
-              <Textarea name="bodyText" rows={5} defaultValue={bankFor(currency)?.body_text ?? ""} placeholder={`Account name\nBank\nAccount number\nBranch code\n(${currency})`} className="font-mono text-xs" />
+              <p className="text-xs font-medium">Default for {currency}</p>
+              <Textarea name="bodyText" rows={5} defaultValue={bankFor(currency, null)?.body_text ?? ""} placeholder={`Bank\nAccount name\nAccount number\nBranch code`} className="font-mono text-xs" />
+            </ActionForm>
+          ))}
+          {(campuses ?? []).map((c) => (
+            <ActionForm key={c.id} action={saveBankInstructions} label={`Save ${c.name}`} size="sm" variant="outline" className="space-y-2">
+              <input type="hidden" name="currency" value={c.currency} />
+              <input type="hidden" name="campusId" value={c.id} />
+              <p className="text-xs font-medium">{c.name} ({c.currency})</p>
+              <Textarea name="bodyText" rows={5} defaultValue={bankFor(c.currency as "BWP" | "ZAR", c.id)?.body_text ?? ""} placeholder={`Leave blank to use the ${c.currency} default`} className="font-mono text-xs" />
             </ActionForm>
           ))}
         </div>

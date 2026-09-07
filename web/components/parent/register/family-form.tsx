@@ -63,7 +63,7 @@ export function FamilyForm({
           <input type="checkbox" name="whatsappOptIn" value="1" defaultChecked={sv.whatsappOptIn ? sv.whatsappOptIn === "1" : whatsappOptIn} disabled={readOnly} className="mt-0.5 size-5 shrink-0 accent-primary" />
           <span>
             Send updates on WhatsApp to the primary mobile number.
-            <span className="block text-xs text-muted-foreground">Optional. Reply STOP at any time; untick to stop.</span>
+            <span className="block text-xs text-muted-foreground">Untick if you prefer email only. You can reply STOP at any time.</span>
           </span>
         </label>
       </fieldset>

@@ -77,18 +77,21 @@ export async function saveSchedule(_: StaffActionState, formData: FormData): Pro
   });
 }
 
-/** One set of bank details per currency, for every campus in it. Blank deactivates. */
+/** Bank details for a currency (the default) or for one campus. Blank deactivates. */
 export async function saveBankInstructions(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const p = z.object({ currency: z.enum(["BWP", "ZAR"]), bodyText: z.string().max(2000) }).parse(Object.fromEntries(formData));
+    const p = z.object({ currency: z.enum(["BWP", "ZAR"]), campusId: z.uuid().optional(), bodyText: z.string().max(2000) }).parse(Object.fromEntries(formData));
     const body = p.bodyText.trim();
-    const { data: existing } = await ctx.supabase.from("bank_instructions").select("id").eq("currency", p.currency).is("campus_id", null).maybeSingle();
+    const campusId = p.campusId ?? null;
+    let lookup = ctx.supabase.from("bank_instructions").select("id").eq("currency", p.currency);
+    lookup = campusId ? lookup.eq("campus_id", campusId) : lookup.is("campus_id", null);
+    const { data: existing } = await lookup.maybeSingle();
     if (existing) {
       const { error } = await ctx.supabase.from("bank_instructions").update({ body_text: body || "(none)", is_active: body.length > 0 }).eq("id", existing.id);
       if (error) throw new Error(error.message);
     } else if (body) {
-      const { error } = await ctx.supabase.from("bank_instructions").insert({ currency: p.currency, campus_id: null, body_text: body, is_active: true });
+      const { error } = await ctx.supabase.from("bank_instructions").insert({ currency: p.currency, campus_id: campusId, body_text: body, is_active: true });
       if (error) throw new Error(error.message);
     }
     revalidatePath("/staff/admin/fees");
