@@ -24,7 +24,7 @@ export default async function ExportColumnsPage() {
   );
   return (
     <>
-      <PageTitle title="Export columns" description="What each row of the student export contains, in order. A path names a field of the enrolment record: student.date_of_birth, guardians[0].mobile, application.grade. Medical fields are off unless you turn them on." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Export columns" description="What each row of the student export contains, in order. A path names a field of the enrolment record: student.date_of_birth, guardians[0].mobile, application.grade. Medical fields are off unless you turn them on." />
       <div className="space-y-2">
         {(columns ?? []).map((c) => (
           <div key={c.id} className="flex items-start gap-2">

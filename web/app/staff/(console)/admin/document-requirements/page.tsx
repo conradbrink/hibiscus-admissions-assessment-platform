@@ -29,7 +29,7 @@ export default async function DocumentRequirementsPage() {
   );
   return (
     <>
-      <PageTitle title="Document requirements" description="What a family must upload at registration, and for which grades. A required document that is missing or rejected holds enrolment; an optional one never does." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Document requirements" description="What a family must upload at registration, and for which grades. A required document that is missing or rejected holds enrolment; an optional one never does." />
       <div className="space-y-3">
         {(requirements ?? []).map((r) => form(r))}
         <h2 className="pt-2 text-sm font-semibold">Add a requirement</h2>

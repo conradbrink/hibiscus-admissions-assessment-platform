@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, CalendarDays, CheckSquare, CreditCard, FileText, Scale, Users } from "lucide-react";
+import { TriangleAlert, ArrowRight, CalendarDays, SquareCheck, CreditCard, FileText, Scale, Users } from "lucide-react";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { StatTile } from "@/components/staff/stat-tile";
 import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
@@ -141,7 +141,7 @@ export default async function DashboardPage() {
                   <li key={a.label}>
                     <Link href={a.href} className="flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-muted/50">
                       <span className={a.urgent ? "flex size-6 items-center justify-center rounded-full bg-destructive/12 text-destructive" : "flex size-6 items-center justify-center rounded-full bg-warning/30 text-warning-foreground"}>
-                        <AlertTriangle className="size-3.5" aria-hidden />
+                        <TriangleAlert className="size-3.5" aria-hidden />
                       </span>
                       <span className="flex-1">{a.label}</span>
                       <span className="font-semibold tabular-nums">{a.value}</span>
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
               <ul className="divide-y divide-border/70">
                 {myTasks.map((t) => (
                   <li key={t.id} className="flex items-center gap-3 px-5 py-2.5 text-sm">
-                    <CheckSquare className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <SquareCheck className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <Link href={t.application_id ? `/staff/applications/${t.application_id}` : "/staff/tasks"} className="min-w-0 flex-1 truncate hover:underline">{t.title}</Link>
                     <span className="text-xs text-muted-foreground">{t.due_at ? formatDate(t.due_at) : ""}</span>
                     <PriorityBadge priority={t.priority} />

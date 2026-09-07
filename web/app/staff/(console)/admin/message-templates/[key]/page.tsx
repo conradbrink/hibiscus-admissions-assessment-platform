@@ -15,7 +15,7 @@ export default async function MessageTemplateEditPage({ params }: { params: Prom
 
   return (
     <>
-      <PageTitle title={template.name} description={`Beside the email “${email?.name ?? key}” · ${key}`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={template.name} description={`Beside the email “${email?.name ?? key}” · ${key}`} />
       <MessageTemplateEditor template={template} allowedVariables={email?.allowed_variables ?? []} action={saveMessageTemplate} />
     </>
   );

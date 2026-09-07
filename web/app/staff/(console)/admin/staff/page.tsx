@@ -25,7 +25,7 @@ export default async function StaffAdminPage() {
 
   return (
     <>
-      <PageTitle title="Staff & roles" description="Who can sign in, what each role may do, and which campuses a person is limited to." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Staff & roles" description="Who can sign in, what each role may do, and which campuses a person is limited to." />
 
       <section className="mb-6 surface p-4">
         <h2 className="mb-3 text-sm font-semibold">Invite a member of staff</h2>

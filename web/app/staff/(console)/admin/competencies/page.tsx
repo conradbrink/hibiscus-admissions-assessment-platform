@@ -14,7 +14,7 @@ export default async function CompetenciesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Competencies"
         description="What every question is authored against and every learning profile reports on. Untick 'reportable' for a competency scored internally but not shown to parents."
       />

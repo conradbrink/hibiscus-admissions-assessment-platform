@@ -1,9 +1,7 @@
-"use client";
-
 import {
-  BarChart3, Blocks, BookOpen, Building2, CalendarDays, CalendarOff, CheckSquare, ClipboardCheck, Columns3, CreditCard,
-  Download, FileSignature, FileText, FolderCheck, GraduationCap, Inbox, LayoutDashboard, ListChecks, Mail, MessageCircle,
-  PenLine, Scale, ScrollText, Send, Settings, ShieldCheck, Sliders, Target, TrendingUp, Trash2, Users, UserCog, type LucideIcon,
+  ChartColumn, Blocks, BookOpen, Building2, CalendarDays, CalendarOff, SquareCheck, ClipboardCheck, Columns3, CreditCard,
+  Download, FilePenLine, FileText, FolderCheck, GraduationCap, Inbox, LayoutDashboard, ListChecks, Mail, MessageCircle,
+  PenLine, Scale, ScrollText, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog, type LucideIcon,
 } from "lucide-react";
 import type { NavIcon } from "@/components/staff/nav-items";
 
@@ -12,13 +10,13 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   dashboard: LayoutDashboard,
   applicants: Users,
   assessment: ClipboardCheck,
-  tasks: CheckSquare,
+  tasks: SquareCheck,
   decisions: Scale,
   offers: FileText,
   payments: CreditCard,
   registrations: FolderCheck,
   export: Download,
-  analytics: BarChart3,
+  analytics: ChartColumn,
   forecast: TrendingUp,
   settings: Settings,
   questions: BookOpen,
@@ -32,15 +30,15 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   email: Mail,
   whatsapp: MessageCircle,
   offerTemplates: ScrollText,
-  agreements: FileSignature,
+  agreements: FilePenLine,
   documents: FolderCheck,
   fees: CreditCard,
   campuses: Building2,
   grades: GraduationCap,
   intakes: CalendarDays,
   staff: UserCog,
-  workflow: Sliders,
-  retention: Trash2,
+  workflow: SlidersHorizontal,
+  retention: Trash,
   columns: Columns3,
   outbox: Send,
   jobs: Inbox,

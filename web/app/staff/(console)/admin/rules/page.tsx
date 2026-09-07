@@ -24,7 +24,7 @@ export default async function RulesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Admission rules"
         description="What the scores must meet. The engine is deterministic: a hard-fail rule violated declines; a review rule violated refers to a person; everything met approves, or waitlists when the grade is full. With no active ruleset, every assessed applicant is referred to a person."
       />

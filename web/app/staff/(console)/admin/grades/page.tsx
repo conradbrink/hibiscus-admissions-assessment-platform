@@ -15,7 +15,7 @@ export default async function GradesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Grades"
         description="The age rule is 'turning N before the cut-off'. Grades without an assessment skip that step entirely. Seeded from the current website; the contradictions in it are flagged in PROJECT-CONTEXT.md."
       />

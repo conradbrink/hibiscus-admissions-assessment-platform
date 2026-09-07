@@ -27,7 +27,7 @@ export default async function RulesetPage({ params }: { params: Promise<{ rulese
 
   return (
     <>
-      <PageTitle title={ruleset.name} description={ruleset.description ?? `Version ${ruleset.version}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={ruleset.name} description={ruleset.description ?? `Version ${ruleset.version}`}>
         <Badge variant={ruleset.status === "active" ? "success" : ruleset.status === "superseded" ? "muted" : "outline"}>{ruleset.status}</Badge>
         {draft ? (
           <>

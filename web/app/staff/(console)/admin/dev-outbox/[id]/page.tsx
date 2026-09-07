@@ -14,7 +14,7 @@ export default async function OutboxMessagePage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <PageTitle title={m.subject} description={`To ${m.to_email} · ${m.template_key ?? "—"} v${m.template_version ?? "—"} · ${m.status} · ${formatDateTime(m.sent_at ?? m.created_at)}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={m.subject} description={`To ${m.to_email} · ${m.template_key ?? "—"} v${m.template_version ?? "—"} · ${m.status} · ${formatDateTime(m.sent_at ?? m.created_at)}`}>
         {m.application_id ? <Link href={`/staff/applications/${m.application_id}`} className="text-sm underline">Open applicant</Link> : null}
       </PageTitle>
       {m.error ? <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{m.error}</p> : null}

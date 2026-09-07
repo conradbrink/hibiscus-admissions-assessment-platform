@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Bell, Search } from "lucide-react";
-import { initials } from "@/components/staff/sidebar";
+import { initials } from "@/components/staff/initials";
 import { formatDate } from "@/lib/format-date";
 
 /**

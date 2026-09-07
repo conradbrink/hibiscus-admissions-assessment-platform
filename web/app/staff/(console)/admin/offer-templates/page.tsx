@@ -12,7 +12,7 @@ export default async function OfferTemplatesPage() {
     .order("key");
   return (
     <>
-      <PageTitle title="Offer templates" description="The wording of an offer of admission. Fees, names, dates and the expiry are filled in from the application when the offer is generated. Editing publishes a new version; offers already generated keep the version they were rendered with." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Offer templates" description="The wording of an offer of admission. Fees, names, dates and the expiry are filled in from the application when the offer is generated. Editing publishes a new version; offers already generated keep the version they were rendered with." />
       <ul className="divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.key} className="px-4 py-3 text-sm">

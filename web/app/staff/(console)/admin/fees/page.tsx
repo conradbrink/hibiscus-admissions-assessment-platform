@@ -23,7 +23,7 @@ export default async function FeesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Fees"
         description="What an offer shows and what a parent pays to secure a place. A schedule applies to a campus and academic year, optionally to a band of grades; the narrowest active match is used. Amounts are in the campus's currency."
       />

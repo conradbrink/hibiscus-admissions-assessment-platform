@@ -13,7 +13,7 @@ export default async function AgreementsPage() {
   const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at").eq("is_active", true).order("sort_order").order("name");
   return (
     <>
-      <PageTitle title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
       <ul className="mb-6 divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">

@@ -17,7 +17,7 @@ export default async function JobsPage() {
 
   return (
     <>
-      <PageTitle title="Job queue" description="Emails and scheduled follow-ups. Runs after every request that queues work, and every five minutes by cron.">
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Job queue" description="Emails and scheduled follow-ups. Runs after every request that queues work, and every five minutes by cron.">
         <ActionForm action={drainNow} label="Run pending now" size="sm" variant="outline" />
       </PageTitle>
       {jobs && jobs.length > 0 ? (

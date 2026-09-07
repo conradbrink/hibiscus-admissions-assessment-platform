@@ -16,7 +16,7 @@ export default async function IntakesPage() {
 
   return (
     <>
-      <PageTitle title="Academic years and intakes" description="Parents choose an open intake. The year's cut-off date is what the grade recommendation uses." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Academic years and intakes" description="Parents choose an open intake. The year's cut-off date is what the grade recommendation uses." />
       <div className="space-y-4">
         {(years ?? []).map((y) => (
           <section key={y.id} className="surface p-4">

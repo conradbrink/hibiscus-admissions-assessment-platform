@@ -25,7 +25,7 @@ export default async function ClosuresPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="School holidays"
         description="No assessment sittings or visits are created on these dates. Every other weekday gets both, at every campus."
       />

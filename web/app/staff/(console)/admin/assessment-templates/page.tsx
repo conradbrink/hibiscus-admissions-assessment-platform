@@ -18,7 +18,7 @@ export default async function TemplatesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Assessment templates"
         description="What a sitting is made of. At launch the active template whose grade band contains the child's grade is used, preferring one pinned to the campus. Sections draw fixed questions or random ones by competency and difficulty."
       />

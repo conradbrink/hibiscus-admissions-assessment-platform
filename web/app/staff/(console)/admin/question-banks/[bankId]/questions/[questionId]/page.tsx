@@ -40,7 +40,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
 
   return (
     <>
-      <PageTitle title={QUESTION_TYPE_LABELS[question.type]} description={`Version ${question.version}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={QUESTION_TYPE_LABELS[question.type]} description={`Version ${question.version}`}>
         <Badge variant={statusVariant}>{question.status}</Badge>
         {question.status !== "active" ? (
           <ActionForm action={setQuestionStatus} label="Activate" size="sm" variant="success">{hidden}<input type="hidden" name="status" value="active" /></ActionForm>

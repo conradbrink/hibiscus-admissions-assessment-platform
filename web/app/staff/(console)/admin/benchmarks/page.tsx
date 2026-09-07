@@ -31,7 +31,7 @@ export default async function BenchmarksPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Benchmarks"
         description="How a percentage becomes a word on the learning profile: below, approaching, meeting, exceeding. The most specific active row wins. These are presentation only — admission criteria live in Admission rules."
       />

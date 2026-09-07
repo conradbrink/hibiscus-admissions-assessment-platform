@@ -11,7 +11,7 @@ export default async function OfferTemplatePage({ params }: { params: Promise<{ 
   if (!template) notFound();
   return (
     <>
-      <PageTitle title={template.name} description={`${template.key} · version ${template.version}`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={template.name} description={`${template.key} · version ${template.version}`} />
       <OfferTemplateEditor template={template} action={publishOfferTemplate} />
     </>
   );

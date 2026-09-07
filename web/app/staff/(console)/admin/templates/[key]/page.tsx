@@ -17,7 +17,7 @@ export default async function TemplateEditPage({ params }: { params: Promise<{ k
 
   return (
     <>
-      <PageTitle title={template.name} description={`${template.key} · version ${template.version}`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={template.name} description={`${template.key} · version ${template.version}`} />
       <TemplateEditor template={template} action={publishTemplate} />
     </>
   );

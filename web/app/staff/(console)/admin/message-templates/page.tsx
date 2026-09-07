@@ -21,7 +21,7 @@ export default async function MessageTemplatesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="WhatsApp templates"
         description={
           settings.whatsappEnabled

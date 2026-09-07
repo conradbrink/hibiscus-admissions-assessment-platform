@@ -38,7 +38,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
 
   return (
     <>
-      <PageTitle title={template.name} description={template.description ?? "Assessment template"}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={template.name} description={template.description ?? "Assessment template"}>
         <Badge variant={statusVariant}>{template.status}</Badge>
         {template.status !== "active" ? (
           <ActionForm action={setTemplateStatus} label="Activate" size="sm" variant="success">{hidden}<input type="hidden" name="status" value="active" /></ActionForm>

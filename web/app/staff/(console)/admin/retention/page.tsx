@@ -27,7 +27,7 @@ export default async function RetentionPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Data retention"
         description={`${settings.retentionEnabled ? "On" : "Off"}: enquiries that went nowhere are anonymised after ${settings.retentionDaysAbandoned} days, closed applications after ${settings.retentionDaysClosed} days. Change these under Workflow settings.`}
       />

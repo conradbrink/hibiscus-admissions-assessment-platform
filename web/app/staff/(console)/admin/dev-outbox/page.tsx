@@ -34,7 +34,7 @@ export default async function OutboxPage() {
 
   return (
     <>
-      <PageTitle title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging}.`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging}.`} />
       <h2 className="mb-2 text-sm font-semibold">Emails</h2>
       {messages && messages.length > 0 ? (
         <ul className="mb-6 divide-y divide-border surface text-sm">

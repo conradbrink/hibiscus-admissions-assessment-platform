@@ -23,7 +23,7 @@ export default async function QuestionBanksPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Question banks"
         description="Everything a child can be asked. Questions are authored here and drawn into assessment templates; what a child actually sat is frozen at launch, so editing here never changes a past result."
       />

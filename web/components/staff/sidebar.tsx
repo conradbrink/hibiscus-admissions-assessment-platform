@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { initials } from "@/components/staff/initials";
 import { NAV_ICONS } from "@/components/staff/nav-icons";
 import { activeHref, type NavGroup } from "@/components/staff/nav-items";
 import { createClient } from "@/lib/supabase/client";
@@ -105,9 +106,4 @@ export function StaffSidebar({ groups, name, email }: { groups: NavGroup[]; name
       ) : null}
     </>
   );
-}
-
-export function initials(nameOrEmail: string): string {
-  const parts = nameOrEmail.split("@")[0].split(/[\s._-]+/).filter(Boolean);
-  return (parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? "?").slice(0, 2)).toUpperCase();
 }

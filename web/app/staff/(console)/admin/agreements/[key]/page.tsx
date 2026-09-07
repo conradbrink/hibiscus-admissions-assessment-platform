@@ -13,7 +13,7 @@ export default async function AgreementPage({ params }: { params: Promise<{ key:
   if (!t) notFound();
   return (
     <>
-      <PageTitle title={t.name} description={`${t.key} · version ${t.version}. Saving publishes version ${t.version + 1}.`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={t.name} description={`${t.key} · version ${t.version}. Saving publishes version ${t.version + 1}.`} />
       <div className="grid gap-5 lg:grid-cols-2">
         <ActionForm action={publishAgreement} label="Publish new version" size="sm" className="grid gap-2">
           <input type="hidden" name="key" value={t.key} />

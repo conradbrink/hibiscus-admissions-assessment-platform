@@ -12,7 +12,7 @@ export default async function CampusesPage() {
 
   return (
     <>
-      <PageTitle title="Campuses" description="Inactive campuses are never offered to parents. Country and currency drive fees and legal wording later." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Campuses" description="Inactive campuses are never offered to parents. Country and currency drive fees and legal wording later." />
       <div className="space-y-3">
         {(campuses ?? []).map((c) => (
           <ActionForm key={c.id} action={saveCampus} label="Save" size="sm" variant="outline" className="grid gap-2 surface p-4 sm:grid-cols-[1fr_1fr_100px_100px_1fr_auto] sm:items-end">

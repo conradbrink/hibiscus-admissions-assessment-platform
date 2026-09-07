@@ -50,7 +50,7 @@ export default async function BankPage({
 
   return (
     <>
-      <PageTitle title={bank.name} description={bank.description ?? "Question bank"}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={bank.name} description={bank.description ?? "Question bank"}>
         <Badge variant={bank.status === "active" ? "success" : bank.status === "retired" ? "muted" : "outline"}>{bank.status}</Badge>
         {bank.status !== "active" ? (
           <ActionForm action={setBankStatus} label="Activate bank" size="sm" variant="success">

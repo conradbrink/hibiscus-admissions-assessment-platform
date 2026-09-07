@@ -42,7 +42,7 @@ export default async function RubricsPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Writing rubrics"
         description="How extended writing is marked. An assessor reads the child's writing and picks a band; the band's minimum marks are awarded. The AI may suggest a band from the same descriptors, and never awards one."
       />

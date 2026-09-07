@@ -17,7 +17,7 @@ function NativeSelect({
   ...props
 }: React.ComponentProps<"select">) {
   return (
-    <div data-slot="native-select-wrapper" className="relative w-full">
+    <div data-slot="native-select-wrapper" className="relative">
       <select
         data-slot="native-select"
         className={cn(

@@ -13,7 +13,7 @@ export default async function TemplatesPage() {
 
   return (
     <>
-      <PageTitle title="Email templates" description="Every email a parent receives. Editing publishes a new version; old versions are kept." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Email templates" description="Every email a parent receives. Editing publishes a new version; old versions are kept." />
       <ul className="divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.key} className="px-4 py-3 text-sm">

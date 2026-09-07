@@ -80,7 +80,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
       </PageTitle>
       <p className="-mt-4 mb-4 text-xs"><Link href={`/staff/applications/${app.id}`} className="text-primary underline underline-offset-2">Applicant page</Link></p>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
           <section className="surface p-4">
             <h2 className="text-sm font-semibold">Documents</h2>
