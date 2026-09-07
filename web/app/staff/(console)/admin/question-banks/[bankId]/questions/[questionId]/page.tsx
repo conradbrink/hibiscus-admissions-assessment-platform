@@ -40,7 +40,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
 
   return (
     <>
-      <PageTitle title={QUESTION_TYPE_LABELS[question.type]} description={`Version ${question.version}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={QUESTION_TYPE_LABELS[question.type]} description={`Version ${question.version}`}>
         <Badge variant={statusVariant}>{question.status}</Badge>
         {question.status !== "active" ? (
           <ActionForm action={setQuestionStatus} label="Activate" size="sm" variant="success">{hidden}<input type="hidden" name="status" value="active" /></ActionForm>
@@ -56,7 +56,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <h2 className="mb-2 text-sm font-semibold">The question</h2>
-          <ActionForm action={saveQuestion} label="Save question" size="sm" className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <ActionForm action={saveQuestion} label="Save question" size="sm" className="space-y-3 surface p-4">
             {hidden}
             <input type="hidden" name="type" value={question.type} />
             <div className="space-y-1"><Label htmlFor="stem">Stem</Label><Textarea id="stem" name="stem" rows={4} defaultValue={question.stem} required /></div>
@@ -127,7 +127,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
         <section>
           <h2 className="mb-2 text-sm font-semibold">The answer key</h2>
           <p className="mb-2 text-xs text-muted-foreground">Only people who author questions can see this. The computer the child uses never receives it.</p>
-          <ActionForm action={saveKey} label="Save key" size="sm" className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <ActionForm action={saveKey} label="Save key" size="sm" className="space-y-3 surface p-4">
             {hidden}
             {question.type === "single_choice" ? (
               <div className="space-y-1">

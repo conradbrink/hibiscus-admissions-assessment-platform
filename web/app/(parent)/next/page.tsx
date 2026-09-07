@@ -71,7 +71,7 @@ export default async function NextPage() {
       </section>
 
       {booking ? (
-        <section className="mt-5 rounded-2xl border border-border bg-card p-5 text-sm">
+        <section className="mt-5 surface p-5 text-sm">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {booking.kind === "assessment" ? "Assessment" : "Visit"}
           </p>
@@ -105,7 +105,7 @@ export default async function NextPage() {
             {siblings
               .filter((s) => s.id !== app.id)
               .map((s) => (
-                <li key={s.id} className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
+                <li key={s.id} className="surface px-4 py-3 text-sm">
                   <span className="font-medium">
                     {s.child_first_name} {s.child_last_name}
                   </span>

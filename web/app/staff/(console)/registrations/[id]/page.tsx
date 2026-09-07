@@ -80,9 +80,9 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
       </PageTitle>
       <p className="-mt-4 mb-4 text-xs"><Link href={`/staff/applications/${app.id}`} className="text-primary underline underline-offset-2">Applicant page</Link></p>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <h2 className="text-sm font-semibold">Documents</h2>
             <ul className="mt-2 divide-y divide-border">
               {(requirements ?? [])
@@ -131,7 +131,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             </ul>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <h2 className="text-sm font-semibold">Student</h2>
             {changed.length ? <p className="mt-1 rounded-md bg-warning/15 px-3 py-2 text-xs">The parent entered a different {changed.map((f) => f.replace("child_", "").replace(/_/g, " ")).join(", ")} from the application. Check against the birth certificate.</p> : null}
             {flags.length ? (
@@ -158,7 +158,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             </dl>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <h2 className="text-sm font-semibold">Medical</h2>
             <dl className="mt-2">
               <Row label="Medical aid" value={r?.medical_aid_name ? `${r.medical_aid_name} · ${r.medical_aid_number ?? ""} · principal ${r.medical_aid_principal_member ?? ""}` : "None"} />
@@ -171,7 +171,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             </dl>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <h2 className="text-sm font-semibold">Family and emergency contacts</h2>
             <dl className="mt-2">
               {guardians.map((g) => <Row key={g.id} label={g.kind === "primary_guardian" ? "Primary guardian" : "Second guardian"} value={`${g.first_name} ${g.last_name} (${RELATIONSHIP_LABELS[g.relationship]})\n${[g.mobile, g.phone, g.email].filter(Boolean).join(" · ")}${g.address ? `\n${g.address}` : ""}${g.nationality ? `\n${g.nationality}` : ""}`} />)}
@@ -179,7 +179,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             </dl>
           </section>
 
-          <section className="rounded-xl border border-border bg-card p-4">
+          <section className="surface p-4">
             <h2 className="text-sm font-semibold">Agreements</h2>
             <ul className="mt-2 text-sm">
               {(templates ?? []).map((t) => {
@@ -202,7 +202,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
         </div>
 
         <aside className="space-y-5">
-          <section className="rounded-xl border border-border bg-card p-4 text-sm">
+          <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Completeness</h2>
             <ul className="mt-2 space-y-1">
               {SECTIONS.map((s) => <li key={s} className="flex justify-between"><span>{SECTION_LABELS[s]}</span><span className={c.sections[s] ? "text-success" : "text-warning-foreground"}>{c.sections[s] ? "done" : "to do"}</span></li>)}
@@ -221,7 +221,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
             ) : null}
           </section>
           {record ? (
-            <section className="rounded-xl border border-border bg-card p-4 text-sm">
+            <section className="surface p-4 text-sm">
               <h2 className="text-sm font-semibold">Student record</h2>
               <p className="mt-1 text-xs text-muted-foreground">Generated {formatDateTime(record.generated_at)} · export {record.export_status}{record.external_ref ? ` (${record.external_ref})` : ""}</p>
               {record.export_error ? <p className="mt-1 text-xs text-muted-foreground">{record.export_error}</p> : null}

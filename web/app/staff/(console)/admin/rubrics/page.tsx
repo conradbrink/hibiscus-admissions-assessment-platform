@@ -42,13 +42,13 @@ export default async function RubricsPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Writing rubrics"
         description="How extended writing is marked. An assessor reads the child's writing and picks a band; the band's minimum marks are awarded. The AI may suggest a band from the same descriptors, and never awards one."
       />
       <div className="space-y-4">
         {(rubrics ?? []).map((r) => (
-          <ActionForm key={r.id} action={saveRubric} label="Save rubric" size="sm" variant="outline" className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <ActionForm key={r.id} action={saveRubric} label="Save rubric" size="sm" variant="outline" className="space-y-3 surface p-4">
             <input type="hidden" name="rubricId" value={r.id} />
             <div className="grid gap-2 sm:grid-cols-3">
               <Input name="name" defaultValue={r.name} required />

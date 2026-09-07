@@ -30,7 +30,7 @@ export default function StaffLoginPage() {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-card p-6">
+    <form onSubmit={submit} className="space-y-4 surface p-6">
       <h1 className="text-lg font-semibold">Sign in</h1>
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>

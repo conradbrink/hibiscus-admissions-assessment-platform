@@ -66,7 +66,7 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
         </section>
       ) : null}
 
-      <section className="mt-5 rounded-2xl border border-border bg-card p-5 text-sm">
+      <section className="mt-5 surface p-5 text-sm">
         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Fees payable on acceptance ({request.currency})</p>
         <ul className="mt-2 divide-y divide-border">
           {lines.map((l) => (
@@ -108,7 +108,7 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
             <div className="mt-4"><PayOnlineButton action={startOnlinePayment} label={`Pay ${formatMoney(outstanding, request.currency)} securely online`} /></div>
           </div>
           {bank ? (
-            <details className="rounded-2xl border border-border bg-card p-5 text-sm">
+            <details className="surface p-5 text-sm">
               <summary className="cursor-pointer font-semibold">Pay by bank transfer instead</summary>
               <p className="mt-2 whitespace-pre-line">{bank.body_text}</p>
               <p className="mt-3">Please use the reference <strong>{app.reference}</strong> so we can match your payment. We will email a receipt once it reaches us; this can take a working day or two.</p>

@@ -14,7 +14,7 @@ export default async function CompetenciesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Competencies"
         description="What every question is authored against and every learning profile reports on. Untick 'reportable' for a competency scored internally but not shown to parents."
       />
@@ -22,7 +22,7 @@ export default async function CompetenciesPage() {
         {(subjects ?? []).map((s) => (
           <section key={s.id}>
             <h2 className="mb-2 text-sm font-semibold">{s.name}</h2>
-            <div className="rounded-xl border border-border bg-card">
+            <div className="surface">
               <div className="grid grid-cols-[1fr_1fr_80px_90px_80px_auto] gap-2 border-b border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
                 <span>Name</span><span>Focus label (parent-facing)</span><span>Order</span><span>Reportable</span><span>Active</span><span></span>
               </div>

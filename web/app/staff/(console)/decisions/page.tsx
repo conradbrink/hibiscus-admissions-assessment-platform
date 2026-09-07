@@ -62,7 +62,7 @@ export default async function DecisionsPage() {
             const lines = (scores ?? []).filter((s) => s.attempt_id === attempt?.id);
             const failing = (inputs.results ?? []).filter((r) => r.effect !== "pass");
             return (
-              <section key={a.id} className="rounded-xl border border-border bg-card p-4">
+              <section key={a.id} className="surface p-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <Link href={`/staff/applications/${a.id}`} className="font-semibold hover:underline">{a.child_first_name} {a.child_last_name}</Link>

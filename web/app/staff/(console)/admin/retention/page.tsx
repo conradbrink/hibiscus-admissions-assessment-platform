@@ -27,7 +27,7 @@ export default async function RetentionPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Data retention"
         description={`${settings.retentionEnabled ? "On" : "Off"}: enquiries that went nowhere are anonymised after ${settings.retentionDaysAbandoned} days, closed applications after ${settings.retentionDaysClosed} days. Change these under Workflow settings.`}
       />
@@ -44,7 +44,7 @@ export default async function RetentionPage() {
               <span />
             </ActionForm>
           </div>
-          <ul className="mb-6 divide-y divide-border rounded-xl border border-border bg-card text-sm">
+          <ul className="mb-6 divide-y divide-border surface text-sm">
             {due.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
                 <Link href={`/staff/applications/${a.id}`} className="font-medium hover:underline">{a.child_first_name} {a.child_last_name}</Link>
@@ -65,7 +65,7 @@ export default async function RetentionPage() {
 
       <h2 className="mb-2 text-sm font-semibold">On hold ({held.length})</h2>
       {held.length ? (
-        <ul className="mb-6 divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="mb-6 divide-y divide-border surface text-sm">
           {held.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <Link href={`/staff/applications/${a.id}`} className="font-medium hover:underline">{a.child_first_name} {a.child_last_name}</Link>
@@ -84,7 +84,7 @@ export default async function RetentionPage() {
 
       <h2 className="mb-2 text-sm font-semibold">Recently anonymised</h2>
       {recent && recent.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="divide-y divide-border surface text-sm">
           {recent.map((a) => (
             <li key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <span className="font-mono text-xs">{a.reference}</span>

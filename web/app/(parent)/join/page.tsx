@@ -47,7 +47,7 @@ export default function JoinPage() {
             className={
               primary
                 ? "flex items-center gap-4 rounded-2xl bg-primary p-5 text-primary-foreground shadow-sm transition-transform active:translate-y-px"
-                : "flex items-center gap-4 rounded-2xl border border-border bg-card p-5 text-card-foreground transition-colors hover:bg-muted active:translate-y-px"
+                : "flex items-center gap-4 surface p-5 text-card-foreground transition-colors hover:bg-muted active:translate-y-px"
             }
           >
             <span

@@ -128,8 +128,8 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
       {scores?.length ? (
         <section className="mb-6">
           <h2 className="mb-2 text-sm font-semibold">Scores{attempt.marking_status !== "complete" ? " (provisional — writing not yet marked)" : ""}</h2>
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto surface">
+            <table className="data-table">
               <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Scope</th><th className="px-3 py-2 font-medium">Marks</th><th className="px-3 py-2 font-medium">%</th><th className="px-3 py-2 font-medium">Band</th></tr></thead>
               <tbody className="divide-y divide-border">
                 {scores.map((s) => (
@@ -210,7 +210,7 @@ export default async function AttemptPage({ params }: { params: Promise<{ attemp
             const r = responseByQ.get(q.id);
             const marker = r ? one(r.staff_profiles) : null;
             return (
-              <li key={q.id} className="rounded-xl border border-border bg-card px-4 py-3 text-sm">
+              <li key={q.id} className="surface px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <p className="text-xs text-muted-foreground">{i + 1}. {q.section_title} · {competencyName.get(q.competency_id)} · {QUESTION_TYPE_LABELS[q.type]}</p>
                   <p className="text-xs tabular-nums">

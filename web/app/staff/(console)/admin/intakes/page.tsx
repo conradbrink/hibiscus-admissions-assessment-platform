@@ -16,10 +16,10 @@ export default async function IntakesPage() {
 
   return (
     <>
-      <PageTitle title="Academic years and intakes" description="Parents choose an open intake. The year's cut-off date is what the grade recommendation uses." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Academic years and intakes" description="Parents choose an open intake. The year's cut-off date is what the grade recommendation uses." />
       <div className="space-y-4">
         {(years ?? []).map((y) => (
-          <section key={y.id} className="rounded-xl border border-border bg-card p-4">
+          <section key={y.id} className="surface p-4">
             <h2 className="text-sm font-semibold">
               {y.label} <span className="font-normal text-muted-foreground">· {formatDate(y.starts_on)} – {formatDate(y.ends_on)} · age cut-off {formatDate(y.age_cutoff_on)}</span>
             </h2>
@@ -44,7 +44,7 @@ export default async function IntakesPage() {
           </section>
         ))}
       </div>
-      <section className="mt-6 rounded-xl border border-border bg-card p-4">
+      <section className="mt-6 surface p-4">
         <h2 className="mb-2 text-sm font-semibold">Add an academic year</h2>
         <ActionForm action={createAcademicYear} label="Add year" size="sm" className="grid gap-2 sm:grid-cols-4">
           <Input name="label" placeholder="2028" required />

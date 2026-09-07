@@ -47,10 +47,10 @@ export default async function OfferPage() {
         <p className="mb-4 rounded-2xl border-2 border-primary bg-card p-4 text-sm"><span className="font-semibold">Open until {formatDateLong(offer.expires_at)}.</span></p>
       ) : null}
 
-      <article className="prose prose-sm max-w-none rounded-2xl border border-border bg-card p-5" dangerouslySetInnerHTML={{ __html: offer.rendered_html }} />
+      <article className="prose prose-sm max-w-none surface p-5" dangerouslySetInnerHTML={{ __html: offer.rendered_html }} />
 
       {fees ? (
-        <section className="mt-5 rounded-2xl border border-border bg-card p-5 text-sm">
+        <section className="mt-5 surface p-5 text-sm">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Fees ({fees.currency})</p>
           <ul className="mt-2 divide-y divide-border">
             {fees.lines.map((l) => (
@@ -61,7 +61,7 @@ export default async function OfferPage() {
         </section>
       ) : null}
 
-      <details className="mt-5 rounded-2xl border border-border bg-card p-5 text-sm">
+      <details className="mt-5 surface p-5 text-sm">
         <summary className="cursor-pointer font-semibold">Terms</summary>
         <div className="prose prose-sm mt-2 max-w-none" dangerouslySetInnerHTML={{ __html: offer.terms_html }} />
       </details>

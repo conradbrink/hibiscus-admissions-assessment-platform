@@ -112,7 +112,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             const rows = byId.get(s.id) ?? [];
             const assessor = one(s.staff_profiles);
             return (
-              <section key={s.id} className="rounded-xl border border-border bg-card">
+              <section key={s.id} className="surface">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
                   <h2 className="text-sm font-semibold">
                     {formatTime(s.starts_at)}–{formatTime(s.ends_at)} · {one(s.campuses)?.name}

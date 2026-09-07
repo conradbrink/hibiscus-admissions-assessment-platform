@@ -27,7 +27,7 @@ export default async function RulesetPage({ params }: { params: Promise<{ rulese
 
   return (
     <>
-      <PageTitle title={ruleset.name} description={ruleset.description ?? `Version ${ruleset.version}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={ruleset.name} description={ruleset.description ?? `Version ${ruleset.version}`}>
         <Badge variant={ruleset.status === "active" ? "success" : ruleset.status === "superseded" ? "muted" : "outline"}>{ruleset.status}</Badge>
         {draft ? (
           <>
@@ -41,7 +41,7 @@ export default async function RulesetPage({ params }: { params: Promise<{ rulese
       {!draft ? <p className="mb-4 rounded-md bg-muted px-3 py-2 text-sm">This ruleset is frozen. Decisions made under it record its version. To change the rules, create a new draft and activate that.</p> : null}
 
       {draft ? (
-        <ActionForm action={saveRuleset} label="Save" size="sm" variant="outline" className="mb-6 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5">
+        <ActionForm action={saveRuleset} label="Save" size="sm" variant="outline" className="mb-6 grid gap-2 surface p-3 md:grid-cols-5">
           {hidden}
           <Input name="name" defaultValue={ruleset.name} required className="md:col-span-2" />
           <NativeSelect name="gradeSortMin" defaultValue={ruleset.grade_sort_min ?? ""}><option value="">From any grade</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>From {g.name}</option>)}</NativeSelect>
@@ -52,8 +52,8 @@ export default async function RulesetPage({ params }: { params: Promise<{ rulese
       ) : null}
 
       <h2 className="mb-2 text-sm font-semibold">Rules, checked in order</h2>
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto surface">
+        <table className="data-table">
           <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Rule</th><th className="px-3 py-2 font-medium">Scope</th><th className="px-3 py-2 font-medium">Condition</th><th className="px-3 py-2 font-medium">If not met</th><th className="px-3 py-2"></th></tr></thead>
           <tbody className="divide-y divide-border">
             {(rules ?? []).map((r) => (

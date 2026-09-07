@@ -13,8 +13,8 @@ export default async function AgreementsPage() {
   const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at").eq("is_active", true).order("sort_order").order("name");
   return (
     <>
-      <PageTitle title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
-      <ul className="mb-6 divide-y divide-border rounded-xl border border-border bg-card">
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
+      <ul className="mb-6 divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
             <div className="min-w-0 flex-1">
@@ -29,7 +29,7 @@ export default async function AgreementsPage() {
         ))}
         {!templates?.length ? <li className="px-4 py-3 text-sm text-muted-foreground">No active agreements: registration asks for none.</li> : null}
       </ul>
-      <section className="rounded-xl border border-border bg-card p-4">
+      <section className="surface p-4">
         <h2 className="mb-2 text-sm font-semibold">New agreement</h2>
         <ActionForm action={publishAgreement} label="Publish" size="sm" className="grid gap-2">
           <div className="grid gap-2 md:grid-cols-3">

@@ -134,7 +134,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+        <section className="surface p-4 text-sm">
           <h2 className="mb-2 text-sm font-semibold">Conversion</h2>
           <dl className="grid grid-cols-[1fr_auto] gap-y-1.5">
             <dt className="text-muted-foreground">Enquiry → assessment booking</dt><dd className="tabular-nums">{pct(conv.enquiryToBooking)}</dd>
@@ -147,7 +147,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <dt className="font-medium">Enquiry → enrolment</dt><dd className="font-medium tabular-nums">{pct(conv.enquiryToEnrolment)}</dd>
           </dl>
         </section>
-        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+        <section className="surface p-4 text-sm">
           <h2 className="mb-2 text-sm font-semibold">Cycle times <span className="font-normal text-muted-foreground">(median)</span></h2>
           <dl className="grid grid-cols-[1fr_auto] gap-y-1.5">
             <dt className="text-muted-foreground">Enquiry → booking</dt><dd className="tabular-nums">{fmtDays(cycle.enquiryToBooking)}</dd>
@@ -159,11 +159,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <dt className="text-muted-foreground">Payment → enrolment</dt><dd className="tabular-nums">{fmtDays(cycle.paymentToEnrolment)}</dd>
           </dl>
         </section>
-        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+        <section className="surface p-4 text-sm">
           <h2 className="mb-2 text-sm font-semibold">Trend</h2>
           <TrendChart series={series} />
         </section>
-        <section className="rounded-xl border border-border bg-card p-4 text-sm">
+        <section className="surface p-4 text-sm">
           <h2 className="mb-2 text-sm font-semibold">Learning profiles</h2>
           <dl className="grid grid-cols-[1fr_auto] gap-y-1.5">
             <dt className="text-muted-foreground">Published</dt><dd className="tabular-nums">{profileStats.published}</dd>
@@ -175,8 +175,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
       <h2 className="mb-2 text-sm font-semibold">By {DIMENSION_LABELS[dim].toLowerCase()}</h2>
       {groups.length ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto surface">
+          <table className="data-table">
             <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">{DIMENSION_LABELS[dim]}</th>

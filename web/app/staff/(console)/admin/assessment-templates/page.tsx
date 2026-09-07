@@ -18,11 +18,11 @@ export default async function TemplatesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Assessment templates"
         description="What a sitting is made of. At launch the active template whose grade band contains the child's grade is used, preferring one pinned to the campus. Sections draw fixed questions or random ones by competency and difficulty."
       />
-      <ActionForm action={createTemplate} label="Create template" size="sm" className="mb-5 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5">
+      <ActionForm action={createTemplate} label="Create template" size="sm" className="mb-5 grid gap-2 surface p-3 md:grid-cols-5">
         <Input name="name" placeholder="Name, e.g. Primary Stage 1–6" required className="md:col-span-2" />
         <NativeSelect name="gradeSortMin" required>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>From {g.name}</option>)}</NativeSelect>
         <NativeSelect name="gradeSortMax" required>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>To {g.name}</option>)}</NativeSelect>
@@ -31,7 +31,7 @@ export default async function TemplatesPage() {
         <Input name="description" placeholder="Description (optional)" className="md:col-span-3" />
       </ActionForm>
       {templates?.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <ul className="divide-y divide-border surface">
           {templates.map((t) => {
             const campus = Array.isArray(t.campuses) ? t.campuses[0] : t.campuses;
             return (

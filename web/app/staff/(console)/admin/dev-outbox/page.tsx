@@ -34,10 +34,10 @@ export default async function OutboxPage() {
 
   return (
     <>
-      <PageTitle title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging}.`} />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Outbox" description={`Email provider: ${provider}${provider === "dev" ? " — nothing is actually sent; open a message to follow its link." : ""} · Messaging provider: ${messaging}.`} />
       <h2 className="mb-2 text-sm font-semibold">Emails</h2>
       {messages && messages.length > 0 ? (
-        <ul className="mb-6 divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="mb-6 divide-y divide-border surface text-sm">
           {messages.map((m) => (
             <li key={m.id} className="flex items-center gap-3 px-4 py-2.5">
               <span className="w-32 shrink-0 text-xs text-muted-foreground">{formatDateTime(m.created_at)}</span>
@@ -53,7 +53,7 @@ export default async function OutboxPage() {
 
       <h2 className="mb-2 text-sm font-semibold">WhatsApp</h2>
       {whatsapp && whatsapp.length > 0 ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="divide-y divide-border surface text-sm">
           {whatsapp.map((m) => (
             <li key={m.id} className="px-4 py-2.5">
               <div className="flex items-center gap-3">

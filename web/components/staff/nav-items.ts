@@ -4,12 +4,27 @@ import { canAccessPath } from "@/lib/permissions";
 /**
  * The staff navigation, as data. Each item names the permission it needs;
  * `visibleNavGroups` requires both that and `canAccessPath`, so the two can
- * never drift into offering a link that bounces.
+ * never drift into offering a link that bounces. Icons are named, not
+ * imported, because the sidebar (a client component) resolves them and the
+ * layout (a server component) hands the groups across.
+ *
+ * Eleven destinations and one Settings hub: the day's work on the left,
+ * everything the process is configured from behind one door.
  */
+export type NavIcon =
+  | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
+  | "payments" | "registrations" | "export" | "analytics" | "forecast" | "settings"
+  | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
+  | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
+  | "fees" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
+
 export type NavItem = {
   href: string;
   label: string;
+  icon: NavIcon;
   permission?: PermissionCode;
+  /** One line on the Settings hub saying what lives behind the link. */
+  blurb?: string;
 };
 
 export type NavGroup = {
@@ -21,78 +36,111 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
     items: [
-      { href: "/staff", label: "Dashboard", permission: "applications.read" },
-      { href: "/staff/applications", label: "Applicants", permission: "applications.read" },
-      { href: "/staff/assessments/today", label: "Assessment day", permission: "assessments.deliver" },
-      { href: "/staff/tasks", label: "Tasks", permission: "applications.read" },
+      { href: "/staff", label: "Dashboard", icon: "dashboard", permission: "applications.read" },
+      { href: "/staff/applications", label: "Applicants", icon: "applicants", permission: "applications.read" },
+      { href: "/staff/assessments/today", label: "Assessment day", icon: "assessment", permission: "assessments.deliver" },
+      { href: "/staff/tasks", label: "Tasks", icon: "tasks", permission: "applications.read" },
     ],
   },
   {
     label: "Decisions",
     items: [
-      { href: "/staff/decisions", label: "Review queue", permission: "applications.read" },
-      { href: "/staff/offers", label: "Offers & outcomes", permission: "offers.read" },
+      { href: "/staff/decisions", label: "Review queue", icon: "decisions", permission: "applications.read" },
+      { href: "/staff/offers", label: "Offers", icon: "offers", permission: "offers.read" },
     ],
   },
   {
     label: "Enrolment",
     items: [
-      { href: "/staff/payments", label: "Payments", permission: "finance.read" },
-      { href: "/staff/registrations", label: "Registrations", permission: "applications.read" },
-      { href: "/staff/enrolment/exports", label: "Student export", permission: "data.export" },
+      { href: "/staff/payments", label: "Payments", icon: "payments", permission: "finance.read" },
+      { href: "/staff/registrations", label: "Registrations", icon: "registrations", permission: "applications.read" },
+      { href: "/staff/enrolment/exports", label: "Student export", icon: "export", permission: "data.export" },
     ],
   },
   {
     label: "Insight",
     items: [
-      { href: "/staff/analytics", label: "Analytics", permission: "analytics.read" },
-      { href: "/staff/analytics/forecast", label: "Forecast", permission: "analytics.read" },
+      { href: "/staff/analytics", label: "Analytics", icon: "analytics", permission: "analytics.read" },
+      { href: "/staff/analytics/forecast", label: "Forecast", icon: "forecast", permission: "analytics.read" },
     ],
   },
   {
-    label: "Assessment content",
+    label: null,
+    items: [{ href: "/staff/admin", label: "Settings", icon: "settings", permission: "applications.read" }],
+  },
+];
+
+/** Everything behind Settings, in the groups the hub page shows. */
+export const SETTINGS_SECTIONS: NavGroup[] = [
+  {
+    label: "Assessments",
     items: [
-      { href: "/staff/admin/question-banks", label: "Question banks", permission: "assessments.author" },
-      { href: "/staff/admin/assessment-templates", label: "Assessment templates", permission: "assessments.author" },
-      { href: "/staff/admin/rubrics", label: "Writing rubrics", permission: "assessments.author" },
-      { href: "/staff/admin/benchmarks", label: "Benchmarks", permission: "assessments.author" },
-      { href: "/staff/admin/competencies", label: "Competencies", permission: "assessments.author" },
+      { href: "/staff/admin/question-banks", label: "Question banks", icon: "questions", permission: "assessments.author", blurb: "The questions each paper draws from" },
+      { href: "/staff/admin/assessment-templates", label: "Assessment templates", icon: "templates", permission: "assessments.author", blurb: "Which paper each grade sits, section by section" },
+      { href: "/staff/admin/rubrics", label: "Writing rubrics", icon: "rubrics", permission: "assessments.author", blurb: "How written answers are marked" },
+      { href: "/staff/admin/benchmarks", label: "Benchmarks", icon: "benchmarks", permission: "assessments.author", blurb: "What counts as meeting the expectation" },
+      { href: "/staff/admin/competencies", label: "Competencies", icon: "competencies", permission: "assessments.author", blurb: "The skills a result is reported against" },
+      { href: "/staff/admin/rules", label: "Admission rules", icon: "rules", permission: "rules.write", blurb: "When a result becomes an offer, a review or a waitlist" },
     ],
   },
   {
-    label: "Set up",
+    label: "Calendar",
     items: [
-      { href: "/staff/admin/sessions", label: "Sessions", permission: "applications.write" },
-      { href: "/staff/admin/templates", label: "Email templates", permission: "templates.write" },
-      { href: "/staff/admin/message-templates", label: "WhatsApp templates", permission: "templates.write" },
-      { href: "/staff/admin/offer-templates", label: "Offer templates", permission: "templates.write" },
-      { href: "/staff/admin/fees", label: "Fees", permission: "finance.write" },
-      { href: "/staff/admin/agreements", label: "Agreements", permission: "templates.write" },
-      { href: "/staff/admin/document-requirements", label: "Document requirements", permission: "settings.write" },
-      { href: "/staff/admin/export-columns", label: "Export columns", permission: "settings.write" },
-      { href: "/staff/admin/rules", label: "Admission rules", permission: "rules.write" },
-      { href: "/staff/admin/campuses", label: "Campuses", permission: "settings.write" },
-      { href: "/staff/admin/grades", label: "Grades", permission: "settings.write" },
-      { href: "/staff/admin/intakes", label: "Intakes", permission: "settings.write" },
-      { href: "/staff/admin/closures", label: "School holidays", permission: "settings.write" },
-      { href: "/staff/admin/settings", label: "Workflow settings", permission: "settings.write" },
-      { href: "/staff/admin/retention", label: "Data retention", permission: "settings.write" },
-      { href: "/staff/admin/staff", label: "Staff & roles", permission: "staff.write" },
-      { href: "/staff/admin/dev-outbox", label: "Outbox", permission: "admin" },
-      { href: "/staff/admin/jobs", label: "Job queue", permission: "admin" },
+      { href: "/staff/admin/sessions", label: "Sessions", icon: "sessions", permission: "applications.write", blurb: "Assessment and visit slots at each campus" },
+      { href: "/staff/admin/closures", label: "School holidays", icon: "holidays", permission: "settings.write", blurb: "Days no session is offered" },
+    ],
+  },
+  {
+    label: "Letters and messages",
+    items: [
+      { href: "/staff/admin/offer-templates", label: "Offer letter", icon: "offerTemplates", permission: "templates.write", blurb: "The wording of the offer a parent receives" },
+      { href: "/staff/admin/templates", label: "Email templates", icon: "email", permission: "templates.write", blurb: "Every email the process sends" },
+      { href: "/staff/admin/message-templates", label: "WhatsApp templates", icon: "whatsapp", permission: "templates.write", blurb: "The WhatsApp companions to those emails" },
+      { href: "/staff/admin/agreements", label: "Agreements", icon: "agreements", permission: "templates.write", blurb: "The policies a parent signs at registration" },
+      { href: "/staff/admin/document-requirements", label: "Document requirements", icon: "documents", permission: "settings.write", blurb: "What a parent must upload" },
+    ],
+  },
+  {
+    label: "Fees",
+    items: [
+      { href: "/staff/admin/fees", label: "Fees and bank details", icon: "fees", permission: "finance.write", blurb: "What an offer shows and what secures a place" },
+    ],
+  },
+  {
+    label: "The school",
+    items: [
+      { href: "/staff/admin/campuses", label: "Campuses", icon: "campuses", permission: "settings.write", blurb: "Names, addresses and phone numbers on letters" },
+      { href: "/staff/admin/grades", label: "Grades", icon: "grades", permission: "settings.write", blurb: "The grades each campus offers" },
+      { href: "/staff/admin/intakes", label: "Intakes", icon: "intakes", permission: "settings.write", blurb: "Terms and academic years a child can join" },
+      { href: "/staff/admin/staff", label: "Staff and roles", icon: "staff", permission: "staff.write", blurb: "Who can sign in and what they may do" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/staff/admin/settings", label: "Workflow settings", icon: "workflow", permission: "settings.write", blurb: "Reminders, expiry days and the automation switches" },
+      { href: "/staff/admin/retention", label: "Data retention", icon: "retention", permission: "settings.write", blurb: "When old applications are anonymised" },
+      { href: "/staff/admin/export-columns", label: "Export columns", icon: "columns", permission: "settings.write", blurb: "The shape of the student export file" },
+      { href: "/staff/admin/dev-outbox", label: "Outbox", icon: "outbox", permission: "admin", blurb: "Messages the test providers would have sent" },
+      { href: "/staff/admin/jobs", label: "Job queue", icon: "jobs", permission: "admin", blurb: "Background work and anything that failed" },
     ],
   },
 ];
 
+function allowed(permissions: PermissionSet, item: NavItem): boolean {
+  return (item.permission === undefined || permissions.has("admin") || permissions.has(item.permission)) && canAccessPath(permissions, item.href);
+}
+
 export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
-  return NAV_GROUPS.map((group) => ({
-    label: group.label,
-    items: group.items.filter(
-      (item) =>
-        (item.permission === undefined || permissions.has("admin") || permissions.has(item.permission)) &&
-        canAccessPath(permissions, item.href)
-    ),
-  })).filter((g) => g.items.length > 0);
+  const groups = NAV_GROUPS.map((group) => ({ label: group.label, items: group.items.filter((item) => allowed(permissions, item)) }));
+  // The Settings door only shows when something is behind it for this person.
+  return groups
+    .map((g) => (g.items.some((i) => i.href === "/staff/admin") && visibleSettingsSections(permissions).length === 0 ? { ...g, items: [] } : g))
+    .filter((g) => g.items.length > 0);
+}
+
+export function visibleSettingsSections(permissions: PermissionSet): NavGroup[] {
+  return SETTINGS_SECTIONS.map((group) => ({ label: group.label, items: group.items.filter((item) => allowed(permissions, item)) })).filter((g) => g.items.length > 0);
 }
 
 /** Longest-prefix match so /staff/applications/123 lights up "Applicants", not "Dashboard". */

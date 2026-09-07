@@ -67,8 +67,8 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
             <Button type="submit" name="format" value="json" size="lg" variant="outline">Download JSON</Button>
             <span className="text-xs text-muted-foreground">Downloading marks these records as exported and records the batch.</span>
           </form>
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto surface">
+            <table className="data-table">
               <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">Student</th>
@@ -105,7 +105,7 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
 
       <h2 className="mt-8 mb-2 text-sm font-semibold">Batches</h2>
       {batches && batches.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="divide-y divide-border surface text-sm">
           {batches.map((b) => (
             <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <span className="w-36 shrink-0 text-xs text-muted-foreground">{formatDateTime(b.created_at)}</span>

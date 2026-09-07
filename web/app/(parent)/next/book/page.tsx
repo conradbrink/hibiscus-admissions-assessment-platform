@@ -69,13 +69,13 @@ export default async function BookPage() {
         </p>
       ) : null}
       {locked ? (
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="surface p-5">
           <p className="font-semibold">Your assessment is less than {settings.rescheduleCutoffHours} hours away.</p>
           <p className="mt-1 text-sm text-muted-foreground">Bookings this close cannot be changed online. Please call {campus.name} and they will help.</p>
           <Link href="/next/booking" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">Back to your booking</Link>
         </div>
       ) : days.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="surface p-5">
           <p className="font-semibold">No dates are open at {campus.name} right now.</p>
           <p className="mt-1 text-sm text-muted-foreground">
             We have your enquiry. As soon as new dates are published we will email you a link to

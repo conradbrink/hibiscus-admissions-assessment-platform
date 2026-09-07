@@ -23,11 +23,11 @@ export default async function FeesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Fees"
         description="What an offer shows and what a parent pays to secure a place. A schedule applies to a campus and academic year, optionally to a band of grades; the narrowest active match is used. Amounts are in the campus's currency."
       />
-      <ActionForm action={createSchedule} label="Create schedule" size="sm" className="mb-5 grid gap-2 rounded-xl border border-border bg-card p-3 md:grid-cols-5">
+      <ActionForm action={createSchedule} label="Create schedule" size="sm" className="mb-5 grid gap-2 surface p-3 md:grid-cols-5">
         <Input name="name" placeholder="Name, e.g. Block 7 primary 2027" required className="md:col-span-2" />
         <NativeSelect name="campusId" required>{(campuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>)}</NativeSelect>
         <NativeSelect name="academicYearId" required>{(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}</NativeSelect>
@@ -37,7 +37,7 @@ export default async function FeesPage() {
         </div>
       </ActionForm>
 
-      <section className="mb-6 rounded-xl border border-border bg-card p-4">
+      <section className="mb-6 surface p-4">
         <h2 className="text-sm font-semibold">Bank transfer details</h2>
         <p className="mb-3 text-xs text-muted-foreground">Shown to parents who pay by transfer, on the payment page and in the payment emails, with their reference. One per currency; leave blank to offer online payment only.</p>
         <div className="grid gap-4 md:grid-cols-2">
@@ -55,7 +55,7 @@ export default async function FeesPage() {
           {schedules.map((s) => {
             const lines = [...(s.fee_lines ?? [])].sort((a, b) => a.position - b.position);
             return (
-              <ActionForm key={s.id} action={saveSchedule} label="Save" size="sm" variant="outline" className="rounded-xl border border-border bg-card p-4">
+              <ActionForm key={s.id} action={saveSchedule} label="Save" size="sm" variant="outline" className="surface p-4">
                 <input type="hidden" name="scheduleId" value={s.id} />
                 <div className="mb-3 flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">

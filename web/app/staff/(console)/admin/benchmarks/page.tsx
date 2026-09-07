@@ -31,13 +31,13 @@ export default async function BenchmarksPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Benchmarks"
         description="How a percentage becomes a word on the learning profile: below, approaching, meeting, exceeding. The most specific active row wins. These are presentation only — admission criteria live in Admission rules."
       />
       <div className="space-y-4">
         {(benchmarks ?? []).map((b) => (
-          <ActionForm key={b.id} action={saveBenchmark} label="Save" size="sm" variant="outline" className="space-y-3 rounded-xl border border-border bg-card p-4">
+          <ActionForm key={b.id} action={saveBenchmark} label="Save" size="sm" variant="outline" className="space-y-3 surface p-4">
             <input type="hidden" name="benchmarkId" value={b.id} />
             <input type="hidden" name="scope" value={b.scope} />
             <input type="hidden" name="scopeId" value={b.scope_id ?? ""} />

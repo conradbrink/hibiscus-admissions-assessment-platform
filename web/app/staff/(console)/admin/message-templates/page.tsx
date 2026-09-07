@@ -21,7 +21,7 @@ export default async function MessageTemplatesPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="WhatsApp templates"
         description={
           settings.whatsappEnabled
@@ -32,7 +32,7 @@ export default async function MessageTemplatesPage() {
       <p className="mb-4 text-sm text-muted-foreground">
         A WhatsApp message is always one of Meta&rsquo;s approved templates: submit the wording in Meta Business Manager, wait for approval, then enter its name here and activate it. Free text is never sent.
       </p>
-      <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+      <ul className="divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.key} className="flex items-center gap-3 px-4 py-3 text-sm">
             <div className="min-w-0 flex-1">

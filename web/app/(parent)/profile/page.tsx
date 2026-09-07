@@ -36,7 +36,7 @@ export default async function ProfilePage() {
       />
 
       {computed.overall ? (
-        <section className="rounded-2xl border border-border bg-card p-5">
+        <section className="surface p-5">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Overall</p>
           <p className="mt-1 text-5xl font-bold tabular-nums">{computed.overall.percent}%</p>
           <p className="text-sm text-muted-foreground">{BAND_LABELS[computed.overall.band]}</p>
@@ -50,7 +50,7 @@ export default async function ProfilePage() {
       {computed.strengths.length ? (
         <section className="mt-6">
           <h2 className="text-sm font-semibold tracking-wide text-success uppercase">Strengths</h2>
-          <ul className="mt-2 divide-y divide-border rounded-2xl border border-border bg-card">
+          <ul className="mt-2 divide-y divide-border surface">
             {computed.strengths.map((x) => (
               <li key={x.id} className="flex items-center justify-between px-4 py-3"><span>{x.name}</span><span className="font-semibold tabular-nums">{x.percent}%</span></li>
             ))}
@@ -62,7 +62,7 @@ export default async function ProfilePage() {
       {computed.development.length ? (
         <section className="mt-6">
           <h2 className="text-sm font-semibold tracking-wide text-warning-foreground uppercase">Areas for development</h2>
-          <ul className="mt-2 divide-y divide-border rounded-2xl border border-border bg-card">
+          <ul className="mt-2 divide-y divide-border surface">
             {computed.development.map((x) => (
               <li key={x.id} className="flex items-center justify-between px-4 py-3"><span>{x.name}</span><span className="font-semibold tabular-nums">{x.percent}%</span></li>
             ))}
@@ -81,7 +81,7 @@ export default async function ProfilePage() {
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">All results</h2>
-        <div className="mt-2 rounded-2xl border border-border bg-card">
+        <div className="mt-2 surface">
           {computed.subjects.map((sub) => (
             <div key={sub.id} className="border-b border-border px-4 py-3 last:border-b-0">
               <div className="flex items-center justify-between font-semibold"><span>{sub.name}</span><span className="tabular-nums">{sub.percent}%</span></div>

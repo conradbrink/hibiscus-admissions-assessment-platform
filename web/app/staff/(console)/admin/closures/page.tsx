@@ -25,12 +25,12 @@ export default async function ClosuresPage() {
 
   return (
     <>
-      <PageTitle
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="School holidays"
         description="No assessment sittings or visits are created on these dates. Every other weekday gets both, at every campus."
       />
 
-      <section className="mb-4 rounded-xl border border-border bg-card p-4 text-sm">
+      <section className="mb-4 surface p-4 text-sm">
         <h2 className="mb-1 text-sm font-semibold">The weekday schedule</h2>
         {settings.autoSessionsEnabled ? (
           <p className="text-muted-foreground">
@@ -43,7 +43,7 @@ export default async function ClosuresPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-border bg-card p-4">
+      <section className="surface p-4">
         <h2 className="mb-2 text-sm font-semibold">Add a closure</h2>
         <ActionForm action={createClosure} label="Add" size="sm" className="grid gap-2 sm:grid-cols-[180px_150px_150px_1fr_auto]">
           <NativeSelect name="campusId" defaultValue="">
@@ -61,7 +61,7 @@ export default async function ClosuresPage() {
 
       <h2 className="mt-6 mb-2 text-sm font-semibold">Coming up</h2>
       {upcoming.length ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm">
+        <ul className="divide-y divide-border surface text-sm">
           {upcoming.map((c) => (
             <li key={c.id} className="flex items-center gap-3 px-4 py-2">
               <span className="w-56">{formatDate(c.starts_on)}{c.ends_on !== c.starts_on ? ` – ${formatDate(c.ends_on)}` : ""}</span>
@@ -80,7 +80,7 @@ export default async function ClosuresPage() {
       {past.length ? (
         <>
           <h2 className="mt-6 mb-2 text-sm font-semibold text-muted-foreground">Past</h2>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card text-sm text-muted-foreground">
+          <ul className="divide-y divide-border surface text-sm text-muted-foreground">
             {past.map((c) => (
               <li key={c.id} className="flex items-center gap-3 px-4 py-2">
                 <span className="w-56">{formatDate(c.starts_on)}{c.ends_on !== c.starts_on ? ` – ${formatDate(c.ends_on)}` : ""}</span>

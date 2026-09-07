@@ -53,61 +53,57 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* One soft shadow for every raised card, so surfaces read as one system. */
+  --shadow-soft: 0 10px 30px -14px oklch(0.35 0.06 220 / 0.22), 0 1px 2px oklch(0.35 0.06 220 / 0.06);
+  --shadow-lift: 0 18px 50px -20px oklch(0.35 0.08 220 / 0.32);
 }
 
 :root {
   /*
-   * Hibiscus brand — PLACEHOLDER until brand assets arrive.
-   *
-   * The current site is Ed-admin's palette, not Hibiscus's: an orange tab
-   * highlight, green mandatory-field outlines, blue and green buttons. These
-   * values are a warm hibiscus orange with a soft yellow accent, chosen to be
-   * in the right family so screens look intentional while the real palette
-   * is confirmed. Swap the brand lines below and nothing else needs to
-   * change — every component reads tokens, never a literal colour.
+   * The console's palette: calm teal on soft, cool surfaces, in the manner
+   * of the CoachPro dashboard the school chose as its reference. Status
+   * colours are unchanged: green means done, blue informational, amber
+   * attention, red genuine failure. Letters and emails keep the brand
+   * orange from the logo; the screen is the calmer of the two.
    */
-  --background: oklch(0.99 0.004 80);
-  --foreground: oklch(0.24 0.02 50);
+  --background: oklch(0.985 0.006 210);
+  --foreground: oklch(0.25 0.03 230);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.02 50);
+  --card-foreground: oklch(0.25 0.03 230);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.02 50);
-  /* Brand: hibiscus orange */
-  --primary: oklch(0.66 0.19 42);
-  --primary-foreground: oklch(0.99 0.01 80);
-  --secondary: oklch(0.96 0.01 70);
-  --secondary-foreground: oklch(0.3 0.03 45);
-  --muted: oklch(0.96 0.008 70);
-  --muted-foreground: oklch(0.52 0.02 50);
-  /* Brand: soft yellow accent */
-  --accent: oklch(0.93 0.1 92);
-  --accent-foreground: oklch(0.35 0.06 60);
+  --popover-foreground: oklch(0.25 0.03 230);
+  --primary: oklch(0.55 0.085 200);
+  --primary-foreground: oklch(0.99 0.005 200);
+  --secondary: oklch(0.95 0.015 205);
+  --secondary-foreground: oklch(0.32 0.04 220);
+  --muted: oklch(0.955 0.01 210);
+  --muted-foreground: oklch(0.52 0.03 225);
+  --accent: oklch(0.93 0.035 200);
+  --accent-foreground: oklch(0.35 0.06 210);
   --destructive: oklch(0.577 0.22 27.325);
-  --border: oklch(0.91 0.01 70);
-  --input: oklch(0.89 0.012 70);
-  --ring: oklch(0.66 0.19 42);
+  --border: oklch(0.92 0.012 215);
+  --input: oklch(0.9 0.014 215);
+  --ring: oklch(0.55 0.085 200);
   --success: oklch(0.6 0.15 150);
   --success-foreground: oklch(0.99 0.01 150);
   --info: oklch(0.58 0.12 240);
   --info-foreground: oklch(0.99 0.01 240);
   --warning: oklch(0.78 0.16 80);
   --warning-foreground: oklch(0.3 0.06 60);
-  --chart-1: oklch(0.66 0.19 42);
+  --chart-1: oklch(0.55 0.085 200);
   --chart-2: oklch(0.58 0.12 240);
   --chart-3: oklch(0.6 0.15 150);
   --chart-4: oklch(0.78 0.16 80);
   --chart-5: oklch(0.6 0.02 60);
-  /* Rounder than the merchandising app: this is a parent-facing product
-     and large, soft controls read as friendlier on a phone. */
-  --radius: 0.75rem;
-  --sidebar: oklch(0.985 0.005 75);
-  --sidebar-foreground: oklch(0.3 0.02 50);
-  --sidebar-primary: oklch(0.66 0.19 42);
-  --sidebar-primary-foreground: oklch(0.99 0.01 80);
-  --sidebar-accent: oklch(0.94 0.03 70);
-  --sidebar-accent-foreground: oklch(0.3 0.03 45);
-  --sidebar-border: oklch(0.92 0.008 70);
-  --sidebar-ring: oklch(0.66 0.19 42);
+  --radius: 0.9rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.36 0.035 225);
+  --sidebar-primary: oklch(0.55 0.085 200);
+  --sidebar-primary-foreground: oklch(0.99 0.005 200);
+  --sidebar-accent: oklch(0.55 0.085 200);
+  --sidebar-accent-foreground: oklch(0.99 0.005 200);
+  --sidebar-border: oklch(0.93 0.01 215);
+  --sidebar-ring: oklch(0.55 0.085 200);
 }
 
 @layer base {
@@ -123,7 +119,34 @@
     @apply font-sans;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    /* The soft wash behind every shell: cool teal at the top left, a hint of
+       lavender at the bottom right, fixed so it never scrolls with the page. */
+    background-color: var(--background);
+    background-image:
+      radial-gradient(1200px 700px at 8% -10%, oklch(0.9 0.05 200 / 0.9), transparent 60%),
+      radial-gradient(900px 600px at 100% 100%, oklch(0.9 0.05 300 / 0.7), transparent 55%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  /* A data table inside a card: quiet header, generous rows, one hover. */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead th {
+    @apply px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+  .data-table tbody td {
+    @apply border-t border-border/70 px-3 py-2.5 align-middle;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-muted/50;
+  }
+  /* The raised surface every panel shares. */
+  .surface {
+    @apply rounded-2xl border border-border/70 bg-card shadow-soft;
   }
 }
 

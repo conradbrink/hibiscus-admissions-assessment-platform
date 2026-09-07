@@ -17,7 +17,7 @@ export function BookingCard({
   qrDataUrl?: string | null;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+    <div className="overflow-hidden surface">
       <div className="bg-primary px-5 py-4 text-primary-foreground">
         <p className="text-xs font-semibold tracking-wide uppercase opacity-90">
           {kind === "assessment" ? "Assessment" : "School visit"}

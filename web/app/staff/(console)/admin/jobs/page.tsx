@@ -17,12 +17,12 @@ export default async function JobsPage() {
 
   return (
     <>
-      <PageTitle title="Job queue" description="Emails and scheduled follow-ups. Runs after every request that queues work, and every five minutes by cron.">
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Job queue" description="Emails and scheduled follow-ups. Runs after every request that queues work, and every five minutes by cron.">
         <ActionForm action={drainNow} label="Run pending now" size="sm" variant="outline" />
       </PageTitle>
       {jobs && jobs.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full text-xs">
+        <div className="overflow-x-auto surface">
+          <table className="data-table text-xs">
             <thead className="bg-muted/60 text-left text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Job</th>

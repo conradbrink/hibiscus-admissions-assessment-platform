@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Hibiscus assessment", robots: { inde
  */
 export default function KioskLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
-      <header className="border-b border-border bg-card">
+    <div className="flex min-h-dvh flex-col">
+      <header className="border-b border-border/60 bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center px-4">
           <Logo />
         </div>

@@ -9,7 +9,7 @@ import { Logo } from "@/components/brand/logo";
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-border/60 bg-card/80 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-lg items-center justify-between px-4">
           <Link href="/join" aria-label="Hibiscus International Schools">
             <Logo />
@@ -18,7 +18,7 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
         </div>
       </header>
       <main className="mx-auto w-full max-w-lg flex-1 px-4 py-6 sm:py-10">{children}</main>
-      <footer className="border-t border-border">
+      <footer className="border-t border-border/60">
         <div className="mx-auto max-w-lg px-4 py-5 text-xs leading-relaxed text-muted-foreground">
           <p>
             Lost your link?{" "}

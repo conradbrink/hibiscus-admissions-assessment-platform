@@ -14,12 +14,12 @@ export default async function OutboxMessagePage({ params }: { params: Promise<{ 
 
   return (
     <>
-      <PageTitle title={m.subject} description={`To ${m.to_email} · ${m.template_key ?? "—"} v${m.template_version ?? "—"} · ${m.status} · ${formatDateTime(m.sent_at ?? m.created_at)}`}>
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title={m.subject} description={`To ${m.to_email} · ${m.template_key ?? "—"} v${m.template_version ?? "—"} · ${m.status} · ${formatDateTime(m.sent_at ?? m.created_at)}`}>
         {m.application_id ? <Link href={`/staff/applications/${m.application_id}`} className="text-sm underline">Open applicant</Link> : null}
       </PageTitle>
       {m.error ? <p className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{m.error}</p> : null}
       {links.length ? (
-        <div className="mb-4 rounded-xl border border-border bg-card p-3 text-sm">
+        <div className="mb-4 surface p-3 text-sm">
           <p className="mb-1 text-xs font-semibold text-muted-foreground uppercase">Links in this email</p>
           {links.map((u) => (
             <a key={u} href={u} className="block truncate font-mono text-xs text-primary underline" target="_blank" rel="noreferrer">{u}</a>
@@ -29,7 +29,7 @@ export default async function OutboxMessagePage({ params }: { params: Promise<{ 
       <iframe title="Email" srcDoc={m.body_html} sandbox="" className="h-[720px] w-full rounded-xl border border-border bg-white" />
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-muted-foreground">Plain-text version</summary>
-        <pre className="mt-2 rounded-xl border border-border bg-card p-3 text-xs whitespace-pre-wrap">{m.body_text}</pre>
+        <pre className="mt-2 surface p-3 text-xs whitespace-pre-wrap">{m.body_text}</pre>
       </details>
     </>
   );

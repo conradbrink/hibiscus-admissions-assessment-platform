@@ -65,7 +65,7 @@ export default async function PaymentsPage() {
                 // Strip the embedded application before handing the row to the panel.
                 const request = Object.fromEntries(Object.entries(r).filter(([k]) => k !== "applications"));
                 return (
-                  <section key={r.id} className="rounded-xl border border-border bg-card p-4">
+                  <section key={r.id} className="surface p-4">
                     <Head r={r} />
                     <div className="mt-3">
                       <PaymentPanel applicationId={a?.id ?? ""} request={request as PaymentRequestRow} payments={byRequest.get(r.id) ?? []} canWrite={canWrite && !!a} />
