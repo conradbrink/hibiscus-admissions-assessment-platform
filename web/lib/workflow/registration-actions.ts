@@ -3,7 +3,9 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { mismatchText, parseMismatchFlags, type MismatchFlag } from "@/lib/documents/compare";
-import { missingDocumentsText, type Completeness } from "@/lib/registration/completeness";
+import { missingDocumentsText, outstandingItemsText, type Completeness } from "@/lib/registration/completeness";
+
+const DAY = 86_400_000;
 import { getSettings } from "@/lib/settings";
 import type { ApplicationRow, DocumentRow, Json } from "@/lib/supabase/types";
 import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
@@ -225,8 +227,15 @@ export async function onRegistrationSubmitted(
   if (app.status !== "registration_incomplete") throw new WorkflowError("Registration is not open for this application.", "status_conflict");
   const missing = missingDocumentsText(completeness);
   const missingSections = (Object.keys(completeness.sections) as Array<keyof typeof completeness.sections>).filter((s) => !completeness.sections[s]);
+  const outstanding = outstandingItemsText(completeness);
+  const today = new Date().toISOString().slice(0, 10);
+  const settings = await getSettings(admin);
 
   if (!completeness.complete) {
+    // The parent hears at once that the submission arrived and what is
+    // still outstanding; a reminder follows in a couple of days, and skips
+    // itself if registration is complete by then.
+    const reminderAt = new Date(Date.now() + settings.documentsReminderDays * DAY);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -247,21 +256,25 @@ export async function onRegistrationSubmitted(
             },
           ]
         : [],
-      jobs: missing
-        ? [
-            {
-              type: "send_email",
-              payload: { template_key: "documents_missing", links: ["registration"], missing_documents: missing },
-              idempotencyKey: `email:${app.id}:documents_missing:${new Date().toISOString().slice(0, 10)}`,
-            },
-          ]
-        : [],
+      jobs: [
+        {
+          type: "send_email",
+          payload: { template_key: "registration_received", links: ["registration"], outstanding_items: outstanding, missing_documents: missing },
+          idempotencyKey: `email:${app.id}:registration_received:${today}`,
+        },
+        {
+          type: "send_email",
+          payload: { template_key: missing ? "documents_missing" : "registration_reminder", links: ["registration"], missing_documents: missing },
+          idempotencyKey: `email:${app.id}:${missing ? "documents_missing" : "registration_reminder"}:after_submission:${today}`,
+          runAfter: reminderAt,
+          precondition: { application_status: ["registration_incomplete"] },
+        },
+      ],
       actor,
     });
     return { complete: false };
   }
 
-  const settings = await getSettings(admin);
   await admin.from("registrations").update({ submitted_at: new Date().toISOString(), submitted_ip_hash: ctx.ipHash }).eq("application_id", app.id);
   await commit(admin, {
     applicationId: app.id,
@@ -280,7 +293,14 @@ export async function onRegistrationSubmitted(
             priority: "high",
           },
         ],
-    jobs: settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}` }] : [],
+    jobs: [
+      {
+        type: "send_email",
+        payload: { template_key: "registration_received", links: ["registration"], all_received: true },
+        idempotencyKey: `email:${app.id}:registration_received:${today}`,
+      },
+      ...(settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}` }] : []),
+    ],
     audit: { action: "registration.completed", entityType: "registration", entityId: app.id },
     actor,
   });

@@ -164,6 +164,16 @@ receipt is what moves the application to paid and sends the parent a
 receipt and the registration link. Half the amount records as a part
 payment and opens a task for the balance.
 
+## What a parent hears after pressing Submit on registration
+
+The moment the form is submitted, the "registration received" email goes
+out. If a section is unfinished or a document is missing, it names them
+and links back to the form; if everything is in, it says the office will
+check the documents and confirm enrolment. When something was outstanding,
+a reminder follows after **documents_reminder_days** (Workflow settings,
+2 by default) and skips itself if registration is complete by then. The
+reminders at 7 and 14 days after payment continue as before.
+
 ## A document will not upload
 
 1. Choosing the file is the upload: there is no second button. The phone

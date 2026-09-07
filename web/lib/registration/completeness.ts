@@ -87,6 +87,18 @@ export function missingDocumentsText(c: Pick<Completeness, "missingDocuments" | 
   return labels.length ? labels.join(", ") : null;
 }
 
+/**
+ * Everything still outstanding after a submission, in one plain sentence
+ * fragment for the confirmation email: the sections not yet filled in, then
+ * the documents still needed. Null when nothing is outstanding.
+ */
+export function outstandingItemsText(c: Pick<Completeness, "sections" | "missingDocuments" | "rejectedDocuments">): string | null {
+  const sections = SECTIONS.filter((s) => s !== "documents" && !c.sections[s]).map((s) => `the ${SECTION_LABELS[s]} section`);
+  const documents = missingDocumentsText(c);
+  const parts = [...sections, ...(documents ? [`these documents: ${documents}`] : [])];
+  return parts.length ? parts.join("; ") : null;
+}
+
 /** The first step a parent still has to do, in order; "review" when all are done. */
 export function nextStep(c: Completeness): Section | "review" {
   return SECTIONS.find((s) => !c.sections[s]) ?? "review";
