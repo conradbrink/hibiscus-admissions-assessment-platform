@@ -102,7 +102,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
 
         {p.computed.development.length ? (
           <>
-            <Text style={s.h2}>Where practice would help most</Text>
+            <Text style={s.h2}>Where practice would help</Text>
             {p.narrative.development_text ? <Text style={s.para}>{p.narrative.development_text}</Text> : null}
             {p.computed.development.map((x) => (
               <View key={x.id} style={s.row}>
@@ -112,7 +112,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
             ))}
             {p.computed.focus.length ? (
               <>
-                <Text style={s.h3}>Suggested focus at home and at school</Text>
+                <Text style={s.h3}>What to focus on at home and at school</Text>
                 {p.computed.focus.map((f, i) => (
                   <Text key={i} style={s.para}>{i + 1}. {f}</Text>
                 ))}
@@ -121,11 +121,11 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
           </>
         ) : (
           <>
-            <Text style={s.h2}>Where practice would help most</Text>
-            <Text style={s.para}>{p.narrative.development_text || "No area stood out as needing particular attention on the day."}</Text>
+            <Text style={s.h2}>Where practice would help</Text>
+            <Text style={s.para}>{p.narrative.development_text || "No area needed special attention on the day."}</Text>
             {roomToGrow.length ? (
               <>
-                <Text style={{ ...s.para, ...s.muted }}>The areas with the most room to grow on the day, even so:</Text>
+                <Text style={{ ...s.para, ...s.muted }}>These areas had the most room to improve on the day:</Text>
                 {roomToGrow.map((x) => (
                   <View key={x.id} style={s.row}>
                     <Text>{x.name}{subjectOf(x.subjectId) ? ` (${subjectOf(x.subjectId)})` : ""}</Text>
@@ -166,7 +166,7 @@ export function AssessmentReportDocument(p: AssessmentReportProps) {
           </View>
         </View>
 
-        <LetterFoot text={"This report summarises an academic assessment of English and Mathematics skills on one day. It is not a psychological, clinical or diagnostic assessment and makes no claim about ability, intelligence or any condition. Percentages are marks earned out of marks available; bands describe how a result compares with what the school expects for the grade applied for. It is not an admission decision."} />
+        <LetterFoot text={"This report describes one assessment of English and Mathematics on one day. It is not a medical or psychological assessment. It does not measure ability or intelligence. Percentages are marks earned out of marks available. Bands compare the result with what the school expects for the grade. This report is not an admission decision."} />
       </Page>
     </Document>
   );

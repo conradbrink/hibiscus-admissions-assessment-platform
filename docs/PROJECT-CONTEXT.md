@@ -67,6 +67,15 @@ is in the pull request that introduced this repository. The short version:
 - **Declined applicants receive the learning profile** (setting
   `profile_shared_on_decline`, default on).
 
+### Plain English for parents (7 September 2026)
+
+Everything written to a parent (letters, emails, WhatsApp, the assessment
+report, the learning profile, the parent pages) is at CEFR B1 to B2: short
+sentences of 10 to 20 words, one idea each, common words, active voice, no
+idioms, international formats. The AI prompts carry the same rules
+(`PLAIN_ENGLISH_RULES`). Migration `…180000_plain_english` republished the
+offer letter and eleven emails to that standard; the rest already met it.
+
 ## 2. What is built
 
 ### Phase 1 (PR #1)

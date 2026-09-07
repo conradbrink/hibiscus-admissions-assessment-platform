@@ -20,7 +20,7 @@ export const NARRATIVE_SCHEMA = z.object({
 
 export type Narrative = z.infer<typeof NARRATIVE_SCHEMA>;
 
-export const PROMPT_VERSION = "profile-narrative-v2";
+export const PROMPT_VERSION = "profile-narrative-v3";
 
 /**
  * Words that turn an academic summary into a diagnosis or a verdict. Matched
@@ -121,14 +121,14 @@ export function fallbackNarrative(computed: ComputedProfile, firstName: string):
   const subjects = computed.subjects.length
     ? ` By subject: ${computed.subjects.map((s) => `${s.name} ${fmt(s.percent)}%`).join(", ")}.`
     : "";
-  const summary = `${overall}${subjects} This profile summarises what the assessment measured on the day; it is a snapshot of academic skills, not a judgement of ability.`;
+  const summary = `${overall}${subjects} This profile shows what the assessment measured on the day. It describes skills, not ability.`;
 
   const strengths_text = computed.strengths.length
-    ? `${name} did particularly well in ${list(computed.strengths.map((s) => `${s.name} (${fmt(s.percent)}%)`))}.`
+    ? `${name} did well in ${list(computed.strengths.map((s) => `${s.name} (${fmt(s.percent)}%)`))}.`
     : "";
   const development_text = computed.development.length
-    ? `The areas where more practice would help most are ${list(computed.development.map((d) => `${d.name} (${fmt(d.percent)}%)`))}. Recommended focus: ${list(computed.focus)}.`
-    : "No area stood out as needing particular attention.";
+    ? `More practice would help in ${list(computed.development.map((d) => `${d.name} (${fmt(d.percent)}%)`))}. Focus on: ${list(computed.focus)}.`
+    : "No area needed special attention.";
 
   return { summary, strengths_text, development_text };
 }
@@ -214,12 +214,30 @@ function stripDigits(text: string): string {
   return text.replace(/\d+(?:[.,\/]\d+)?/g, "[number]").slice(0, 400);
 }
 
+/**
+ * The plain-English rules every sentence the platform writes to a parent
+ * follows (CEFR B1 to B2). Shared with the prompts so the model writes the
+ * way the templates do.
+ */
+export const PLAIN_ENGLISH_RULES = [
+  "Write for a parent whose English may be their second or third language: CEFR level B1 to B2.",
+  "Short sentences, 10 to 20 words each. One idea per sentence.",
+  "Common words: say use, not utilise; help, not facilitate; show, not demonstrate.",
+  "Active voice: 'Lesedi answered every question', not 'every question was answered'.",
+  "No idioms, no slang, no phrases that only make sense in one country.",
+  "Be direct. No filler and no corporate language.",
+  "If a technical word cannot be avoided, explain it in the same sentence.",
+  "Use the same word for the same thing every time.",
+];
+
 /** What the model is told. Explicit about what it may not do, and about what a parent finds useful. */
 export function narrativeSystemPrompt(): string {
   return [
     "You write the narrative of a school assessment report that an assessor prints and talks a parent through.",
     "The report already prints every percentage and band in tables. The narrative is the part that explains what the results mean: what the child showed they can do, where practice would help, and what would help next. Do not recite the tables.",
     "Audience: the child's parent. Tone: warm, plain, specific, British English. Use the child's first name. Write about the work, with evidence from the data: which kinds of question were handled securely, what the written work showed, where marks were lost.",
+    "How to write:",
+    ...PLAIN_ENGLISH_RULES.map((r) => `- ${r}`),
     "Rules that are not negotiable:",
     "- The only digits allowed anywhere are the overall percentage, written once at most. Every other quantity is written in words or left out. Never copy a number from a note.",
     "- Describe academic skills the assessment measured. Never describe intelligence, ability, potential, personality, behaviour, attention, effort or emotion.",
