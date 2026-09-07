@@ -22,11 +22,14 @@ jobs:
     steps:
       - name: Call /api/jobs/drain
         env:
-          DRAIN_URL: ${{ secrets.DRAIN_URL }}
+          # The URL is not secret, so a repository variable works for it too.
+          DRAIN_URL: ${{ secrets.DRAIN_URL || vars.DRAIN_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          [ -n "$DRAIN_URL" ] && echo "DRAIN_URL: set" || echo "DRAIN_URL: MISSING (add it under Settings > Secrets and variables > Actions, as a repository secret or variable)"
+          [ -n "$CRON_SECRET" ] && echo "CRON_SECRET: set" || echo "CRON_SECRET: MISSING (add it under Settings > Secrets and variables > Actions, as a repository secret)"
           if [ -z "$DRAIN_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "DRAIN_URL and CRON_SECRET repository secrets are not set; nothing to do."
+            echo "Nothing to do until both exist."
             exit 0
           fi
           code=$(curl -sS -o /tmp/drain.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$DRAIN_URL")
