@@ -91,7 +91,10 @@ describe("buildEvidence", () => {
   });
   it("turns objective marks into words per skill and never counts", () => {
     const e = buildEvidence([row({}), row({}), row({ isCorrect: false }), row({ skill: "Reading", isCorrect: true }), row({ skill: "Geometry", isCorrect: null })]);
-    expect(e.objective).toEqual([{ skill: "Arithmetic", outcome: "most correct" }, { skill: "Reading", outcome: "all correct" }]);
+    expect(e.objective).toEqual([
+      { skill: "Arithmetic", outcome: "most correct", handled: ["Add.", "Add."], missed: ["Add."] },
+      { skill: "Reading", outcome: "all correct", handled: ["Add."], missed: [] },
+    ]);
     expect(JSON.stringify(e)).not.toMatch(/\d/);
   });
   it("keeps the marker's note without its digits", () => {
@@ -109,7 +112,10 @@ describe("buildEvidence", () => {
 
 describe("narrativeInput", () => {
   it("shows the model no digits from the evidence and names a rejected attempt's problems", () => {
-    const e = buildEvidence([{ skill: "Patterns", type: "extended_text", task: "Next 2 terms: 4, 7, 10, 13", isCorrect: null, marksAwarded: 2, marksAvailable: 2, bandLabel: null, note: "Gives 16 and 19." }]);
+    const e = buildEvidence([
+      { skill: "Patterns", type: "extended_text", task: "Next 2 terms: 4, 7, 10, 13", isCorrect: null, marksAwarded: 2, marksAvailable: 2, bandLabel: null, note: "Gives 16 and 19." },
+      { skill: "Number Sense", type: "single_choice", task: "Which is larger, 3/4 or 2/3?", isCorrect: true, marksAwarded: 1, marksAvailable: 1, bandLabel: null, note: null },
+    ]);
     const input = narrativeInput(computeProfile(lines, competencies, subjects), "John", "Form 1", e, [{ kind: "number", detail: "2013" }]);
     expect(input).not.toMatch(/\b(4|7|10|13|16|19)\b/);
     expect(input).toContain("the number 2013");

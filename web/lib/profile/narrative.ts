@@ -20,7 +20,7 @@ export const NARRATIVE_SCHEMA = z.object({
 
 export type Narrative = z.infer<typeof NARRATIVE_SCHEMA>;
 
-export const PROMPT_VERSION = "profile-narrative-v4";
+export const PROMPT_VERSION = "profile-narrative-v5";
 
 /**
  * Words that turn an academic summary into a diagnosis or a verdict. Matched
@@ -155,8 +155,15 @@ function list(items: string[]): string {
  * profile did not compute, and "all six" would be one.
  */
 export type NarrativeEvidence = {
-  /** Objective questions, grouped by skill: how the child fared. */
-  objective: Array<{ skill: string; outcome: "all correct" | "most correct" | "about half correct" | "few correct" | "none correct" }>;
+  /** Objective questions, grouped by skill: how the child fared, and what the questions were about. */
+  objective: Array<{
+    skill: string;
+    outcome: "all correct" | "most correct" | "about half correct" | "few correct" | "none correct";
+    /** What the questions answered correctly asked, digits masked, a few per skill. */
+    handled: string[];
+    /** What the questions answered wrongly asked, digits masked, a few per skill. */
+    missed: string[];
+  }>;
   /** Written answers: the task, the band it earned, and the marker's note. */
   written: Array<{ skill: string; task: string; result: string; note: string | null }>;
 };
@@ -192,7 +199,7 @@ export function marksWord(awarded: number, available: number): string {
 }
 
 export function buildEvidence(rows: EvidenceRow[]): NarrativeEvidence {
-  const tally = new Map<string, { correct: number; total: number }>();
+  const tally = new Map<string, { correct: number; total: number; handled: string[]; missed: string[] }>();
   const written: NarrativeEvidence["written"] = [];
   for (const r of rows) {
     if (r.type === "extended_text") {
@@ -206,12 +213,16 @@ export function buildEvidence(rows: EvidenceRow[]): NarrativeEvidence {
       continue;
     }
     if (r.isCorrect === null) continue;
-    const t = tally.get(r.skill) ?? { correct: 0, total: 0 };
+    const t = tally.get(r.skill) ?? { correct: 0, total: 0, handled: [], missed: [] };
     t.total += 1;
-    if (r.isCorrect) t.correct += 1;
+    const task = stripDigits(r.task).slice(0, 90);
+    if (r.isCorrect) {
+      t.correct += 1;
+      if (t.handled.length < 5) t.handled.push(task);
+    } else if (t.missed.length < 5) t.missed.push(task);
     tally.set(r.skill, t);
   }
-  const objective = [...tally.entries()].map(([skill, t]) => ({ skill, outcome: outcomeWord(t.correct, t.total) }));
+  const objective = [...tally.entries()].map(([skill, t]) => ({ skill, outcome: outcomeWord(t.correct, t.total), handled: t.handled, missed: t.missed }));
   return { objective, written };
 }
 
@@ -242,6 +253,7 @@ export function narrativeSystemPrompt(): string {
     "You write the narrative of a school assessment report that an assessor prints and talks a parent through.",
     "The report already prints every percentage and band in tables. The narrative is the part that explains what the results mean: what the child showed they can do, where practice would help, and what would help next. Do not recite the tables.",
     "Audience: the child's parent. Tone: warm, plain, specific, British English. Use the child's first name. Write about the work, with evidence from the data: which kinds of question were handled securely, what the written work showed, where marks were lost.",
+    "Give every subject the same attention. The evidence lists, for each skill, what the questions handled correctly asked and what the questions answered wrongly asked: use it to name the kinds of question in each subject (for example fractions, number patterns, angles), not only the subject with the most notes.",
     "How to write:",
     ...PLAIN_ENGLISH_RULES.map((r) => `- ${r}`),
     "Rules that are not negotiable:",
@@ -251,7 +263,7 @@ export function narrativeSystemPrompt(): string {
     "- Never diagnose, label, or suggest a condition, and never compare the child to other children.",
     "- Never mention admission, offers, places, acceptance or the school's decision.",
     "- Do not use the words: intelligence, gifted, talented, slow, behind, average, disorder, condition, diagnosis, attention, concentration.",
-    "- summary: three to five sentences. The overall picture in a sentence, then what the child showed in each subject, drawing on the evidence. No list of skills with percentages.",
+    "- summary: four to six sentences. The overall picture in a sentence, then at least two sentences on each subject, drawing on the evidence. No list of skills with percentages.",
     "- strengths_text: two or three sentences on the strengths listed: what each skill means in practice and what in the work showed it. No percentages.",
     "- development_text: two to four sentences. If development areas are listed, say where practice would help and why, then one or two concrete things to do at home and at school, ending with the recommended focus. If none are listed, say so plainly and use the room_to_grow areas to suggest what would take the work further.",
     "- If strengths is empty, leave strengths_text as an empty string.",
