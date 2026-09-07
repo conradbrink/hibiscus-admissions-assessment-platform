@@ -77,6 +77,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
     <>
       <PageTitle title={`${app.child_first_name} ${app.child_last_name}`} description={`${grade?.name} · ${one(app.campuses)?.name} · ${one(app.intakes)?.label} · ${app.reference} · `}>
         <StatusBadge status={app.status} />
+        {r ? <a href={`/staff/applications/${app.id}/pdf/registration`} target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline">Record (PDF)</a> : null}
+        {(acceptances ?? []).length ? <a href={`/staff/applications/${app.id}/pdf/agreements`} target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline">Signed agreements (PDF)</a> : null}
       </PageTitle>
       <p className="-mt-4 mb-4 text-xs"><Link href={`/staff/applications/${app.id}`} className="text-primary underline underline-offset-2">Applicant page</Link></p>
 

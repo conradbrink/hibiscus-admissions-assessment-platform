@@ -101,6 +101,7 @@ export async function ApplicantPhase2({
           <TabsTrigger value="payment">Payment</TabsTrigger>
           <TabsTrigger value="registration">Registration</TabsTrigger>
           <TabsTrigger value="messages">WhatsApp</TabsTrigger>
+          <TabsTrigger value="downloads">Downloads</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessment" className="text-sm">
@@ -315,6 +316,45 @@ export async function ApplicantPhase2({
           ) : (
             <p className="text-muted-foreground">Registration opens once the fees are paid.</p>
           )}
+        </TabsContent>
+
+        <TabsContent value="downloads" className="text-sm">
+          {(() => {
+            const pdf = (kind: string) => `/staff/applications/${app.id}/pdf/${kind}`;
+            const reportAttempt = (attempts ?? []).find((at) => at.id === profile?.attempt_id) ?? latestAttempt;
+            const succeeded = (payments ?? []).some((pm) => pm.status === "succeeded");
+            const items: Array<{ label: string; blurb: string; href: string | null; why: string }> = [
+              { label: "Offer letter", blurb: "The letter as the parent received it, with the fees and the signature.", href: (offers ?? []).some((o) => o.status !== "draft") ? pdf("offer") : null, why: offers === null ? "You do not have permission to see offers." : "No offer has been drafted yet." },
+              { label: "Payment receipt", blurb: "The receipt for the fees paid on acceptance.", href: can(permissions, "finance.read") ? (succeeded ? pdf("receipt") : null) : null, why: can(permissions, "finance.read") ? "No successful payment recorded yet." : "Finance permission needed." },
+              { label: "Learning profile", blurb: "The profile the parent reads at their results link.", href: profile?.published_at ? pdf("profile") : null, why: app.requires_assessment ? "Not published yet." : "No assessment for this grade." },
+              { label: "Assessment report", blurb: "The assessor's printable report for the sitting, with every mark.", href: reportAttempt && profile ? `/staff/assessments/attempts/${reportAttempt.id}/report` : null, why: "Ready once the sitting is marked and the profile generated." },
+              { label: "Registration record", blurb: "Everything the family gave at registration, the documents received and the agreements signed.", href: registration ? pdf("registration") : null, why: "Registration has not started." },
+              { label: "Signed agreements", blurb: "Each policy in the version accepted, with the signature as drawn.", href: (acceptances ?? []).length ? pdf("agreements") : null, why: "No agreements signed yet." },
+            ];
+            return (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Every document the process has produced for this applicant, as a PDF. Each download is recorded in the audit log. The parent&rsquo;s uploaded documents are on the <Link href={`/staff/registrations/${app.id}`} className="text-primary underline underline-offset-2">registration page</Link>.</p>
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                  {items.map((it) => (
+                    <li key={it.label} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <span className="min-w-0">
+                        <span className="block font-medium">{it.label}</span>
+                        <span className="block text-xs text-muted-foreground">{it.blurb}</span>
+                      </span>
+                      {it.href ? (
+                        <span className="flex gap-3 text-xs">
+                          <a href={it.href} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">Open PDF</a>
+                          <a href={`${it.href}${it.href.includes("?") ? "&" : "?"}download=1`} className="font-medium text-primary hover:underline">Download</a>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{it.why}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="messages" className="text-sm">

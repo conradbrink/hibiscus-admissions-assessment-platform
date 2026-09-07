@@ -289,7 +289,22 @@ The registration page in the console lists each agreement with the version
 signed, the printed name, the date, and the drawn signature. An acceptance
 made before signatures were drawn shows "typed name only". The body the
 parent saw is the version named there, under **Set up → Agreements**
-(retired versions stay in the database).
+(retired versions stay in the database). **Signed agreements (PDF)** on
+that page, or the applicant's **Downloads** tab, produces one file with
+every policy in the wording accepted, the signature as drawn and the
+fingerprint that ties the text to the stored copy: what to send to a
+parent or a lawyer who asks.
+
+## Getting a document as a PDF
+
+Applicant page → **Downloads**: the offer letter, the payment receipt, the
+learning profile, the assessment report, the registration record
+(everything the family gave, including medical details, the documents
+received and the agreements signed) and the signed agreements. "Open" shows
+it in the browser; "Download" saves it. A document that does not exist yet
+says why. Every download is written to the audit log with who and when.
+The parent's own uploads (birth certificate and so on) are viewed from the
+registration page.
 
 ## Exporting students to Ed-admin
 

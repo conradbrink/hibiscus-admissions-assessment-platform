@@ -347,6 +347,13 @@ known), staff editing of submitted registration data, AI email drafting.
   `applyCertificateReading` fills the form's empty fields (middle names,
   place of birth, gender, registration number) marked "please check"; the
   enquiry's names and date of birth are never overwritten.
+- **Every document has a PDF.** `lib/documents/staff-pdf.ts` renders the
+  offer, receipt, profile, registration record and signed agreements for
+  staff from stored records (the parent routes render the same documents
+  from their own session); `/staff/applications/[id]/pdf/[kind]` reads the
+  application under RLS first and audits the download. The signature on
+  the agreements PDF is redrawn from the stored path with react-pdf's Svg,
+  never from markup.
 - **Uploads go straight to the bucket.** `/api/register/document/start`
   hands the browser a signed upload URL under `applications/<id>/`,
   `/complete` reads the object back and judges it exactly like a server
