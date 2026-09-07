@@ -4,6 +4,7 @@ import { StudentForm } from "@/components/parent/register/student-form";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { prefillRegistration } from "@/lib/registration/prefill";
 import { registrationForSession } from "@/lib/registration/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { saveStudent } from "../actions";
 
 export const metadata: Metadata = { title: "Registration — student" };
@@ -12,6 +13,7 @@ export default async function StudentStep() {
   const { graph, bundle, editable } = await registrationForSession();
   const prefill = prefillRegistration(graph, bundle.registration, bundle.contacts.find((c) => c.kind === "primary_guardian") ?? null);
   const flags = editable ? parseMismatchFlags(bundle.registration?.mismatch_flags) : [];
+  const { data: grades } = await createAdminClient().from("grades").select("name").eq("is_active", true).order("sort_order");
   return (
     <RegisterShell step="student" title="About the student" description={`${graph.grade.name} at ${graph.campus.name}, starting ${graph.intake.label}. Grade and campus are set by the offer; tell us if they look wrong.`} readOnly={!editable}>
       {flags.length ? (
@@ -27,7 +29,7 @@ export default async function StudentStep() {
           <p className="mt-2 text-xs text-muted-foreground">If the document is right, correct the form below. If the form is right, leave it and save; the school will follow up. Nothing has been changed for you.</p>
         </div>
       ) : null}
-      <StudentForm action={saveStudent} initial={prefill.student} prefilled={prefill.prefilledFields} readOnly={!editable} />
+      <StudentForm action={saveStudent} initial={prefill.student} prefilled={prefill.prefilledFields} readOnly={!editable} grades={(grades ?? []).map((g) => g.name)} />
     </RegisterShell>
   );
 }

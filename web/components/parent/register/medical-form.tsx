@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
+import { ListField } from "@/components/parent/register/country-field";
 import { Field, invalidProps, type RegisterFormState } from "@/components/parent/register/field";
+import { MEDICAL_AIDS } from "@/lib/pick-lists";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +32,7 @@ export function MedicalForm({
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Medical aid</legend>
         <p className="text-xs text-muted-foreground">Leave blank if the child is not on a medical aid.</p>
-        <Field id="medicalAidName" label="Medical aid" error={f.medicalAidName}><Input id="medicalAidName" name="medicalAidName" defaultValue={v.medicalAidName ?? ""} readOnly={readOnly} /></Field>
+        <ListField name="medicalAidName" label="Medical aid" options={MEDICAL_AIDS} initial={v.medicalAidName ?? ""} error={f.medicalAidName} fields={f} readOnly={readOnly} hint="Start typing and choose, or write it in if it is not listed." />
         <Field id="medicalAidNumber" label="Membership number" error={f.medicalAidNumber}><Input id="medicalAidNumber" name="medicalAidNumber" defaultValue={v.medicalAidNumber ?? ""} readOnly={readOnly} /></Field>
         <Field id="medicalAidPrincipalMember" label="Principal member" error={f.medicalAidPrincipalMember}><Input id="medicalAidPrincipalMember" name="medicalAidPrincipalMember" defaultValue={v.medicalAidPrincipalMember ?? ""} readOnly={readOnly} /></Field>
       </fieldset>
