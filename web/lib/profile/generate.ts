@@ -133,6 +133,13 @@ export async function generateLearningProfile(
       } else if (result.retryable) {
         // Let the job retry; a transient failure should not publish the fallback.
         throw new Error(`AI provider: ${result.error ?? result.reason}`);
+      } else if (attempt === 0 && /too_big|too_small|<=\d+ characters/.test(result.error ?? "")) {
+        // The model wrote a piece outside its length limit, so the output
+        // failed to parse. Send it back once with the limits named, as a
+        // validator rejection would be.
+        const problems: ValidationProblem[] = [{ kind: "length", detail: (result.error ?? "").match(/- (\w+): Too (big|small)[^\n]*/)?.[0] ?? "a field was outside its limit" }];
+        rejected.push({ problems, text: "" });
+        errors = [{ kind: result.reason, detail: result.error ?? "" }] as unknown as Json;
       } else {
         errors = [{ kind: result.reason, detail: result.error ?? "" }] as unknown as Json;
         break;

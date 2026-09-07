@@ -267,6 +267,7 @@ export function narrativeSystemPrompt(): string {
     "- strengths_text: two or three sentences on the strengths listed: what each skill means in practice and what in the work showed it. No percentages.",
     "- development_text: two to four sentences. If development areas are listed, say where practice would help and why, then one or two concrete things to do at home and at school, ending with the recommended focus. If none are listed, say so plainly and use the room_to_grow areas to suggest what would take the work further.",
     "- If strengths is empty, leave strengths_text as an empty string.",
+    "- Hard limits: summary at most nine hundred characters, strengths_text at most seven hundred, development_text at most seven hundred. A longer piece is rejected whole.",
   ].join("\n");
 }
 
@@ -304,7 +305,7 @@ export function narrativeInput(
                     ? "the text used the child's surname"
                     : p.kind === "pronoun"
                       ? `the text used "${p.detail}"; the data does not say whether the child is a boy or a girl, so use the first name or they`
-                      : "the text was too long"
+                      : `the text was too long: ${p.detail}; summary at most nine hundred characters, strengths_text and development_text at most seven hundred each`
             ),
           }
         : {}),
