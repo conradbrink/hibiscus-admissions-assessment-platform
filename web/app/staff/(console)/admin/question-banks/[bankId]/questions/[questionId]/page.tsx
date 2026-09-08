@@ -95,6 +95,24 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
                 </NativeSelect>
               </div>
             </div>
+            <details className="rounded-lg border border-dashed border-border p-3" open={Boolean(question.narration || question.answer_mode)}>
+              <summary className="cursor-pointer text-sm font-medium">Story mode (read-aloud papers)</summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor="narration">What the character says</Label><Textarea id="narration" name="narration" rows={2} defaultValue={question.narration ?? ""} placeholder="Point to the apple." /></div>
+                <div className="space-y-1"><Label>How the child answers</Label>
+                  <NativeSelect name="answerMode" defaultValue={question.answer_mode ?? ""}>
+                    <option value="">Not a story item</option>
+                    <option value="adult">Adult marks a spoken or pointed answer</option>
+                    <option value="rating">Adult rates: yes, partly, not yet</option>
+                    <option value="tap">Child taps an option</option>
+                    <option value="type">Child types</option>
+                    <option value="drag">Child puts options in order</option>
+                  </NativeSelect>
+                </div>
+                <div className="space-y-1"><Label htmlFor="sceneFocus">Scene objects to highlight</Label><Input id="sceneFocus" name="sceneFocus" defaultValue={(question.scene_focus ?? []).join(", ")} placeholder="apple, cup" /></div>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor="adultNote">What the adult looks for</Label><Input id="adultNote" name="adultNote" defaultValue={question.adult_note ?? ""} placeholder="Says three, touching each apple once" /></div>
+              </div>
+            </details>
           </ActionForm>
 
           {hasOptions(question.type) ? (
@@ -184,6 +202,13 @@ export default async function QuestionPage({ params }: { params: Promise<{ bankI
               <div className="space-y-2 text-sm">
                 <p className="text-xs text-muted-foreground">The option order above is the correct order. The child sees them shuffled.</p>
                 <label className="flex items-center gap-2 text-xs"><input type="checkbox" name="partialCredit" value="1" defaultChecked={key?.partial_credit ?? false} /> Award marks per option in the right place</label>
+              </div>
+            ) : null}
+            {question.type === "adult_marked" ? (
+              <div className="space-y-1">
+                <Label htmlFor="expectedAnswer">Expected answer, in words</Label>
+                <Input id="expectedAnswer" name="expectedAnswer" defaultValue={parsedKey?.type === "adult_marked" ? parsedKey.key.expected : ""} required />
+                <p className="text-xs text-muted-foreground">Shown to the adult on the marking strip. The adult decides; nothing is compared by the computer.</p>
               </div>
             ) : null}
             {needsRubric(question.type) ? (

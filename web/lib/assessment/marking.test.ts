@@ -69,6 +69,15 @@ describe("markResponse", () => {
     expect(markResponse("ordering", key, { order: [A, B] }, 3, false)).toMatchObject({ isCorrect: false });
   });
 
+  it("adult marked: the adult's outcome is the mark; partly is half; skipped is nothing", () => {
+    const key = parseAnswerKey("adult_marked", { expected: "three" });
+    expect(markResponse("adult_marked", key, { outcome: "correct" }, 1, false)).toMatchObject({ isCorrect: true, marksAwarded: 1 });
+    expect(markResponse("adult_marked", key, { outcome: "partial" }, 1, false)).toMatchObject({ isCorrect: false, marksAwarded: 0.5 });
+    expect(markResponse("adult_marked", key, { outcome: "incorrect" }, 1, false)).toMatchObject({ isCorrect: false, marksAwarded: 0 });
+    expect(markResponse("adult_marked", key, { outcome: "skipped" }, 1, false)).toMatchObject({ marksAwarded: 0 });
+    expect(markResponse("adult_marked", null, { outcome: "correct" }, 1, false).status).toBe("unmarkable");
+  });
+
   it("extended text needs a rubric; a missing key is unmarkable, not wrong", () => {
     expect(markResponse("extended_text", null, { text: "…" }, 10, false)).toEqual({ status: "needs_rubric" });
     expect(markResponse("numeric", null, { value: 1 }, 1, false).status).toBe("unmarkable");

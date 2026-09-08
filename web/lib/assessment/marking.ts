@@ -14,6 +14,9 @@ import type { Json, QuestionType } from "@/lib/supabase/types";
  *   matching       { pairs: [[left, right], …] }
  *   ordering       { order: [] }
  *   extended_text  { text }
+ *   adult_marked   { outcome: "correct" | "partial" | "incorrect" | "skipped" }
+ *                  — recorded by the adult on the marking strip; partial
+ *                    earns half the marks, skipped earns none
  *
  * A response the marker cannot interpret earns zero, not an error: a child
  * who typed "twelve apples" into a number box got it wrong, and the attempt
@@ -132,6 +135,12 @@ export function markResponse(
       const ok = hits === correct.length && given.length === correct.length;
       if (!partialCredit) return { status: "marked", isCorrect: ok, marksAwarded: ok ? marks : 0 };
       return { status: "marked", isCorrect: ok, marksAwarded: round2((marks * hits) / correct.length) };
+    }
+    case "adult_marked": {
+      const outcome = typeof r.outcome === "string" ? r.outcome : null;
+      if (outcome === "correct") return { status: "marked", isCorrect: true, marksAwarded: marks };
+      if (outcome === "partial") return { status: "marked", isCorrect: false, marksAwarded: round2(marks / 2) };
+      return wrong;
     }
   }
 }

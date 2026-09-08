@@ -46,6 +46,8 @@ function renderResponse(type: QuestionType, response: Json | undefined, opts: Op
       return Array.isArray(r.pairs) ? r.pairs.map((p) => (Array.isArray(p) ? `${label(p[0])} → ${label(p[1])}` : "?")).join("; ") : "—";
     case "ordering":
       return Array.isArray(r.order) ? r.order.map(label).join(" → ") : "—";
+    case "adult_marked":
+      return r.outcome === "correct" ? "Yes (adult)" : r.outcome === "partial" ? "Partly (adult)" : r.outcome === "skipped" ? "Skipped" : "Not yet (adult)";
   }
 }
 

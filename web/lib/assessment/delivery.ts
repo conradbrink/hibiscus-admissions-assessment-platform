@@ -1,6 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { Json, QuestionType } from "@/lib/supabase/types";
+import type { AnswerMode, Json, QuestionType } from "@/lib/supabase/types";
 
 /**
  * What the kiosk receives: the form, without keys.
@@ -29,6 +29,14 @@ export type DeliveryQuestion = {
   passage: { title: string; body: string; mediaPath: string | null } | null;
   options: DeliveryOption[];
   marks: number;
+  /** Which strand the item belongs to; story mode stops a strand after a run of misses. */
+  competencyId: string;
+  difficulty: number;
+  /** Story mode: what the character says, how the child answers, what the scene highlights, what the adult looks for. */
+  narration: string | null;
+  answerMode: AnswerMode | null;
+  sceneFocus: string[];
+  adultNote: string | null;
 };
 
 export type DeliverySection = {
@@ -36,6 +44,10 @@ export type DeliverySection = {
   title: string;
   instructions: string | null;
   timeLimitSeconds: number | null;
+  /** Story mode: the drawn scene, the character's opening line, the stop rule. */
+  sceneKey: string | null;
+  narration: string | null;
+  stopAfterMisses: number | null;
   questions: DeliveryQuestion[];
 };
 
@@ -47,7 +59,7 @@ export type DeliveryForm = {
 };
 
 const DELIVERY_SELECT =
-  "id, section_position, section_title, section_instructions, section_time_limit_seconds, is_practice, position, type, stem, stem_media_path, passage_snapshot, options, marks";
+  "id, section_position, section_title, section_instructions, section_time_limit_seconds, section_scene_key, section_narration, section_stop_after_misses, is_practice, position, type, stem, stem_media_path, passage_snapshot, options, marks, competency_id, difficulty, narration, answer_mode, scene_focus, adult_note";
 
 function asOptions(json: Json): DeliveryOption[] {
   if (!Array.isArray(json)) return [];
@@ -90,6 +102,9 @@ export async function loadDeliveryForm(admin: AdminClient, formId: string): Prom
       title: row.section_title,
       instructions: row.section_instructions,
       timeLimitSeconds: row.section_time_limit_seconds,
+      sceneKey: row.section_scene_key,
+      narration: row.section_narration,
+      stopAfterMisses: row.section_stop_after_misses,
       questions: [],
     };
     section.questions.push({
@@ -103,6 +118,12 @@ export async function loadDeliveryForm(admin: AdminClient, formId: string): Prom
       passage: asPassage(row.passage_snapshot),
       options: asOptions(row.options),
       marks: Number(row.marks),
+      competencyId: row.competency_id,
+      difficulty: row.difficulty,
+      narration: row.narration,
+      answerMode: row.answer_mode,
+      sceneFocus: row.scene_focus ?? [],
+      adultNote: row.adult_note,
     });
     if (!row.is_practice) total += 1;
     sections.set(row.section_position, section);
