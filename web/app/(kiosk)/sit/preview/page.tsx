@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { notFound } from "next/navigation";
 import { StoryPlayer } from "@/components/kiosk/story/story-player";
 import { storyVoiceProvider } from "@/lib/assessment/story-voice";
+import { requireStaff } from "@/lib/staff/session";
 import type { DeliveryForm } from "@/lib/assessment/delivery";
 import type { SubmitState } from "../actions";
 
@@ -11,8 +11,9 @@ type Chapter = { name: string; character: string; stop_after_misses: number; sce
 
 /**
  * A walk through a story chapter with no attempt behind it, for looking at
- * the player on a preview deployment. Never served in production: there is
- * no sitting, nothing is saved, and the hand-in does nothing.
+ * the player. Open on a preview deployment; on the live site only a
+ * signed-in staff member can see it. There is no sitting, nothing is
+ * saved, and the hand-in does nothing.
  */
 
 async function noop(): Promise<SubmitState> {
@@ -28,7 +29,7 @@ function previewExpiry(): number {
 }
 
 export default async function Preview({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
-  if (process.env.VERCEL_ENV === "production") notFound();
+  if (process.env.VERCEL_ENV === "production") await requireStaff("assessments.deliver");
   const { c } = await searchParams;
   const code = c && CHAPTERS.has(c) ? c : "reception";
   const chapter = JSON.parse(readFileSync(path.join(process.cwd(), "content", "story", `${code}.json`), "utf8")) as Chapter;

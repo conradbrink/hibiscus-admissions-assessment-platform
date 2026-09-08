@@ -92,8 +92,9 @@ The youngest applicants do not sit a paper. Their template is a **story**
 5. **Pause** stops the voice and hides the scene. **Finish and hand in** on
    the last screen ends the sitting; marking and the learning profile follow
    as for a paper.
-6. To rehearse without a child, a preview deployment (never production)
-   serves `/sit/preview?c=reception` (also `stage1`, `stage2`, `stage3`).
+6. To rehearse without a child, open `/sit/preview?c=reception` (also
+   `stage1`, `stage2`, `stage3`) while signed in to the staff console; on
+   a preview deployment it needs no sign-in. Nothing is saved.
 
 To change a chapter, edit `web/content/story/<chapter>.json`, run
 `node web/scripts/story-seed.mjs > seed.sql` and apply it: the seed upserts
