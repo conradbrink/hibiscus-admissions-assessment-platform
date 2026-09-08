@@ -1,0 +1,501 @@
+{
+  "code": "s4-mathematics",
+  "name": "Cambridge Progression · Stage 4 · Mathematics",
+  "subject": "mathematics",
+  "stage": 4,
+  "time_limit_minutes": 40,
+  "source": "0096 Mathematics 2025 Stage 4 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions. You are not allowed to use a calculator.",
+      "items": [
+        {
+          "code": "S4-MA-Q1i",
+          "competency": "arithmetic",
+          "type": "short_text",
+          "stem": "Complete the fraction calculation. Write your answer as a fraction.\n\n3/8 + 4/8 =",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "7/8",
+              "7 / 8",
+              "seven eighths",
+              "7 over 8"
+            ]
+          },
+          "note": "Mark scheme: 7/8. Printed as the first of two calculations in Question 1 [2]; 1 mark each."
+        },
+        {
+          "code": "S4-MA-Q1ii",
+          "competency": "arithmetic",
+          "type": "short_text",
+          "stem": "Complete the fraction calculation. Write your answer as a fraction.\n\n4/7 − 3/7 =",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "1/7",
+              "1 / 7",
+              "one seventh",
+              "1 over 7"
+            ]
+          },
+          "note": "Mark scheme: 1/7. Printed as the second of two calculations in Question 1 [2]; 1 mark each."
+        },
+        {
+          "code": "S4-MA-Q2",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Write the 4-digit number that is equivalent to 5000 + 300 + 20 + 8",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "5328",
+              "5 328",
+              "5,328",
+              "five thousand three hundred and twenty eight",
+              "five thousand three hundred and twenty-eight",
+              "five thousand, three hundred and twenty-eight"
+            ]
+          },
+          "note": "Mark scheme: 5328. Accept the number written in words."
+        },
+        {
+          "code": "S4-MA-Q3",
+          "competency": "geometry",
+          "type": "matching",
+          "stem": "Here are some pictures of shapes that fold to make 3D shapes.\n\nMatch each shape that folds to the name of the correct 3D shape.",
+          "marks": 1,
+          "difficulty": 1,
+          "media": "s4-mathematics-q3.png",
+          "pairs": [
+            [
+              "Top shape",
+              "cone"
+            ],
+            [
+              "Middle shape",
+              "cuboid"
+            ],
+            [
+              "Bottom shape",
+              "cube"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "Mark scheme: all three lines correct for the mark. Also accepts the net of the cube joined to ‘cuboid’."
+        },
+        {
+          "code": "S4-MA-Q4",
+          "competency": "number_sense",
+          "type": "multi_select",
+          "stem": "Select all the multiples of 2",
+          "marks": 1,
+          "difficulty": 1,
+          "options": [
+            "202",
+            "321",
+            "518",
+            "903",
+            "415",
+            "722"
+          ],
+          "key": {
+            "correct": [
+              "202",
+              "518",
+              "722"
+            ]
+          },
+          "partial_credit": false,
+          "note": "Mark scheme: 202 and 518 and 722. All three for the mark (paper: draw a ring around all the multiples of 2)."
+        },
+        {
+          "code": "S4-MA-Q5",
+          "competency": "patterns",
+          "type": "numeric",
+          "stem": "Here is part of a sequence.\n\n14, 9, 4, … (each term is 5 less than the one before)\n\nThe sequence continues in the same way.\n\nWrite the next term in the sequence.",
+          "marks": 1,
+          "difficulty": 1,
+          "media": "s4-mathematics-q5.png",
+          "key": {
+            "value": -1,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: –1"
+        },
+        {
+          "code": "S4-MA-Q6",
+          "competency": "arithmetic",
+          "type": "matching",
+          "stem": "Match each calculation to the correct answer.",
+          "marks": 1,
+          "difficulty": 1,
+          "pairs": [
+            [
+              "360 × 10",
+              "3600"
+            ],
+            [
+              "3600 ÷ 10",
+              "360"
+            ],
+            [
+              "360 000 ÷ 100",
+              "3600"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "Mark scheme: all three correct for the mark. Two calculations share the answer 3600 and only two answer labels are printed."
+        },
+        {
+          "code": "S4-MA-Q7",
+          "competency": "geometry",
+          "type": "numeric",
+          "stem": "Here is a drawing of a cuboid.\n\nWrite the correct number to complete the sentence.\n\nA cuboid has ___ faces.",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-mathematics-q7.png",
+          "key": {
+            "value": 6,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 6"
+        },
+        {
+          "code": "S4-MA-Q8",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Oliver cuts one whole strip of paper into five equal pieces.\n\nOliver says, ‘Each piece is 1/6 of the whole.’\n\nIs Oliver correct? Answer Yes or No, and explain how you know.",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-mathematics-q8.png",
+          "key": {
+            "accepted": [
+              "No, there are five pieces so each piece is a fifth",
+              "No, there are 5 pieces so each is 1/5 not 1/6",
+              "No, each piece is 1/5",
+              "No, each piece is one fifth",
+              "No, five equal pieces are fifths",
+              "No, it is cut into 5 pieces so each is one fifth",
+              "No, there are only 5 shapes so each is a fifth not a sixth"
+            ]
+          },
+          "note": "Mark scheme: ticks ‘No’ AND an explanation recognising that the pieces are fifths (e.g. there are only 5 shapes so each is a fifth not a sixth). Accept any reasonable explanation. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-MA-Q9",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "Write the number of seconds in 5 minutes.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "value": 300,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 300 (seconds)"
+        },
+        {
+          "code": "S4-MA-Q11i",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Here are some numbers in a Carroll diagram.\n\nThe top row contains 10, 100 (left column) and 25, 175 (right column). The bottom row contains 4, 12 (left column) and 7, 29 (right column).\n\nComplete the labels to make the Carroll diagram correct.\n\nWrite the label for the COLUMNS (the left column is ‘……’ and the right column is ‘Not ……’).",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-mathematics-q11.png",
+          "key": {
+            "accepted": [
+              "multiples of 2",
+              "multiple of 2",
+              "even numbers",
+              "even",
+              "in the 2 times table",
+              "2 times table",
+              "numbers in the 2 times table",
+              "divisible by 2",
+              "multiples of two"
+            ]
+          },
+          "note": "Mark scheme: labels completed to indicate multiples of 2 (columns) and multiples of 5 (rows); 1 mark per correct pair of headings. Accept any valid labels, e.g. ‘in the 2 times table’ / ‘even numbers’. Printed as Question 11 [2]. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-MA-Q11ii",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Same Carroll diagram as before.\n\nWrite the label for the ROWS (the top row is ‘……’ and the bottom row is ‘Not ……’).",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-mathematics-q11.png",
+          "key": {
+            "accepted": [
+              "multiples of 5",
+              "multiple of 5",
+              "in the 5 times table",
+              "5 times table",
+              "numbers in the 5 times table",
+              "divisible by 5",
+              "multiples of five",
+              "ends in 0 or 5"
+            ]
+          },
+          "note": "Mark scheme: multiples of 5 for the row headings; 1 mark per correct pair of headings. Accept any valid labels. Printed as Question 11 [2]. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-MA-Q12",
+          "competency": "arithmetic",
+          "type": "single_choice",
+          "stem": "Here are some mathematical symbols: <, >, =\n\nChoose the symbols that make both statements correct.\n\n42 ÷ 6 ☐ 42 ÷ 7\n\n63 ÷ 9 ☐ 64 ÷ 8",
+          "marks": 1,
+          "difficulty": 3,
+          "options": [
+            "42 ÷ 6 > 42 ÷ 7 and 63 ÷ 9 < 64 ÷ 8",
+            "42 ÷ 6 < 42 ÷ 7 and 63 ÷ 9 > 64 ÷ 8",
+            "42 ÷ 6 = 42 ÷ 7 and 63 ÷ 9 < 64 ÷ 8",
+            "42 ÷ 6 > 42 ÷ 7 and 63 ÷ 9 = 64 ÷ 8"
+          ],
+          "key": {
+            "correct": "42 ÷ 6 > 42 ÷ 7 and 63 ÷ 9 < 64 ÷ 8"
+          },
+          "note": "Mark scheme: > then <; both symbols correct for the mark. Paper asks the learner to write a symbol in each box; presented as a choice."
+        },
+        {
+          "code": "S4-MA-Q13",
+          "competency": "number_sense",
+          "type": "numeric",
+          "stem": "Write three thousand one hundred and nine in figures.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "value": 3109,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 3109"
+        },
+        {
+          "code": "S4-MA-Q14",
+          "competency": "geometry",
+          "type": "matching",
+          "stem": "Here are some shapes drawn on triangular dotty paper.\n\nMatch each shape to the correct description.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-mathematics-q14.png",
+          "pairs": [
+            [
+              "Triangle",
+              "regular polygon"
+            ],
+            [
+              "Hexagon",
+              "regular polygon"
+            ],
+            [
+              "Rectangle",
+              "irregular polygon"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "Mark scheme: all three lines correct for the mark. Two shapes match ‘regular polygon’."
+        },
+        {
+          "code": "S4-MA-Q15",
+          "competency": "patterns",
+          "type": "numeric",
+          "stem": "Here are the first three terms in a sequence.\n\n102, 50, 24\n\nThe term-to-term rule is, ‘Subtract 2 from the previous term and then divide the answer by 2’\n\nWrite the 4th term in the sequence.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 11,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 11"
+        },
+        {
+          "code": "S4-MA-Q16",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n453 + 129 + 61",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 643,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 643"
+        },
+        {
+          "code": "S4-MA-Q17",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Complete each sentence.\n\nThe value of the digit 1 in 615 is ……\n\nThe value of the digit 1 in 5 215 632 is ……\n\nWrite both values in order, separated by a comma.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "ten, ten thousand",
+              "ten ten thousand",
+              "ten and ten thousand",
+              "10, 10 000",
+              "10, 10000",
+              "10 10 000",
+              "10 10000",
+              "10 and 10 000",
+              "10 and 10000",
+              "10, 10,000",
+              "10 and 10,000"
+            ]
+          },
+          "note": "Mark scheme: ten and ten thousand; both correct for the mark. Accept 10 and 10 000."
+        },
+        {
+          "code": "S4-MA-Q19a",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "The children in Class 4 count the vehicles passing their school.\n\nThey count the vehicles between 07:30 and 08:30\nThey also count the vehicles between 11:00 and 12:00\n\nThe bar charts show their results.\n\nWrite how many more buses pass their school between 07:30 and 08:30 than between 11:00 and 12:00",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-mathematics-q19.png",
+          "key": {
+            "value": 16,
+            "tolerance": 2
+          },
+          "note": "Mark scheme: 16. Accept answers in the range 14–18 inclusive."
+        },
+        {
+          "code": "S4-MA-Q19b",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Look at the same bar charts.\n\nSuggest a reason why there were more cars passing their school between 07:30 and 08:30 than between 11:00 and 12:00",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-mathematics-q19.png",
+          "key": {
+            "accepted": [
+              "more people were driving to work",
+              "people were going to work",
+              "people were driving to work",
+              "more people were going to school",
+              "people were taking children to school",
+              "it was rush hour",
+              "people were going to school",
+              "people go to work in the morning",
+              "parents were driving children to school"
+            ]
+          },
+          "note": "Mark scheme: a reasonable explanation, e.g. more people were driving to work / more people were going to school. Accept any reasonable explanation. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-MA-Q20",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Here is part of a train timetable.\n\nPeterborough 10:10, 10:35, 11:10\nDoncaster 11:25, 11:50, 12:25\nLeeds 12:05, 12:35, 13:05\nEdinburgh 15:45, 16:15, 16:45\n\nMia lives in Doncaster.\nShe travels on the train to Edinburgh.\nShe arrives before 4.00 pm.\n\nWrite the time of Mia’s train from Doncaster.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-mathematics-q20.png",
+          "key": {
+            "accepted": [
+              "11:25",
+              "11.25",
+              "11 25",
+              "1125",
+              "11:25 am",
+              "11.25 am",
+              "11:25am",
+              "11.25am",
+              "twenty five minutes past eleven",
+              "twenty-five minutes past eleven",
+              "twenty five past eleven",
+              "twenty-five past eleven",
+              "25 past 11",
+              "25 minutes past 11"
+            ]
+          },
+          "note": "Mark scheme: 11:25. Accept equivalent times such as twenty five minutes past eleven."
+        },
+        {
+          "code": "S4-MA-Q21a",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "Here is a dot plot.\n\nThe dot plot shows the scores from a spelling test.\n\nWork out the number of children who scored 5 or lower in the test.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-mathematics-q21.png",
+          "key": {
+            "value": 8,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 8"
+        },
+        {
+          "code": "S4-MA-Q21b",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "Look at the same dot plot.\n\nWrite the correct number to complete the sentence.\n\nThe same number of children scored 0 and ___ in the test.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-mathematics-q21.png",
+          "key": {
+            "value": 7,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 7"
+        },
+        {
+          "code": "S4-MA-Q22",
+          "competency": "problem_solving",
+          "type": "short_text",
+          "stem": "A shop sells notepads and pencils.\n\nNotepad: 3 dollars and 80 cents\nPencil A: 1 dollar and 50 cents\nPencil B: 1 dollar and 80 cents\nPencil C: 2 dollars\n\nHassan buys one notepad and three pencils.\nHe pays with a 10 dollar note and gets 1 dollar and 40 cents change.\n\nWork out the items Hassan buys. He buys 1 notepad. Write how many of each pencil he buys in the form ‘Pencil A: …, Pencil B: …, Pencil C: …’. Show your working.",
+          "marks": 2,
+          "difficulty": 5,
+          "media": "s4-mathematics-q22.png",
+          "key": {
+            "accepted": [
+              "Pencil A: 2, Pencil B: 1, Pencil C: 0",
+              "A 2, B 1, C 0",
+              "A: 2, B: 1, C: 0",
+              "2, 1, 0",
+              "2 1 0",
+              "A2 B1 C0",
+              "Pencil A 2, Pencil B 1, Pencil C 0",
+              "Pencil A: 2, Pencil B: 1",
+              "A 2, B 1",
+              "2 of Pencil A and 1 of Pencil B",
+              "two of pencil A and one of pencil B"
+            ]
+          },
+          "note": "Mark scheme: Pencil A 2, Pencil B 1, Pencil C 0 (Pencil C may be left blank) for 2 marks. Award 1 mark for 10 dollars – (3 dollars 80 cents + 1 dollar 40 cents) whether or not evaluated correctly, or for 4 dollars 80 cents seen. A person should check the working for the part mark."
+        },
+        {
+          "code": "S4-MA-Q24",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "stem": "Lily has a party.\n\nShe invites 45 friends.\nShe gives each friend a balloon.\nBalloons are sold in packs of 8\n\nWork out the smallest number of packs of balloons Lily buys.",
+          "marks": 1,
+          "difficulty": 5,
+          "key": {
+            "value": 6,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 6 (packs of balloons). Do not accept 5 remainder 5."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "10",
+      "why": "draw four equilateral triangles arranged to make a larger triangle on dotty paper [2]"
+    },
+    {
+      "q": "18",
+      "why": "shade 1/5 of a shape made from 20 squares (any 4 squares) [1]"
+    },
+    {
+      "q": "23",
+      "why": "draw the reflection of a shape in a mirror line on a grid [1]"
+    }
+  ]
+}

@@ -1,0 +1,400 @@
+{
+  "code": "s4-english",
+  "name": "Cambridge Progression · Stage 4 · English",
+  "subject": "english",
+  "stage": 4,
+  "time_limit_minutes": 40,
+  "source": "0058 English 2025 Stage 4 Paper 1 Non-fiction",
+  "passages": [
+    {
+      "key": "insert",
+      "title": "The history of writing",
+      "body": "The history of writing\n\nThe earliest form of writing was developed around 3300 BC by a group of people\ncalled the Sumerians who lived in Ancient Mesopotamia. Until then, the\nSumerians had mostly lived by hunting, but around that time, they decided to\nsettle in the land between the Tigris and Euphrates rivers, where the soil was [5]\nperfect for growing crops. There they became some of the first farmers.\n\nAs their way of life developed, the Sumerians needed to remember detailed\ninformation about what they were buying and selling and the work the\ngovernment was doing. So, to help them make permanent records, they\ndeveloped a system of symbols. This early writing was done on tablets of wet [10]\nclay with a pointed stick called a stylus. Once the clay dried, the information\ncould be stored for later.\n\nIn the beginning, Sumerian writing consisted of simple pictures called\npictograms. But gradually, the system was extended to include sounds as well as\nmeanings. People who trained as writers were called scribes. They used the [15]\nstylus to make wedge¹-shaped marks in the clay. This type of writing is called\ncuneiform writing.\n\nUnderstanding Mesopotamian writing is difficult. This is because there were over\n700 symbols. The symbols often varied between cities and many of them\nchanged over time as well. Luckily, experts have deciphered many Sumerian [20]\ntablets. This is how we have learned so much about Mesopotamian life,\ngovernment and history.\n\nWhile most of the Sumerian tablets that have been discovered are government\nand business records, some include poetry, songs, tales of heroes and myths\nabout Mesopotamian gods. [25]\n\nAbout 300 years later, the Ancient Egyptians began to develop a writing system\nknown as hieroglyphics, which used thousands of picture words called\nhieroglyphs. Some symbols represented entire words, but others represented\nsounds, just like the letters in English.\n\nOne of the aims when writing hieroglyphs was to produce writing that looked [30]\nbeautiful. Since it was quite challenging to write hieroglyphs, becoming a scribe\ntook many years of education and practice, and children started training at six or\nseven years of age. Being a scribe in Ancient Egypt was considered a good job\nbecause they did not have to join the army or pay taxes. Only children from rich\nfamilies could train as scribes. [35]\n\nThe Ancient Egyptians often used clay tablets for writing but they also wrote on a\ntype of paper made from a tall, reed-like plant called papyrus. To make the\npaper, they used two strips from the plant's stem and layered these in opposite\ndirections. Next, they covered the strips with a type of cloth called linen and\nflattened them with a mallet. After a while the strips would stick together, creating [40]\na single sheet to write on.\n\nFor many years nobody knew what the Ancient Egyptian hieroglyphs meant.\nThen in 1799, a special stone, now known as the Rosetta Stone, was found in\nEgypt. This was a very significant find because the same message was written\non it, in both Ancient Egyptian hieroglyphs and in Greek. Archaeologists were [45]\nable to read the Greek message on the stone and used this to translate the\nhieroglyphs. They were then able to use this translation to work out the meaning\nof other Ancient Egyptian texts.\n\nGlossary\n\n¹wedge: triangle"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Section A: Reading",
+      "instructions": "Spend 30 minutes on this section. Read the text in the insert, and answer Questions 1–13.",
+      "items": [
+        {
+          "code": "S4-EN-Q1a",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the first paragraph (lines 2–6).\n\nGive one word which means ‘mainly’.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "mostly"
+            ]
+          },
+          "note": "Mark scheme: mostly."
+        },
+        {
+          "code": "S4-EN-Q1b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the first paragraph (lines 2–6).\n\nGive one reason why the Sumerians chose to live in that part of Ancient Mesopotamia.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "The land was good for growing crops",
+              "the soil was perfect for growing crops",
+              "the soil was good for growing crops",
+              "good for growing crops",
+              "to grow crops",
+              "near the rivers",
+              "it was between the rivers",
+              "it was near the rivers",
+              "so they could become farmers",
+              "to become farmers",
+              "they wanted to be farmers",
+              "they didn't want to be hunters",
+              "they did not want to hunt any more"
+            ]
+          },
+          "note": "Mark scheme: any of — the land was good for growing crops / near the rivers; so they could become farmers / they didn't want to be hunters. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-EN-Q2",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the second paragraph (lines 7–12).\n\nGive one word which means ‘lasting forever’.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "permanent"
+            ]
+          },
+          "note": "Mark scheme: permanent."
+        },
+        {
+          "code": "S4-EN-Q3",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the third paragraph (lines 13–17).\n\nGive one example of an adverb.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "gradually"
+            ]
+          },
+          "note": "Mark scheme: gradually."
+        },
+        {
+          "code": "S4-EN-Q4a",
+          "competency": "vocabulary",
+          "type": "single_choice",
+          "stem": "Look at the fourth paragraph (lines 18–22).\n\nWhich word in this paragraph means ‘translated’?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "varied",
+            "changed",
+            "deciphered",
+            "learned"
+          ],
+          "key": {
+            "correct": "deciphered"
+          },
+          "note": "Mark scheme: deciphered."
+        },
+        {
+          "code": "S4-EN-Q4b",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the fourth paragraph (lines 18–22).\n\nWhy has the writer used a comma ( , ) in the last sentence of the fourth paragraph?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "to separate items in a list",
+              "the writer is giving a list",
+              "it is a list",
+              "for a list",
+              "to separate the items in the list",
+              "because it is a list",
+              "to show a list",
+              "listing",
+              "to separate things in a list",
+              "a list"
+            ]
+          },
+          "note": "Mark scheme: (to separate items in / the writer is giving) a list. Accept any idea of a list or listing. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-EN-Q5",
+          "competency": "vocabulary",
+          "type": "single_choice",
+          "stem": "Look at the fifth paragraph (lines 23–25).\n\nWhat does the word while mean as it is used in the first sentence here?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "as",
+            "but",
+            "because",
+            "although"
+          ],
+          "key": {
+            "correct": "although"
+          },
+          "note": "Mark scheme: although."
+        },
+        {
+          "code": "S4-EN-Q6",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the sixth paragraph (lines 26–29).\n\nGive one word which means ‘whole’.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "entire"
+            ]
+          },
+          "note": "Mark scheme: entire."
+        },
+        {
+          "code": "S4-EN-Q7a",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the seventh paragraph (lines 30–35).\n\nGive one connective which means ‘because’.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "since"
+            ]
+          },
+          "note": "Mark scheme: since."
+        },
+        {
+          "code": "S4-EN-Q7b",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the seventh paragraph (lines 30–35).\n\nWas is a past tense irregular verb. Give one more past tense irregular verb from this paragraph.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "took",
+              "could"
+            ]
+          },
+          "note": "Mark scheme: took or could."
+        },
+        {
+          "code": "S4-EN-Q8a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the eighth paragraph (lines 36–41).\n\nWhich part of the papyrus plant was Egyptian paper made from?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "stem",
+              "the stem",
+              "the plant's stem",
+              "its stem",
+              "strips from the stem",
+              "the stem of the plant"
+            ]
+          },
+          "note": "Mark scheme: (the) stem."
+        },
+        {
+          "code": "S4-EN-Q8b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the eighth paragraph (lines 36–41).\n\nEgyptian paper was made from papyrus. What else was papyrus paper made from?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "linen",
+              "cloth",
+              "fabric",
+              "material",
+              "a type of cloth called linen",
+              "a type of cloth",
+              "linen cloth"
+            ]
+          },
+          "note": "Mark scheme: linen or cloth. Accept fabric/material."
+        },
+        {
+          "code": "S4-EN-Q8c",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the eighth paragraph (lines 36–41).\n\nWhich word means a tool used for crushing?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "mallet",
+              "a mallet"
+            ]
+          },
+          "note": "Mark scheme: mallet."
+        },
+        {
+          "code": "S4-EN-Q9",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the ninth paragraph (lines 42–48).\n\nGive two adjectives that highlight the importance of the discovery in 1799. Write both words, separated by a comma.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "special, significant",
+              "significant, special",
+              "special significant",
+              "significant special",
+              "special and significant",
+              "significant and special"
+            ]
+          },
+          "note": "Mark scheme: 1 mark each for ‘special’ and ‘significant’. If only one of the two words is given, a person should award 1 mark."
+        },
+        {
+          "code": "S4-EN-Q10",
+          "competency": "comprehension",
+          "type": "multi_select",
+          "stem": "Now look at the whole text again.\n\nWhich two of the following statements about Sumerian and Egyptian writing systems are true?",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 3,
+          "options": [
+            "Both used paper.",
+            "Both were written on clay.",
+            "Both were designed to be beautiful.",
+            "Both needed specially trained writers.",
+            "Both were developed at the same time."
+          ],
+          "key": {
+            "correct": [
+              "Both were written on clay.",
+              "Both needed specially trained writers."
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: 1 mark each; boxes two and four."
+        },
+        {
+          "code": "S4-EN-Q11",
+          "competency": "reading",
+          "type": "matching",
+          "stem": "Now look at the whole text again.\n\nMatch the paragraphs in the text to their topics.",
+          "passage": "insert",
+          "marks": 4,
+          "difficulty": 4,
+          "pairs": [
+            [
+              "Paragraph 1 (lines 2–6)",
+              "the first people to use writing"
+            ],
+            [
+              "Paragraph 2 (lines 7–12)",
+              "reasons people needed to write"
+            ],
+            [
+              "Paragraph 3 (lines 13–17)",
+              "what the earliest writing looked like"
+            ],
+            [
+              "Paragraph 8 (lines 36–41)",
+              "making papyrus paper"
+            ],
+            [
+              "Paragraph 9 (lines 42–48)",
+              "understanding Ancient Egyptian writing"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: 1 mark for one correct, 2 for two, 3 for three, 4 marks for four or five correct (five pairs, maximum 4 marks)."
+        },
+        {
+          "code": "S4-EN-Q12",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Which form of writing would you like to try doing yourself: Egyptian or Sumerian?\n\nWrite your choice, then explain it using two pieces of evidence from the text.\n\nEvidence 1:\nEvidence 2:",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "Sumerian: I would like to try making pictograms",
+              "Sumerian: I would like to try drawing pictograms",
+              "Sumerian: I would like to try writing pictograms",
+              "Sumerian: I would like to try cuneiform because it was the first form of writing",
+              "Sumerian: I would like to try making wedge shapes using a stylus on clay",
+              "Egyptian: I would like to try writing on papyrus paper",
+              "Egyptian: I would like to try writing hieroglyphs because they were beautiful"
+            ]
+          },
+          "note": "Mark scheme: 1 mark for each piece of evidence (max 2). If Sumerian: pictograms; cuneiform was the first form of writing; wedge shapes with a stylus on clay. If Egyptian: writing on papyrus paper; hieroglyphs were beautiful. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-EN-Q13",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Would you like to be a scribe in Ancient Egypt: Yes or No?\n\nWrite your choice, then explain it using two pieces of evidence from the text.\n\nEvidence 1:\nEvidence 2:",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "Yes: they did not have to pay taxes",
+              "Yes: they did not have to join the army",
+              "Yes: being a scribe was considered a good job",
+              "Yes: only children from rich families could train as scribes",
+              "Yes: I would like to be able to write beautifully",
+              "No: it took a long time to learn",
+              "No: it took years of education and practice",
+              "No: the training was very hard",
+              "No: the training was difficult",
+              "No: you had to start training when you were just a child",
+              "No: the training started at the very young age of six or seven",
+              "No: writing in hieroglyphics was so complicated"
+            ]
+          },
+          "note": "Mark scheme: 1 mark for each piece of evidence (max 2). If Yes: no taxes; no army; a good job (only rich children could train); write beautifully. If No: took a long time / years of education and practice; training was hard; had to start as a child of six or seven; hieroglyphics were complicated. A person should check this answer against the mark scheme."
+        }
+      ]
+    },
+    {
+      "title": "Section B: Writing",
+      "instructions": "Spend 30 minutes on this section.",
+      "items": [
+        {
+          "code": "S4-EN-Q14",
+          "competency": "written_language",
+          "type": "extended_text",
+          "stem": "Write an article for your school website about a very old place that you know about.\n\nIt could be:\n• a place where something important happened in the past\n• an old or famous building – a castle, a palace\n• an ancient city or ruins\n• a religious building\n• your own idea.\n\nPlan your article first, then write it.",
+          "marks": 25,
+          "difficulty": 5,
+          "note": "Marked with the Stage 4 writing grid: Creation of texts 5, Vocabulary and language 3, Structure of texts 7, Grammar and punctuation 7, Word structure (spelling) 3 = 25. 0 marks for 20 words or fewer; maximum 7 marks for 21–60 words."
+        }
+      ]
+    }
+  ],
+  "omitted": []
+}

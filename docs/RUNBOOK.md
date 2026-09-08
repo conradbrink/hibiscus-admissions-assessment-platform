@@ -103,6 +103,43 @@ chosen by the item's focus tokens (`apples:3`, `cards:1,3,5`, `clock:4:30`,
 `text:…`, `fractions:1/2,1/4`, `chart:rain`, a trailing `!` to highlight);
 a token nobody has drawn shows as a labelled card.
 
+## The Cambridge papers (entry to Stage 4, 5, 6 and 7)
+
+Applicants for Stage 4 and above sit a 40-minute paper on screen, drawn
+from the school's licensed Cambridge Primary Progression Tests. Which
+paper a child gets follows the stage they are entering:
+
+| Entering | Paper |
+|---|---|
+| Stage 4 | Cambridge Stage 4 |
+| Stage 5 | Cambridge Stage 5 |
+| Stage 6 and Stage 7 | Cambridge Stage 6 |
+
+1. The sitting has three parts with their own clocks: English 15 minutes,
+   Mathematics 13, Science 12. A part closes when its clock runs out and
+   the child moves on; the 40-minute clock covers the whole sitting.
+2. Each part is a **selection** from the full paper, chosen to fit the
+   time and spread across the paper's strands and difficulties. The whole
+   paper is in the question bank: to change what is asked, open
+   **Settings → Assessment templates → Cambridge Progression · entry to …**
+   and edit the part's question list.
+3. The long writing task is replaced by a **short piece** (one paragraph,
+   about five minutes, marked out of 8). Both it and the full 25-mark task
+   are in the bank with their own marking grids.
+4. Questions that need drawing, shading or measuring on paper are left
+   out; each paper's JSON file lists them under `omitted` with the reason.
+5. Marking is automatic for everything except the writing and the
+   open-ended "any valid reason" answers, which wait for a person on
+   **Assessments → Marking**. A question whose note says a person should
+   check it is one of those.
+
+To change the content, edit `web/content/papers/<stage>-<subject>.json`,
+run `node web/scripts/paper-seed.mjs > seed.sql` and apply it. The seed
+upserts by question code and never touches a paper already sat. The
+Cambridge material is the school's licensed copy: the pictures are served
+only to a computer with an open sitting or a signed-in staff member, and
+never sit on a public address.
+
 ## A child ran out of time
 
 The sitting is submitted automatically at the time limit (plus a short

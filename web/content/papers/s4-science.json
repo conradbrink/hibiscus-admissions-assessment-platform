@@ -1,0 +1,531 @@
+{
+  "code": "s4-science",
+  "name": "Cambridge Progression · Stage 4 · Science",
+  "subject": "science",
+  "stage": 4,
+  "time_limit_minutes": 40,
+  "source": "0097 Science 2025 Stage 4 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions.",
+      "items": [
+        {
+          "code": "S4-SC-Q1a",
+          "competency": "science_biology",
+          "type": "matching",
+          "stem": "The picture shows some of the bones in the human body.\n\nMatch each labelled part to the name of the bone.",
+          "marks": 1,
+          "difficulty": 1,
+          "media": "s4-science-q1a.png",
+          "pairs": [
+            [
+              "A",
+              "skull"
+            ],
+            [
+              "B",
+              "jaw"
+            ],
+            [
+              "C",
+              "rib"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "Mark scheme: A–skull, B–jaw, C–rib; all three correct = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q1bi",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Complete the sentence about the leg bones.\n\nThe leg bones move because they have …… of muscles attached to them.",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "pairs",
+              "a pair",
+              "pair"
+            ]
+          },
+          "note": "Mark scheme: pairs. Printed as the first blank of Question 1(b) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q1bii",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Complete the sentence about the leg bones.\n\nThe leg bones move when the muscles contract and …….",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "relax"
+            ]
+          },
+          "note": "Mark scheme: relax. Do not accept stretch. Printed as the second blank of Question 1(b) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q2a",
+          "competency": "science_enquiry",
+          "type": "numeric",
+          "stem": "Carlos asks his friends to name the planets in the Solar System.\n\nHe records the number of planets each friend names in a dot plot.\n\nWrite down the total number of friends Carlos asks to name the planets.",
+          "marks": 1,
+          "difficulty": 1,
+          "media": "s4-science-q2.png",
+          "key": {
+            "value": 19,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 19"
+        },
+        {
+          "code": "S4-SC-Q2b",
+          "competency": "science_physics",
+          "type": "numeric",
+          "stem": "Look at the same dot plot.\n\nHow many friends name all the planets in the Solar System?",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-science-q2.png",
+          "key": {
+            "value": 5,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 5"
+        },
+        {
+          "code": "S4-SC-Q2c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Planetary systems contain stars and planets.\n\nWrite down one other structure found in planetary systems.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "asteroids",
+              "asteroid",
+              "comets",
+              "comet",
+              "moon",
+              "moons",
+              "dwarf planet",
+              "dwarf planets",
+              "satellite",
+              "satellites",
+              "natural satellites",
+              "asteroid belt",
+              "meteors",
+              "meteor",
+              "meteoroids",
+              "meteorites"
+            ]
+          },
+          "note": "Mark scheme: asteroids or comets. Accept any other named structure in a planetary system, e.g. moon. Ignore stars or planets. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-SC-Q3a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Blessy investigates electrical circuits.\n\nThe diagram shows the equipment she uses.\n\nBlessy uses component X to light up the lamp.\n\nWrite down the name of component X.",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-science-q3.png",
+          "key": {
+            "accepted": [
+              "switch",
+              "a switch",
+              "the switch"
+            ]
+          },
+          "note": "Mark scheme: switch"
+        },
+        {
+          "code": "S4-SC-Q3b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Blessy puts a second lamp into her electrical circuit.\n\nPredict what happens to the brightness of the first lamp.",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-science-q3.png",
+          "key": {
+            "accepted": [
+              "dimmer",
+              "it becomes dimmer",
+              "becomes dimmer",
+              "it gets dimmer",
+              "gets dimmer",
+              "it will be dimmer",
+              "it is dimmer",
+              "less bright",
+              "it becomes less bright",
+              "it is less bright",
+              "it dims",
+              "it goes out",
+              "goes out",
+              "it does not light up",
+              "does not light up",
+              "it doesn't light up",
+              "it will not light"
+            ]
+          },
+          "note": "Mark scheme: (idea of) becomes dimmer. Accept goes out or does not light up. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-SC-Q3c",
+          "competency": "science_enquiry",
+          "type": "numeric",
+          "stem": "Blessy makes a gap in her first electrical circuit.\n\nBlessy puts different objects in the gap to complete the electrical circuit. She records if the lamp lights up.\n\nHere are her results.\n\nobject A: lamp lights up – yes\nobject B: no\nobject C: yes\nobject D: no\nobject E: yes\nobject F: yes\n\nHow many objects make the lamp light up?",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s4-science-q3c.png",
+          "key": {
+            "value": 4,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 4"
+        },
+        {
+          "code": "S4-SC-Q3di",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Object B is a plastic spoon.\n\nComplete the sentence to explain the result for object B.\n\nThe plastic spoon is a good electrical …… and a poor electrical (see next question).",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "insulator",
+              "an insulator"
+            ]
+          },
+          "note": "Mark scheme: insulator. Printed as the first blank of Question 3(d) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q3dii",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Object B is a plastic spoon.\n\nComplete the sentence to explain the result for object B.\n\nThe plastic spoon is a good electrical insulator and a poor electrical …….",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "conductor",
+              "a conductor"
+            ]
+          },
+          "note": "Mark scheme: conductor. Printed as the second blank of Question 3(d) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q4a",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Mia has a frozen ice lolly.\n\nShe leaves the ice lolly in a warm room.\n\nThe picture shows the ice lolly at the start and after five minutes.\n\nDescribe two differences between the ice lolly at the start and the ice lolly after five minutes.\n\n1\n2",
+          "marks": 2,
+          "difficulty": 3,
+          "media": "s4-science-q4.png",
+          "key": {
+            "accepted": [
+              "the frozen lolly is bigger",
+              "the lolly after five minutes is smaller",
+              "the frozen lolly is not melted",
+              "the lolly after five minutes has melted",
+              "the frozen lolly has the stick visible at one end only",
+              "the lolly after five minutes has the stick visible at both ends",
+              "they are different shapes",
+              "there is no liquid around the frozen lolly",
+              "there is liquid around the lolly after five minutes",
+              "the frozen lolly is bigger and it has not melted",
+              "the lolly after five minutes is smaller and has melted"
+            ]
+          },
+          "note": "Mark scheme: any two from — frozen lolly is bigger; frozen lolly is not melted / lolly after 5 minutes has melted; stick visible at one end only / at both ends; they are different shapes; no liquid around the frozen lolly / liquid around the lolly after five minutes. Accept the reverse argument. 1 mark each. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-SC-Q4bi",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "The frozen ice lolly is a solid at the start.\n\nComplete the sentence to explain why the solid ice lolly in the warm room changes.\n\nThe warm room …… the solid ice lolly.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "melts",
+              "melt",
+              "melted",
+              "is melting",
+              "heats",
+              "heats up",
+              "heat",
+              "heated",
+              "warms",
+              "warms up"
+            ]
+          },
+          "note": "Mark scheme: melts. Accept heats (up). Printed as the first blank of Question 4(b) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q4bii",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Complete the sentence.\n\nThe solid ice lolly changes state to become a …….",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "liquid",
+              "a liquid"
+            ]
+          },
+          "note": "Mark scheme: liquid. Printed as the second blank of Question 4(b) [2]; each correct answer = 1 mark."
+        },
+        {
+          "code": "S4-SC-Q4c",
+          "competency": "science_chemistry",
+          "type": "single_choice",
+          "stem": "Change of state is a type of process.\n\nChoose the name of this process.",
+          "marks": 1,
+          "difficulty": 3,
+          "options": [
+            "chemical",
+            "material",
+            "physical",
+            "substance"
+          ],
+          "key": {
+            "correct": "physical"
+          },
+          "note": "Mark scheme: physical (paper: circle the name; more than one circled = 0)."
+        },
+        {
+          "code": "S4-SC-Q5a",
+          "competency": "science_biology",
+          "type": "single_choice",
+          "stem": "The picture shows two food chains.\n\nWhich word describes the plants in the food chains?",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-science-q5.png",
+          "options": [
+            "consumer",
+            "herbivore",
+            "prey",
+            "producer"
+          ],
+          "key": {
+            "correct": "producer"
+          },
+          "note": "Mark scheme: producer (paper: circle the correct answer; more than one circled = 0)."
+        },
+        {
+          "code": "S4-SC-Q5b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Look at the same two food chains.\n\nThe mouse in each food chain is the same type of mouse.\n\nExplain why this type of mouse is an omnivore.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-science-q5.png",
+          "key": {
+            "accepted": [
+              "it eats plants and animals",
+              "eats plants and animals",
+              "it eats plants and insects",
+              "eats plants and insects",
+              "it eats both plants and animals",
+              "the mouse eats plants and animals",
+              "it eats plants and it eats insects",
+              "because it eats plants and animals",
+              "because it eats plants and insects"
+            ]
+          },
+          "note": "Mark scheme: eats plants and animals. Accept eats plants and insects. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S4-SC-Q5c",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Look at the same two food chains.\n\nWrite down the name of one carnivore from the food chains.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s4-science-q5.png",
+          "key": {
+            "accepted": [
+              "owl",
+              "the owl",
+              "an owl"
+            ]
+          },
+          "note": "Mark scheme: owl"
+        },
+        {
+          "code": "S4-SC-Q5d",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The owl has a backbone.\n\nWrite down the word that describes animals with backbones.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "vertebrate",
+              "vertebrates",
+              "a vertebrate"
+            ]
+          },
+          "note": "Mark scheme: vertebrate(s)"
+        },
+        {
+          "code": "S4-SC-Q6a",
+          "competency": "science_physics",
+          "type": "matching",
+          "stem": "The diagram shows the parts of a volcano.\n\nMatch each labelled part to the name of the part.",
+          "marks": 2,
+          "difficulty": 4,
+          "media": "s4-science-q6a.png",
+          "pairs": [
+            [
+              "A",
+              "ash cloud"
+            ],
+            [
+              "B",
+              "lava"
+            ],
+            [
+              "C",
+              "magma"
+            ],
+            [
+              "D",
+              "crater"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: A–ash cloud, B–lava, C–magma, D–crater. All four correct = 2 marks; two or three correct = 1 mark; one correct = 0 marks."
+        },
+        {
+          "code": "S4-SC-Q6b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Complete the sentence about volcanoes.\n\nVolcanoes are found at breaks in the Earth's …….",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "crust"
+            ]
+          },
+          "note": "Mark scheme: crust"
+        },
+        {
+          "code": "S4-SC-Q7a",
+          "competency": "science_chemistry",
+          "type": "multi_select",
+          "stem": "Class 4 have a quiz about solids and liquids.\n\nTheir teacher gives them five sentences.\n\nSelect every sentence that is TRUE. Leave the false sentences unselected.",
+          "marks": 2,
+          "difficulty": 4,
+          "options": [
+            "1. Solids keep their shape because the particles are held together.",
+            "2. The particles in solids move faster than the particles in liquids.",
+            "3. Liquids change their shape because the particles move around.",
+            "4. Solids are easily compressed because their particles are close together.",
+            "5. Liquids have a fixed volume because their particles are held close together."
+          ],
+          "key": {
+            "correct": [
+              "1. Solids keep their shape because the particles are held together.",
+              "3. Liquids change their shape because the particles move around.",
+              "5. Liquids have a fixed volume because their particles are held close together."
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: 1 true, 2 false, 3 true, 4 false, 5 true. All five correct = 2 marks; three or four correct = 1 mark; one or two correct = 0 marks. Paper uses true/false tick boxes for each sentence."
+        },
+        {
+          "code": "S4-SC-Q7b",
+          "competency": "science_chemistry",
+          "type": "single_choice",
+          "stem": "Some solids behave like liquids.\n\nChoose one solid that behaves like a liquid.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-science-q7b.png",
+          "options": [
+            "cotton",
+            "plastic",
+            "sugar",
+            "wood"
+          ],
+          "key": {
+            "correct": "sugar"
+          },
+          "note": "Mark scheme: sugar (paper: circle one; more than one circled = 0)."
+        },
+        {
+          "code": "S4-SC-Q8a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "The picture shows Pierre watching a television.\n\nThe television is plugged into the mains electricity.\n\nPierre sees the image and hears the television.\n\nThis is because electrical energy is transferred into two types of energy.\n\nOne of these two types of energy is light energy.\n\nName the other type of energy.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s4-science-q8.png",
+          "key": {
+            "accepted": [
+              "sound",
+              "sound energy"
+            ]
+          },
+          "note": "Mark scheme: sound"
+        },
+        {
+          "code": "S4-SC-Q8b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Some of the electrical energy is lost to the surroundings.\n\nThis makes the television warmer.\n\nName the type of energy that makes the television warmer.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "heat",
+              "heat energy",
+              "thermal",
+              "thermal energy"
+            ]
+          },
+          "note": "Mark scheme: heat. Accept thermal."
+        },
+        {
+          "code": "S4-SC-Q8c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Complete the sentence about why Pierre sees the image on the television.\n\nThe light from the image travels in …… lines to his eyes.",
+          "marks": 1,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "straight"
+            ]
+          },
+          "note": "Mark scheme: straight"
+        },
+        {
+          "code": "S4-SC-Q8d",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Pierre switches the television off.\n\nHe still sees the television but not the image.\n\nExplain why he still sees the television.",
+          "marks": 1,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "the television reflects light from another light source into his eyes",
+              "the television reflects light from another light source",
+              "light from another source reflects off the television into his eyes",
+              "light from the room reflects off the television",
+              "the television reflects light",
+              "light reflects off the television into his eyes",
+              "light from a lamp reflects off the television",
+              "light is reflected from the television"
+            ]
+          },
+          "note": "Mark scheme: (idea that) the television reflects light from another light source (into his eyes). A person should check this answer against the mark scheme."
+        }
+      ]
+    }
+  ],
+  "omitted": []
+}
