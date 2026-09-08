@@ -38,6 +38,7 @@ function elapsedFrom(t0: number | undefined): number | null {
  */
 export async function submitEnquiry(
   route: EntryRoute,
+  preschool: boolean,
   _prev: EnquiryFormState,
   formData: FormData
 ): Promise<EnquiryFormState> {
@@ -145,5 +146,7 @@ export async function submitEnquiry(
     redirect("/next");
   }
 
-  redirect("/next/grade");
+  // The pre-school door shows only the classes that need no assessment on
+  // the next screen; the flag is a hint for that screen, nothing more.
+  redirect(preschool ? "/next/grade?preschool=1" : "/next/grade");
 }
