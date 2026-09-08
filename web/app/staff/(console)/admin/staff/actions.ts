@@ -75,6 +75,42 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
   });
 }
 
+/**
+ * Sends the invitation again to someone who has not yet accepted the first
+ * one. Supabase refuses to re-invite a confirmed user, so the button only
+ * shows for people who have never signed in; the guard here repeats that
+ * check server-side. Supabase also rate-limits auth emails per address
+ * (one a minute), and that error is passed through as it is.
+ */
+export async function resendInvite(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("staff.write");
+    const { staffId } = z.object({ staffId: z.uuid() }).parse({ staffId: formData.get("staffId") });
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin.from("staff_profiles").select("id, email, is_active").eq("id", staffId).single();
+    if (!profile) throw new Error("That member of staff no longer exists.");
+    if (!profile.is_active) throw new Error("This person is deactivated. Tick \"Can sign in\" and save first.");
+    const { data: user } = await admin.auth.admin.getUserById(staffId);
+    if (user.user?.email_confirmed_at) throw new Error("This person has already accepted their invitation. They can reset their password from the sign-in page.");
+
+    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/staff/reset-password`;
+    const { error } = await admin.auth.admin.inviteUserByEmail(profile.email, { redirectTo });
+    if (error) throw new Error(error.message);
+
+    await admin.from("audit_log").insert({
+      actor_type: "staff",
+      actor_id: ctx.userId,
+      actor_label: ctx.profile.email,
+      action: "staff.invite_resent",
+      entity_type: "staff_profile",
+      entity_id: staffId,
+      after: { email: profile.email },
+    });
+    revalidatePath("/staff/admin/staff");
+  });
+}
+
 export async function updateStaffAccess(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.write");
