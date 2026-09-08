@@ -79,7 +79,7 @@ export default async function StaffAdminPage() {
                   </ActionForm>
                 ) : null}
                 {s.id !== userId ? (
-                  <ActionForm action={deleteStaff} label="Delete" size="xs" variant="ghost" confirm={`Delete ${s.full_name} completely? Their sign-in, roles and campus access are removed. Only possible while they have no history in the system; otherwise untick "Can sign in" instead.`}>
+                  <ActionForm action={deleteStaff} label="Delete" size="xs" variant="ghost" confirm={`Delete ${s.full_name} completely? Their sign-in, roles and campus access are removed. Anything assigned to them (applications, tasks, sessions) is unassigned. Only possible while they have not decided, approved, marked or recorded anything; otherwise untick "Can sign in" instead.`}>
                     <input type="hidden" name="staffId" value={s.id} />
                   </ActionForm>
                 ) : null}
