@@ -112,10 +112,12 @@ export async function resendInvite(_: StaffActionState, formData: FormData): Pro
 }
 
 /**
- * Where a person leaves a trace. Deleting someone who appears here would
- * either blank the "who" on records (the columns are `on delete set null`)
- * or, for notes, remove their notes outright; such a person is deactivated
- * instead. The list mirrors the foreign keys onto staff_profiles.
+ * Where a person leaves a trace of something they did. Deleting someone who
+ * appears here would either blank the "who" on records (the columns are
+ * `on delete set null`) or, for notes, remove their notes outright; such a
+ * person is deactivated instead. Assignments (owner of an application,
+ * assignee of a task, assessor of a session, recipient of a digest) are not
+ * history: they are cleared by the delete and listed in the audit row.
  */
 const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: string }> = [
   { table: "admission_decisions", column: "staff_id", label: "decisions" },
@@ -129,17 +131,13 @@ const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: strin
   { table: "documents", column: "reviewed_by", label: "reviewed documents" },
   { table: "documents", column: "uploaded_by_staff_id", label: "uploaded documents" },
   { table: "application_promotions", column: "applied_by", label: "applied promotions" },
-  { table: "applications", column: "owner_staff_id", label: "owned applications" },
   { table: "tasks", column: "resolved_by", label: "resolved tasks" },
   { table: "tasks", column: "created_by", label: "created tasks" },
-  { table: "tasks", column: "assignee_staff_id", label: "assigned tasks" },
   { table: "sessions", column: "created_by", label: "created sessions" },
-  { table: "sessions", column: "assessor_staff_id", label: "sessions as assessor" },
   { table: "school_closures", column: "created_by", label: "school closures" },
   { table: "student_records", column: "generated_by", label: "student records" },
   { table: "student_exports", column: "created_by", label: "exports" },
   { table: "application_summaries", column: "generated_by", label: "summaries" },
-  { table: "email_messages", column: "recipient_staff_id", label: "staff emails" },
   { table: "settings", column: "updated_by", label: "settings changes" },
   { table: "promotions", column: "created_by", label: "promotions" },
   { table: "admission_rulesets", column: "created_by", label: "rulesets" },
@@ -151,6 +149,14 @@ const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: strin
   { table: "offer_templates", column: "created_by", label: "offer templates" },
   { table: "agreement_templates", column: "created_by", label: "agreements" },
   { table: "message_templates", column: "updated_by", label: "WhatsApp templates" },
+];
+
+/** Cleared, not counted: the foreign keys are `on delete set null`. */
+const STAFF_ASSIGNMENTS: ReadonlyArray<{ table: string; column: string; label: string }> = [
+  { table: "applications", column: "owner_staff_id", label: "owned applications" },
+  { table: "tasks", column: "assignee_staff_id", label: "assigned tasks" },
+  { table: "sessions", column: "assessor_staff_id", label: "sessions as assessor" },
+  { table: "email_messages", column: "recipient_staff_id", label: "staff emails" },
 ];
 
 /**
@@ -194,6 +200,11 @@ export async function deleteStaff(_: StaffActionState, formData: FormData): Prom
     if (found.length) {
       throw new Error(`${profile.full_name} has history here (${found.join(", ")}), so the record must stay. Untick "Can sign in" and save to remove their access instead.`);
     }
+    const cleared: Record<string, number> = {};
+    for (const ref of STAFF_ASSIGNMENTS) {
+      const { count } = await loose.from(ref.table).select("*", { count: "exact", head: true }).eq(ref.column, staffId);
+      if (count) cleared[ref.label] = count;
+    }
 
     // The auth user is the parent row: the profile, roles and campuses
     // cascade from it. The audit row is written first so it exists even if
@@ -206,6 +217,7 @@ export async function deleteStaff(_: StaffActionState, formData: FormData): Prom
       entity_type: "staff_profile",
       entity_id: staffId,
       before: { email: profile.email, full_name: profile.full_name },
+      after: { cleared },
     });
     const { error } = await admin.auth.admin.deleteUser(staffId);
     if (error) throw new Error(error.message);

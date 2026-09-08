@@ -375,7 +375,8 @@ trail keeps their name.
 
 **Delete** removes a person entirely (sign-in, profile, roles, campuses) and
 is for mistakes: a wrong email, a test account, an invitation never accepted.
-It refuses anyone with history (a decision, an approval, a marked answer, a
+Applications, tasks and sessions assigned to the person are unassigned. It
+refuses anyone with history (a decision, an approval, a marked answer, a
 recorded payment, a note…) and says what it found; deactivate those people
 instead so the record of who did what stays intact. Deletions are audited.
 
