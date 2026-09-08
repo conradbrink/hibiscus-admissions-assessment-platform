@@ -361,6 +361,12 @@ school gets **Admissions manager** with the same campus limit. Head-office
 staff have no campus limit and see every school. Every list, count and
 report in the console follows the same rule automatically.
 
+The invitation link lasts 24 hours. Until the person has used it their card
+shows **Invitation not yet accepted** with a **Resend invitation** button;
+press it to send a fresh link (Supabase allows one auth email a minute per
+address). Once they have set a password the button goes away, and a
+forgotten password is reset from the sign-in page instead.
+
 ## Somebody left, or joined
 
 `/staff/admin/staff`. Untick **Can sign in** to remove access at once —

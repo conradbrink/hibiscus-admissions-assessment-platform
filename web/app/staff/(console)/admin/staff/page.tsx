@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PERMISSION_CODES, PERMISSION_LABELS } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
-import { inviteStaff, updateRolePermissions, updateStaffAccess } from "./actions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { inviteStaff, resendInvite, updateRolePermissions, updateStaffAccess } from "./actions";
 
 export default async function StaffAdminPage() {
   const { supabase } = await requireStaff("staff.write");
@@ -18,6 +19,11 @@ export default async function StaffAdminPage() {
       supabase.from("staff_campuses").select("*"),
       supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order"),
     ]);
+  // Whether each person has accepted their invitation lives in auth, which
+  // only the service role can read. This page is already limited to
+  // staff.write, and the map carries nothing but a yes/no per person.
+  const { data: authUsers } = await createAdminClient().auth.admin.listUsers({ perPage: 1000 });
+  const accepted = new Map((authUsers?.users ?? []).map((u) => [u.id, Boolean(u.email_confirmed_at)]));
 
   const rolesOf = (id: string) => new Set((staffRoles ?? []).filter((r) => r.staff_id === id).map((r) => r.role_id));
   const campusesOf = (id: string) => new Set((staffCampuses ?? []).filter((r) => r.staff_id === id).map((r) => r.campus_id));
@@ -64,7 +70,13 @@ export default async function StaffAdminPage() {
                 <span className="font-medium">{s.full_name}</span>
                 <span className="text-sm text-muted-foreground">{s.email}</span>
                 {s.is_active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Deactivated</Badge>}
+                {accepted.get(s.id) === false ? <Badge variant="warning">Invitation not yet accepted</Badge> : null}
               </div>
+              {accepted.get(s.id) === false && s.is_active ? (
+                <ActionForm action={resendInvite} label="Resend invitation" size="xs" variant="outline" className="mb-3">
+                  <input type="hidden" name="staffId" value={s.id} />
+                </ActionForm>
+              ) : null}
               <ActionForm action={updateStaffAccess} label="Save" size="sm" variant="outline" className="space-y-2 text-sm">
                 <input type="hidden" name="staffId" value={s.id} />
                 <label className="flex items-center gap-1.5"><input type="checkbox" name="isActive" value="1" defaultChecked={s.is_active} /> Can sign in</label>
