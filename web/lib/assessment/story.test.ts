@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backdropFor, parseCount, parseFocus, pickVoice, RAIN_CHART, strandStopped, tallyOutcome } from "./story";
+import { backdropFor, MAX_NARRATION_CHARS, normaliseNarration, parseCount, parseFocus, pickVoice, RAIN_CHART, strandStopped, tallyOutcome } from "./story";
 
 describe("parseFocus", () => {
   it("splits a kind from its comma list", () => {
@@ -110,5 +110,12 @@ describe("the rain chart", () => {
     expect(mm.Feb + mm.Apr).toBe(100);
     expect(mm.Nov + mm.Mar).not.toBe(100);
     expect(mm.Dec + mm.Apr).not.toBe(100);
+  });
+});
+
+describe("normaliseNarration", () => {
+  it("collapses whitespace so two spellings share a recording, and caps the length", () => {
+    expect(normaliseNarration("  Point to   the\napple. ")).toBe("Point to the apple.");
+    expect(normaliseNarration("x".repeat(5000))).toHaveLength(MAX_NARRATION_CHARS);
   });
 });

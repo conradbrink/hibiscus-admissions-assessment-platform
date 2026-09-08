@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { QUESTION_TYPE_LABELS } from "@/lib/assessment/keys";
 import { requireStaff } from "@/lib/staff/session";
 import type { Json } from "@/lib/supabase/types";
-import { deleteSection, saveSection, saveSectionQuestions, saveTemplate, setTemplateStatus } from "../actions";
+import { RecordVoiceButton } from "@/components/staff/record-voice-button";
+import { deleteSection, recordStoryVoice, saveSection, saveSectionQuestions, saveTemplate, setTemplateStatus } from "../actions";
 
 function mixText(mix: Json | null): string {
   if (!mix || typeof mix !== "object" || Array.isArray(mix)) return "";
@@ -62,6 +63,15 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
         </NativeSelect>
         <Input name="storyCharacter" defaultValue={template.story_character ?? ""} placeholder="Story character, e.g. Tumi" className="md:col-span-3" />
       </ActionForm>
+
+      {template.delivery === "story" ? (
+        <div className="mb-5 flex flex-wrap items-center gap-3 surface px-4 py-3 text-sm">
+          <p className="min-w-0 flex-1 text-muted-foreground">
+            Record every line of this chapter ahead of a sitting, so the first child hears no gaps. Lines already recorded are skipped.
+          </p>
+          <RecordVoiceButton templateId={template.id} action={recordStoryVoice} />
+        </div>
+      ) : null}
 
       <h2 className="mb-2 text-sm font-semibold">Sections, in order</h2>
       <div className="space-y-4">

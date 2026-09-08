@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Delete, Pause, Play, Settings2, SkipForward, Volume2 } from "lucide-react";
 import type { DeliveryForm, DeliveryQuestion } from "@/lib/assessment/delivery";
-import { backdropFor, strandStopped, tallyOutcome, type AdultOutcome, type MissTally } from "@/lib/assessment/story";
+import { backdropFor, STOCK_LINES, strandStopped, tallyOutcome, type AdultOutcome, type MissTally } from "@/lib/assessment/story";
 import type { Json } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 import type { SubmitState } from "@/app/(kiosk)/sit/actions";
@@ -34,7 +34,7 @@ type Step =
 
 type Responses = Record<string, Json>;
 
-const PRAISE = ["Well done! You're a great helper.", "Wonderful! Let's keep going.", "You did it! Thank you.", "Brilliant! Off we go."];
+const PRAISE = STOCK_LINES.slice(0, 4);
 
 function obj(v: Json | undefined): Record<string, Json | undefined> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, Json | undefined>) : {};
@@ -48,6 +48,7 @@ export function StoryPlayer({
   graceSeconds,
   childName,
   submitAction,
+  serverVoice = false,
 }: {
   form: DeliveryForm;
   character: string;
@@ -56,6 +57,8 @@ export function StoryPlayer({
   graceSeconds: number;
   childName: string;
   submitAction: (state: SubmitState) => Promise<SubmitState>;
+  /** Recorded lines from the server (ElevenLabs) instead of the browser's synthesiser. */
+  serverVoice?: boolean;
 }) {
   const steps = useMemo<Step[]>(() => {
     const out: Step[] = [{ kind: "welcome" }];
@@ -82,7 +85,7 @@ export function StoryPlayer({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [showVoices, setShowVoices] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const narrator = useNarrator();
+  const narrator = useNarrator(serverVoice);
   const submitRef = useRef<HTMLFormElement>(null);
   const [submitState, submitFormAction, submitting] = useActionState<SubmitState>(submitAction, {});
 
@@ -126,17 +129,35 @@ export function StoryPlayer({
 
   const step = steps[index];
   const section = step.kind === "scene" || step.kind === "item" || step.kind === "reward" ? form.sections[step.sectionIndex] : null;
-  // Tumi speaks whenever a new step opens. The welcome screen waits for a
-  // tap, which is also what lets the browser play sound at all.
+  const lineFor = useCallback(
+    (s: Step): string => {
+      switch (s.kind) {
+        case "scene":
+          return form.sections[s.sectionIndex].narration ?? form.sections[s.sectionIndex].title;
+        case "item":
+          return s.question.narration ?? s.question.stem;
+        case "reward":
+          return PRAISE[s.sectionIndex % PRAISE.length];
+        case "finish":
+          return childName ? `Thank you, ${childName}. You were a wonderful helper. Goodbye!` : STOCK_LINES[4];
+        default:
+          return "";
+      }
+    },
+    [form.sections, childName],
+  );
+
+  // Tumi speaks whenever a new step opens, and the next few lines are
+  // fetched in the background so a recorded voice never leaves a gap. The
+  // welcome screen waits for a tap, which is also what lets the browser
+  // play sound at all.
   const spokenFor = useRef<number>(-1);
   useEffect(() => {
     if (index === 0 || paused || spokenFor.current === index) return;
     spokenFor.current = index;
-    if (step.kind === "scene") narrator.speak(section?.narration ?? section?.title ?? "");
-    else if (step.kind === "item") narrator.speak(step.question.narration ?? step.question.stem, null);
-    else if (step.kind === "reward") narrator.speak(PRAISE[step.sectionIndex % PRAISE.length]);
-    else if (step.kind === "finish") narrator.speak(`Thank you, ${childName || "my friend"}. You were a wonderful helper. Goodbye!`);
-  }, [index, paused, step, section, narrator, childName]);
+    narrator.speak(lineFor(step));
+    for (let i = index + 1; i <= index + 3 && i < steps.length; i += 1) narrator.prefetch(lineFor(steps[i]));
+  }, [index, paused, step, steps, narrator, lineFor]);
 
   const mood: TumiMood = paused
     ? "idle"
@@ -190,6 +211,7 @@ export function StoryPlayer({
 
   const begin = () => {
     setPaused(false);
+    for (let i = 1; i <= 3 && i < steps.length; i += 1) narrator.prefetch(lineFor(steps[i]));
     setIndex(1);
   };
 
@@ -237,11 +259,7 @@ export function StoryPlayer({
                   <span className="absolute -bottom-3 left-10 size-6 rotate-45 bg-[color:var(--bubble)]" aria-hidden />
                   <button
                     type="button"
-                    onClick={() => {
-                      const text =
-                        step.kind === "scene" ? (section?.narration ?? "") : step.kind === "item" ? (step.question.narration ?? step.question.stem) : step.kind === "reward" ? PRAISE[step.sectionIndex % PRAISE.length] : "";
-                      if (text) narrator.speak(text);
-                    }}
+                    onClick={() => narrator.speak(lineFor(step))}
                     className="absolute -top-3 -right-3 flex size-11 items-center justify-center rounded-full bg-[color:var(--tumi-spike)] text-white shadow-md transition hover:scale-105"
                     aria-label="Say it again"
                     title="Say it again"
@@ -255,7 +273,7 @@ export function StoryPlayer({
 
             {/* What the scene shows, and how the child answers */}
             <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-5 overflow-y-auto py-2">
-              {step.kind === "welcome" ? <Welcome character={character} childName={childName} onBegin={begin} voiceReady={narrator.supported} /> : null}
+              {step.kind === "welcome" ? <Welcome character={character} childName={childName} onBegin={begin} voiceReady={narrator.supported || narrator.recorded} /> : null}
               {step.kind === "scene" ? (
                 <button type="button" onClick={() => advance(index, tally)} className="story-pop rounded-full bg-[color:var(--tumi-spike)] px-10 py-5 text-2xl font-bold text-white shadow-[0_8px_0_#d96a3f] transition hover:translate-y-0.5 hover:shadow-[0_6px_0_#d96a3f]">
                   Let&apos;s go!
@@ -372,6 +390,9 @@ export function StoryPlayer({
               {showVoices ? (
                 <div className="absolute right-0 bottom-12 z-40 w-72 rounded-xl bg-white p-3 text-[color:var(--ink)] shadow-xl">
                   <p className="text-xs font-semibold tracking-wide text-[color:var(--ink)]/60 uppercase">Voice</p>
+                  {narrator.recorded ? (
+                    <p className="mt-1 text-sm">{character}&apos;s lines are recorded. If a recording cannot be fetched, the browser voice below reads the line instead.</p>
+                  ) : null}
                   {narrator.supported ? (
                     <select
                       value={narrator.voiceName ?? ""}
@@ -390,7 +411,9 @@ export function StoryPlayer({
                   ) : (
                     <p className="mt-1 text-sm">This browser cannot speak. Read {character}&apos;s words aloud from the bubble.</p>
                   )}
-                  <p className="mt-2 text-xs text-[color:var(--ink)]/60">A soft female English voice is chosen automatically. On Windows, Edge&apos;s “Online (Natural)” voices sound best.</p>
+                  {!narrator.recorded ? (
+                    <p className="mt-2 text-xs text-[color:var(--ink)]/60">A soft female English voice is chosen automatically. On Windows, Edge&apos;s “Online (Natural)” voices sound best.</p>
+                  ) : null}
                 </div>
               ) : null}
             </div>

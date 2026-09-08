@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { notFound } from "next/navigation";
 import { StoryPlayer } from "@/components/kiosk/story/story-player";
+import { storyVoiceProvider } from "@/lib/assessment/story-voice";
 import type { DeliveryForm } from "@/lib/assessment/delivery";
 import type { SubmitState } from "../actions";
 
@@ -66,5 +67,5 @@ export default async function Preview({ searchParams }: { searchParams: Promise<
     })),
     totalQuestions: total,
   };
-  return <StoryPlayer form={form} character={chapter.character} initialResponses={{}} expiresAt={expiresAt} graceSeconds={60} childName="Naledi" submitAction={noop} />;
+  return <StoryPlayer form={form} character={chapter.character} initialResponses={{}} expiresAt={expiresAt} graceSeconds={60} childName="Naledi" submitAction={noop} serverVoice={storyVoiceProvider() === "elevenlabs"} />;
 }

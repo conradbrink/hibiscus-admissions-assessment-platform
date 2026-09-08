@@ -195,3 +195,64 @@ export async function saveSectionQuestions(_: StaffActionState, formData: FormDa
     revalidatePath(templatePath(p.templateId));
   });
 }
+
+export type RecordVoiceState = {
+  /** How many distinct lines the chapter says, stock lines included. */
+  total: number;
+  /** How many of them have a recording after this call. */
+  recorded: number;
+  done: boolean;
+  error?: string;
+  /** No voice provider is configured, so there is nothing to record. */
+  unavailable?: boolean;
+};
+
+/**
+ * Records a story chapter's lines ahead of a sitting, a few per call so a
+ * long chapter never outlasts one request. The button on the template
+ * page keeps calling until `done`. Every line is cached by its text, so a
+ * line shared between chapters is recorded once.
+ */
+export async function recordStoryVoice(templateId: string): Promise<RecordVoiceState> {
+  const ctx = await requireStaffAction("assessments.author");
+  const [{ storyVoiceProvider, narrationAudio, isRecorded }, { STOCK_LINES, normaliseNarration }] = await Promise.all([
+    import("@/lib/assessment/story-voice"),
+    import("@/lib/assessment/story"),
+  ]);
+  if (storyVoiceProvider() !== "elevenlabs") return { total: 0, recorded: 0, done: true, unavailable: true };
+
+  const { data: sections } = await ctx.supabase
+    .from("template_sections")
+    .select("narration, title, template_section_questions(questions(narration, stem))")
+    .eq("template_id", templateId);
+  const lines = new Set<string>(STOCK_LINES.map(normaliseNarration));
+  for (const s of sections ?? []) {
+    lines.add(normaliseNarration(s.narration ?? s.title));
+    for (const tsq of s.template_section_questions ?? []) {
+      const q = Array.isArray(tsq.questions) ? tsq.questions[0] : tsq.questions;
+      if (q) lines.add(normaliseNarration(q.narration ?? q.stem));
+    }
+  }
+  lines.delete("");
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  let recorded = 0;
+  let synthesised = 0;
+  const BATCH = 6;
+  try {
+    for (const line of lines) {
+      if (await isRecorded(admin, line)) {
+        recorded += 1;
+        continue;
+      }
+      if (synthesised >= BATCH) continue;
+      await narrationAudio(admin, line);
+      synthesised += 1;
+      recorded += 1;
+    }
+  } catch (e) {
+    return { total: lines.size, recorded, done: false, error: e instanceof Error ? e.message : "The voice service refused." };
+  }
+  return { total: lines.size, recorded, done: recorded >= lines.size };
+}

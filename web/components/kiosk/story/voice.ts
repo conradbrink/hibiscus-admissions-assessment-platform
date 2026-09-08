@@ -4,30 +4,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pickVoice, VOICE_STYLE } from "@/lib/assessment/story";
 
 /**
- * The voice that reads the story. Web Speech API on the kiosk computer,
- * with the softest female English voice the device has; staff can choose
- * another from the adult strip and the choice sticks to that computer.
+ * The voice that reads the story.
  *
- * Pre-recorded clips: when a chapter is recorded by a real person, drop
- * the files in public/story/voice/<item code>.mp3 and list the codes in
- * RECORDED. The player plays the clip and falls back to the synthesiser
- * for anything not recorded. Nothing else changes.
+ * With `serverVoice` on, every line is a recording fetched from
+ * /api/sit/voice (ElevenLabs, cached on the server after the first time it
+ * is said) and played through an <audio> element; the next line is fetched
+ * while the current one plays, so there is no gap. Without it, or when a
+ * fetch fails, the browser's own speech synthesis reads the line with the
+ * softest female English voice the device has, which staff can change from
+ * the adult strip; that choice sticks to the computer.
  */
 
-const RECORDED = new Set<string>();
 const STORAGE_KEY = "hibiscus.story.voice";
 
 export type Narrator = {
   supported: boolean;
+  /** Recordings from the server rather than the browser's synthesiser. */
+  recorded: boolean;
   speaking: boolean;
   voices: SpeechSynthesisVoice[];
   voiceName: string | null;
   chooseVoice: (name: string | null) => void;
-  speak: (text: string, clipCode?: string | null) => void;
+  speak: (text: string) => void;
+  prefetch: (text: string) => void;
   stop: () => void;
 };
 
-export function useNarrator(): Narrator {
+export function useNarrator(serverVoice: boolean): Narrator {
   const supported = typeof window !== "undefined" && "speechSynthesis" in window;
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [chosen, setChosen] = useState<string | null>(() => {
@@ -40,6 +43,10 @@ export function useNarrator(): Narrator {
   });
   const [speaking, setSpeaking] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
+  // Object URLs for lines already fetched, by text. Small: a chapter is a few dozen lines.
+  const clips = useRef<Map<string, Promise<string | null>>>(new Map());
+  // Which utterance is current, so a stale fetch cannot start playing over a newer line.
+  const turn = useRef(0);
 
   useEffect(() => {
     if (!supported) return;
@@ -55,6 +62,7 @@ export function useNarrator(): Narrator {
   }, [voices, chosen]);
 
   const stop = useCallback(() => {
+    turn.current += 1;
     if (supported) window.speechSynthesis.cancel();
     if (audio.current) {
       audio.current.pause();
@@ -63,18 +71,8 @@ export function useNarrator(): Narrator {
     setSpeaking(false);
   }, [supported]);
 
-  const speak = useCallback(
-    (text: string, clipCode?: string | null) => {
-      stop();
-      if (clipCode && RECORDED.has(clipCode)) {
-        const a = new Audio(`/story/voice/${clipCode}.mp3`);
-        audio.current = a;
-        a.onended = () => setSpeaking(false);
-        a.onerror = () => setSpeaking(false);
-        setSpeaking(true);
-        void a.play().catch(() => setSpeaking(false));
-        return;
-      }
+  const synthesise = useCallback(
+    (text: string) => {
       if (!supported) return;
       const u = new SpeechSynthesisUtterance(text);
       if (voice) u.voice = voice;
@@ -87,7 +85,66 @@ export function useNarrator(): Narrator {
       u.onerror = () => setSpeaking(false);
       window.speechSynthesis.speak(u);
     },
-    [stop, supported, voice],
+    [supported, voice],
+  );
+
+  const fetchClip = useCallback(
+    (text: string): Promise<string | null> => {
+      const key = text.replace(/\s+/g, " ").trim();
+      const existing = clips.current.get(key);
+      if (existing) return existing;
+      const p = fetch(`/api/sit/voice?t=${encodeURIComponent(key)}`)
+        .then(async (res) => {
+          if (!res.ok) return null;
+          const blob = await res.blob();
+          return URL.createObjectURL(blob);
+        })
+        .catch(() => null);
+      clips.current.set(key, p);
+      // A failed fetch is not remembered, so the next attempt tries again.
+      void p.then((url) => {
+        if (!url) clips.current.delete(key);
+      });
+      return p;
+    },
+    [],
+  );
+
+  const prefetch = useCallback(
+    (text: string) => {
+      if (serverVoice && text.trim()) void fetchClip(text);
+    },
+    [serverVoice, fetchClip],
+  );
+
+  const speak = useCallback(
+    (text: string) => {
+      stop();
+      const line = text.trim();
+      if (!line) return;
+      if (!serverVoice) {
+        synthesise(line);
+        return;
+      }
+      const mine = ++turn.current;
+      setSpeaking(true);
+      void fetchClip(line).then((url) => {
+        if (turn.current !== mine) return;
+        if (!url) {
+          synthesise(line);
+          return;
+        }
+        const a = new Audio(url);
+        audio.current = a;
+        a.onended = () => setSpeaking(false);
+        a.onerror = () => setSpeaking(false);
+        void a.play().catch(() => {
+          // Autoplay refused (no gesture yet): show the words and stay quiet.
+          setSpeaking(false);
+        });
+      });
+    },
+    [stop, serverVoice, fetchClip, synthesise],
   );
 
   const chooseVoice = useCallback((name: string | null) => {
@@ -102,5 +159,5 @@ export function useNarrator(): Narrator {
 
   useEffect(() => stop, [stop]);
 
-  return { supported, speaking, voices, voiceName: voice?.name ?? null, chooseVoice, speak, stop };
+  return { supported, recorded: serverVoice, speaking, voices, voiceName: voice?.name ?? null, chooseVoice, speak, prefetch, stop };
 }

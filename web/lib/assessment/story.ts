@@ -152,3 +152,24 @@ export const RAIN_CHART: ReadonlyArray<{ month: string; mm: number }> = [
   { month: "Mar", mm: 50 },
   { month: "Apr", mm: 20 },
 ];
+
+/**
+ * One line of narration as the voice service receives it: trimmed, single
+ * spaces, capped so a runaway string cannot become a runaway bill. The
+ * cache key is built from this, so two spellings of the same line share
+ * one recording.
+ */
+export const MAX_NARRATION_CHARS = 1200;
+
+export function normaliseNarration(text: string): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, MAX_NARRATION_CHARS);
+}
+
+/** The lines the player says that are not in any chapter, so they can be recorded ahead too. */
+export const STOCK_LINES: readonly string[] = [
+  "Well done! You're a great helper.",
+  "Wonderful! Let's keep going.",
+  "You did it! Thank you.",
+  "Brilliant! Off we go.",
+  "Thank you, my friend. You were a wonderful helper. Goodbye!",
+];
