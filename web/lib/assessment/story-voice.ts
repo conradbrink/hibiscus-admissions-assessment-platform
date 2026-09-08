@@ -107,14 +107,19 @@ export async function narrationAudio(admin: AdminClient, rawText: string): Promi
   return { bytes, cached: false };
 }
 
-/** Whether a line is already recorded, without synthesising it. */
-export async function isRecorded(admin: AdminClient, rawText: string): Promise<boolean> {
-  const text = normaliseNarration(rawText);
-  if (!text) return true;
+/**
+ * Every recording the current voice has, as object paths. One listing, so
+ * checking a whole chapter costs one request rather than one per line.
+ */
+export async function recordedPaths(admin: AdminClient): Promise<Set<string>> {
   await ensureBucket(admin);
-  const path = voiceObjectPath(text);
-  const dir = path.slice(0, path.lastIndexOf("/"));
-  const file = path.slice(path.lastIndexOf("/") + 1);
-  const { data } = await admin.storage.from(VOICE_BUCKET).list(dir, { search: file, limit: 1 });
-  return Boolean(data?.some((o) => o.name === file));
+  const out = new Set<string>();
+  const dir = voiceId();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await admin.storage.from(VOICE_BUCKET).list(dir, { limit: 1000, offset });
+    if (error) throw new Error(`storage list: ${error.message}`);
+    for (const o of data ?? []) out.add(`${dir}/${o.name}`);
+    if (!data || data.length < 1000) break;
+  }
+  return out;
 }

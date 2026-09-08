@@ -214,8 +214,19 @@ export type RecordVoiceState = {
  * line shared between chapters is recorded once.
  */
 export async function recordStoryVoice(templateId: string): Promise<RecordVoiceState> {
+  try {
+    return await recordBatch(templateId);
+  } catch (e) {
+    return { total: 0, recorded: 0, done: false, error: e instanceof Error ? e.message : "Recording failed." };
+  }
+}
+
+/** A few lines per call: each synthesis takes a second or two and a request has a time limit. */
+const BATCH = 3;
+
+async function recordBatch(templateId: string): Promise<RecordVoiceState> {
   const ctx = await requireStaffAction("assessments.author");
-  const [{ storyVoiceProvider, narrationAudio, isRecorded }, { STOCK_LINES, normaliseNarration }] = await Promise.all([
+  const [{ storyVoiceProvider, narrationAudio, recordedPaths, voiceObjectPath }, { STOCK_LINES, normaliseNarration }] = await Promise.all([
     import("@/lib/assessment/story-voice"),
     import("@/lib/assessment/story"),
   ]);
@@ -237,18 +248,12 @@ export async function recordStoryVoice(templateId: string): Promise<RecordVoiceS
 
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
-  let recorded = 0;
-  let synthesised = 0;
-  const BATCH = 6;
+  const have = await recordedPaths(admin);
+  const missing = [...lines].filter((line) => !have.has(voiceObjectPath(line)));
+  let recorded = lines.size - missing.length;
   try {
-    for (const line of lines) {
-      if (await isRecorded(admin, line)) {
-        recorded += 1;
-        continue;
-      }
-      if (synthesised >= BATCH) continue;
+    for (const line of missing.slice(0, BATCH)) {
       await narrationAudio(admin, line);
-      synthesised += 1;
       recorded += 1;
     }
   } catch (e) {

@@ -18,7 +18,7 @@ export function RecordVoiceButton({ templateId, action }: { templateId: string; 
       let next = await action(templateId);
       setState(next);
       let rounds = 0;
-      while (!next.done && !next.error && rounds < 40) {
+      while (!next.done && !next.error && rounds < 80) {
         rounds += 1;
         next = await action(templateId);
         setState(next);
