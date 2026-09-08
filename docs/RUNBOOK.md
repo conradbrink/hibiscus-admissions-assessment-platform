@@ -373,6 +373,12 @@ forgotten password is reset from the sign-in page instead.
 their sessions end on the next request. Nothing they did is deleted; the audit
 trail keeps their name.
 
+**Delete** removes a person entirely (sign-in, profile, roles, campuses) and
+is for mistakes: a wrong email, a test account, an invitation never accepted.
+It refuses anyone with history (a decision, an approval, a marked answer, a
+recorded payment, a note…) and says what it found; deactivate those people
+instead so the record of who did what stays intact. Deletions are audited.
+
 ## Something is genuinely broken
 
 - Sentry (if configured) has the error with a reference number; the parent's
