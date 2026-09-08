@@ -64,6 +64,39 @@ that computer. This needs the `assessments.deliver` permission.
    computer: the sitting resumes at the next unanswered question with the
    clock still running. On a different computer, launch again from the board.
 
+## Running a story sitting (Reception to Stage 3)
+
+The youngest applicants do not sit a paper. Their template is a **story**
+(Tumi's Journey, one chapter per stage) and an adult sits beside the child.
+
+1. Launch from the check-in board exactly as for a paper; the code opens
+   `/sit` on the assessment computer, which needs **speakers** (not
+   headphones: the adult listens too) and a mouse or touch screen.
+2. Press **Start the story** when you are both ready. The sound can only
+   start after that tap. Tumi speaks every line; the loudspeaker button on
+   the bubble says it again. The cog on the dark strip chooses the voice: a
+   soft female English voice is picked automatically, and on Windows the
+   Edge browser's "Online (Natural)" voices sound best.
+3. The dark strip at the bottom is yours, not the child's. It says what to
+   look for; press **Yes**, **Partly** or **Not yet** for what the child did,
+   or **Skip** to move on without a mark. When the child answers on screen
+   (tap, number pad, ordering), press **Next**.
+4. A strand stops on its own after three "Not yet" in a row: the remaining
+   items of that strand are skipped and saved as skipped. That is by design,
+   so a child is never pushed through things that are too hard.
+5. **Pause** stops the voice and hides the scene. **Finish and hand in** on
+   the last screen ends the sitting; marking and the learning profile follow
+   as for a paper.
+6. To rehearse without a child, a preview deployment (never production)
+   serves `/sit/preview?c=reception` (also `stage1`, `stage2`, `stage3`).
+
+To change a chapter, edit `web/content/story/<chapter>.json`, run
+`node web/scripts/story-seed.mjs > seed.sql` and apply it: the seed upserts
+by item code and touches no sitting already taken. Scene pictures are
+chosen by the item's focus tokens (`apples:3`, `cards:1,3,5`, `clock:4:30`,
+`text:…`, `fractions:1/2,1/4`, `chart:rain`, a trailing `!` to highlight);
+a token nobody has drawn shows as a labelled card.
+
 ## A child ran out of time
 
 The sitting is submitted automatically at the time limit (plus a short

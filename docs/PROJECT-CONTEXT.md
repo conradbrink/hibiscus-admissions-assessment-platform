@@ -222,6 +222,23 @@ Not built: malware scanning (seam in `lib/documents/scanner.ts`), an HTTP
 adapter for Ed-admin (the file export is the integration until the API is
 known), staff editing of submitted registration data, AI email drafting.
 
+### Story assessments (PR #48) — Reception to Stage 3
+
+A read-aloud, adult-marked assessment in the style of Cambridge's early
+years "Check Together": one story (Tumi's Journey), one chapter per stage,
+scenes with drawn pictures, a talking character, and an adult beside the
+child recording **Yes / Partly / Not yet**. Built inside the existing
+engine: a story template is a template with `delivery = 'story'`, a scene
+is a section, and every story field is snapshotted into `form_questions`
+at launch. One new question type, `adult_marked`, whose key is the
+expected answer in words and whose marks are full, half or none. The
+kiosk player (`components/kiosk/story`) draws Tumi, the backdrops and every
+prop in SVG and speaks through the browser's speech synthesis (softest
+female English voice; a seam for recorded clips). Content lives in
+`web/content/story/*.json` and is seeded idempotently by
+`web/scripts/story-seed.mjs`. Nothing about marking, scoring, decisions or
+the learning profile changed shape.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
@@ -399,6 +416,15 @@ known), staff editing of submitted registration data, AI email drafting.
 - **Vercel needs Root Directory `web` and Framework Preset Next.js.** With
   the defaults it builds the repository root as a static site and serves
   `NOT_FOUND` on every path.
+
+- **Story mode never sees a key.** The kiosk cannot know whether a tapped
+  answer was right, so the stop-after-misses rule counts only the adult's
+  "Not yet". Child-answered items in Stage 2 and 3 flow to the marker like
+  any paper item.
+- **Speech starts on a tap.** Browsers refuse to speak before a user
+  gesture, which is why the story opens on a "Start the story" button and
+  not on page load. Voices load asynchronously (`voiceschanged`); the
+  chooser lists only English voices.
 
 ## 4. Reference data to confirm with the school
 

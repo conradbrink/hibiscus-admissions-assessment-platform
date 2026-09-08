@@ -1,0 +1,824 @@
+{
+  "code": "stage2",
+  "name": "Tumi's Journey · Stage 2 · The market",
+  "grade_sort": 70,
+  "character": "Tumi",
+  "time_limit_minutes": 60,
+  "stop_after_misses": 3,
+  "scenes": [
+    {
+      "key": "notice",
+      "title": "The notice",
+      "narration": "Market day! There's a notice on the board. Can you read it to me? Take your time.",
+      "sees": "A notice on a board.",
+      "subject": "english",
+      "items": [
+        {
+          "code": "S2-R1",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 2,
+          "narration": "Read the notice out loud.",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "Fluency: yes = smooth, partly = some help, not yet = could not"
+          },
+          "note": "Fluency: yes = smooth, partly = some help, not yet = could not",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R2",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 1,
+          "narration": "When does the market open?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "Nine o'clock",
+            "Noon",
+            "When the sun goes down"
+          ],
+          "key": {
+            "correct": "Nine o'clock"
+          },
+          "note": "Taps Nine o'clock",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R3",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 1,
+          "narration": "Who sells the sweetest oranges?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "A farmer",
+            "Mma Dineo",
+            "The children"
+          ],
+          "key": {
+            "correct": "Mma Dineo"
+          },
+          "note": "Taps Mma Dineo",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R4",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 2,
+          "narration": "What must children not do?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "Visit the animal pen",
+            "Feed the goats",
+            "Eat at noon"
+          ],
+          "key": {
+            "correct": "Feed the goats"
+          },
+          "note": "Taps Feed the goats",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R5",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 2,
+          "narration": "What does the drum tell people?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "The market is open",
+            "It is time to eat",
+            "The goats are hungry"
+          ],
+          "key": {
+            "correct": "It is time to eat"
+          },
+          "note": "Taps It is time to eat",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R6",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 3,
+          "narration": "Which word in the notice means the same as 'stops'?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "opens",
+            "closes",
+            "brings"
+          ],
+          "key": {
+            "correct": "closes"
+          },
+          "note": "Taps closes",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R7",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 4,
+          "narration": "Why do you think the notice says the goats must not be fed?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "A sensible inference"
+          },
+          "note": "A sensible inference",
+          "subject": "english"
+        },
+        {
+          "code": "S2-R8",
+          "competency": "reading",
+          "strand": "Reading a passage",
+          "difficulty": 5,
+          "narration": "Is this notice for children, farmers, or everyone? How do you know?",
+          "focus": [
+            "text:The market opens at nine o'clock. Farmers bring fruit and vegetables from their fields. Mma Dineo sells the sweetest oranges. Children may visit the animal pen, but they must not feed the goats. At noon a drum tells everyone it is time to eat. The market closes when the sun goes down."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Everyone, with evidence from the text"
+          },
+          "note": "Everyone, with evidence from the text",
+          "subject": "english"
+        }
+      ]
+    },
+    {
+      "key": "oranges",
+      "title": "The oranges",
+      "narration": "Mma Dineo's oranges are the best. Help me buy some. I have a purse full of Pula!",
+      "sees": "A stall with crates of ten oranges and loose ones; price cards; coins and notes.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S2-N1",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 1,
+          "narration": "How many oranges? Count in tens.",
+          "focus": [
+            "crates:4",
+            "oranges:3"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 43
+          },
+          "note": "Types 43",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N2",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 1,
+          "narration": "Which number has 5 tens and 2 ones?",
+          "focus": [],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "25",
+            "52",
+            "57"
+          ],
+          "key": {
+            "correct": "52"
+          },
+          "note": "Taps 52",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N3",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 2,
+          "narration": "Put these in order from smallest.",
+          "focus": [],
+          "mode": "drag",
+          "type": "ordering",
+          "marks": 1,
+          "options": [
+            "34",
+            "49",
+            "67",
+            "81"
+          ],
+          "note": "Correct order: 34, 49, 67, 81",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N4",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 2,
+          "narration": "34 + 25 = ?",
+          "focus": [
+            "sum:34+25"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 59
+          },
+          "note": "Types 59",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N5",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 2,
+          "narration": "58 − 23 = ?",
+          "focus": [
+            "sum:58-23"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 35
+          },
+          "note": "Types 35",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N6",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 3,
+          "narration": "47 + 36 = ?",
+          "focus": [
+            "sum:47+36"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 83
+          },
+          "note": "Types 83",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N7",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 4,
+          "narration": "72 − 38 = ?",
+          "focus": [
+            "sum:72-38"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 34
+          },
+          "note": "Types 34",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N8",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 4,
+          "narration": "36 + ? = 50",
+          "focus": [
+            "sum:36+?=50"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 14
+          },
+          "note": "Types 14",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N9",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 5,
+          "narration": "Mma Dineo has 90 oranges and sells 45. Then a farmer brings 20 more. How many now?",
+          "focus": [
+            "oranges:many"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 65
+          },
+          "note": "Types 65",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-N10",
+          "competency": "number_sense",
+          "strand": "Number to 100",
+          "difficulty": 5,
+          "narration": "What is 10 more than 96?",
+          "focus": [],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 106
+          },
+          "note": "Types 106",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F1",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 2,
+          "narration": "Oranges are P2 each. How much for 5?",
+          "focus": [
+            "coins"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "P7",
+            "P10",
+            "P12"
+          ],
+          "key": {
+            "correct": "P10"
+          },
+          "note": "Taps P10",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F2",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 4,
+          "narration": "I pay with a P20 note for P12 of oranges. How much change, in Pula?",
+          "focus": [
+            "coins"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 8
+          },
+          "note": "Types 8",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "drum",
+      "title": "The drum",
+      "narration": "Boom! It's noon. Everybody counts along with the drum. Let's count in twos, fives and tens.",
+      "sees": "Drummer; rows of children in twos; hands; bundles of sticks; arrays of dots.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S2-T1",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 1,
+          "narration": "Count in twos: 2, 4, 6… what comes next?",
+          "focus": [
+            "twos"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "7",
+            "8",
+            "10"
+          ],
+          "key": {
+            "correct": "8"
+          },
+          "note": "Taps 8",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-T2",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 2,
+          "narration": "Count in fives. What is 5 × 4?",
+          "focus": [
+            "hands:4"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 20
+          },
+          "note": "Types 20",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-T3",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 2,
+          "narration": "What is 10 × 7?",
+          "focus": [
+            "sticks:7"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 70
+          },
+          "note": "Types 70",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-T4",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 3,
+          "narration": "Here are 3 rows of 5 dots. How many dots altogether?",
+          "focus": [
+            "array:3x5"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 15
+          },
+          "note": "Types 15",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-T5",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 4,
+          "narration": "2 × ? = 16",
+          "focus": [],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 8
+          },
+          "note": "Types 8",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-T6",
+          "competency": "arithmetic",
+          "strand": "Tables 2, 5 and 10",
+          "difficulty": 5,
+          "narration": "Six children each pay P5 for the drum show. How much altogether, in Pula?",
+          "focus": [
+            "coins"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 30
+          },
+          "note": "Types 30",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "pie",
+      "title": "Half a pie",
+      "narration": "Time to eat! Let's share the pie fairly, and check the time so we don't miss the last bus.",
+      "sees": "A round pie, a rectangle cake, a bag of 12 sweets, a clock at quarter past two.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S2-F3",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 1,
+          "narration": "Tap the shape that shows a half.",
+          "focus": [
+            "fractions:1/2,1/4,1/3"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "The first shape",
+            "The second shape",
+            "The third shape"
+          ],
+          "key": {
+            "correct": "The first shape"
+          },
+          "note": "Taps the half",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F4",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 2,
+          "narration": "Which shows a quarter shaded?",
+          "focus": [
+            "fractions:1/4,1/2,3/4"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "The first shape",
+            "The second shape",
+            "The third shape"
+          ],
+          "key": {
+            "correct": "The first shape"
+          },
+          "note": "Taps The first shape",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F5",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 3,
+          "narration": "What is half of 12 sweets?",
+          "focus": [
+            "sweets:12"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 6
+          },
+          "note": "Types 6",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F6",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 4,
+          "narration": "What is a quarter of 20?",
+          "focus": [],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 5
+          },
+          "note": "Types 5",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F7",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 3,
+          "narration": "What time is it?",
+          "focus": [
+            "clock:2:15"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "Quarter past two",
+            "Half past two",
+            "Quarter to three"
+          ],
+          "key": {
+            "correct": "Quarter past two"
+          },
+          "note": "Taps Quarter past two",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S2-F8",
+          "competency": "measures_data",
+          "strand": "Fractions, money and time",
+          "difficulty": 5,
+          "narration": "The bus leaves at half past three. It is quarter past two now. How long until the bus?",
+          "focus": [
+            "clock:2:15",
+            "clock:3:30"
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "One hour and a quarter, or 75 minutes"
+          },
+          "note": "One hour and a quarter, or 75 minutes",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "note",
+      "title": "A note for Mma Dineo",
+      "narration": "Mma Dineo was so kind. Let's leave her a note before we go. You write, I'll watch.",
+      "sees": "A blank card; the child may write on paper.",
+      "subject": "english",
+      "items": [
+        {
+          "code": "S2-W1",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 2,
+          "narration": "Write one sentence to say thank you to Mma Dineo.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "Capital letter, full stop, makes sense"
+          },
+          "note": "Capital letter, full stop, makes sense",
+          "subject": "english"
+        },
+        {
+          "code": "S2-W2",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 3,
+          "narration": "Write a sentence about your favourite thing at the market.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "Readable spelling of common words"
+          },
+          "note": "Readable spelling of common words",
+          "subject": "english"
+        },
+        {
+          "code": "S2-W3",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 5,
+          "narration": "Can you join two ideas with 'and' or 'because'?",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "A joined sentence that makes sense"
+          },
+          "note": "A joined sentence that makes sense",
+          "subject": "english"
+        }
+      ]
+    },
+    {
+      "key": "market-goodbye",
+      "title": "Goodbye at the market",
+      "narration": "You read, you counted, and you even wrote a note. Thank you for being my helper at the market!",
+      "sees": "Tumi waving from the bus.",
+      "subject": "personal_social",
+      "items": [
+        {
+          "code": "S2-G1",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: settled quickly",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Settled quickly"
+          },
+          "note": "Settled quickly",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S2-G2",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: listened to instructions",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Listened to instructions"
+          },
+          "note": "Listened to instructions",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S2-G3",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: kept going when unsure",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Kept going when unsure"
+          },
+          "note": "Kept going when unsure",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S2-G4",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: spoke in sentences",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Spoke in sentences"
+          },
+          "note": "Spoke in sentences",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S2-G5",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: used the keyboard independently",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Used the keyboard independently"
+          },
+          "note": "Used the keyboard independently",
+          "subject": "personal_social"
+        }
+      ]
+    }
+  ]
+}

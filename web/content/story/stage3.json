@@ -1,0 +1,918 @@
+{
+  "code": "stage3",
+  "name": "Tumi's Journey · Stage 3 · The hill",
+  "grade_sort": 80,
+  "character": "Tumi",
+  "time_limit_minutes": 60,
+  "stop_after_misses": 3,
+  "scenes": [
+    {
+      "key": "letter",
+      "title": "The letter",
+      "narration": "A letter came from my mother! Read it quietly, then help me answer some questions.",
+      "sees": "A one-page letter.",
+      "subject": "english",
+      "items": [
+        {
+          "code": "S3-R1",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 1,
+          "narration": "Why must Tumi take the hill path?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "The bridge is under water",
+            "The hill is quicker",
+            "Mama said the market is closed"
+          ],
+          "key": {
+            "correct": "The bridge is under water"
+          },
+          "note": "Taps The bridge is under water",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R2",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 1,
+          "narration": "Who told Mama about the market?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "Tumi's brother",
+            "Mma Dineo",
+            "A farmer"
+          ],
+          "key": {
+            "correct": "Mma Dineo"
+          },
+          "note": "Taps Mma Dineo",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R3",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 2,
+          "narration": "What does 'the river rose' mean?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "It got higher",
+            "It got warmer",
+            "It stood up"
+          ],
+          "key": {
+            "correct": "It got higher"
+          },
+          "note": "Taps It got higher",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R4",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 3,
+          "narration": "Why was Mama 'not surprised'?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "She already knew Tumi is helpful"
+          },
+          "note": "She already knew Tumi is helpful",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R5",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 4,
+          "narration": "How does Mama feel about the whistling? Which words tell you?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Fond but tired of it; 'will not stop'"
+          },
+          "note": "Fond but tired of it; 'will not stop'",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R6",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 4,
+          "narration": "Is 'Bring the oranges if any are left!' a command, a question or a joke? Why?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "A friendly command, with a reason"
+          },
+          "note": "A friendly command, with a reason",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R7",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 5,
+          "narration": "Why did Mama write this letter? Give two reasons.",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Warn about the bridge; say come home"
+          },
+          "note": "Warn about the bridge; say come home",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R8",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 4,
+          "narration": "What time of year is it? How do you know?",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "adult",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Rainy season, from 'the rains came early'"
+          },
+          "note": "Rainy season, from 'the rains came early'",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R9",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 2,
+          "narration": "Find a word that means the same as 'pleased'.",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "proud",
+            "early",
+            "dark"
+          ],
+          "key": {
+            "correct": "proud"
+          },
+          "note": "Taps proud",
+          "subject": "english"
+        },
+        {
+          "code": "S3-R10",
+          "competency": "reading",
+          "strand": "Reading with inference",
+          "difficulty": 5,
+          "narration": "Put these events in the order they happened.",
+          "focus": [
+            "text:Dear Tumi, The rains came early this year. The river rose so high that the old bridge is under water, so please take the hill path instead. Mma Dineo told me you were a great help at the market; I was proud, but not surprised. Bring the oranges if any are left! Your little brother has learned to whistle and will not stop. Come home before dark. Love, Mama."
+          ],
+          "mode": "drag",
+          "type": "ordering",
+          "marks": 1,
+          "options": [
+            "The bridge flooded",
+            "Tumi helped at the market",
+            "Tumi's brother learned to whistle",
+            "Mama wrote the letter"
+          ],
+          "note": "Correct order: The bridge flooded, Tumi helped at the market, Tumi's brother learned to whistle, Mama wrote the letter",
+          "subject": "english"
+        }
+      ]
+    },
+    {
+      "key": "map",
+      "title": "The map",
+      "narration": "The hill path is on this map. Let's work out how far it is and how high we climb.",
+      "sees": "A map with a scale bar and a path in 100 m segments; a height chart; a ruler.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S3-N1",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 1,
+          "narration": "What is the value of the 6 in 642?",
+          "focus": [
+            "number:642"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "6",
+            "60",
+            "600"
+          ],
+          "key": {
+            "correct": "600"
+          },
+          "note": "Taps 600",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N2",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 2,
+          "narration": "Round 386 to the nearest 10.",
+          "focus": [
+            "number:386"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 390
+          },
+          "note": "Types 390",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N3",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 2,
+          "narration": "The path is 350 m, then 275 m. How far altogether, in metres?",
+          "focus": [
+            "path:350,275"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 625
+          },
+          "note": "Types 625",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N4",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 3,
+          "narration": "The hill is 640 m high. We have climbed 285 m. How much further, in metres?",
+          "focus": [
+            "hill:640,285"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 355
+          },
+          "note": "Types 355",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N5",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 1,
+          "narration": "Which is larger?",
+          "focus": [],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "809",
+            "890"
+          ],
+          "key": {
+            "correct": "890"
+          },
+          "note": "Taps 890",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N6",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 4,
+          "narration": "457 + 368 = ?",
+          "focus": [
+            "sum:457+368"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 825
+          },
+          "note": "Types 825",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N7",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 4,
+          "narration": "703 − 458 = ?",
+          "focus": [
+            "sum:703-458"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 245
+          },
+          "note": "Types 245",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-N8",
+          "competency": "number_sense",
+          "strand": "Number to 1000",
+          "difficulty": 5,
+          "narration": "Three friends each walk 240 m, then 90 m more. How far do all three walk together, in metres?",
+          "focus": [
+            "path:240,90"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 990
+          },
+          "note": "Types 990",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M1",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 2,
+          "narration": "How many centimetres in 2 metres?",
+          "focus": [],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 200
+          },
+          "note": "Types 200",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M2",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 2,
+          "narration": "Measure the stick with the ruler. How long is it, in centimetres?",
+          "focus": [
+            "ruler:14"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 14
+          },
+          "note": "Types 14",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "steps",
+      "title": "Counting the steps",
+      "narration": "There are steps cut into the hill. Let's count them in threes, fours and eights.",
+      "sees": "Stone steps in groups; baskets of stones.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S3-T1",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 1,
+          "narration": "3 × 7 = ?",
+          "focus": [
+            "sum:3×7"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 21
+          },
+          "note": "Types 21",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T2",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 1,
+          "narration": "4 × 6 = ?",
+          "focus": [
+            "sum:4×6"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 24
+          },
+          "note": "Types 24",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T3",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 2,
+          "narration": "8 × 5 = ?",
+          "focus": [
+            "sum:8×5"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 40
+          },
+          "note": "Types 40",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T4",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 2,
+          "narration": "24 ÷ 3 = ?",
+          "focus": [
+            "sum:24÷3"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 8
+          },
+          "note": "Types 8",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T5",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 3,
+          "narration": "32 ÷ 4 = ?",
+          "focus": [
+            "sum:32÷4"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 8
+          },
+          "note": "Types 8",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T6",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 4,
+          "narration": "Share 26 stones into baskets of 8. How many full baskets, and how many left over?",
+          "focus": [
+            "stones:26",
+            "baskets:8"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "3 baskets, 2 left",
+            "3 baskets, none left",
+            "4 baskets, 2 left"
+          ],
+          "key": {
+            "correct": "3 baskets, 2 left"
+          },
+          "note": "Taps 3 baskets, 2 left",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T7",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 4,
+          "narration": "? × 8 = 56",
+          "focus": [
+            "sum:?×8=56"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 7
+          },
+          "note": "Types 7",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-T8",
+          "competency": "arithmetic",
+          "strand": "Tables 3, 4 and 8, and division",
+          "difficulty": 5,
+          "narration": "There are 4 rows of steps with 9 steps each, then 6 more at the top. How many steps altogether?",
+          "focus": [
+            "steps:4x9+6"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 42
+          },
+          "note": "Types 42",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "rain-chart",
+      "title": "The rain chart",
+      "narration": "At the top of the hill there is a weather station. Look at the chart. It shows the rain in Gaborone.",
+      "sees": "A bar chart of rainfall for six months; a pizza cut into thirds and sixths.",
+      "subject": "mathematics",
+      "items": [
+        {
+          "code": "S3-M3",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 1,
+          "narration": "Which month had the most rain?",
+          "focus": [
+            "chart:rain"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "December",
+            "January",
+            "February"
+          ],
+          "key": {
+            "correct": "January"
+          },
+          "note": "Taps January",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M4",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 2,
+          "narration": "How much rain fell in February, in millimetres?",
+          "focus": [
+            "chart:rain"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 80
+          },
+          "note": "Types 80",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M5",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 3,
+          "narration": "How much more rain fell in December than in March, in millimetres?",
+          "focus": [
+            "chart:rain"
+          ],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 40
+          },
+          "note": "Types 40",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M6",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 4,
+          "narration": "Which two months together had 100 millimetres?",
+          "focus": [
+            "chart:rain"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "February and April",
+            "November and March",
+            "December and April"
+          ],
+          "key": {
+            "correct": "February and April"
+          },
+          "note": "Taps February and April",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M7",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 1,
+          "narration": "Which shape shows one third shaded?",
+          "focus": [
+            "fractions:1/3,1/2,1/6"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "The first shape",
+            "The second shape",
+            "The third shape"
+          ],
+          "key": {
+            "correct": "The first shape"
+          },
+          "note": "Taps The first shape",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M8",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 3,
+          "narration": "Which is the same as one half?",
+          "focus": [
+            "fractions:2/6,3/6,4/6"
+          ],
+          "mode": "tap",
+          "type": "single_choice",
+          "marks": 1,
+          "options": [
+            "Two sixths",
+            "Three sixths",
+            "Four sixths"
+          ],
+          "key": {
+            "correct": "Three sixths"
+          },
+          "note": "Taps Three sixths",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M9",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 4,
+          "narration": "What is a third of 27?",
+          "focus": [],
+          "mode": "type",
+          "type": "numeric",
+          "marks": 1,
+          "key": {
+            "value": 9
+          },
+          "note": "Types 9",
+          "subject": "mathematics"
+        },
+        {
+          "code": "S3-M10",
+          "competency": "measures_data",
+          "strand": "Fractions, measures and data",
+          "difficulty": 5,
+          "narration": "Order these from smallest.",
+          "focus": [
+            "fractions:1/4,1/3,1/2"
+          ],
+          "mode": "drag",
+          "type": "ordering",
+          "marks": 1,
+          "options": [
+            "One quarter",
+            "One third",
+            "One half"
+          ],
+          "note": "Correct order: One quarter, One third, One half",
+          "subject": "mathematics"
+        }
+      ]
+    },
+    {
+      "key": "writing",
+      "title": "Writing home",
+      "narration": "Mama will worry until she hears from me. Write her a short reply for me. Tell her where we are and what happened on the way.",
+      "sees": "A letter card with three lines.",
+      "subject": "english",
+      "items": [
+        {
+          "code": "S3-W1",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 2,
+          "narration": "Write three sentences to Mama telling her we are safe.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "Three sentences with capitals and full stops"
+          },
+          "note": "Three sentences with capitals and full stops",
+          "subject": "english"
+        },
+        {
+          "code": "S3-W2",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 3,
+          "narration": "Include one thing that happened at the market and one thing on the hill.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "Ideas from both places"
+          },
+          "note": "Ideas from both places",
+          "subject": "english"
+        },
+        {
+          "code": "S3-W3",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 4,
+          "narration": "Use at least one joining word (because, but, when) and one describing word.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 2,
+          "key": {
+            "expected": "A joining word and a describing word"
+          },
+          "note": "A joining word and a describing word",
+          "subject": "english"
+        },
+        {
+          "code": "S3-W4",
+          "competency": "written_language",
+          "strand": "Writing",
+          "difficulty": 5,
+          "narration": "Read your letter back and fix anything you want to change.",
+          "focus": [
+            "card"
+          ],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Any self-correction of spelling or punctuation"
+          },
+          "note": "Any self-correction of spelling or punctuation",
+          "subject": "english"
+        }
+      ]
+    },
+    {
+      "key": "hill-home",
+      "title": "Home at last",
+      "narration": "There's my house, and there's Mama, and there's my brother, whistling! You brought me all the way home. Thank you.",
+      "sees": "The whole family on the hillside.",
+      "subject": "personal_social",
+      "items": [
+        {
+          "code": "S3-G1",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: settled quickly",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Settled quickly"
+          },
+          "note": "Settled quickly",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S3-G2",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: listened to instructions",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Listened to instructions"
+          },
+          "note": "Listened to instructions",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S3-G3",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: kept going when unsure",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Kept going when unsure"
+          },
+          "note": "Kept going when unsure",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S3-G4",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: explained their thinking",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Explained their thinking"
+          },
+          "note": "Explained their thinking",
+          "subject": "personal_social"
+        },
+        {
+          "code": "S3-G5",
+          "competency": "getting_on",
+          "strand": "Getting on",
+          "difficulty": 3,
+          "narration": "Getting on: worked independently with the keyboard",
+          "focus": [],
+          "mode": "rating",
+          "type": "adult_marked",
+          "marks": 1,
+          "key": {
+            "expected": "Worked independently with the keyboard"
+          },
+          "note": "Worked independently with the keyboard",
+          "subject": "personal_social"
+        }
+      ]
+    }
+  ]
+}

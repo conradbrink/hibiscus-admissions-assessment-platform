@@ -56,6 +56,11 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
         <Input name="timeLimitMinutes" type="number" min={5} max={300} defaultValue={template.time_limit_minutes} title="Time limit, minutes" />
         <NativeSelect name="campusId" defaultValue={template.campus_id ?? ""} className="md:col-span-2"><option value="">Every campus</option>{(campuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name} only</option>)}</NativeSelect>
         <Input name="description" defaultValue={template.description ?? ""} placeholder="Description" className="md:col-span-3" />
+        <NativeSelect name="delivery" defaultValue={template.delivery} className="md:col-span-2" title="How the child sits it">
+          <option value="paper">On screen, child works alone</option>
+          <option value="story">Story: read aloud, adult marks alongside</option>
+        </NativeSelect>
+        <Input name="storyCharacter" defaultValue={template.story_character ?? ""} placeholder="Story character, e.g. Tumi" className="md:col-span-3" />
       </ActionForm>
 
       <h2 className="mb-2 text-sm font-semibold">Sections, in order</h2>
@@ -77,6 +82,13 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
                 <Input name="timeLimitMinutes" type="number" min={1} defaultValue={s.time_limit_minutes ?? ""} placeholder="Section minutes" className="h-8 md:h-8" />
                 <Input name="randomCount" type="number" min={1} defaultValue={s.random_count ?? ""} placeholder="Random: how many" className="h-8 md:h-8" />
                 <Input name="randomMix" defaultValue={mixText(s.random_difficulty_mix)} placeholder="Random mix, e.g. 2:3, 3:4" className="h-8 md:col-span-2 md:h-8" />
+                {template.delivery === "story" ? (
+                  <>
+                    <Input name="sceneKey" defaultValue={s.scene_key ?? ""} placeholder="Scene, e.g. river" className="h-8 md:h-8" />
+                    <Input name="stopAfterMisses" type="number" min={1} max={10} defaultValue={s.stop_after_misses ?? ""} placeholder="Stop a strand after N misses" className="h-8 md:h-8" />
+                    <Input name="narration" defaultValue={s.narration ?? ""} placeholder="What the character says as the scene opens" className="h-8 md:col-span-3 md:h-8" />
+                  </>
+                ) : null}
                 <NativeSelect name="practiceQuestionId" defaultValue={s.practice_question_id ?? ""} className="h-8 md:col-span-3 md:h-8">
                   <option value="">No practice question</option>
                   {candidates.map((q) => <option key={q.id} value={q.id}>Practice: {q.stem.slice(0, 60)}</option>)}

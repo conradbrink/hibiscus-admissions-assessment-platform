@@ -24,6 +24,8 @@ export const ANSWER_KEY_SCHEMAS = {
   short_text: z.object({ accepted: z.array(z.string().trim().min(1).max(200)).min(1) }),
   matching: z.object({ pairs: z.array(z.tuple([uuid, uuid])).min(1) }),
   ordering: z.object({ order: z.array(uuid).min(2) }),
+  // What the adult should hear or see. Words for a person, never compared by code.
+  adult_marked: z.object({ expected: z.string().trim().min(1).max(300) }),
 } as const;
 
 export type SingleChoiceKey = z.infer<typeof ANSWER_KEY_SCHEMAS.single_choice>;
@@ -32,6 +34,7 @@ export type NumericKey = z.infer<typeof ANSWER_KEY_SCHEMAS.numeric>;
 export type ShortTextKey = z.infer<typeof ANSWER_KEY_SCHEMAS.short_text>;
 export type MatchingKey = z.infer<typeof ANSWER_KEY_SCHEMAS.matching>;
 export type OrderingKey = z.infer<typeof ANSWER_KEY_SCHEMAS.ordering>;
+export type AdultMarkedKey = z.infer<typeof ANSWER_KEY_SCHEMAS.adult_marked>;
 
 export type AnswerKey =
   | { type: "single_choice"; key: SingleChoiceKey }
@@ -39,7 +42,8 @@ export type AnswerKey =
   | { type: "numeric"; key: NumericKey }
   | { type: "short_text"; key: ShortTextKey }
   | { type: "matching"; key: MatchingKey }
-  | { type: "ordering"; key: OrderingKey };
+  | { type: "ordering"; key: OrderingKey }
+  | { type: "adult_marked"; key: AdultMarkedKey };
 
 /** Null when the JSON is not a valid key for this type. */
 export function parseAnswerKey(type: QuestionType, json: Json | null | undefined): AnswerKey | null {
@@ -68,6 +72,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   matching: "Matching",
   ordering: "Ordering",
   extended_text: "Extended writing",
+  adult_marked: "Adult marks (story)",
 };
 
 export const QUESTION_TYPES = Object.keys(QUESTION_TYPE_LABELS) as QuestionType[];

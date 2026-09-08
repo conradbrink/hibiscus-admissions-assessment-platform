@@ -562,7 +562,10 @@ export type QuestionType =
   | "short_text"
   | "matching"
   | "ordering"
-  | "extended_text";
+  | "extended_text"
+  | "adult_marked";
+export type AnswerMode = "adult" | "rating" | "tap" | "type" | "drag";
+export type TemplateDelivery = "paper" | "story";
 export type QuestionStatus = "draft" | "active" | "retired";
 export type SectionSelection = "fixed" | "random";
 export type BenchmarkScope = "overall" | "subject" | "competency";
@@ -615,6 +618,11 @@ export type QuestionRow = {
   grade_sort_max: number | null;
   status: QuestionStatus;
   version: number;
+  external_code: string | null;
+  narration: string | null;
+  answer_mode: AnswerMode | null;
+  scene_focus: string[] | null;
+  adult_note: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -647,6 +655,8 @@ export type AssessmentTemplateRow = {
   time_limit_minutes: number;
   status: QuestionStatus;
   version: number;
+  delivery: TemplateDelivery;
+  story_character: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -664,6 +674,9 @@ export type TemplateSectionRow = {
   random_count: number | null;
   random_difficulty_mix: Json | null;
   practice_question_id: string | null;
+  scene_key: string | null;
+  narration: string | null;
+  stop_after_misses: number | null;
 };
 
 export type TemplateSectionQuestionRow = {
@@ -720,6 +733,14 @@ export type FormQuestionRow = {
   options: Json;
   marks: number;
   rubric_snapshot: Json | null;
+  section_scene_key: string | null;
+  section_narration: string | null;
+  section_stop_after_misses: number | null;
+  narration: string | null;
+  answer_mode: AnswerMode | null;
+  scene_focus: string[] | null;
+  adult_note: string | null;
+  difficulty: number;
 };
 
 export type FormAnswerKeyRow = {
@@ -1561,6 +1582,11 @@ export type Database = {
         | "grade_sort_max"
         | "status"
         | "version"
+        | "external_code"
+        | "narration"
+        | "answer_mode"
+        | "scene_focus"
+        | "adult_note"
         | "created_by",
         [
           Rel<"questions_bank_id_fkey", "bank_id", "question_banks">,
@@ -1584,7 +1610,7 @@ export type Database = {
       >;
       assessment_templates: TableOf<
         AssessmentTemplateRow,
-        "description" | "campus_id" | "status" | "version" | "created_by",
+        "description" | "campus_id" | "status" | "version" | "created_by" | "delivery" | "story_character",
         [
           Rel<"assessment_templates_campus_id_fkey", "campus_id", "campuses">,
           Rel<"assessment_templates_created_by_fkey", "created_by", "staff_profiles">,
@@ -1597,6 +1623,9 @@ export type Database = {
         | "selection"
         | "random_count"
         | "random_difficulty_mix"
+        | "scene_key"
+        | "narration"
+        | "stop_after_misses"
         | "practice_question_id",
         [
           Rel<"template_sections_template_id_fkey", "template_id", "assessment_templates">,
@@ -1633,6 +1662,14 @@ export type Database = {
         | "stem_media_path"
         | "passage_snapshot"
         | "options"
+        | "section_scene_key"
+        | "section_narration"
+        | "section_stop_after_misses"
+        | "narration"
+        | "answer_mode"
+        | "scene_focus"
+        | "adult_note"
+        | "difficulty"
         | "rubric_snapshot",
         [
           Rel<"form_questions_form_id_fkey", "form_id", "assessment_forms">,

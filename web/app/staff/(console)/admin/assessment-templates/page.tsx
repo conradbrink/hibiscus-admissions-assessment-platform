@@ -42,6 +42,7 @@ export default async function TemplatesPage() {
                     {gradeName(t.grade_sort_min)} – {gradeName(t.grade_sort_max)} · {(campus as { name: string } | null)?.name ?? "every campus"} · {t.time_limit_minutes} min · v{t.version}
                   </p>
                 </div>
+                {t.delivery === "story" ? <Badge variant="outline">Story</Badge> : null}
                 <Badge variant={t.status === "active" ? "success" : t.status === "retired" ? "muted" : "outline"}>{t.status}</Badge>
               </li>
             );

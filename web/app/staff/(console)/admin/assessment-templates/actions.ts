@@ -23,6 +23,8 @@ const templateMeta = z.object({
   gradeSortMax: z.coerce.number().int(),
   campusId: z.string().optional(),
   timeLimitMinutes: z.coerce.number().int().min(5).max(300),
+  delivery: z.enum(["paper", "story"]).default("paper"),
+  storyCharacter: z.string().trim().max(60).optional(),
 });
 
 export async function createTemplate(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
@@ -37,6 +39,8 @@ export async function createTemplate(_: StaffActionState, formData: FormData): P
       grade_sort_max: p.gradeSortMax,
       campus_id: p.campusId || null,
       time_limit_minutes: p.timeLimitMinutes,
+      delivery: p.delivery,
+      story_character: p.storyCharacter || null,
       created_by: ctx.userId,
     });
     if (error) throw new Error(error.message);
@@ -58,6 +62,8 @@ export async function saveTemplate(_: StaffActionState, formData: FormData): Pro
         grade_sort_max: p.gradeSortMax,
         campus_id: p.campusId || null,
         time_limit_minutes: p.timeLimitMinutes,
+        delivery: p.delivery,
+        story_character: p.storyCharacter || null,
       })
       .eq("id", p.templateId);
     if (error) throw new Error(error.message);
@@ -112,6 +118,9 @@ const sectionSchema = z.object({
   randomCount: z.union([z.literal(""), z.coerce.number().int().min(1).max(100)]).optional(),
   randomMix: z.string().trim().max(200).optional(),
   practiceQuestionId: z.string().optional(),
+  sceneKey: z.string().trim().max(60).optional(),
+  narration: z.string().trim().max(2000).optional(),
+  stopAfterMisses: z.union([z.literal(""), z.coerce.number().int().min(1).max(10)]).optional(),
 });
 
 /** The difficulty mix is typed as "1:2, 3:4" and stored as {"1":2,"3":4}. */
@@ -145,6 +154,9 @@ export async function saveSection(_: StaffActionState, formData: FormData): Prom
       random_count: p.randomCount === "" || p.randomCount === undefined ? null : p.randomCount,
       random_difficulty_mix: parseMix(p.randomMix),
       practice_question_id: p.practiceQuestionId || null,
+      scene_key: p.sceneKey || null,
+      narration: p.narration || null,
+      stop_after_misses: p.stopAfterMisses === "" || p.stopAfterMisses === undefined ? null : p.stopAfterMisses,
     };
     const { error } = p.sectionId
       ? await ctx.supabase.from("template_sections").update(row).eq("id", p.sectionId)

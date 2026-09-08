@@ -1,6 +1,6 @@
 # Database schema
 
-Twenty-six migrations, replayable from an empty database. That last property is not
+Thirty-eight migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -43,6 +43,7 @@ change.
 | `…20260908010000_offer_conditions_wording` (8 Sep) | Data only: offer letter v6 words the conditions paragraph as conditions of the place and the terms say a condition can withdraw it |
 | `…20260908000000_promotions` (8 Sep) | `promotions`, `promotion_effects`, `application_promotions`; `applications.promo_code`; `offers.promotion_id`; a zero-amount payment request and a `waived` payment (provider `none`) for a fully waived offer; `v_application_facts` gains `promotion_code`/`promotion_name`; offer template v5 and results email print the deal; new `fees_waived` email |
 | `…230000_paygate` (7 Sep) | `payments.provider` accepts `paygate`, the school's card gateway |
+| `…20260909000000_story_assessments` (9 Sep) | Story delivery: `assessment_templates.delivery`/`story_character`, scene fields on sections, narration/answer mode/scene focus/adult note on questions and on the frozen form, the `adult_marked` question type, four early-years competencies and the `personal_social` subject; `launch_attempt()` copies the story fields |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |
 | `…100500_policy_documents_and_signatures` | `agreement_templates.sort_order`, links that may be a path on this site, `agreement_acceptances.signature_svg`; the four January 2026 documents (Learner Code of Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement) in their own words |

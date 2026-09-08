@@ -103,6 +103,23 @@ const questionMeta = z.object({
   difficulty: z.coerce.number().int().min(1).max(5),
   gradeSortMin: z.union([z.literal(""), z.coerce.number().int()]).optional(),
   gradeSortMax: z.union([z.literal(""), z.coerce.number().int()]).optional(),
+  narration: z.string().trim().max(2000).optional(),
+  answerMode: z.union([z.literal(""), z.enum(["adult", "rating", "tap", "type", "drag"])]).optional(),
+  sceneFocus: z.string().trim().max(400).optional(),
+  adultNote: z.string().trim().max(400).optional(),
+});
+
+/** "banana, apple" → ["banana", "apple"]; empty → null. */
+function focusList(text: string | undefined): string[] | null {
+  const items = (text ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return items.length ? items : null;
+}
+
+const storyFields = (p: { narration?: string; answerMode?: "" | "adult" | "rating" | "tap" | "type" | "drag"; sceneFocus?: string; adultNote?: string }) => ({
+  narration: p.narration || null,
+  answer_mode: p.answerMode || null,
+  scene_focus: focusList(p.sceneFocus),
+  adult_note: p.adultNote || null,
 });
 
 export async function createQuestion(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
@@ -120,6 +137,7 @@ export async function createQuestion(_: StaffActionState, formData: FormData): P
       difficulty: p.difficulty,
       grade_sort_min: p.gradeSortMin === "" || p.gradeSortMin === undefined ? null : p.gradeSortMin,
       grade_sort_max: p.gradeSortMax === "" || p.gradeSortMax === undefined ? null : p.gradeSortMax,
+      ...storyFields(p),
       created_by: ctx.userId,
     });
     if (error) throw new Error(error.message);
@@ -142,6 +160,7 @@ export async function saveQuestion(_: StaffActionState, formData: FormData): Pro
         difficulty: p.difficulty,
         grade_sort_min: p.gradeSortMin === "" || p.gradeSortMin === undefined ? null : p.gradeSortMin,
         grade_sort_max: p.gradeSortMax === "" || p.gradeSortMax === undefined ? null : p.gradeSortMax,
+        ...storyFields(p),
       })
       .eq("id", p.questionId)
       .select("id");
@@ -332,6 +351,10 @@ export async function saveKey(_: StaffActionState, formData: FormData): Promise<
       }
       case "extended_text": {
         rubricId = z.uuid().parse(formData.get("rubricId"));
+        break;
+      }
+      case "adult_marked": {
+        answer = ANSWER_KEY_SCHEMAS.adult_marked.parse({ expected: String(formData.get("expectedAnswer") ?? "") });
         break;
       }
     }
