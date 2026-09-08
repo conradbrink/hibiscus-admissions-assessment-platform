@@ -1,0 +1,589 @@
+{
+  "code": "s6-science",
+  "name": "Cambridge Progression · Stage 6 · Science",
+  "subject": "science",
+  "stage": 6,
+  "time_limit_minutes": 40,
+  "source": "0097 Science 2025 Stage 6 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions.",
+      "items": [
+        {
+          "code": "S6-SC-Q1b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The oxygen moves into a liquid in the body when it leaves the lungs. This liquid takes the oxygen around the body.\n\nWrite down the name of this liquid.",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "blood"
+            ]
+          }
+        },
+        {
+          "code": "S6-SC-Q1c",
+          "competency": "science_biology",
+          "type": "multi_select",
+          "stem": "Priya says, 'Many vertebrates have similar respiratory systems to humans. These animals have lungs and breathe in oxygen from the air.'\n\nChoose all the animals with similar respiratory systems to humans.",
+          "marks": 1,
+          "difficulty": 1,
+          "options": [
+            "ant",
+            "bee",
+            "cat",
+            "fish",
+            "lion",
+            "snail"
+          ],
+          "key": {
+            "correct": [
+              "cat",
+              "lion"
+            ]
+          },
+          "partial_credit": false,
+          "note": "Both correct for the mark."
+        },
+        {
+          "code": "S6-SC-Q2a",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Viruses and bacteria infect humans and cause disease.\n\nWrite down one other cause of disease which infects humans.",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "parasite",
+              "parasites",
+              "fungus",
+              "fungi",
+              "a parasite",
+              "a fungus"
+            ]
+          },
+          "note": "Mark scheme: parasite or fungus/fungi."
+        },
+        {
+          "code": "S6-SC-Q2b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Good hygiene helps to control the spread of diseases. Washing our hands is important for good hygiene.\n\nComplete the sentences.\n\nWe must wash our hands because …\nWe always need to wash our hands when …",
+          "marks": 2,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "washing removes bacteria or viruses from our hands; we touch food",
+              "it removes germs from our hands; we have used the toilet",
+              "washing kills bacteria or viruses; after using the toilet",
+              "it removes bacteria, viruses, parasites or fungi from our hands; before touching food or after using the toilet"
+            ]
+          },
+          "note": "1 mark each. Sentence 1: (idea that) washing removes/kills bacteria or viruses or parasites or fungi from our hands (ignore just 'washing controls the spread of disease'; accept other suitable reasons). Sentence 2: (idea of) touching food, using the toilet, looking after someone who is sick, blowing your nose, touching an animal. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q3a",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Oliver investigates the temperature change when a solid reacts with a solution. He adds 25 cm³ of the solution to a beaker, adds a small piece of the solid, stirs the mixture all the time and records the temperature for five minutes.\n\nName the equipment Oliver uses to accurately measure 25 cm³ of the solution.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "measuring cylinder",
+              "a measuring cylinder",
+              "measuring cylinders"
+            ]
+          },
+          "note": "Mark scheme: measuring cylinder. Ignore just pipette / measuring scale / litre scale. Do not accept beaker or measuring cup."
+        },
+        {
+          "code": "S6-SC-Q3b",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Oliver stirs the mixture all the time during the investigation.\n\nExplain why this makes his results more accurate.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "to make sure the temperature is the same throughout the mixture",
+              "so the temperature is the same all through the mixture",
+              "to make sure all the solid has reacted",
+              "so the heat is spread evenly through the mixture"
+            ]
+          },
+          "note": "Mark scheme: (idea of) to make sure the temperature is the same throughout the mixture. Accept: to make sure all the solid has reacted. Ignore: to make sure the solution and solid are completely mixed / to help the solid dissolve. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q3c",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Oliver says, 'At the start of the investigation the solid is grey and the solution is blue. At the end of the investigation the solid is brown and the solution is colourless.'\n\nComplete these sentences about the investigation.\n\nThe colour of the reactant solution is …\nThe colour of the solid product is …\n\nWrite the two colours in order, separated by a comma.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "blue, brown",
+              "blue,brown",
+              "blue brown",
+              "blue and brown"
+            ]
+          },
+          "note": "Both correct for the mark: reactant solution blue; solid product brown."
+        },
+        {
+          "code": "S6-SC-Q3d",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Temperature change and colour change are observations that show a chemical reaction happens.\n\nWrite down one other observation that shows a chemical reaction happens.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "gas produced",
+              "a gas is produced",
+              "gas is produced",
+              "gas given off",
+              "a gas is given off",
+              "bubbles",
+              "bubbles seen",
+              "bubbles are produced",
+              "bubbles of gas"
+            ]
+          },
+          "note": "Mark scheme: gas produced. Accept bubbles (seen)."
+        },
+        {
+          "code": "S6-SC-Q3f",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Look at Oliver's results table.\n\nComplete the sentences to describe the pattern in the results.\n\nFrom … minutes until 2 minutes the temperature is increasing.\nFrom 2 minutes until … minutes the temperature is … .\nThere are … anomalous results.\n\nWrite the four missing words or numbers in order, separated by commas.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s6-science-q3f.png",
+          "key": {
+            "accepted": [
+              "0, 5, decreasing, 0",
+              "0, 5, decreasing, no",
+              "1, 5, decreasing, 0",
+              "1, 5, decreasing, no",
+              "0,5,decreasing,0",
+              "1,5,decreasing,0",
+              "0,5,decreasing,no",
+              "1,5,decreasing,no"
+            ]
+          },
+          "note": "Mark scheme: 0 or 1; 5; decreasing; 0 or no. All four correct for the mark."
+        },
+        {
+          "code": "S6-SC-Q4a",
+          "competency": "science_chemistry",
+          "type": "multi_select",
+          "stem": "Boiling and evaporation are physical changes.\n\nChoose all the correct statements about boiling and evaporation.",
+          "marks": 2,
+          "difficulty": 3,
+          "options": [
+            "boiling only happens from the surface of a liquid",
+            "boiling produces bubbles in the liquid",
+            "evaporation is faster than boiling",
+            "water boils at 100 °C",
+            "water only evaporates above 100 °C"
+          ],
+          "key": {
+            "correct": [
+              "boiling produces bubbles in the liquid",
+              "water boils at 100 °C"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Each correct answer = 1 mark. Three boxes ticked with two correct = 1 mark; four or five ticked = 0 marks."
+        },
+        {
+          "code": "S6-SC-Q4b",
+          "competency": "science_chemistry",
+          "type": "matching",
+          "stem": "Physical changes are reversible.\n\nMatch each process to the reverse of the process.",
+          "marks": 1,
+          "difficulty": 3,
+          "pairs": [
+            [
+              "evaporation",
+              "condensation"
+            ],
+            [
+              "melting",
+              "freezing"
+            ],
+            [
+              "boiling",
+              "condensation"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "All three lines correct for the mark. On paper the right-hand column has only two entries (freezing, condensation); condensation is the reverse of both evaporation and boiling."
+        },
+        {
+          "code": "S6-SC-Q5a",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Thermal conductivity is a property of a material.\n\nWhat is the meaning of thermal conductivity?",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "the rate at which heat is conducted",
+              "how fast heat is conducted",
+              "how fast heat is transferred",
+              "the rate at which heat is transferred",
+              "the ability to transfer heat",
+              "how good a material is at transferring heat",
+              "how well a material conducts heat",
+              "how quickly heat passes through a material"
+            ]
+          },
+          "note": "Mark scheme: the rate at which heat is conducted/transferred or how fast heat is conducted/transferred. Accept: the ability to transfer heat / how good a material is at transferring heat. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q5b",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Safia collects information about the thermal conductivity of different materials (see her notes).\n\nUse the information to complete the table. The table has two columns: the first column heading is missing and lists air, aluminium, copper, gold, iron and water; the second column is 'thermal conductivity in units'.\n\nWrite the missing column heading, then the six values in the order air, aluminium, copper, gold, iron, water, all separated by commas.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s6-science-q5b.png",
+          "key": {
+            "accepted": [
+              "material, 0.024, 240, 380, 320, 50, 0.6",
+              "materials, 0.024, 240, 380, 320, 50, 0.6",
+              "material,0.024,240,380,320,50,0.6",
+              "materials,0.024,240,380,320,50,0.6"
+            ]
+          },
+          "note": "Mark scheme: heading 'material' and all numbers correct for the mark (air 0.024, aluminium 240, copper 380, gold 320, iron 50, water 0.6). Do not accept units written in the body of the table."
+        },
+        {
+          "code": "S6-SC-Q5c",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Safia says, 'Metals are materials that have a high thermal conductivity.'\n\nUse the information about thermal conductivity to explain why Safia is correct.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s6-science-q5b.png",
+          "key": {
+            "accepted": [
+              "metals have higher numbers than non-metals",
+              "the metals have higher thermal conductivity numbers",
+              "copper has the highest number",
+              "gold, copper, aluminium and iron all have much higher numbers than water and air"
+            ]
+          },
+          "note": "Mark scheme: (idea that) metals have higher numbers (than non-metals). Accept examples, e.g. copper has the highest number. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q6a",
+          "competency": "science_physics",
+          "type": "matching",
+          "stem": "Chen pushes a shopping trolley. The force diagram shows four forces acting on the shopping trolley, drawn as arrows.\n\nMatch each arrow to the name of the force. Choose from: applied force, friction, gravity, normal force, upthrust, water resistance.",
+          "marks": 2,
+          "difficulty": 3,
+          "media": "s6-science-q6a.png",
+          "pairs": [
+            [
+              "Top arrow (pointing up)",
+              "normal force"
+            ],
+            [
+              "Left arrow (pointing backwards, towards Chen)",
+              "friction"
+            ],
+            [
+              "Right arrow (pointing forwards)",
+              "applied force"
+            ],
+            [
+              "Bottom arrow (pointing down)",
+              "gravity"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "All four correct = 2 marks; one, two or three correct = 1 mark. The distractors upthrust and water resistance cannot be shown in the matching format."
+        },
+        {
+          "code": "S6-SC-Q6b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Chen walks forward as he pushes the trolley. Force A (pointing backwards) is the same size as force B (pointing forwards).\n\nDescribe what happens to the trolley.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-science-q6b.png",
+          "key": {
+            "accepted": [
+              "it moves at the same speed",
+              "it moves at the same pace",
+              "it moves at the same rate",
+              "it does not get faster",
+              "it does not get slower",
+              "the motion stays the same",
+              "it keeps moving at a steady speed",
+              "it moves at a constant speed"
+            ]
+          },
+          "note": "Mark scheme: (idea that) moves with the same pace / at the same rate / does not get faster / does not get slower / the motion stays the same. Accept: moves at the same speed. Do not accept: the trolley does not move. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q6c",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "A force diagram is a model. A force diagram shows the name and size of the forces.\n\nDescribe one other way a force diagram helps Chen to understand forces.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "forces cannot be seen",
+              "it shows forces that cannot be seen",
+              "shows the direction of forces",
+              "it shows the direction of the forces",
+              "it shows which way the forces act"
+            ]
+          },
+          "note": "Mark scheme: any one from — forces cannot be seen; shows the direction of forces. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q7a",
+          "competency": "science_physics",
+          "type": "single_choice",
+          "stem": "An astronaut lands on the Moon. He puts a camera onto the surface of the Moon.\n\nWhat is the weight of the camera on the Moon? Choose the correct answer.",
+          "marks": 1,
+          "difficulty": 4,
+          "options": [
+            "100 g",
+            "100 kg",
+            "100 kg / N",
+            "100 N"
+          ],
+          "key": {
+            "correct": "100 N"
+          }
+        },
+        {
+          "code": "S6-SC-Q7b",
+          "competency": "science_physics",
+          "type": "multi_select",
+          "stem": "There is less gravity on the Moon than on the Earth.\n\nChoose the two correct sentences.",
+          "marks": 2,
+          "difficulty": 4,
+          "options": [
+            "The mass of the camera on Earth is measured in kg.",
+            "The mass of the camera on the Moon is measured in m².",
+            "The mass of the camera is greater on Earth than on the Moon.",
+            "The weight of the camera is greater on Earth than on the Moon.",
+            "Gravity makes the camera sink below the surface of the Moon."
+          ],
+          "key": {
+            "correct": [
+              "The mass of the camera on Earth is measured in kg.",
+              "The weight of the camera is greater on Earth than on the Moon."
+            ]
+          },
+          "partial_credit": true,
+          "note": "Each correct answer = 1 mark. Three boxes ticked with two correct = 1 mark; four or five ticked = 0 marks."
+        },
+        {
+          "code": "S6-SC-Q8a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "We use symbols to draw electrical circuits. The table shows three circuit symbols.\n\nWrite the name of each symbol, in order from top to bottom, separated by commas.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-science-q8a.png",
+          "key": {
+            "accepted": [
+              "buzzer, open switch, battery",
+              "buzzer, open switch, two cells",
+              "buzzer, open switch, battery of cells",
+              "buzzer, open switch, cells",
+              "buzzer, open switch, 2 cells",
+              "buzzer, open switch, battery of two cells",
+              "buzzer,open switch,battery",
+              "buzzer,open switch,two cells"
+            ]
+          },
+          "note": "Mark scheme: buzzer; open switch; battery (of cells) or two cells. All three correct for the mark. Do not accept closed switch or just 'switch'."
+        },
+        {
+          "code": "S6-SC-Q9a",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Jamila investigates soil. She mixes soil with water, adds the mixture to a glass container and waits 10 minutes. The diagram shows the results.\n\nJamila waits 10 minutes before observing the results. Predict what she observes if she only waits 1 minute before looking at the results.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-science-q9.png",
+          "key": {
+            "accepted": [
+              "the different substances in the soil will be mixed together",
+              "there will be no clear layers",
+              "the substances have not settled into layers yet",
+              "the water will still be cloudy with everything mixed up",
+              "only the gravel has started to settle at the bottom"
+            ]
+          },
+          "note": "Mark scheme: (idea that) the different substances in the soil will be mixed together / there will be no clear layers / the substances have not settled into layers yet. Accept references to gravel beginning to settle at the bottom. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q9b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Soils are classified based on the amount of sand, clay and X in the soil. X is labelled on the diagram (the layer floating on top of the water).\n\nWhat is the name of X?",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-science-q9.png",
+          "key": {
+            "accepted": [
+              "organic content",
+              "humus",
+              "organic matter",
+              "organic material"
+            ]
+          },
+          "note": "Mark scheme: organic content. Accept humus."
+        },
+        {
+          "code": "S6-SC-Q9c",
+          "competency": "science_enquiry",
+          "type": "numeric",
+          "stem": "Look at the diagram of Jamila's soil results.\n\nComplete the sentence: The volume of sand particles in the soil is … cm³.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-science-q9.png",
+          "key": {
+            "value": 24,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 24 (cm³)."
+        },
+        {
+          "code": "S6-SC-Q9d",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Some plants do not grow well in this soil. The roots die because the soil traps too much water.\n\nSuggest two different ways to improve this soil to help plants grow well.\n\n1 …\n2 …",
+          "marks": 2,
+          "difficulty": 5,
+          "media": "s6-science-q9.png",
+          "key": {
+            "accepted": [
+              "reduce the amount of clay; add more gravel",
+              "add more gravel; improve the drainage",
+              "reduce the amount of clay; add compost",
+              "improve the drainage; add organic content",
+              "add sand; add compost"
+            ]
+          },
+          "note": "Each correct answer = 1 mark. Any two from: reduce the amount of clay; add more gravel; improve the drainage; add compost or organic content. Accept any reasonable suggestion to improve the soil. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q10a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "The diagram shows part of the Solar System (not drawn to scale).\n\nName planet A, planet B and planet C. Write the three names in order, separated by commas.",
+          "marks": 1,
+          "difficulty": 5,
+          "media": "s6-science-q10.png",
+          "key": {
+            "accepted": [
+              "Saturn, Uranus, Neptune",
+              "Saturn,Uranus,Neptune",
+              "Saturn Uranus Neptune"
+            ]
+          },
+          "note": "All three correct for the mark: A Saturn, B Uranus, C Neptune."
+        },
+        {
+          "code": "S6-SC-Q10b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Name the object that moves around the Earth.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "Moon",
+              "the Moon",
+              "satellite",
+              "a satellite",
+              "natural satellite",
+              "artificial satellite",
+              "the International Space Station",
+              "ISS"
+            ]
+          },
+          "note": "Mark scheme: Moon. Accept (natural) satellite or a named artificial satellite."
+        },
+        {
+          "code": "S6-SC-Q10c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "The diagram of the solar system is a model.\n\nComplete the sentences about the diagram of the Solar System.\n\nThe meaning of 'Not drawn to scale' is …\nPlanets in the Solar System are not usually in a straight line because …",
+          "marks": 2,
+          "difficulty": 5,
+          "media": "s6-science-q10.png",
+          "key": {
+            "accepted": [
+              "the planets are not the correct size compared to each other; the planets are orbiting the Sun",
+              "the planets are not the correct distance from each other; the planets orbit the Sun at different speeds",
+              "the sizes and distances are not correct; they are all orbiting the Sun"
+            ]
+          },
+          "note": "1 mark each. Not drawn to scale: (idea that) the planets are not the correct size (when compared to each other) or not the correct distance (from each other). Not in a straight line: (idea that) the planets are orbiting the Sun. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-SC-Q11",
+          "competency": "science_biology",
+          "type": "matching",
+          "stem": "Physical changes take place in humans during puberty.\n\nMatch each change to the correct part of the table: girls only, boys only, or both girls and boys.",
+          "marks": 2,
+          "difficulty": 5,
+          "pairs": [
+            [
+              "hair grows under arms",
+              "both girls and boys"
+            ],
+            [
+              "height increases",
+              "both girls and boys"
+            ],
+            [
+              "hips widen",
+              "girls only"
+            ],
+            [
+              "pimples on face",
+              "both girls and boys"
+            ],
+            [
+              "voice gets lower",
+              "boys only"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "All five correct = 2 marks; two, three or four correct = 1 mark."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "1a",
+      "why": "Complete the diagram using arrows to show the direction oxygen moves from the air into the left lung — needs arrows drawn on a diagram. [1 mark]"
+    },
+    {
+      "q": "3e",
+      "why": "Plot the results for 3, 4 and 5 minutes on the line graph and complete the curve — needs plotting and drawing on a graph. [2 marks]"
+    },
+    {
+      "q": "8b",
+      "why": "Draw a parallel circuit with three lamps, one cell and one closed switch using circuit symbols — needs a drawing. [2 marks]"
+    }
+  ]
+}

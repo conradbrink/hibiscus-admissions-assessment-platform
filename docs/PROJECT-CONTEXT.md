@@ -239,6 +239,22 @@ female English voice; a seam for recorded clips). Content lives in
 `web/scripts/story-seed.mjs`. Nothing about marking, scoring, decisions or
 the learning profile changed shape.
 
+### Cambridge papers (PR #52) — entry to Stage 4 and above
+
+The school's licensed Cambridge Primary Progression Tests 2025 (English,
+Mathematics and Science for Stages 4, 5 and 6), digitised into the
+existing on-screen paper runner. Content lives as JSON in
+`web/content/papers` with the figures as PNGs beside it, and
+`web/scripts/paper-seed.mjs` seeds banks, passages, questions, keys from
+the mark schemes, two writing rubrics per stage and one template per
+entry stage. A sitting is 40 minutes in three timed parts (English 15,
+Mathematics 13, Science 12), each part a selection from its paper that
+fits the time; the full papers stay in the bank for staff to draw on.
+Stage 6 covers entry to both Stage 6 and Stage 7. Question pictures are
+served by `/api/sit/media`, which answers only an open sitting or a
+signed-in staff member, so the licensed material never sits on a public
+address.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
@@ -425,6 +441,16 @@ the learning profile changed shape.
   gesture, which is why the story opens on a "Start the story" button and
   not on page load. Voices load asynchronously (`voiceschanged`); the
   chooser lists only English voices.
+
+- **A part can have its own clock.** `template_sections.time_limit_minutes`
+  was in the schema from Phase 2 but nothing used it; the Cambridge papers
+  do. The clock starts when the child presses Start on that part and is
+  kept in the browser, so reopening the page restarts the part's clock
+  while the sitting's own clock keeps running. The server's clock still
+  decides the sitting.
+- **The Cambridge papers are licensed, not public.** Question pictures go
+  through `/api/sit/media` behind the kiosk cookie or a staff session, and
+  the PDFs themselves are not in the repository.
 
 ## 4. Reference data to confirm with the school
 

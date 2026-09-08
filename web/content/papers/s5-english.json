@@ -1,0 +1,483 @@
+{
+  "code": "s5-english",
+  "name": "Cambridge Progression · Stage 5 · English",
+  "subject": "english",
+  "stage": 5,
+  "time_limit_minutes": 40,
+  "source": "0058 English 2025 Stage 5 Paper 1 Non-fiction",
+  "passages": [
+    {
+      "key": "insert",
+      "title": "Saving the Sydney Seahorse",
+      "body": "Saving the Sydney Seahorse\n\nCan Sydney seahorses born in aquariums¹ rescue their species from extinction?\nMarine scientists are making desperate efforts to breed the Sydney seahorse in\naquariums because 90% of these creatures have disappeared over the past ten\n[5] years. The scientists plan to set the seahorses free into the ocean after a short\nperiod in the aquarium.\n\nAlso known as White's seahorse, the Sydney seahorse can grow up to 16\ncentimetres long and it lives on the east coast of Australia in shallow waters,\nwhere its natural habitats are sponges, soft corals and seagrasses. However,\n[10] due to a number of issues, such as adverse weather conditions, boat anchors\nand declining water quality, this habitat is rapidly vanishing. In fact, vast numbers\nof soft coral and sponge habitats have been lost over the past decade, at sites\nwhere the seahorse was once common. This has caused a massive drop in\nseahorse numbers and so seahorses are now classed as an endangered\n[15] species. In an attempt to recover the dwindling seahorse numbers, a\nconservation project has been launched which is described as a 'world first'.\n\nAquarium-bred babies\n\nAs part of the project, scientists took six pairs of adult seahorses from Sydney\nharbour and brought them back to the aquarium tanks for breeding.\n\n[20] 'Once they'd adapted to their new surroundings, the seahorses had many babies\nand we are now rearing² these little ones,' says one of the senior scientists on\nthe project.\n\nUnusually, it is the male seahorses that give birth to the tiny babies. They have\nbetween 50 and 150 of them, and each one is only 1 cm long.\n\n[25] 'In the ocean, baby seahorses are like sweeties – all sorts of animals enjoy\neating them,' laughs the scientist. 'In the aquarium, they're safe.'\n\nSurvival is not certain\n\nAlthough the seahorses' chances of survival are significantly increased by\nbreeding in the aquarium, there is no guarantee they will adjust well to life in the\n[30] wild.\n\n'After these seahorses are freed from the aquarium tanks into the sea, there is\nnobody to look after them or feed them each day. They will meet other animals\nlike fish and octopus which will prey on them. So, while we want to believe that\nthey will adapt to life in the wild, we cannot promise that they will survive out\n[35] there.'\n\nHotels for seahorses\n\nBy the time the baby seahorses have grown to 4 cm in length, each one will be\ntagged for identification and then released in one of two locations in Sydney\nHarbour.\n\n[40] These two locations are a natural and an artificial habitat. Surprisingly, it is shark\nnets³ that are considered the natural habitat, and the artificial habitat is the\nseahorse hotel that the scientists put in.\n\nThese seahorse hotels are cages made from wire. They were the original idea of\nthe senior scientist working on the project and are created to eventually look and\n[45] feel like the seahorse habitats that are being threatened. Specialist divers can\ncheck how well the shark nets and seahorse hotels are working underwater so\nthat the scientists can make a decision about whether to build more.\n\nIt is hoped that the seahorse hotels might provide homes for the wild seahorses\nstill living in the harbour. This should help the species to recover over time.\n\n[50] The Sydney seahorse conservation project is likely to last for two years, or until\nthe scientists have an idea if it is actually helping this rare species.\n\nGlossary\n\n¹aquarium: a glass container of water where fish and other water creatures live\n²rearing: bringing up and caring for young animals\n³shark nets: underwater barriers to keep sharks out"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Section A: Reading",
+      "instructions": "Read the text in the insert, and answer Questions 1–8.",
+      "items": [
+        {
+          "code": "S5-EN-Q1",
+          "competency": "comprehension",
+          "type": "single_choice",
+          "stem": "Look at lines 2–6.\n\nWhat is the main purpose of the first paragraph?\n\nTick one box.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "options": [
+            "to introduce what the Sydney seahorse is",
+            "to summarise what the article is all about",
+            "to describe the writer's opinion on aquariums",
+            "to explain why seahorses are becoming extinct"
+          ],
+          "key": {
+            "correct": "to summarise what the article is all about"
+          }
+        },
+        {
+          "code": "S5-EN-Q2a",
+          "competency": "grammar",
+          "type": "matching",
+          "stem": "Look at lines 7–16. Look at the complex sentence which starts this paragraph.\n\nMatch the following information to the numbers (1–4) to show the order it appears in the sentence. The first one has been done for you: 1 → an alternative name.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 2,
+          "pairs": [
+            [
+              "2",
+              "size"
+            ],
+            [
+              "3",
+              "location"
+            ],
+            [
+              "4",
+              "environment"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: 1 an alternative name (given), 2 size, 3 location, 4 environment. 1 mark for each correct match, up to 2 marks."
+        },
+        {
+          "code": "S5-EN-Q2b",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at lines 7–16.\n\nGive one adjective which means 'harmful'.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "adverse"
+            ]
+          },
+          "note": "Mark scheme: adverse."
+        },
+        {
+          "code": "S5-EN-Q2ci",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at lines 7–16.\n\nGive a connective word or phrase that is used to introduce a contrasting statement.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "However"
+            ]
+          },
+          "note": "Printed as the first of three answer lines in Q2(c) [3]; 1 mark each. Mark scheme: However."
+        },
+        {
+          "code": "S5-EN-Q2cii",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at lines 7–16.\n\nGive a connective word or phrase that is used to show some examples.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "such as"
+            ]
+          },
+          "note": "Second answer line of Q2(c). Mark scheme: such as."
+        },
+        {
+          "code": "S5-EN-Q2ciii",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at lines 7–16.\n\nGive a connective word or phrase that is used to emphasise the truth of a statement.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "In fact"
+            ]
+          },
+          "note": "Third answer line of Q2(c). Mark scheme: In fact."
+        },
+        {
+          "code": "S5-EN-Q2d",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at lines 7–16.\n\nWhy is the phrase 'world first' in inverted commas ( ' ' )?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "It's a direct quotation",
+              "It is a direct quotation",
+              "a direct quotation",
+              "it is a quotation",
+              "it is a quote",
+              "it's what somebody else said",
+              "it is what somebody else said",
+              "it is what someone else said",
+              "it's someone else's opinion",
+              "it is someone else's opinion",
+              "someone else's opinion",
+              "it is someone else's words",
+              "somebody else said it"
+            ]
+          },
+          "note": "Mark scheme: it's a direct quotation / it's what somebody else said / it's someone else's opinion. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q3a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 18–26.\n\nWhy did the scientist have to wait some time before the seahorses started breeding?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "to allow the seahorses time to get used to living in a tank",
+              "to allow the seahorses time to adapt to living in a tank",
+              "to allow the seahorses to adapt to the tank",
+              "to allow the seahorses to adapt to the water",
+              "to allow the seahorses to adapt to their new surroundings",
+              "they had to adapt to their new surroundings",
+              "the seahorses had to get used to the tank",
+              "the seahorses needed to adapt to their new surroundings",
+              "they needed to get used to their new surroundings",
+              "to let them adapt to the tank"
+            ]
+          },
+          "note": "Mark scheme: to allow the seahorses time to get used to / adapt to living in a tank / the water / new surroundings. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q3b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 18–26.\n\nWhat is surprising about how seahorses have babies?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "Male seahorses give birth",
+              "the male seahorses give birth to the babies",
+              "the males give birth",
+              "it is the male seahorses that give birth",
+              "it is the males that give birth to the babies",
+              "it is not the females who give birth",
+              "the females do not give birth",
+              "the male has the babies",
+              "the males have the babies"
+            ]
+          },
+          "note": "Mark scheme: male seahorses give birth (to the babies) / it is not the females who give birth. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q3c",
+          "competency": "grammar",
+          "type": "multi_select",
+          "stem": "Look at lines 18–26.\n\nGive two reasons why commas ( , ) are used in lines 25–26.\n\nTick two boxes.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 3,
+          "options": [
+            "to add more items in a list",
+            "to indicate an adverbial of place",
+            "to give a longer specific example",
+            "to signal the end of speech",
+            "to separate two clauses"
+          ],
+          "key": {
+            "correct": [
+              "to indicate an adverbial of place",
+              "to signal the end of speech"
+            ]
+          },
+          "partial_credit": true,
+          "note": "1 mark for each correct tick, up to 2 marks."
+        },
+        {
+          "code": "S5-EN-Q4",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "In lines 2–16 there are two paragraphs. In lines 18–26 there are several smaller sections.\n\nWhy is the information divided into smaller sections in these lines?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "The information is mixed with dialogue",
+              "the information is mixed with direct speech",
+              "the information is mixed with speech",
+              "each piece of information is followed by dialogue",
+              "each piece of information is followed by direct speech",
+              "each description is followed by dialogue",
+              "because there is dialogue",
+              "because of the direct speech",
+              "dialogue always starts on a new line",
+              "speech starts on a new line",
+              "because there are quotations from the scientist"
+            ]
+          },
+          "note": "Mark scheme: the information is mixed with dialogue / (direct) speech / each piece of information is followed by dialogue (which always starts on a new line). Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q5",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 28–35.\n\nGive one animal that eats seahorses.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "fish",
+              "octopus",
+              "a fish",
+              "an octopus",
+              "octopuses"
+            ]
+          },
+          "note": "Mark scheme: fish or octopus."
+        },
+        {
+          "code": "S5-EN-Q6a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 37–51.\n\nHow will the scientists monitor the individual seahorses?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "from the tags",
+              "tags",
+              "tagging",
+              "they are tagged",
+              "they are each tagged for identification",
+              "each one is tagged",
+              "by tagging them",
+              "each seahorse will be tagged",
+              "with tags",
+              "they tag them",
+              "by tagging each one for identification",
+              "each one will be tagged for identification"
+            ]
+          },
+          "note": "Mark scheme: from the tags / they are each tagged for identification."
+        },
+        {
+          "code": "S5-EN-Q6b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 37–51.\n\nThe writer explains that shark nets are thought of as a 'natural habitat'. What does this tell us about the seahorse habitat in Sydney Harbour?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "The wild seahorses have adopted the nets",
+              "the wild seahorses live in the nets",
+              "the seahorses live in the nets as their habitat",
+              "the nets have been there long enough to feel like a natural habitat",
+              "the nets have been there a long time",
+              "there are no other natural habitats left",
+              "there are no proper natural habitats left",
+              "there are no natural habitats left",
+              "the natural habitats have gone",
+              "it's not a natural environment for them",
+              "it is not a very natural environment",
+              "it is not really natural",
+              "the habitat is not natural"
+            ]
+          },
+          "note": "Mark scheme: the wild seahorses have adopted / live in the nets / the nets have been there long enough to feel like a natural habitat / there are no other (proper) natural habitats (left) / it's not a (very) natural environment (for them). Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q6c",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 43–47. Which part of the scientist's work is described as original?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "seahorse hotels",
+              "the seahorse hotels",
+              "seahorse hotel",
+              "the seahorse hotel",
+              "the hotels",
+              "hotels",
+              "hotels for seahorses",
+              "the idea of seahorse hotels",
+              "the wire cages",
+              "cages made from wire"
+            ]
+          },
+          "note": "Mark scheme: seahorse hotels."
+        },
+        {
+          "code": "S5-EN-Q6d",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at lines 37–51.\n\nWhat might make the project finish early?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "it's not working",
+              "it is not working",
+              "if it is not working",
+              "if it is obvious it is not working",
+              "the seahorse hotels are not helping the seahorses",
+              "if the hotels are not helping the seahorses",
+              "not helping the seahorses recover",
+              "if it is not helping the seahorses recover",
+              "if it is not helping the species",
+              "if the scientists have an idea that it is not helping this rare species",
+              "a negative effect on the number of seahorses",
+              "a negative impact on the number of seahorses",
+              "if it has a negative effect on seahorse numbers",
+              "if seahorse numbers go down"
+            ]
+          },
+          "note": "Mark scheme: (the project may finish early if it is obvious) it's not working / the seahorse hotels are not helping the seahorses (recover); or (if it has) a negative effect/impact on the number of seahorses. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q7a",
+          "competency": "vocabulary",
+          "type": "single_choice",
+          "stem": "Look at the whole text.\n\nWhich figurative language technique is used in the heading?\n\nTick one box.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "options": [
+            "rhyme",
+            "alliteration",
+            "metaphor",
+            "simile"
+          ],
+          "key": {
+            "correct": "alliteration"
+          }
+        },
+        {
+          "code": "S5-EN-Q7bi",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the whole text.\n\nExplain how the subheadings make the text easier to read. Give two ideas.\n\nFirst idea:",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "The subheadings divide the information into different sections",
+              "they divide the information into sections",
+              "they divide the text into sections",
+              "they split the text into sections",
+              "they break the text up into sections",
+              "they organise the information into sections",
+              "The subheadings tell the reader what information they are about to read",
+              "they tell the reader what they are about to read",
+              "they tell you what the section is about",
+              "they indicate the topic",
+              "they show the topic of each section",
+              "they tell you what is coming next",
+              "they introduce the topic of the section"
+            ]
+          },
+          "note": "Printed as 'First idea' / 'Second idea' lines in Q7(b) [2]; 1 mark each. Mark scheme: (1) the subheadings divide the information into different sections; (2) they tell the reader what information they are about to read / indicate the topic. The two ideas must be different. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q7bii",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the whole text.\n\nExplain how the subheadings make the text easier to read. Give two ideas.\n\nSecond idea:",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "The subheadings divide the information into different sections",
+              "they divide the information into sections",
+              "they divide the text into sections",
+              "they split the text into sections",
+              "they break the text up into sections",
+              "they organise the information into sections",
+              "The subheadings tell the reader what information they are about to read",
+              "they tell the reader what they are about to read",
+              "they tell you what the section is about",
+              "they indicate the topic",
+              "they show the topic of each section",
+              "they tell you what is coming next",
+              "they introduce the topic of the section"
+            ]
+          },
+          "note": "Second answer line of Q7(b). Must be a different idea from the first. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-EN-Q8",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Do you think this conservation project will be a success? Write Yes or No.\n\nGive two reasons for your opinion. Support each reason with a quotation from the text.\n\nReason 1:\nQuotation 1:\nReason 2:\nQuotation 2:",
+          "passage": "insert",
+          "marks": 4,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "making desperate efforts to breed the Sydney seahorse in aquariums because 90% of these creatures have disappeared over the past ten years",
+              "In the aquarium, they're safe",
+              "the seahorse hotels might provide homes for the wild seahorses",
+              "They will meet other animals like fish and octopus which will prey on them",
+              "we cannot promise that they will survive out there",
+              "there is nobody to look after them or feed them each day",
+              "divers can check how well the shark nets and seahorse hotels are working underwater",
+              "there is no guarantee they will adjust well to life in the wild"
+            ]
+          },
+          "note": "A person must mark this: 1 mark for each appropriate reason (max 2) and 1 mark for each matching quotation (max 2). Yes: removed from danger/kept in a tank ('making desperate efforts to breed… over the past ten years'); safe as babies ('In the aquarium, they're safe.'); hotels for safety ('the seahorse hotels might provide homes for the wild seahorses'). No: still have predators ('They will meet other animals like fish and octopus which will prey on them.'); used to being safe and fed / might not adapt ('we cannot promise that they will survive out there.' / 'there is nobody to look after them or feed them each day.'); might not use the hotels ('divers can check how well the shark nets and seahorse hotels are working underwater'); might not adapt to sea water ('there is no guarantee they will adjust well to life in the wild.'). Accept any other appropriate reason supported by a matching quotation."
+        }
+      ]
+    },
+    {
+      "title": "Section B: Writing",
+      "instructions": "Spend 30 minutes on this section.",
+      "items": [
+        {
+          "code": "S5-EN-Q9",
+          "competency": "written_language",
+          "type": "extended_text",
+          "stem": "Write an article for your school website about how you could encourage local species of insects, birds or any other animals in your area.\n\nThis might be in your garden, on a balcony, in the school grounds, a nearby park or other outdoor space.\n\nThink about:\n• what habitat they live in\n• what food they eat\n• what you can do to protect them.\n\nPlan your article first, then write it.",
+          "marks": 25,
+          "difficulty": 5,
+          "note": "Marked with the Stage 5 writing rubric: Creation of texts 5, Vocabulary and language 3, Grammar and punctuation 7, Structure of texts 7, Word structure (spelling) 3. 0 marks for 20 words or fewer; maximum 7 marks for 21–60 words."
+        }
+      ]
+    }
+  ],
+  "omitted": []
+}

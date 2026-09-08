@@ -1,0 +1,634 @@
+{
+  "code": "s6-mathematics",
+  "name": "Cambridge Progression · Stage 6 · Mathematics",
+  "subject": "mathematics",
+  "stage": 6,
+  "time_limit_minutes": 40,
+  "source": "0096 Mathematics 2025 Stage 6 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions. You are not allowed to use a calculator.",
+      "items": [
+        {
+          "code": "S6-MA-Q1",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n2.8 × 4",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "value": 11.2,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q2",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Write 2.25 hours in hours and minutes.\n\nWrite your answer in the form: … hours … minutes",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "2 hours 15 minutes",
+              "2 hours and 15 minutes",
+              "2 hour 15 minutes",
+              "2 h 15 min",
+              "2 h 15 m",
+              "2 hrs 15 mins",
+              "2 hr 15 min",
+              "2h 15min",
+              "2h15min",
+              "2, 15",
+              "2 15"
+            ]
+          },
+          "note": "Mark scheme: 2 (hours) 15 (minutes). Do not accept 2.15 or 2:15 formats."
+        },
+        {
+          "code": "S6-MA-Q3",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n64.23 ÷ 3",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "value": 21.41,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q4",
+          "competency": "geometry",
+          "type": "numeric",
+          "stem": "Here is a rectangle made from two triangles. The rectangle is 5 cm long and 3 cm high.\n\nWork out the area of one of the triangles, in cm².",
+          "marks": 1,
+          "difficulty": 1,
+          "media": "s6-mathematics-q4.png",
+          "key": {
+            "value": 7.5,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 7.5 (cm²). Accept equivalent fractions, e.g. 15/2 or 7½."
+        },
+        {
+          "code": "S6-MA-Q5",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "Oliver finds the mass of four apples. Here are his results in grams.\n\n50   80   70   80\n\nFind the mean mass of the apples, in grams.",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "value": 70,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q6",
+          "competency": "number_sense",
+          "type": "single_choice",
+          "stem": "Choose the number which equals 5 when rounded to the nearest whole number.",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "5.55",
+            "5.19",
+            "4.49",
+            "4.34"
+          ],
+          "key": {
+            "correct": "5.19"
+          }
+        },
+        {
+          "code": "S6-MA-Q7",
+          "competency": "number_sense",
+          "type": "matching",
+          "stem": "Match each fraction on the left to its simplest form.",
+          "marks": 1,
+          "difficulty": 2,
+          "pairs": [
+            [
+              "5/20",
+              "1/4"
+            ],
+            [
+              "2/10",
+              "1/5"
+            ]
+          ],
+          "partial_credit": false,
+          "note": "Both correct for the mark. On paper the right-hand column also shows 1/2 as a distractor, which the matching format cannot include."
+        },
+        {
+          "code": "S6-MA-Q8",
+          "competency": "geometry",
+          "type": "numeric",
+          "stem": "Here is a triangle (not drawn to scale). The size of two of the angles are marked: 43° and 33°.\n\nWork out the size of the third angle, in degrees.",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s6-mathematics-q8.png",
+          "key": {
+            "value": 104,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q9a",
+          "competency": "number_sense",
+          "type": "numeric",
+          "stem": "The temperature in London is 5 °C. The temperature in Moscow is −7 °C.\n\nWrite the number that makes this sentence correct:\nLondon is … °C warmer than Moscow.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "value": 12,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q9b",
+          "competency": "number_sense",
+          "type": "numeric",
+          "stem": "The temperature in London is 5 °C. The temperature in London falls by 8 °C.\n\nWrite the new temperature in London, in °C.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "value": -3,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: −3 (°C). Do not accept 3−."
+        },
+        {
+          "code": "S6-MA-Q10",
+          "competency": "patterns",
+          "type": "short_text",
+          "stem": "Mike starts to write a sequence of numbers. He starts at 1.7 and counts back in steps of 0.4\n\nHere are the first 3 numbers in his sequence:\n\n1.7   1.3   0.9   …   …\n\nWrite the next 2 numbers in the sequence, in order, separated by a comma.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "0.5, 0.1",
+              "0.5,0.1",
+              "0.5 0.1",
+              "0.5 and 0.1"
+            ]
+          },
+          "note": "Both correct in the correct order for the mark."
+        },
+        {
+          "code": "S6-MA-Q11",
+          "competency": "number_sense",
+          "type": "multi_select",
+          "stem": "Choose each calculation where the answer is a square number.",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "5 × 2",
+            "10 × 10",
+            "3 × 3",
+            "3 × 7",
+            "1 × 2"
+          ],
+          "key": {
+            "correct": [
+              "10 × 10",
+              "3 × 3"
+            ]
+          },
+          "partial_credit": false,
+          "note": "Both correct for the mark."
+        },
+        {
+          "code": "S6-MA-Q12",
+          "competency": "geometry",
+          "type": "short_text",
+          "stem": "Write a number in each gap to complete the sentences.\n\nAll isosceles triangles have … equal sides.\nAll scalene triangles have … different angles.\nAll equilateral triangles have … lines of symmetry.\n\nWrite the three numbers in order, separated by commas.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "2, 3, 3",
+              "2,3,3",
+              "2 3 3"
+            ]
+          },
+          "note": "All three answers correct for the mark: 2, 3, 3."
+        },
+        {
+          "code": "S6-MA-Q13",
+          "competency": "number_sense",
+          "type": "multi_select",
+          "stem": "Choose each prime number.",
+          "marks": 1,
+          "difficulty": 3,
+          "options": [
+            "21",
+            "23",
+            "25",
+            "27",
+            "29",
+            "31"
+          ],
+          "key": {
+            "correct": [
+              "23",
+              "29",
+              "31"
+            ]
+          },
+          "partial_credit": false,
+          "note": "All three correct for the mark."
+        },
+        {
+          "code": "S6-MA-Q14",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n5 + 5 × 47 × 2",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 475,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q15",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "stem": "Carlos bakes some cakes. For every 100 g of flour he uses, he needs 2 eggs. He uses 1 kg of flour.\n\nWrite the number of eggs he needs.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 20,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q16",
+          "competency": "arithmetic",
+          "type": "short_text",
+          "stem": "Write a number in each box to make the statement correct.\n\n1.5 + [ ] + [ ] = 6.6\n\nWrite your two numbers separated by a comma.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "2.1, 3",
+              "3, 2.1",
+              "5, 0.1",
+              "0.1, 5",
+              "2.5, 2.6",
+              "2.6, 2.5",
+              "1, 4.1",
+              "4.1, 1",
+              "2, 3.1",
+              "3.1, 2",
+              "4, 1.1",
+              "1.1, 4",
+              "0.6, 4.5",
+              "4.5, 0.6",
+              "1.5, 3.6",
+              "3.6, 1.5",
+              "2.55, 2.55",
+              "0.5, 4.6",
+              "4.6, 0.5",
+              "3.5, 1.6",
+              "1.6, 3.5"
+            ]
+          },
+          "note": "Mark scheme: any 2 numbers with a total of 5.1. Only common examples are listed. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-MA-Q17",
+          "competency": "measures_data",
+          "type": "numeric",
+          "stem": "Hassan has a bag of sweets. He has 5 green sweets and all the other sweets are yellow. He picks one sweet from the bag at random. There is a 1 out of 4 chance of Hassan picking a green sweet.\n\nWrite the total number of sweets in the bag.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 20,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q19a",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n2468 × 35",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 86380,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: 86 380"
+        },
+        {
+          "code": "S6-MA-Q19b",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "stem": "Work out.\n\n455 ÷ 13",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "value": 35,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q20a",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Gabriella counts the number of students in the class for each of her different subjects at school. Her results are shown in the table.\n\nComplete the tally chart to show her results, using these groups: 17–18, 19–20, 21–22, 23–24.\n\nFor each group, write how many subjects fall in it, in order, separated by commas (write 0 for an empty group).",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s6-mathematics-q20.png",
+          "key": {
+            "accepted": [
+              "2, 0, 3, 5",
+              "2,0,3,5",
+              "2 0 3 5",
+              "II, 0, III, IIII",
+              "II, , III, IIII",
+              "II, 0, III, 5"
+            ]
+          },
+          "note": "On paper this is a tally chart; mark scheme: 17–18 = II, 19–20 = blank (accept 0), 21–22 = III, 23–24 = IIII (gate). All four correct for the mark. Encoded as frequencies 2, 0, 3, 5 for screen entry."
+        },
+        {
+          "code": "S6-MA-Q20b",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Angelique groups the same data (the table of students in each class) using three equal intervals. She starts to write the intervals in a table:\n\n17 – …\n… – …\n… – 25\n\nComplete the table. Write the three intervals in order, separated by commas (for example 1–3, 4–6, 7–9).",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-mathematics-q20.png",
+          "key": {
+            "accepted": [
+              "17-19, 20-22, 23-25",
+              "17–19, 20–22, 23–25",
+              "17 - 19, 20 - 22, 23 - 25",
+              "17 to 19, 20 to 22, 23 to 25",
+              "17-19,20-22,23-25",
+              "19, 20, 22, 23"
+            ]
+          },
+          "note": "Mark scheme: 17 – 19, 20 – 22, 23 – 25."
+        },
+        {
+          "code": "S6-MA-Q21a",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "stem": "Safia uses 27 small white unit cubes to build a larger solid cube. Safia paints all the faces of the larger cube red.\n\nWrite the number of small unit cubes that have three faces painted red.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-mathematics-q21.png",
+          "key": {
+            "value": 8,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q21b",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "stem": "Safia uses 27 small white unit cubes to build a larger solid cube. Safia paints all the faces of the larger cube red.\n\nWrite the number of small unit cubes that have no faces painted red.",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s6-mathematics-q21.png",
+          "key": {
+            "value": 1,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q22",
+          "competency": "number_sense",
+          "type": "numeric",
+          "stem": "Here are three numbers.\n\n32   40   16\n\nWrite the largest number that is a factor of all these numbers.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "value": 8,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q23",
+          "competency": "number_sense",
+          "type": "matching",
+          "stem": "Here are some numbers: 333, 543, 738, 354.\n\nPlace each number in the correct region of the Venn diagram (Divisible by 6 / Divisible by 9).",
+          "marks": 2,
+          "difficulty": 4,
+          "media": "s6-mathematics-q23.png",
+          "pairs": [
+            [
+              "333",
+              "Divisible by 9 only"
+            ],
+            [
+              "543",
+              "Neither (outside both circles)"
+            ],
+            [
+              "738",
+              "Divisible by both 6 and 9 (the overlap)"
+            ],
+            [
+              "354",
+              "Divisible by 6 only"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: 354 in 'Divisible by 6' only, 738 in the overlap, 333 in 'Divisible by 9' only, 543 outside both. Award 1 mark for two or three correctly placed numbers."
+        },
+        {
+          "code": "S6-MA-Q24a",
+          "competency": "patterns",
+          "type": "numeric",
+          "stem": "Pierre has some red balls and some white balls in a bag. R represents the number of red balls. W represents the number of white balls.\n\nWrite the value of W when R + W = 16 and R = 5",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "value": 11,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q24b",
+          "competency": "patterns",
+          "type": "numeric",
+          "stem": "Carlos has some green balls, some blue balls and some yellow balls in a different bag. G represents the number of green balls, B the number of blue balls and Y the number of yellow balls.\n\nWrite the number of green balls in the bag when B = Y and G = B + Y and B = 5",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "value": 10,
+            "tolerance": 0
+          }
+        },
+        {
+          "code": "S6-MA-Q25",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "stem": "The price of a car in December is $1000. The price of the car in January is 10% less than the price in December. The price of the car in February is 20% more than the price in January.\n\nWork out the price of the car in February, in dollars. Show your working.",
+          "marks": 2,
+          "difficulty": 5,
+          "key": {
+            "value": 1080,
+            "tolerance": 0
+          },
+          "note": "Mark scheme: ($)1080. Award 1 mark for sight of ($)900, or 2/10 × their 900 + their 900, or 1.2 × their 900, or a correct method e.g. 0.9 × 1.2 × 1000. Working cannot be seen on screen, so only the full 2 marks are auto-marked."
+        },
+        {
+          "code": "S6-MA-Q26b",
+          "competency": "geometry",
+          "type": "short_text",
+          "stem": "Here are three shapes drawn on a grid of squares: two right-angled triangles and a rectangle. These shapes can be combined to make a parallelogram (shown).\n\nThere are two other different quadrilaterals that could be created using the same three shapes.\n\nWrite the name of one of these other possible shapes.",
+          "marks": 1,
+          "difficulty": 5,
+          "media": "s6-mathematics-q26.png",
+          "key": {
+            "accepted": [
+              "rectangle",
+              "trapezium",
+              "trapezoid",
+              "a rectangle",
+              "a trapezium"
+            ]
+          },
+          "note": "Mark scheme: Rectangle or trapezium. On paper part (a) asks for one shape to be drawn (omitted here) and (b) for the other to be named; since no drawing is made, either correct answer earns the mark."
+        },
+        {
+          "code": "S6-MA-Q27",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Rajiv says, 'All decimal numbers ending in a 5 round up when rounded to the nearest whole number.'\n\nGive an example to show that Rajiv is wrong.",
+          "marks": 1,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "0.45",
+              "2.235",
+              "0.25",
+              "0.15",
+              "0.35",
+              "0.05",
+              "1.45",
+              "2.45",
+              "3.45",
+              "0.125",
+              "0.245",
+              "1.25",
+              "1.35",
+              "1.15",
+              "1.05",
+              "2.25",
+              "2.35",
+              "2.15",
+              "2.05",
+              "3.25",
+              "3.35",
+              "3.15",
+              "3.05",
+              "4.45",
+              "4.25",
+              "4.35",
+              "4.15",
+              "4.05",
+              "5.45",
+              "5.25",
+              "5.35",
+              "5.15",
+              "5.05",
+              "0.455",
+              "0.345",
+              "0.445",
+              "10.45",
+              "12.45"
+            ]
+          },
+          "note": "Mark scheme: any number with 2 or more decimal places where the decimal part is less than 0.5 and ends in 5, e.g. 0.45 or 2.235. Only some examples are listed. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-MA-Q28",
+          "competency": "number_sense",
+          "type": "short_text",
+          "stem": "Here are some quantities.\n\n5/8   0.4   80%   5/6\n\nWrite a quantity in each box to make these statements correct. Use each quantity once.\n\n[ ] = 4/5\n5/9 > [ ]\n[ ] < [ ]\n\nWrite the four quantities in the order they fill the boxes (top to bottom, left to right), separated by commas.",
+          "marks": 2,
+          "difficulty": 5,
+          "media": "s6-mathematics-q28.png",
+          "key": {
+            "accepted": [
+              "80%, 0.4, 5/8, 5/6",
+              "80%,0.4,5/8,5/6",
+              "80% 0.4 5/8 5/6",
+              "80 percent, 0.4, 5/8, 5/6",
+              "80%, 0.4, 5/8 < 5/6",
+              "80% = 4/5, 5/9 > 0.4, 5/8 < 5/6"
+            ]
+          },
+          "note": "Mark scheme: 80% = 4/5; 5/9 > 0.4; 5/8 < 5/6. Award 1 mark for two correct statements — partial credit needs a person to check."
+        },
+        {
+          "code": "S6-MA-Q29",
+          "competency": "measures_data",
+          "type": "short_text",
+          "stem": "Six children take tests in maths and English. The results for each child are shown in the bar charts.\n\nEva says, 'I scored twice as many marks in English than I did in maths. This means I must be better at English than I am at maths.'\n\nIs Eva correct? Write Yes or No, then explain how you know.",
+          "marks": 1,
+          "difficulty": 5,
+          "media": "s6-mathematics-q29.png",
+          "key": {
+            "accepted": [
+              "No — we don't know what the total marks for each test were",
+              "No, we do not know the total marks for each test; maths could have been out of 15 and English out of 100",
+              "No — she came second in maths but fifth in English",
+              "No — the English test could have been easier than the maths test",
+              "No — she might not have revised for the English test",
+              "No, the tests could be out of different totals"
+            ]
+          },
+          "note": "Mark scheme: No ticked and an explanation that Eva cannot know whether she is better at maths, supported by a valid reason, e.g. we don't know the total marks for each test (maths could be out of 15, English out of 100); she came second in maths but fifth in English; the English test could have been easier; she might not have revised for English. Accept any valid explanation. No without explanation = 0 marks. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-MA-Q30",
+          "competency": "problem_solving",
+          "type": "short_text",
+          "stem": "Here are some number cards: 1, 2, 4, 6.\n\nUse each card once to make the calculation correct:\n\n3 × [ ]/[ ] = [ ]/[ ]\n\nWrite your calculation in the form 3 × a/b = c/d (or write the four card numbers in the order a, b, c, d).",
+          "marks": 1,
+          "difficulty": 5,
+          "media": "s6-mathematics-q30.png",
+          "key": {
+            "accepted": [
+              "3 × 1/2 = 6/4",
+              "3 x 1/2 = 6/4",
+              "1/2 = 6/4",
+              "1, 2, 6, 4",
+              "1,2,6,4",
+              "3 × 4/6 = 2/1",
+              "3 x 4/6 = 2/1",
+              "4/6 = 2/1",
+              "4, 6, 2, 1",
+              "4,6,2,1",
+              "3 × 1/6 = 2/4",
+              "3 x 1/6 = 2/4",
+              "1/6 = 2/4",
+              "1, 6, 2, 4",
+              "1,6,2,4"
+            ]
+          },
+          "note": "Mark scheme: (3 ×) 1/2 = 6/4 or (3 ×) 4/6 = 2/1 or (3 ×) 1/6 = 2/4. All four numbers correct within one pair of fractions for the mark."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "18",
+      "why": "Draw Yuri's quadrilateral on the grid (a 9 × 1 rectangle with perimeter 20 and smallest area) — needs a drawing on a grid. [2 marks]"
+    },
+    {
+      "q": "26a",
+      "why": "Draw one of the other quadrilaterals (rectangle or trapezium) made from the three shapes on the grid — needs a drawing. [1 mark]"
+    }
+  ]
+}

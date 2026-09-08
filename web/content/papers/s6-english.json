@@ -1,0 +1,319 @@
+{
+  "code": "s6-english",
+  "name": "Cambridge Progression · Stage 6 · English",
+  "subject": "english",
+  "stage": 6,
+  "time_limit_minutes": 40,
+  "source": "0058 English 2025 Stage 6 Paper 1 Non-fiction",
+  "passages": [
+    {
+      "key": "insert",
+      "title": "Snowflake Bentley",
+      "body": "Snowflake Bentley\n\nFor most farming families in nineteenth-century rural America, winter snowstorms were dreaded and had to be endured. But for Wilson Bentley, snow was a source of intense fascination. This led him, at the age of 19, to produce the world's first photographic images of snowflakes, which he described as 'tiny miracles of [5] beauty'.\n\nA stunning album of 355 of the original prints by the man who came to be known as Snowflake Bentley was bought by London's Natural History Museum in 1899. The collection has now been digitised and made available to view online.\n\n'They are so incredibly beautiful,' said Andrea Hart, a library special collections [10] manager at the museum. 'When you look a bit closer and see these natural formations, you can understand why he became obsessed.'\n\nBentley was born into a farming family in a remote part of Vermont in the north-eastern US. His scientific interest in snow took off at the age of 15 when his mother, a teacher, gave him a microscope. He initially tried to draw the patterns [15] of snow crystals¹ but they were too complex to record before they melted.\n\nHis father later gave him a camera, which he was able to attach to the microscope. After much experimentation, he photographed his first snowflake on 15 January 1885.\n\n'For the farming community, the winter months would have been hard,' Hart said. [20] 'But Bentley would get upset if he missed a snowstorm and the opportunity to get more snow crystals for his collection.'\n\nBentley set up his kit in the woodshed on the farm and whenever a snowstorm arrived he would capture snowflakes on a board painted black. 'He would examine the snowflakes with a magnifying glass and sweep away the ones he [25] didn't want with a turkey feather,' Hart said. The selected crystals would be transferred on to a glass slide using a splinter of wood from a broom, with Bentley taking care not to breathe on them.\n\nHis notebooks reveal a deep scientific obsession, and a determination to uncover the secrets of snow through methodical persistence. He carefully noted the [30] temperature, wind direction and other meteorological² details of snowstorms that might reveal any environmental influences on the nature of snow crystals. 'He recorded everything,' Hart said.\n\nBentley was also captivated by the beauty of the images, and his magazine articles reveal his poetic turn of phrase. 'Every crystal was a masterpiece of [35] design and no one design was ever repeated. When a snowflake melted, that design was lost forever,' he wrote in one 1925 report.\n\nHart said: 'People became fascinated with it and would want the pictures for needlework patterns.' The images may also have prompted the tradition of cutting paper snowflakes at Christmas. [40]\n\nBentley remained obsessed with snow, ice and other natural water formations throughout his life. Over 47 winters, using the same camera, he took 5 381 photomicrographs of snow crystals. He was the first American to record raindrop sizes, and was one of the first cloud scientists. He died from pneumonia³ on 23 December 1931, at the age of 66, after walking home through a snowstorm. [45]\n\nGlossary\n¹snow crystals: a scientific term for snowflakes\n²meteorological: information relating to the weather\n³pneumonia: a severe illness"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Section A: Reading",
+      "instructions": "Spend 30 minutes on this section. Read the text in the insert, and answer Questions 1–8.",
+      "items": [
+        {
+          "code": "S6-EN-Q1a",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the first paragraph (lines 2–6).\n\nGive a two-word phrase that tells us Bentley was very interested in snow.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "intense fascination"
+            ]
+          },
+          "note": "Mark scheme: intense fascination"
+        },
+        {
+          "code": "S6-EN-Q1b",
+          "competency": "comprehension",
+          "type": "single_choice",
+          "stem": "Look at the first paragraph (lines 2–6).\n\nWhat does Bentley's description tell us about his feelings for snowflakes? Tick one box.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "options": [
+            "He was completely speechless.",
+            "He wished they were bigger.",
+            "He had a sense of amazement.",
+            "He thought that they were unreal."
+          ],
+          "key": {
+            "correct": "He had a sense of amazement."
+          }
+        },
+        {
+          "code": "S6-EN-Q2a",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the second and third paragraphs (lines 7–12).\n\nGive one word that the writer uses to express an opinion of Bentley's work.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "stunning"
+            ]
+          },
+          "note": "Mark scheme: stunning. Do not accept: incredibly or beautiful."
+        },
+        {
+          "code": "S6-EN-Q2b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the second and third paragraphs (lines 7–12).\n\nWhat is the effect of the writer's use of direct speech in the third paragraph? Give one effect and support your answer with a quotation.\n\nWrite the effect first, then the quotation.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "It makes the writing less formal — 'so incredibly beautiful'",
+              "It makes the writing less formal — 'when you look a bit closer'",
+              "It brings us into the present — 'so incredibly beautiful'",
+              "It brings us into the present — 'when you look a bit closer'",
+              "It introduces a more personal/friendly tone — 'you can understand why'",
+              "It introduces a more personal/friendly tone — 'when you look a bit closer'",
+              "It helps us understand him/Bentley more — 'you can understand why'",
+              "It helps us understand Bentley more — 'when you look a bit closer'"
+            ]
+          },
+          "note": "1 mark for the effect and 1 mark for a corresponding quotation. Effects: makes the writing less formal / brings us into the present (quotation: 'so incredibly beautiful' or 'when you look a bit closer'); introduces a more personal/friendly tone / helps us understand him/Bentley more (quotation: 'you can understand why' or 'when you look a bit closer'). A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q3",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the fourth, fifth and sixth paragraphs (lines 13–22).\n\nExplain how the camera helped Bentley to overcome a problem.\n\nThe problem was …\nThe camera helped because …",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "The snowflakes melted too quickly; photos were quicker",
+              "they melted before he could draw them; he was able to record the patterns",
+              "The problem was they melted too quickly. The camera helped because photos were quicker so he was able to record the patterns"
+            ]
+          },
+          "note": "1 mark: the snowflakes melted too quickly / they melted before he could draw them. 1 mark: photos were quicker (so he was able to record the patterns / photograph his first snowflake). A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q4a",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the seventh and eighth paragraphs (lines 23–33).\n\nWhy does the writer use verbs with would in the seventh paragraph (for example, would capture)?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "because the writer is describing repeated / habitual actions (in the past)",
+              "repeated actions",
+              "habitual actions",
+              "repeated actions in the past",
+              "habitual actions in the past",
+              "to describe things he did again and again in the past",
+              "to show actions that happened regularly in the past"
+            ]
+          },
+          "note": "Mark scheme: because the writer is describing repeated / habitual actions (in the past). A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q4b",
+          "competency": "comprehension",
+          "type": "multi_select",
+          "stem": "Look at the seventh and eighth paragraphs (lines 23–33).\n\nEach of these two paragraphs focuses on a different idea. Which of the following ideas do they focus on? Tick two boxes.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 3,
+          "options": [
+            "preparing to take photographs of snowflakes",
+            "using scientific equipment to collect snowflakes",
+            "collecting information about snowflakes",
+            "organising a collection of images of snowflakes",
+            "publishing information about snowflakes"
+          ],
+          "key": {
+            "correct": [
+              "preparing to take photographs of snowflakes",
+              "collecting information about snowflakes"
+            ]
+          },
+          "partial_credit": true,
+          "note": "1 mark for each correct tick."
+        },
+        {
+          "code": "S6-EN-Q5a",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the ninth and tenth paragraphs (lines 34–40).\n\nGive a three-word phrase that tells us Bentley compared snowflakes to works of art.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "masterpiece of design"
+            ]
+          },
+          "note": "Mark scheme: masterpiece of design"
+        },
+        {
+          "code": "S6-EN-Q5b",
+          "competency": "comprehension",
+          "type": "single_choice",
+          "stem": "Look at the ninth and tenth paragraphs (lines 34–40).\n\nWhich word best summarises what Bentley says about snowflakes? Tick one box.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "options": [
+            "separate",
+            "important",
+            "unique",
+            "unforgettable"
+          ],
+          "key": {
+            "correct": "unique"
+          }
+        },
+        {
+          "code": "S6-EN-Q5c",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Give one example of an abstract noun from the tenth paragraph (lines 38–40).",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "tradition"
+            ]
+          },
+          "note": "Mark scheme: tradition"
+        },
+        {
+          "code": "S6-EN-Q6a",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the final paragraph (lines 41–45).\n\nGive the different ways commas are used in the first two sentences.\n\nIn the first sentence: …\nIn the second sentence: …",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "to separate items in a list; used like brackets",
+              "to separate items in a list; to introduce additional information",
+              "to separate items in a list; to separate a clause/phrase",
+              "in a list; after an adverbial phrase of time",
+              "First sentence: to separate items in a list. Second sentence: commas are used like brackets to add extra information"
+            ]
+          },
+          "note": "1 mark: first sentence — a comma is used to separate items in a list. 1 mark: second sentence — commas are used like brackets / to introduce additional information / to separate a clause/phrase (accept: after an adverbial phrase of time). A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q6b",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the final paragraph (lines 41–45).\n\nGive two prefixes that are used in the word that names the type of image Bentley produced.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "photo, micro",
+              "micro, photo",
+              "photo micro",
+              "micro photo",
+              "photo and micro",
+              "micro and photo",
+              "photo-, micro-",
+              "micro-, photo-"
+            ]
+          },
+          "note": "1 mark each: photo, micro (from 'photomicrographs')."
+        },
+        {
+          "code": "S6-EN-Q6c",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the final paragraph (lines 41–45).\n\nIt could be said that Bentley's obsession was the cause of his death. Why?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "He died after walking home through a snowstorm",
+              "He died from getting too cold after walking through a snowstorm",
+              "He died from pneumonia after walking through a snowstorm",
+              "He walked home through a snowstorm and got pneumonia",
+              "Walking through a snowstorm made him ill and he died"
+            ]
+          },
+          "note": "Mark scheme: He died (from getting too cold / pneumonia) after walking through a snowstorm. Do not accept: 'He died of pneumonia' on its own. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q7",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the whole text.\n\nExplain three ways that the second and third paragraphs are different from the other paragraphs in this text.\n\nExplanation 1: …\nExplanation 2: …\nExplanation 3: …",
+          "passage": "insert",
+          "marks": 3,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "They are not in time sequence / chronological order; they are about the album / the photographs / the museum, not about Bentley; they are about the present, not the past",
+              "They are not in chronological order with the other paragraphs. They are about the album and the museum rather than Snowflake Bentley. They are about the present rather than the past."
+            ]
+          },
+          "note": "1 mark each, up to 3: not in time sequence / chronological order (with the other paragraphs); about the album / the photographs / the museum / not about Snowflake Bentley; about the present / not about the past. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S6-EN-Q8",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Bentley took hundreds of photos of snowflakes. Why do you think he became so obsessed with taking the photographs? Give two reasons. Support each reason with a quotation.\n\nReason 1: …\nQuotation 1: …\nReason 2: …\nQuotation 2: …",
+          "passage": "insert",
+          "marks": 4,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "He was able to see their patterns in more detail — 'his mother … gave him a microscope'",
+              "He was able to take pictures of them / make records of their patterns — 'His father later gave him a camera'",
+              "He was doing something no one else had ever done before — 'the world's first photographic images of snowflakes'",
+              "He was doing something no one else had ever done before — 'he photographed his first snowflake on 15 January 1885'",
+              "There was a lot of snow where he lived / he had plenty of opportunities to study snow — 'Bentley would get upset if he missed a snowstorm'",
+              "There was a lot of snow where he lived — 'whenever a snowstorm arrived he would capture snowflakes'",
+              "He enjoyed the science / using the equipment — 'He would examine the snowflakes with a magnifying glass'",
+              "He enjoyed the science — 'uncover the secrets of snow through methodical persistence'",
+              "He enjoyed using the equipment — 'gave him a camera, which he was able to attach to the microscope. After much experimentation'",
+              "He thought they were beautiful/amazing/unique — 'tiny miracles of beauty'"
+            ]
+          },
+          "note": "1 mark for each reason (max 2) and 1 mark for each matching quotation (max 4). Reasons/quotations from the mark scheme: see patterns in detail ('his mother … gave him a microscope'); could take pictures / records ('His father later gave him a camera'); doing something no one had done ('the world's first photographic images of snowflakes' / 'he photographed his first snowflake on 15 January 1885'); lots of snow / opportunities ('Bentley would get upset if he missed a snowstorm …' / 'whenever a snowstorm arrived he would capture snowflakes'); enjoyed the science / equipment ('He would examine the snowflakes with a magnifying glass' / 'uncover the secrets of snow …' / 'gave him a camera, which he was able to attach to the microscope. After much experimentation'); thought they were beautiful/amazing/unique ('tiny miracles of beauty'). Accept any other appropriate reason supported by a matching quotation. A person should check this answer against the mark scheme."
+        }
+      ]
+    },
+    {
+      "title": "Section B: Writing",
+      "instructions": "Spend 30 minutes on this section.",
+      "items": [
+        {
+          "code": "S6-EN-Q9",
+          "competency": "written_language",
+          "type": "extended_text",
+          "stem": "Think about a hobby you are very enthusiastic about. Write an article about it for your school magazine.\n\nYou could think about:\n• what your hobby is and what made you interested in it\n• what your hobby involves (things you do or need for it)\n• how you might develop your hobby.\n\nSpend 30 minutes on this section. Plan your article first, then write it.",
+          "marks": 25,
+          "difficulty": 4,
+          "note": "Marked with the Stage 6 writing rubric: Creation of texts 5, Vocabulary and language 3, Grammar and punctuation 7, Structure of texts 7, Word structure (spelling) 3. 0 marks for 20 words or fewer; maximum 7 marks for 21–60 words."
+        }
+      ]
+    }
+  ],
+  "omitted": []
+}

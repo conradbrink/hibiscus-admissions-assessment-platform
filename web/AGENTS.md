@@ -164,3 +164,5 @@ showing history.
 - Every ESLint suppression carries a written reason on the line above it.
 - Comments explain *why*, and name the bug that motivated them where there was
   one. British English.
+
+- **A paper's content lives in `web/content/papers`, not in the database by hand.** Edit the JSON, re-run `web/scripts/paper-seed.mjs`; the seed upserts by question code so a sitting already taken is untouched. Licensed material (Cambridge) is served only through `/api/sit/media` behind a sitting or a staff session.

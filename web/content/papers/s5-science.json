@@ -1,0 +1,747 @@
+{
+  "code": "s5-science",
+  "name": "Cambridge Progression · Stage 5 · Science",
+  "subject": "science",
+  "stage": 5,
+  "time_limit_minutes": 40,
+  "source": "0097 Science 2025 Stage 5 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions.",
+      "items": [
+        {
+          "code": "S5-SC-Q1ai",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The Arctic fox lives in a cold and snowy environment.\n\nThe Arctic fox is adapted to be a predator.\n\nDescribe two of these adaptations.\n\nAdaptation 1:",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "sharp teeth",
+              "sharp claws",
+              "white fur for camouflage",
+              "white fur",
+              "camouflage",
+              "it is camouflaged",
+              "white fur so it is camouflaged",
+              "muscular",
+              "it is muscular",
+              "strong muscles",
+              "binocular vision",
+              "eyes at the front of its head",
+              "forward-facing eyes",
+              "can run fast",
+              "it runs fast",
+              "fast runner"
+            ]
+          },
+          "note": "Mark scheme (any two from): sharp teeth; sharp claws; white fur for camouflage; (idea of) muscular; (idea of) binocular vision; accept can run fast. Printed as answer lines 1 and 2 of one question; the mark scheme awards 1 mark for each correct answer. The two answers must be different. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q1aii",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The Arctic fox is adapted to be a predator.\n\nDescribe two of these adaptations.\n\nAdaptation 2:",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "sharp teeth",
+              "sharp claws",
+              "white fur for camouflage",
+              "white fur",
+              "camouflage",
+              "it is camouflaged",
+              "white fur so it is camouflaged",
+              "muscular",
+              "it is muscular",
+              "strong muscles",
+              "binocular vision",
+              "eyes at the front of its head",
+              "forward-facing eyes",
+              "can run fast",
+              "it runs fast",
+              "fast runner"
+            ]
+          },
+          "note": "Second answer line of Q1(a). Same accepted list; must differ from adaptation 1. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q1bi",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The Arctic fox is adapted to live in the cold and snowy environment.\n\nDescribe two of these adaptations.\n\nAdaptation 1:",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "thick fur",
+              "it has thick fur",
+              "a thick coat",
+              "layer of fat",
+              "layer of insulating fat",
+              "a layer of fat under the skin",
+              "fat to keep warm",
+              "blubber",
+              "being white",
+              "it is white",
+              "white fur",
+              "white fur to be camouflaged against the snow",
+              "white fur for camouflage",
+              "camouflage"
+            ]
+          },
+          "note": "Mark scheme: (idea of) thick fur; layer of (insulating) fat; being white (to be camouflaged against the snow). Printed as answer lines 1 and 2 of one question; the mark scheme awards 1 mark for each correct answer. The two answers must be different. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q1bii",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "The Arctic fox is adapted to live in the cold and snowy environment.\n\nDescribe two of these adaptations.\n\nAdaptation 2:",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "thick fur",
+              "it has thick fur",
+              "a thick coat",
+              "layer of fat",
+              "layer of insulating fat",
+              "a layer of fat under the skin",
+              "fat to keep warm",
+              "blubber",
+              "being white",
+              "it is white",
+              "white fur",
+              "white fur to be camouflaged against the snow",
+              "white fur for camouflage",
+              "camouflage"
+            ]
+          },
+          "note": "Second answer line of Q1(b). Same accepted list; must differ from adaptation 1. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q3a",
+          "competency": "science_physics",
+          "type": "single_choice",
+          "stem": "This question is about forces.\n\nLook at the force diagram of a sailing boat moving across the sea.\n\nWhat is the name of the force labelled A?",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s5-science-q3.png",
+          "options": [
+            "air resistance",
+            "gravity",
+            "normal force",
+            "upthrust"
+          ],
+          "key": {
+            "correct": "gravity"
+          }
+        },
+        {
+          "code": "S5-SC-Q3b",
+          "competency": "science_physics",
+          "type": "single_choice",
+          "stem": "Look at the force diagram of a sailing boat moving across the sea.\n\nWhat is the name of the force labelled B?",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s5-science-q3.png",
+          "options": [
+            "air resistance",
+            "gravity",
+            "normal force",
+            "upthrust"
+          ],
+          "key": {
+            "correct": "air resistance"
+          }
+        },
+        {
+          "code": "S5-SC-Q3ci",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Air resistance, gravity, normal force and upthrust are all forces that act on the sailing boat.\n\nWrite down the name of two other forces that act on the sailing boat.\n\nForce 1:",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s5-science-q3.png",
+          "key": {
+            "accepted": [
+              "water resistance",
+              "friction",
+              "applied force",
+              "the applied force",
+              "water resistance from the sea",
+              "friction from the water"
+            ]
+          },
+          "note": "Mark scheme: water resistance; friction; accept applied force. Printed as answer lines 1 and 2 of one question; the mark scheme awards 1 mark for each correct answer. The two answers must be different. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q3cii",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Write down the name of two other forces that act on the sailing boat (not air resistance, gravity, normal force or upthrust).\n\nForce 2:",
+          "marks": 1,
+          "difficulty": 2,
+          "media": "s5-science-q3.png",
+          "key": {
+            "accepted": [
+              "water resistance",
+              "friction",
+              "applied force",
+              "the applied force",
+              "water resistance from the sea",
+              "friction from the water"
+            ]
+          },
+          "note": "Second answer line of Q3(c). Must differ from force 1. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q4a",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Priya investigates the germination of plant seeds.\n\nIn her first experiment she:\n• fills a plant pot with soil\n• places one plant seed into the soil\n• pours some water onto the soil\n• places the pot into a room\n• measures the temperature of the room\n• measures the time it takes for the seed to germinate.\n\nShe repeats the experiment four more times. Each time she changes the temperature of the room. The temperatures she uses are 5 °C, 10 °C, 15 °C, 20 °C and 25 °C.\n\nPredict what happens to the time it takes the seeds to germinate as the temperature increases.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "the time for germination increases",
+              "as temperature increases the time for germination increases",
+              "the time to germinate increases",
+              "it takes longer to germinate",
+              "it takes more time",
+              "the time increases",
+              "the time for germination decreases",
+              "as temperature increases the time to germinate decreases",
+              "the time to germinate decreases",
+              "it takes less time to germinate",
+              "the seeds germinate faster",
+              "the seeds germinate more quickly",
+              "the time decreases",
+              "the seeds germinate more slowly"
+            ]
+          },
+          "note": "Mark scheme: a relevant, testable prediction, e.g. (as temperature increases) the time for germination increases. Any clear testable prediction scores. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q4b",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "In Priya's germination investigation, write down the name of the dependent variable.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "time",
+              "the time",
+              "time it takes to germinate",
+              "the time it takes for the seed to germinate",
+              "time taken to germinate",
+              "germination time",
+              "time for germination",
+              "how long the seed takes to germinate",
+              "time taken for the seeds to germinate"
+            ]
+          },
+          "note": "Mark scheme: time (it takes to germinate)."
+        },
+        {
+          "code": "S5-SC-Q4c",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Describe how Priya knows when the seeds germinate.",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "seedlings appear",
+              "a seedling appears",
+              "a root appears",
+              "a shoot appears",
+              "roots appear",
+              "shoots appear",
+              "when a shoot comes out of the soil",
+              "when she sees a shoot",
+              "when she sees a seedling",
+              "when the seed starts to grow",
+              "a shoot grows",
+              "the seed grows a root",
+              "a plant appears above the soil",
+              "when a shoot appears above the soil"
+            ]
+          },
+          "note": "Mark scheme: (idea that) seedlings appear or a root appears or a shoot appears. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q4d",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Priya always uses seeds from the same plant.\n\nExplain why.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "fair test",
+              "to make it a fair test",
+              "so it is a fair test",
+              "it is a control variable",
+              "to control the variable",
+              "it is a controlled variable",
+              "to keep it fair",
+              "different plant seeds may take different times to germinate",
+              "different seeds may germinate at different times",
+              "so only the temperature changes",
+              "so the only variable changed is temperature",
+              "to keep the type of seed the same"
+            ]
+          },
+          "note": "Mark scheme: (idea of) a fair test or it is a control variable. Accept different plant seeds may take different time to germinate. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q4e",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "The soil Priya uses sometimes contains harmful bacteria.\n\nSuggest one way she reduces the risk from these harmful bacteria.",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "wears gloves",
+              "wear gloves",
+              "she wears gloves",
+              "wearing gloves",
+              "washes hands after touching the soil",
+              "wash hands",
+              "washes her hands",
+              "wash her hands after touching the soil",
+              "washing hands",
+              "wash hands after the experiment"
+            ]
+          },
+          "note": "Mark scheme: wears gloves or washes hands after touching the soil. Ignore wears safety glasses."
+        },
+        {
+          "code": "S5-SC-Q5a",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Ahmed investigates the maximum mass of different substances that dissolve in 100 cm³ of water.\n\nIn his first experiment he:\n• step 1 – pours 100 cm³ of water into a beaker\n• step 2 – adds a spoonful of glucose to the water\n• step 3 – stirs the mixture until the glucose dissolves\n• step 4 – repeats step 2 and step 3 until no more glucose dissolves in the water\n• step 5 – records the total number of spoonfuls of glucose added.\n\nHe repeats this experiment using different substances instead of glucose. Look at the results table.\n\nExplain why Ahmed stirs the mixture in step 3.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q5.png",
+          "key": {
+            "accepted": [
+              "it will speed up dissolving",
+              "to speed up dissolving",
+              "to make it dissolve faster",
+              "so the glucose dissolves faster",
+              "to help it dissolve",
+              "to help the glucose dissolve",
+              "so it dissolves more quickly",
+              "to dissolve the glucose quicker",
+              "to make the glucose dissolve"
+            ]
+          },
+          "note": "Mark scheme: (idea that) it will speed up dissolving. Accept to help it dissolve. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q5b",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Ahmed repeats the experiments with each solid again.\n\nExplain why this is a good idea.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q5.png",
+          "key": {
+            "accepted": [
+              "results will be more reliable",
+              "to make the results more reliable",
+              "reliability",
+              "more reliable",
+              "to check results",
+              "to check the results",
+              "to check his results are the same",
+              "to identify anomalous results",
+              "to spot anomalous results",
+              "to check for anomalies",
+              "to find anomalies",
+              "to see if the results are the same"
+            ]
+          },
+          "note": "Mark scheme: results will be more reliable or to check results or to identify anomalous results. Do not accept 'to improve accuracy'; ignore 'for a fair test'. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q5c",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Look at Ahmed's results table.\n\nWhich substance does not form a solution when mixed with water?",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q5.png",
+          "key": {
+            "accepted": [
+              "chalk"
+            ]
+          }
+        },
+        {
+          "code": "S5-SC-Q5d",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "stem": "Ahmed cannot tell which substance dissolves most in the water.\n\nExplain why.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q5.png",
+          "key": {
+            "accepted": [
+              "both glucose and salt have the same number of spoonfuls",
+              "glucose and salt have the same number of spoonfuls",
+              "glucose and salt both have 24 spoonfuls",
+              "glucose and salt are the same",
+              "two substances have the same result",
+              "glucose and salt both dissolved 24 spoonfuls",
+              "salt and glucose are both 24",
+              "two of the results are the same"
+            ]
+          },
+          "note": "Mark scheme: (idea of) both glucose and salt have the same number of spoonfuls. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q6ai",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Mia investigates four solid blocks, A, B, C and D.\nShe does five experiments. In her first experiment she moves block A towards block B. Mia repeats the experiment four more times using the blocks shown in the table.\n\nThree of the blocks are magnets.\n\nWrite the letters of the three blocks that are magnets.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q6.png",
+          "key": {
+            "accepted": [
+              "A, B and C",
+              "A, B, C",
+              "A B C",
+              "ABC",
+              "A and B and C",
+              "A B and C",
+              "A, C and B",
+              "B, A and C",
+              "B, C and A",
+              "C, A and B",
+              "C, B and A",
+              "A C B",
+              "B A C",
+              "B C A",
+              "C A B",
+              "C B A",
+              "ACB",
+              "BAC",
+              "BCA",
+              "CAB",
+              "CBA",
+              "A, C, B",
+              "B, A, C",
+              "B, C, A",
+              "C, A, B",
+              "C, B, A"
+            ]
+          },
+          "note": "First part of Q6(a) [2]: 1 mark for A and B and C (all three, any order)."
+        },
+        {
+          "code": "S5-SC-Q6aii",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Mia investigates four solid blocks, A, B, C and D.\nShe does five experiments. In her first experiment she moves block A towards block B. Mia repeats the experiment four more times using the blocks shown in the table.\n\nThree of the blocks (A, B and C) are magnets.\n\nExplain your answer.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q6.png",
+          "key": {
+            "accepted": [
+              "only magnets repel each other",
+              "only magnets repel",
+              "only a magnet can repel",
+              "magnets repel each other",
+              "they repel each other",
+              "because they repel",
+              "A repels B and B repels C",
+              "A and B repel and B and C repel",
+              "only magnets can repel other magnets",
+              "a block that repels must be a magnet"
+            ]
+          },
+          "note": "Second part of Q6(a): 1 mark for the idea that only magnets repel each other. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q6b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Mia investigates four solid blocks, A, B, C and D.\nShe does five experiments. In her first experiment she moves block A towards block B. Mia repeats the experiment four more times using the blocks shown in the table.\n\nOne of the blocks is made of plastic.\n\nWrite the letter of the block that is made of plastic.",
+          "marks": 1,
+          "difficulty": 3,
+          "media": "s5-science-q6.png",
+          "key": {
+            "accepted": [
+              "D",
+              "block D"
+            ]
+          }
+        },
+        {
+          "code": "S5-SC-Q6c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "Describe the difference between a magnetic material and a magnet.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "only a magnet will repel another magnet and a magnetic material is attracted to a magnet",
+              "a magnet can repel but a magnetic material can only be attracted",
+              "a magnet can attract and repel but a magnetic material can only attract",
+              "magnetic materials are attracted to magnets but do not repel",
+              "a magnetic material cannot repel a magnet",
+              "a magnet has poles and can repel",
+              "a magnet can repel another magnet but a magnetic material cannot",
+              "magnets repel each other but magnetic materials are only attracted to magnets"
+            ]
+          },
+          "note": "Mark scheme: (idea that) only a magnet will repel another magnet and a magnetic material is attracted to a magnet. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q7a",
+          "competency": "science_physics",
+          "type": "single_choice",
+          "stem": "This question is about the Sun, Earth and Moon.\n\nThe dotted lines on the diagram show the orbit of the Earth and the orbit of the Moon.\n\nAs shown on this diagram, in which direction does the Earth move around the Sun?",
+          "marks": 1,
+          "difficulty": 4,
+          "media": "s5-science-q7.png",
+          "options": [
+            "clockwise",
+            "anticlockwise"
+          ],
+          "key": {
+            "correct": "anticlockwise"
+          },
+          "note": "Adapted from 'Draw an arrow on the diagram': the mark scheme accepts only an anticlockwise arrow on the Earth's orbit."
+        },
+        {
+          "code": "S5-SC-Q7b",
+          "competency": "science_physics",
+          "type": "numeric",
+          "stem": "How many days does it take for the Earth to complete one orbit around the Sun?",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "value": 365.25,
+            "tolerance": 0.25
+          },
+          "note": "Mark scheme: 365.25 (days); accept 365."
+        },
+        {
+          "code": "S5-SC-Q7c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "The Moon is a natural satellite.\n\nExplain why the Moon is a natural satellite.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "it orbits the Earth and is not made by humans",
+              "it orbits the Earth and is not man-made",
+              "it goes around the Earth and was not made by people",
+              "it is not made by humans and it orbits the Earth",
+              "it orbits the Earth and was not made by humans",
+              "it orbits a planet and is not artificial",
+              "it goes round the Earth and is natural not man-made",
+              "it was not made by people and it orbits the Earth"
+            ]
+          },
+          "note": "Mark scheme: it orbits the Earth and is not made by humans (both ideas needed). Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q8a",
+          "competency": "science_biology",
+          "type": "ordering",
+          "stem": "The list shows some of the organs of the human digestive system: anus, large intestine, mouth, oesophagus, small intestine, stomach.\n\nFood enters the human digestive system at the mouth. Put the remaining organs in the order food passes through the human digestive system, starting after the mouth and ending where food leaves.",
+          "marks": 2,
+          "difficulty": 4,
+          "options": [
+            "oesophagus",
+            "stomach",
+            "small intestine",
+            "large intestine",
+            "anus"
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: mouth (given), oesophagus, stomach, small intestine, large intestine, anus. All five correct = 2 marks; any three in consecutive correct order = 1 mark."
+        },
+        {
+          "code": "S5-SC-Q8b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Describe the function of the stomach.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "churning up the food",
+              "churns the food",
+              "churns up food",
+              "mixes the food",
+              "digestion",
+              "digestion of protein",
+              "digests food",
+              "digests protein",
+              "breaks down food",
+              "contains acid to kill bacteria",
+              "acid kills bacteria in food",
+              "it has acid to kill bacteria",
+              "mixes the food with acid"
+            ]
+          },
+          "note": "Mark scheme: (idea of) churning up the food or digestion (of protein) or contains acid to kill bacteria (in food). Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q8c",
+          "competency": "science_biology",
+          "type": "short_text",
+          "stem": "Describe the function of the small intestine.",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "absorbing food",
+              "absorption of food",
+              "absorbs food",
+              "absorbs nutrients",
+              "absorbs food into the blood",
+              "absorbs digested food",
+              "nutrients are absorbed into the blood",
+              "absorption",
+              "digestion",
+              "chemical digestion",
+              "digests food"
+            ]
+          },
+          "note": "Mark scheme: (idea of) absorbing food or absorption of food. Accept digestion (chemical). Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q9a",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "This question is about condensation and evaporation.\n\nExplain why condensation is the reverse process to evaporation.",
+          "marks": 2,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "condensation is gas to liquid and evaporation is liquid to gas",
+              "evaporation is liquid to gas and condensation is gas to liquid",
+              "condensation turns a gas into a liquid and evaporation turns a liquid into a gas",
+              "evaporation changes a liquid into a gas and condensation changes a gas into a liquid",
+              "evaporation changes water into water vapour and condensation changes water vapour into water",
+              "in evaporation a liquid becomes a gas and in condensation a gas becomes a liquid"
+            ]
+          },
+          "note": "Mark scheme: 1 mark for condensation is gas to liquid; 1 mark for evaporation is liquid to gas. Both processes must be described for 2 marks. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q9b",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "stem": "Describe what happens to the particles of water during the evaporation of water.",
+          "marks": 2,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "particles move faster and spread out",
+              "particles have more energy and move further apart",
+              "particles gain energy and escape from the liquid",
+              "the particles move faster, have more energy and leave the liquid",
+              "particles move faster and escape from the liquid",
+              "particles get more energy and spread out",
+              "particles move faster",
+              "particles have more energy",
+              "particles spread out",
+              "particles move further apart",
+              "particles escape from the liquid",
+              "particles leave the liquid"
+            ]
+          },
+          "note": "Mark scheme (any two from, 1 mark each): particles move faster; particles have more energy; particles spread out / move further apart; particles escape from / leave the liquid. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q10a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "The Earth is surrounded by a layer of air. The list shows some of the gases that are in this layer of air: carbon monoxide, nitrogen, oxygen, sulfur dioxide, water vapour.\n\nSome of these gases are examples of pollution.\n\nWhat is meant by the word pollution?",
+          "marks": 2,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "substances introduced by humans that cause harm to the environment",
+              "harmful substances added to the environment by humans",
+              "something put into the environment by people that damages it",
+              "harmful substances released by humans into the environment",
+              "substances made by humans that harm the environment",
+              "something harmful to the environment that is caused by humans"
+            ]
+          },
+          "note": "Mark scheme: 1 mark for (idea that) introduction of substance by humans; 1 mark for (idea that) causes harm to the environment. Mark scheme gives example answers only; a person should check this answer."
+        },
+        {
+          "code": "S5-SC-Q10b",
+          "competency": "science_physics",
+          "type": "multi_select",
+          "stem": "Write down the names of two gases from the list that are examples of pollution.",
+          "marks": 2,
+          "difficulty": 5,
+          "options": [
+            "carbon monoxide",
+            "nitrogen",
+            "oxygen",
+            "sulfur dioxide",
+            "water vapour"
+          ],
+          "key": {
+            "correct": [
+              "carbon monoxide",
+              "sulfur dioxide"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: carbon monoxide; sulfur dioxide. 1 mark each."
+        },
+        {
+          "code": "S5-SC-Q10c",
+          "competency": "science_physics",
+          "type": "short_text",
+          "stem": "What is the name of the layer of air that surrounds the Earth?",
+          "marks": 1,
+          "difficulty": 5,
+          "key": {
+            "accepted": [
+              "atmosphere",
+              "the atmosphere",
+              "the Earth's atmosphere"
+            ]
+          },
+          "note": "Mark scheme: atmosphere."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "2a",
+      "why": "draw the particle model of copper (a solid) in a box"
+    },
+    {
+      "q": "2b",
+      "why": "draw the particle model of helium (a gas) in a box"
+    },
+    {
+      "q": "2c",
+      "why": "draw the particle model of water (a liquid) in a box"
+    }
+  ]
+}
