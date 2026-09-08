@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, Phone, School } from "lucide-react";
+import { Baby, CalendarCheck, Phone, School } from "lucide-react";
 import { FunnelBeacon } from "@/components/parent/funnel-beacon";
 import { PageHeader } from "@/components/parent/page-header";
 
@@ -15,10 +15,17 @@ const CHOICES = [
     primary: true,
   },
   {
+    href: "/join/preschool",
+    icon: Baby,
+    title: "Join pre-school",
+    detail: "Nursery to Pre-Reception. No assessment: tell us about your child and book a visit to see the campus.",
+    primary: false,
+  },
+  {
     href: "/join/visit",
     icon: School,
     title: "Book a school visit",
-    detail: "Nursery to Pre-Reception start here: no assessment, just come and see us. Older children welcome too.",
+    detail: "Any age. Come and look around first; an assessment can be booked afterwards.",
     primary: false,
   },
   {
@@ -69,9 +76,9 @@ export default function JoinPage() {
         ))}
       </div>
       <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
-        Children joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception do not sit an
-        assessment: book a visit, and the school confirms a place after you have seen the campus.
-        Whichever option you start with, we will guide you to the right one.
+        Not sure which to choose? Children joining Reception or above sit a short assessment; children
+        joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception do not. Whichever option you
+        start with, we will guide you to the right one.
       </p>
     </>
   );
