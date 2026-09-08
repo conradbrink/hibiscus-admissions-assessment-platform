@@ -154,6 +154,9 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onManualDecision(admin, app, parsed.outcome, parsed.reason, ctx.actor);
+    // An approval queues the offer draft; run it now rather than on the
+    // next sweep, so the child is on the Offers page when staff look.
+    drainSoon();
     done(parsed.applicationId);
   });
 }

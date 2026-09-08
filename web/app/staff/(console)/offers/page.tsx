@@ -26,7 +26,7 @@ export default async function OffersPage() {
   const { data: apps } = await supabase
     .from("applications")
     .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label)")
-    .in("status", ["offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
+    .in("status", ["approved", "offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
   const [{ data: offers }, { data: profiles }, { data: tasks }, { data: applied }, { data: promotions }] = ids.length
@@ -46,6 +46,7 @@ export default async function OffersPage() {
   const profileByApp = new Map((profiles ?? []).map((p) => [p.application_id, p]));
   const outcomePending = new Set((tasks ?? []).map((t) => t.application_id));
 
+  const drafting = (apps ?? []).filter((a) => a.status === "approved");
   const toApprove = (apps ?? []).filter((a) => a.status === "offer_pending_approval");
   const blocked = (apps ?? []).filter((a) => a.status === "offer_draft");
   const outcomes = (apps ?? []).filter((a) => (a.status === "waitlisted" || a.status === "declined") && outcomePending.has(a.id));
@@ -106,6 +107,25 @@ export default async function OffersPage() {
   return (
     <>
       <PageTitle title="Offers & outcomes" description="Nothing here reaches a parent until a person approves or sends it. The switches under Workflow settings can automate each list later." />
+
+      {drafting.length ? (
+        <section className="mb-8">
+          <h2 className="mb-2 text-sm font-semibold">Approved, offer being drafted ({drafting.length})</h2>
+          <p className="mb-2 text-xs text-muted-foreground">The letter drafts itself within a minute of the decision and then appears under Offers to approve. If one is still here after refreshing, draft it by hand.</p>
+          <div className="space-y-3">
+            {drafting.map((a) => (
+              <section key={a.id} className="surface p-4">
+                <Head a={a} />
+                {canApprove ? (
+                  <ActionForm action={generateOffer} label="Draft the offer now" size="sm" variant="outline" className="mt-3">
+                    <input type="hidden" name="applicationId" value={a.id} />
+                  </ActionForm>
+                ) : null}
+              </section>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold">Offers to approve ({toApprove.length})</h2>
