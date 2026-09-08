@@ -111,6 +111,110 @@ export async function resendInvite(_: StaffActionState, formData: FormData): Pro
   });
 }
 
+/**
+ * Where a person leaves a trace. Deleting someone who appears here would
+ * either blank the "who" on records (the columns are `on delete set null`)
+ * or, for notes, remove their notes outright; such a person is deactivated
+ * instead. The list mirrors the foreign keys onto staff_profiles.
+ */
+const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: string }> = [
+  { table: "admission_decisions", column: "staff_id", label: "decisions" },
+  { table: "offers", column: "approved_by", label: "approved offers" },
+  { table: "payments", column: "recorded_by", label: "recorded payments" },
+  { table: "payments", column: "refunded_by", label: "refunds" },
+  { table: "notes", column: "author_staff_id", label: "notes" },
+  { table: "attempts", column: "launched_by", label: "launched sittings" },
+  { table: "attempt_responses", column: "marked_by", label: "marked answers" },
+  { table: "bookings", column: "checked_in_by", label: "check-ins" },
+  { table: "documents", column: "reviewed_by", label: "reviewed documents" },
+  { table: "documents", column: "uploaded_by_staff_id", label: "uploaded documents" },
+  { table: "application_promotions", column: "applied_by", label: "applied promotions" },
+  { table: "applications", column: "owner_staff_id", label: "owned applications" },
+  { table: "tasks", column: "resolved_by", label: "resolved tasks" },
+  { table: "tasks", column: "created_by", label: "created tasks" },
+  { table: "tasks", column: "assignee_staff_id", label: "assigned tasks" },
+  { table: "sessions", column: "created_by", label: "created sessions" },
+  { table: "sessions", column: "assessor_staff_id", label: "sessions as assessor" },
+  { table: "school_closures", column: "created_by", label: "school closures" },
+  { table: "student_records", column: "generated_by", label: "student records" },
+  { table: "student_exports", column: "created_by", label: "exports" },
+  { table: "application_summaries", column: "generated_by", label: "summaries" },
+  { table: "email_messages", column: "recipient_staff_id", label: "staff emails" },
+  { table: "settings", column: "updated_by", label: "settings changes" },
+  { table: "promotions", column: "created_by", label: "promotions" },
+  { table: "admission_rulesets", column: "created_by", label: "rulesets" },
+  { table: "admission_rulesets", column: "activated_by", label: "activated rulesets" },
+  { table: "assessment_templates", column: "created_by", label: "assessment templates" },
+  { table: "question_banks", column: "created_by", label: "question banks" },
+  { table: "questions", column: "created_by", label: "questions" },
+  { table: "email_templates", column: "created_by", label: "email templates" },
+  { table: "offer_templates", column: "created_by", label: "offer templates" },
+  { table: "agreement_templates", column: "created_by", label: "agreements" },
+  { table: "message_templates", column: "updated_by", label: "WhatsApp templates" },
+];
+
+/**
+ * Removes a person entirely: the sign-in, the profile, their roles and
+ * campuses. Only for someone with no history in the system (a wrong email,
+ * a test account, an invitation that was never accepted); anyone who has
+ * decided, approved, marked or recorded anything is deactivated instead,
+ * so the record of who did what stays intact.
+ */
+export async function deleteStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("staff.write");
+    const { staffId } = z.object({ staffId: z.uuid() }).parse({ staffId: formData.get("staffId") });
+    if (staffId === ctx.userId) throw new Error("You cannot delete your own account.");
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin.from("staff_profiles").select("id, email, full_name").eq("id", staffId).single();
+    if (!profile) throw new Error("That member of staff no longer exists.");
+
+    const { data: superRole } = await admin.from("roles").select("id").eq("code", "super_admin").single();
+    if (superRole) {
+      const { data: holders } = await admin
+        .from("staff_roles")
+        .select("staff_id, staff_profiles!inner(is_active)")
+        .eq("role_id", superRole.id)
+        .eq("staff_profiles.is_active", true);
+      if ((holders ?? []).some((h) => h.staff_id === staffId) && (holders ?? []).every((h) => h.staff_id === staffId)) {
+        throw new Error("That would leave nobody with super administrator access.");
+      }
+    }
+
+    // The typed client wants literal table names; this walk is over a fixed
+    // list, so the untyped view of the same client is used for the counts.
+    const loose = admin as unknown as SupabaseClient;
+    const found: string[] = [];
+    for (const ref of STAFF_HISTORY) {
+      const { count, error } = await loose.from(ref.table).select("*", { count: "exact", head: true }).eq(ref.column, staffId);
+      if (error) throw new Error(error.message);
+      if (count) found.push(`${count} ${ref.label}`);
+    }
+    if (found.length) {
+      throw new Error(`${profile.full_name} has history here (${found.join(", ")}), so the record must stay. Untick "Can sign in" and save to remove their access instead.`);
+    }
+
+    // The auth user is the parent row: the profile, roles and campuses
+    // cascade from it. The audit row is written first so it exists even if
+    // something below fails halfway.
+    await admin.from("audit_log").insert({
+      actor_type: "staff",
+      actor_id: ctx.userId,
+      actor_label: ctx.profile.email,
+      action: "staff.deleted",
+      entity_type: "staff_profile",
+      entity_id: staffId,
+      before: { email: profile.email, full_name: profile.full_name },
+    });
+    const { error } = await admin.auth.admin.deleteUser(staffId);
+    if (error) throw new Error(error.message);
+    // Belt and braces: a profile that outlived its auth row (it should not).
+    await admin.from("staff_profiles").delete().eq("id", staffId);
+    revalidatePath("/staff/admin/staff");
+  });
+}
+
 export async function updateStaffAccess(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.write");

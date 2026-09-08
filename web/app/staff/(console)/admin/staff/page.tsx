@@ -6,10 +6,10 @@ import { Label } from "@/components/ui/label";
 import { PERMISSION_CODES, PERMISSION_LABELS } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { inviteStaff, resendInvite, updateRolePermissions, updateStaffAccess } from "./actions";
+import { deleteStaff, inviteStaff, resendInvite, updateRolePermissions, updateStaffAccess } from "./actions";
 
 export default async function StaffAdminPage() {
-  const { supabase } = await requireStaff("staff.write");
+  const { supabase, userId } = await requireStaff("staff.write");
   const [{ data: staff }, { data: roles }, { data: rolePerms }, { data: staffRoles }, { data: staffCampuses }, { data: campuses }] =
     await Promise.all([
       supabase.from("staff_profiles").select("*").order("full_name"),
@@ -72,11 +72,18 @@ export default async function StaffAdminPage() {
                 {s.is_active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Deactivated</Badge>}
                 {accepted.get(s.id) === false ? <Badge variant="warning">Invitation not yet accepted</Badge> : null}
               </div>
-              {accepted.get(s.id) === false && s.is_active ? (
-                <ActionForm action={resendInvite} label="Resend invitation" size="xs" variant="outline" className="mb-3">
-                  <input type="hidden" name="staffId" value={s.id} />
-                </ActionForm>
-              ) : null}
+              <div className="mb-3 flex flex-wrap gap-2">
+                {accepted.get(s.id) === false && s.is_active ? (
+                  <ActionForm action={resendInvite} label="Resend invitation" size="xs" variant="outline">
+                    <input type="hidden" name="staffId" value={s.id} />
+                  </ActionForm>
+                ) : null}
+                {s.id !== userId ? (
+                  <ActionForm action={deleteStaff} label="Delete" size="xs" variant="ghost" confirm={`Delete ${s.full_name} completely? Their sign-in, roles and campus access are removed. Only possible while they have no history in the system; otherwise untick "Can sign in" instead.`}>
+                    <input type="hidden" name="staffId" value={s.id} />
+                  </ActionForm>
+                ) : null}
+              </div>
               <ActionForm action={updateStaffAccess} label="Save" size="sm" variant="outline" className="space-y-2 text-sm">
                 <input type="hidden" name="staffId" value={s.id} />
                 <label className="flex items-center gap-1.5"><input type="checkbox" name="isActive" value="1" defaultChecked={s.is_active} /> Can sign in</label>
