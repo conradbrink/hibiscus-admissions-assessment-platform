@@ -12,6 +12,9 @@ import type { Json } from "@/lib/supabase/types";
 import { RecordVoiceButton } from "@/components/staff/record-voice-button";
 import { deleteSection, recordStoryVoice, saveSection, saveSectionQuestions, saveTemplate, setTemplateStatus } from "../actions";
 
+/** Recording a chapter's voice runs a few syntheses per call; give the action room. */
+export const maxDuration = 60;
+
 function mixText(mix: Json | null): string {
   if (!mix || typeof mix !== "object" || Array.isArray(mix)) return "";
   return Object.entries(mix).map(([d, n]) => `${d}:${n}`).join(", ");
