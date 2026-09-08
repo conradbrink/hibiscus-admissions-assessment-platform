@@ -35,6 +35,8 @@ deploy token lives in GitHub.
 | `EMAIL_PROVIDER` | | `dev` until the domain is verified, then `resend` |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET` | **Secret** | |
 | `EMAIL_REPLY_TO` | Optional | Replies go here. Set it when `EMAIL_FROM` is on a domain nobody reads mail at (a separate sending domain). |
+| `ELEVENLABS_API_KEY` | **Secret** | Optional. When set, Tumi's lines in the story assessments are recorded by ElevenLabs and cached in the `story-voice` bucket; without it the browser voice reads them |
+| `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID` | | Optional; default to the premade "Lily" voice and `eleven_multilingual_v2` |
 | `AI_PROVIDER` | | `dev` (deterministic wording, no key) or `anthropic` |
 | `ANTHROPIC_API_KEY` | **Secret** | Only read when `AI_PROVIDER=anthropic`. Without a real provider, written answers wait for a person even with `ai_auto_mark_enabled` on |
 | `AI_MODEL` | | Optional; defaults to `claude-opus-5` |

@@ -35,6 +35,8 @@ export const LIMITS = {
   kioskCode: { bucket: "kiosk_code", limit: 20, windowSeconds: 600 },
   /** Autosaving answers, per attempt. Generous: a quick child answers a question every few seconds. */
   kioskResponse: { bucket: "kiosk_response", limit: 900, windowSeconds: 3600 },
+  /** Fetching a line of story narration, per attempt. Every line is cached after its first synthesis. */
+  storyVoice: { bucket: "story_voice", limit: 600, windowSeconds: 3600 },
   /** Accepting or declining an offer, per application. One click is the norm; ten is a stuck button. */
   offerDecision: { bucket: "offer_decision", limit: 10, windowSeconds: 3600 },
   /** Starting an online payment, per application. Each start creates a gateway transaction. */

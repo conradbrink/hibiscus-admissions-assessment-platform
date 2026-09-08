@@ -74,9 +74,14 @@ The youngest applicants do not sit a paper. Their template is a **story**
    headphones: the adult listens too) and a mouse or touch screen.
 2. Press **Start the story** when you are both ready. The sound can only
    start after that tap. Tumi speaks every line; the loudspeaker button on
-   the bubble says it again. The cog on the dark strip chooses the voice: a
-   soft female English voice is picked automatically, and on Windows the
-   Edge browser's "Online (Natural)" voices sound best.
+   the bubble says it again. With `ELEVENLABS_API_KEY` set, the lines are
+   real recordings (a soft British voice, "Lily", unless
+   `ELEVENLABS_VOICE_ID` says otherwise), each made once and kept; press
+   **Record the voice** on the template page before the first sitting of a
+   chapter so nobody waits for the first recording. Without the key, the cog
+   on the dark strip chooses a browser voice: a soft female English voice is
+   picked automatically, and on Windows the Edge browser's "Online
+   (Natural)" voices sound best.
 3. The dark strip at the bottom is yours, not the child's. It says what to
    look for; press **Yes**, **Partly** or **Not yet** for what the child did,
    or **Skip** to move on without a mark. When the child answers on screen

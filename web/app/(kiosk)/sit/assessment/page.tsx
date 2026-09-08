@@ -3,6 +3,7 @@ import { AssessmentRunner } from "@/components/kiosk/assessment-runner";
 import { StoryPlayer } from "@/components/kiosk/story/story-player";
 import { loadDeliveryForm } from "@/lib/assessment/delivery";
 import { readKioskSession } from "@/lib/assessment/kiosk-server";
+import { storyVoiceProvider } from "@/lib/assessment/story-voice";
 import { getSettings } from "@/lib/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/types";
@@ -47,6 +48,7 @@ export default async function AssessmentPage() {
         graceSeconds={settings.attemptGraceSeconds}
         childName={app?.child_first_name ?? ""}
         submitAction={submitAttempt}
+        serverVoice={storyVoiceProvider() === "elevenlabs"}
       />
     );
   }
