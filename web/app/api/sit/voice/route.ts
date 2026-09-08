@@ -47,7 +47,11 @@ export async function GET(request: Request): Promise<Response> {
     });
   } catch (e) {
     if (e instanceof VoiceError && e.reason === "empty") return Response.json({ error: "bad request" }, { status: 400 });
-    console.error("[story-voice]", e instanceof Error ? e.message : e);
-    return Response.json({ error: "voice unavailable" }, { status: 503 });
+    const detail = e instanceof Error ? e.message.slice(0, 300) : "unknown";
+    console.error("[story-voice]", detail);
+    // The reason travels with the 503 so the adult strip can say why the
+    // browser voice took over. It never carries the key: the provider's
+    // own error text is all that is quoted.
+    return Response.json({ error: "voice unavailable", reason: e instanceof VoiceError ? e.reason : "unexpected", detail }, { status: 503 });
   }
 }
