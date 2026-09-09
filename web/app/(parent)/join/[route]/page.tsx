@@ -11,8 +11,8 @@ import { submitEnquiry } from "../actions";
 const ROUTES: Record<string, { entry: EntryRoute; title: string; description: string; steps: number; preschool?: boolean }> = {
   assessment: {
     entry: "assessment",
-    title: "Book an assessment",
-    description: "For children joining Reception to Form 5. Eight quick details, then choose a date. About two minutes. A younger child is offered a visit instead.",
+    title: "Join Primary and Secondary",
+    description: "For children joining Reception to Form 5. Eight quick details, then choose a date. About two minutes — and the assessment is free. A younger child is offered a visit instead.",
     steps: 3,
   },
   preschool: {

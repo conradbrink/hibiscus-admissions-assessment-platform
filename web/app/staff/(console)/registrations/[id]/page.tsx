@@ -14,7 +14,7 @@ import { requireStaff } from "@/lib/staff/session";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { DocumentReading } from "@/components/staff/document-reading";
-import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder } from "../actions";
+import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder, uploadDocumentForParent } from "../actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -127,6 +127,31 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                         </div>
                       ) : null}
                       {d && isExtractable(d.requirement_code) ? <DocumentReading document={d} /> : null}
+                      {/* Families send things by WhatsApp, by email, or across
+                          the desk. The office can put it in for them; the row
+                          records who did, so nothing pretends the parent did. */}
+                      {canWrite ? (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-xs text-primary">
+                            {d ? "Replace this on the parent's behalf" : "Upload this on the parent's behalf"}
+                          </summary>
+                          <ActionForm action={uploadDocumentForParent} label="Upload" size="xs" variant="outline" className="mt-1.5">
+                            {idField}
+                            <input type="hidden" name="requirement" value={q.code} />
+                            <input
+                              type="file"
+                              name="file"
+                              required
+                              accept="application/pdf,image/jpeg,image/png"
+                              className="block w-full text-xs file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-2 file:py-1 file:text-xs"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              PDF, JPEG or PNG. It replaces whatever is there now, is scanned like any other upload, and
+                              is recorded as uploaded by you.
+                            </p>
+                          </ActionForm>
+                        </details>
+                      ) : null}
                     </li>
                   );
                 })}

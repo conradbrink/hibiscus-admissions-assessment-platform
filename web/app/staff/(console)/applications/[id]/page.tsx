@@ -21,6 +21,7 @@ import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addNote,
   assignOwner,
+  changeGrade,
   cancelBookingByStaff,
   checkIn,
   completeCallback,
@@ -51,6 +52,22 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
   const campus = one(app.campuses);
   const grade = one(app.grades);
+  // The stages this campus actually teaches, for changing one by hand, and
+  // what the date of birth suggested, so the two can be compared.
+  const [{ data: campusGradeRows }, { data: recommendedGrade }] = await Promise.all([
+    supabase
+      .from("campus_grades")
+      .select("grade_id, grades!inner(id, name, sort_order, is_active)")
+      .eq("campus_id", app.campus_id)
+      .eq("is_active", true),
+    app.recommended_grade_id
+      ? supabase.from("grades").select("id, name").eq("id", app.recommended_grade_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const campusGrades = (campusGradeRows ?? [])
+    .map((r) => one(r.grades))
+    .filter((g): g is { id: string; name: string; sort_order: number; is_active: boolean } => Boolean(g?.is_active))
+    .sort((a, b) => a.sort_order - b.sort_order);
   const intake = one(app.intakes);
   const contact = one(app.contacts);
   const owner = one(app.staff_profiles);
@@ -307,6 +324,51 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                   ))}
                 </NativeSelect>
               </ActionForm>
+            ) : null}
+          </section>
+
+          {/* Additional needs, said by the family at enquiry. It sits above
+              the stage because it changes how the day is arranged, and it is
+              never an input to a decision. */}
+          {app.has_special_needs ? (
+            <section className="surface border-warning/40 p-4 text-sm">
+              <h2 className="text-sm font-semibold text-warning-foreground">Additional needs</h2>
+              <p className="mt-1">
+                {app.special_needs_detail?.trim() || "The family said their child has additional or special educational needs, without giving details."}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Told to us by the family when they enquired. Arrange the sitting around it — extra time, a quieter
+                room, an adult beside them. It plays no part in the decision.
+              </p>
+            </section>
+          ) : null}
+
+          {/* Stage */}
+          <section className="surface p-4 text-sm">
+            <h2 className="text-sm font-semibold">Stage</h2>
+            <p className="mt-1 text-muted-foreground">
+              {grade?.name}
+              {recommendedGrade && recommendedGrade.id !== app.grade_id ? (
+                <span className="block text-xs">Age suggested {recommendedGrade.name}</span>
+              ) : null}
+            </p>
+            {canWrite && app.status !== "enrolled" ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-primary">Change stage</summary>
+                <ActionForm action={changeGrade} label="Change" variant="outline" size="sm" className="mt-2">
+                  {idField}
+                  <NativeSelect name="gradeId" defaultValue={app.grade_id}>
+                    {campusGrades.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </NativeSelect>
+                  <Input name="reason" placeholder="Why (optional)" maxLength={300} />
+                  <p className="text-xs text-muted-foreground">
+                    The stage decides which paper the child sits and which fees the offer uses. Only stages taught at
+                    this campus are listed.
+                  </p>
+                </ActionForm>
+              </details>
             ) : null}
           </section>
 

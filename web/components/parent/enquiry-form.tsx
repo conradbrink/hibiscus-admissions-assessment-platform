@@ -64,6 +64,7 @@ export function EnquiryForm({ route, campuses, promoCodesLive = false, action }:
   const f = state.fields ?? {};
   const v = state.values ?? {};
   const [heardFrom, setHeardFrom] = useState(v.heardFrom ?? "");
+  const [specialNeeds, setSpecialNeeds] = useState(v.hasSpecialNeeds === "1");
 
   const onFirstFocus = () => {
     if (started.current) return;
@@ -135,6 +136,43 @@ export function EnquiryForm({ route, campuses, promoCodesLive = false, action }:
             ))}
           </NativeSelect>
         </Field>
+        {/* Asked here, before a time is chosen, so the sitting can be
+            arranged properly rather than discovered on the morning. It has no
+            part in any admission decision, and the wording says so. */}
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            name="hasSpecialNeeds"
+            value="1"
+            checked={specialNeeds}
+            onChange={(e) => setSpecialNeeds(e.target.checked)}
+            className="mt-0.5 size-5 shrink-0 accent-primary"
+          />
+          <span>
+            My child has additional or special educational needs.
+            <span className="block text-xs text-muted-foreground">
+              Tick this and we will arrange the assessment around your child — extra time, a quieter room, or
+              somebody sitting with them. It does not affect whether a place is offered.
+            </span>
+          </span>
+        </label>
+        {specialNeeds ? (
+          <Field
+            id="specialNeedsDetail"
+            label="What would help your child on the day?"
+            error={f.specialNeedsDetail}
+            hint="A sentence is plenty. You can tell us more later, and nothing here is shared beyond the staff arranging the day."
+          >
+            <Textarea
+              id="specialNeedsDetail"
+              name="specialNeedsDetail"
+              rows={3}
+              maxLength={600}
+              defaultValue={v.specialNeedsDetail}
+              placeholder="For example: he is autistic and finds noise hard, so a quiet room would help."
+            />
+          </Field>
+        ) : null}
       </fieldset>
 
       <fieldset className="space-y-4">

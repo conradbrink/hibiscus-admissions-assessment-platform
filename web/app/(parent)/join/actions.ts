@@ -99,6 +99,19 @@ export async function submitEnquiry(
     await admin.from("applications").update({ promo_code: promoCode }).eq("id", result.applicationId);
   }
 
+  // Additional needs, if the family said so. Only ever set here, never
+  // cleared by a later enquiry: a family that told us once should not have to
+  // tell us again. Staff are given a task when the grade is confirmed.
+  if (parsed.data.hasSpecialNeeds === "1") {
+    await admin
+      .from("applications")
+      .update({
+        has_special_needs: true,
+        special_needs_detail: parsed.data.specialNeedsDetail?.trim() || null,
+      })
+      .eq("id", result.applicationId);
+  }
+
   const sessionKey = await funnelSessionKey();
   await recordFunnelStep(admin, {
     sessionKey,

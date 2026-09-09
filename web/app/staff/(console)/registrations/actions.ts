@@ -7,14 +7,15 @@ import { loadApplicationGraph } from "@/lib/applications";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { getDocumentExtractor } from "@/lib/documents/extractor";
+import { DocumentError, storeDocument } from "@/lib/documents/storage";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { loadRegistrationBundle } from "@/lib/registration/load";
-import { missingDocumentsText } from "@/lib/registration/completeness";
+import { applicableRequirements, missingDocumentsText, registrationCompleteness } from "@/lib/registration/completeness";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { commit, enqueueJobs, WorkflowError } from "@/lib/workflow/engine";
 import { onEnrolmentConfirmed } from "@/lib/workflow/enrolment-actions";
-import { onDocumentReviewed, onMismatchConfirmationRequested } from "@/lib/workflow/registration-actions";
+import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested } from "@/lib/workflow/registration-actions";
 
 function done(applicationId: string) {
   revalidatePath("/staff/registrations");
@@ -108,5 +109,71 @@ export async function askParentToConfirm(_: StaffActionState, formData: FormData
     await onMismatchConfirmationRequested(admin, app, parseMismatchFlags(registration?.mismatch_flags), ctx.actor);
     drainSoon();
     done(app.id);
+  });
+}
+
+/**
+ * A document the parent could not upload themselves, put in by the office.
+ *
+ * Families send things by WhatsApp, by email, or hand a folder across the
+ * desk, and until now that left the registration stuck behind a tick nobody
+ * could give. The file goes to exactly the same place, through the same scan
+ * and the same supersede rule as a parent's own upload; the row records that
+ * a member of staff put it there and which one, so the record does not
+ * pretend the parent did it.
+ */
+export async function uploadDocumentForParent(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = z
+      .object({ applicationId: z.uuid(), requirement: z.string().trim().min(1).max(64) })
+      .parse({ applicationId: formData.get("applicationId"), requirement: formData.get("requirement") });
+    const { admin } = await loadApplicationForStaff(ctx, parsed.applicationId);
+
+    const graph = await loadApplicationGraph(admin, parsed.applicationId);
+    if (!graph) throw new Error("That applicant no longer exists.");
+    const bundle = await loadRegistrationBundle(admin, graph);
+    const applicable = applicableRequirements(bundle.requirements, graph.grade.sort_order).find((q) => q.code === parsed.requirement);
+    if (!applicable) throw new Error("That document is not asked for at this stage.");
+
+    const verdict = await enforceRateLimit(admin, LIMITS.documentUpload, parsed.applicationId);
+    if (!verdict.ok) throw new Error("Too many uploads for this applicant in a short time. Try again shortly.");
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file to upload.");
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    let document;
+    try {
+      document = await storeDocument(admin, {
+        applicationId: parsed.applicationId,
+        requirementCode: parsed.requirement,
+        bytes,
+        originalFilename: file.name,
+        uploadedBy: "staff",
+        staffId: ctx.userId,
+      });
+    } catch (e) {
+      if (e instanceof DocumentError) {
+        throw new Error(
+          e.code === "too_large" ? "That file is too big." :
+          e.code === "bad_type" ? "That file type is not accepted. Use a PDF, JPEG or PNG." :
+          e.code === "empty" ? "That file is empty." :
+          "The upload failed. Try again."
+        );
+      }
+      throw e;
+    }
+
+    const after = await loadRegistrationBundle(admin, graph);
+    await onDocumentUploaded(
+      admin,
+      graph.application,
+      document,
+      registrationCompleteness({ ...after, gradeSort: graph.grade.sort_order }),
+      ctx.actor
+    );
+    drainSoon();
+    done(parsed.applicationId);
   });
 }

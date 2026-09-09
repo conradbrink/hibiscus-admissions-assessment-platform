@@ -339,6 +339,13 @@ export type ApplicationRow = {
   next_action: string | null;
   next_action_due_at: string | null;
   withdrawn_reason: string | null;
+  /**
+   * The family said at enquiry that the child has additional needs. It exists
+   * so the sitting can be arranged properly — extra time, a quieter room, an
+   * adult beside them — and for nothing else. No rule and no model reads it.
+   */
+  has_special_needs: boolean;
+  special_needs_detail: string | null;
   anonymised_at: string | null;
   retention_hold: boolean;
   retention_hold_reason: string | null;
@@ -1441,6 +1448,7 @@ export type Database = {
         | "next_action"
         | "next_action_due_at"
         | "withdrawn_reason"
+        | "has_special_needs" | "special_needs_detail"
         | "anonymised_at" | "retention_hold" | "retention_hold_reason",
         [
           Rel<"applications_contact_id_fkey", "contact_id", "contacts">,
