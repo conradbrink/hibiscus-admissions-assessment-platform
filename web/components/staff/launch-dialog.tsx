@@ -21,6 +21,7 @@ export function LaunchDialog({
   action,
   reissue,
   attemptId,
+  walkIn = false,
 }: {
   applicationId: string;
   childName: string;
@@ -28,22 +29,31 @@ export function LaunchDialog({
   /** When set, the dialog re-issues a code for this waiting attempt instead of launching. */
   reissue?: (state: LaunchState, formData: FormData) => Promise<LaunchState>;
   attemptId?: string;
+  /**
+   * A family who walked in without a booking: the action opens the session,
+   * books, checks in and launches in one press.
+   */
+  walkIn?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(attemptId && reissue ? reissue : action, {});
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant={attemptId ? "outline" : "default"} />}>
-        <Play data-icon="inline-start" /> {attemptId ? "New code" : "Launch"}
+      <DialogTrigger render={<Button size="sm" variant={attemptId ? "outline" : walkIn ? "outline" : "default"} />}>
+        <Play data-icon="inline-start" /> {attemptId ? "New code" : walkIn ? "Start now (walk-in)" : "Launch"}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{state.code ? `${childName} — code ready` : `Launch ${childName}'s assessment`}</DialogTitle>
+          <DialogTitle>
+            {state.code ? `${childName} — code ready` : walkIn ? `Start ${childName}'s assessment now` : `Launch ${childName}'s assessment`}
+          </DialogTitle>
           <DialogDescription>
             {state.code
               ? "Type this code on the assessment computer, or scan the QR code. It works once."
-              : "The template for the child's grade is chosen automatically. Add extra time only where an accommodation has been agreed."}
+              : walkIn
+                ? "For a family at the desk with no booking. A session for right now is opened at their campus, the child is booked and checked in, and the assessment starts."
+                : "The template for the child's grade is chosen automatically. Add extra time only where an accommodation has been agreed."}
           </DialogDescription>
         </DialogHeader>
         {state.code ? (
@@ -64,6 +74,12 @@ export function LaunchDialog({
             {attemptId ? <input type="hidden" name="attemptId" value={attemptId} /> : null}
             {!attemptId ? (
               <>
+                {walkIn ? (
+                  <div className="space-y-1">
+                    <Label htmlFor="location">Where they will sit it</Label>
+                    <Input id="location" name="location" placeholder="Computer lab, Block 7" />
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <Label htmlFor="timeMultiplier">Time allowance</Label>
                   <NativeSelect id="timeMultiplier" name="timeMultiplier" defaultValue="1">
@@ -81,7 +97,7 @@ export function LaunchDialog({
             ) : null}
             {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
             <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Opening…" : attemptId ? "Issue a new code" : "Open the assessment"}
+              {pending ? "Opening…" : attemptId ? "Issue a new code" : walkIn ? "Start the assessment" : "Open the assessment"}
             </Button>
           </form>
         )}

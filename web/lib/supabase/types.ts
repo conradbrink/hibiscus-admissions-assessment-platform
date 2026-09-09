@@ -163,6 +163,18 @@ export type StaffCampusRow = {
   campus_id: string;
 };
 
+export type StaffInviteRow = {
+  id: string;
+  staff_id: string;
+  token_hash: string;
+  /** Null means the invitation never lapses; only using or replacing it ends it. */
+  expires_at: string | null;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type AuditLogRow = {
   id: number;
   actor_type: ActorType;
@@ -1341,6 +1353,14 @@ export type Database = {
         [
           Rel<"staff_campuses_staff_id_fkey", "staff_id", "staff_profiles">,
           Rel<"staff_campuses_campus_id_fkey", "campus_id", "campuses">,
+        ]
+      >;
+      staff_invites: TableOf<
+        StaffInviteRow,
+        "id" | "expires_at" | "accepted_at" | "revoked_at" | "created_by" | "created_at",
+        [
+          Rel<"staff_invites_staff_id_fkey", "staff_id", "staff_profiles">,
+          Rel<"staff_invites_created_by_fkey", "created_by", "staff_profiles">,
         ]
       >;
       audit_log: TableOf<

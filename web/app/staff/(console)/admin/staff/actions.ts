@@ -1,9 +1,12 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
+import { sendStaffEmail } from "@/lib/email/send";
+import { mintStaffInvite } from "@/lib/staff/invites";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { guarded } from "@/lib/staff/action-helpers";
@@ -31,9 +34,37 @@ async function assertCampusScopedRolesHaveCampuses(
 }
 
 /**
- * Invites a member of staff. Creates the auth user (Supabase emails them a
- * link to set a password), the profile, and the roles — the auth part needs
- * the service role, which is why this is the one staff action that uses it.
+ * Sends the invitation email carrying our own link. Split out because both
+ * inviting and resending do exactly this.
+ */
+async function sendInvite(
+  admin: ReturnType<typeof createAdminClient>,
+  staffId: string,
+  inviterName: string,
+  inviterId: string | null
+): Promise<void> {
+  const { url } = await mintStaffInvite(admin, staffId, inviterId);
+  const { data: profile } = await admin.from("staff_profiles").select("full_name").eq("id", staffId).single();
+  const result = await sendStaffEmail(admin, {
+    staffId,
+    templateKey: "staff_invite",
+    variables: {
+      staff_first_name: (profile?.full_name ?? "").split(" ")[0] || "there",
+      inviter_name: inviterName,
+      invite_link: url,
+      console_link: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/staff`,
+    },
+    idempotencyKey: `staff_invite:${staffId}:${Date.now()}`,
+  });
+  if (result.status === "failed") throw new Error(`The account was saved but the email did not send: ${result.error}`);
+}
+
+/**
+ * Invites a member of staff: the auth user, the profile, the roles, and an
+ * email carrying a link that does not expire. The auth part needs the
+ * service role, which is why this is one of the few staff actions that uses
+ * it. Supabase's own invite email is not used: its link lasts a day and is
+ * spent by the first request to reach it, including a mail scanner's.
  */
 export async function inviteStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -46,10 +77,7 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
 
     const admin = createAdminClient();
     await assertCampusScopedRolesHaveCampuses(admin, roleIds, campusIds);
-    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/staff/reset-password`;
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(p.email, { redirectTo });
-    if (error) throw new Error(error.message);
-    const userId = data.user.id;
+    const userId = await ensureAuthUser(admin, p.email);
 
     const { error: pErr } = await admin
       .from("staff_profiles")
@@ -62,6 +90,7 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
     if (campusIds.length) {
       await admin.from("staff_campuses").insert(campusIds.map((campus_id) => ({ staff_id: userId, campus_id })));
     }
+    await sendInvite(admin, userId, ctx.profile.full_name, ctx.userId);
     await admin.from("audit_log").insert({
       actor_type: "staff",
       actor_id: ctx.userId,
@@ -76,11 +105,31 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
 }
 
 /**
- * Sends the invitation again to someone who has not yet accepted the first
- * one. Supabase refuses to re-invite a confirmed user, so the button only
- * shows for people who have never signed in; the guard here repeats that
- * check server-side. Supabase also rate-limits auth emails per address
- * (one a minute), and that error is passed through as it is.
+ * The auth user behind a member of staff. Created confirmed: the invitation
+ * link is what proves the address, and an unconfirmed user cannot sign in at
+ * all. An address that already has an account (someone re-invited after
+ * being removed) is reused rather than refused.
+ */
+async function ensureAuthUser(admin: ReturnType<typeof createAdminClient>, email: string): Promise<string> {
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    // Never used: the invitation sets the real one, and until then there is
+    // nothing to guess.
+    password: randomBytes(24).toString("base64url"),
+  });
+  if (!error && data.user) return data.user.id;
+  const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const existing = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  if (existing) return existing.id;
+  throw new Error(error?.message ?? "Could not create the account.");
+}
+
+/**
+ * Sends the invitation again, replacing the previous link. Anyone who has
+ * not signed in yet can be sent one; someone who has should use "Forgot
+ * password" instead, so the button only shows before the first sign-in and
+ * the guard here repeats that check server-side.
  */
 export async function resendInvite(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -92,11 +141,9 @@ export async function resendInvite(_: StaffActionState, formData: FormData): Pro
     if (!profile) throw new Error("That member of staff no longer exists.");
     if (!profile.is_active) throw new Error("This person is deactivated. Tick \"Can sign in\" and save first.");
     const { data: user } = await admin.auth.admin.getUserById(staffId);
-    if (user.user?.email_confirmed_at) throw new Error("This person has already accepted their invitation. They can reset their password from the sign-in page.");
+    if (user.user?.last_sign_in_at) throw new Error("This person has already signed in. They can reset their password from the sign-in page.");
 
-    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/staff/reset-password`;
-    const { error } = await admin.auth.admin.inviteUserByEmail(profile.email, { redirectTo });
-    if (error) throw new Error(error.message);
+    await sendInvite(admin, staffId, ctx.profile.full_name, ctx.userId);
 
     await admin.from("audit_log").insert({
       actor_type: "staff",

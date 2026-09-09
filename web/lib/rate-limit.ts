@@ -31,6 +31,8 @@ export const LIMITS = {
   funnelEvent: { bucket: "funnel_event", limit: 300, windowSeconds: 3600 },
   /** Booking or changing a slot from a parent session. */
   parentBooking: { bucket: "parent_booking", limit: 20, windowSeconds: 3600 },
+  /** Setting a password from an invitation, per address. */
+  staffInvite: { bucket: "staff_invite", limit: 20, windowSeconds: 3600 },
   /** Typing a launch code on a lab computer, per address. Codes are single use; this stops guessing. */
   kioskCode: { bucket: "kiosk_code", limit: 20, windowSeconds: 600 },
   /** Autosaving answers, per attempt. Generous: a quick child answers a question every few seconds. */
@@ -53,6 +55,8 @@ export const LIMITS = {
   extraction: { bucket: "extraction", limit: 30, windowSeconds: 3600 },
   /** Refreshing an applicant summary, per person. */
   summary: { bucket: "summary", limit: 60, windowSeconds: 3600 },
+  /** Adding an applicant at the desk, per person. A busy open day is nowhere near this. */
+  staffApplicant: { bucket: "staff_applicant", limit: 60, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
