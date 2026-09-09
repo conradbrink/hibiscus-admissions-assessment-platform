@@ -1,0 +1,554 @@
+{
+ "code": "garden",
+ "name": "Tumi's Journey · Reception · The garden",
+ "grade_sort": 50,
+ "character": "Tumi",
+ "time_limit_minutes": 45,
+ "stop_after_misses": 2,
+ "scenes": [
+  {
+   "key": "home",
+   "title": "Meeting Tumi",
+   "narration": "Hello! My name is Tumi. I'm a little dinosaur and I live in this round house with my mama. Today I'm going on a walk. Will you come with me? Wonderful! First, let's say hello properly.",
+   "sees": "Tumi waving at the door of a round house, with a garden in front.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "G-W1",
+     "competency": "talking_listening",
+     "strand": "Warm-up",
+     "difficulty": 1,
+     "narration": "What is your name?",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Warm-up: any answer is fine"
+     },
+     "note": "Warm-up: any answer is fine",
+     "subject": "english"
+    },
+    {
+     "code": "G-W2",
+     "competency": "talking_listening",
+     "strand": "Warm-up",
+     "difficulty": 1,
+     "narration": "How old are you? You can show me on your fingers if you like.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Warm-up: says or shows an age"
+     },
+     "note": "Warm-up: says or shows an age",
+     "subject": "english"
+    },
+    {
+     "code": "G-T1",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Who came with you to school today?",
+     "focus": [],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Names somebody — mama, papa, an aunt, anyone"
+     },
+     "note": "Names somebody — mama, papa, an aunt, anyone",
+     "subject": "english"
+    },
+    {
+     "code": "G-T2",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 2,
+     "narration": "Can you wave at me, like this?",
+     "focus": [],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Waves back"
+     },
+     "note": "Waves back",
+     "subject": "english"
+    },
+    {
+     "code": "G-S1",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Settling in with the adult.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Sat down and looked at the adult without much coaxing"
+     },
+     "note": "Sat down and looked at the adult without much coaxing",
+     "subject": "personal_social"
+    },
+    {
+     "code": "G-S2",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Answering when spoken to.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Answered, in words or by pointing"
+     },
+     "note": "Answered, in words or by pointing",
+     "subject": "personal_social"
+    }
+   ]
+  },
+  {
+   "key": "garden",
+   "title": "In the garden",
+   "narration": "Look at my garden! Mama grows all sorts here. Let's look at it together.",
+   "sees": "A garden with a red flower, a yellow flower, a big tree, a small tree, a green watering can and a ball.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "G-T3",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Point to the ball.",
+     "focus": [
+      "flower",
+      "tree",
+      "watering can",
+      "ball",
+      "hat"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the ball"
+     },
+     "note": "Points to the ball",
+     "subject": "english"
+    },
+    {
+     "code": "G-T4",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Point to the tree.",
+     "focus": [
+      "flower",
+      "tree",
+      "watering can",
+      "ball",
+      "hat"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the tree"
+     },
+     "note": "Points to the tree",
+     "subject": "english"
+    },
+    {
+     "code": "G-T5",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 2,
+     "narration": "What is this one called?",
+     "focus": [
+      "watering can!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says watering can, or can"
+     },
+     "note": "Says watering can, or can",
+     "subject": "english"
+    },
+    {
+     "code": "G-C1",
+     "competency": "number_sense",
+     "strand": "Colours and matching",
+     "difficulty": 2,
+     "narration": "What colour is this flower?",
+     "focus": [
+      "colours:red,yellow,green"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says red"
+     },
+     "note": "Says red",
+     "subject": "english"
+    },
+    {
+     "code": "G-C2",
+     "competency": "number_sense",
+     "strand": "Colours and matching",
+     "difficulty": 2,
+     "narration": "Can you find another one that is the same colour?",
+     "focus": [
+      "colours:red,yellow,red,green"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the other red one"
+     },
+     "note": "Points to the other red one",
+     "subject": "english"
+    },
+    {
+     "code": "G-Z1",
+     "competency": "measures_data",
+     "strand": "Big and small",
+     "difficulty": 2,
+     "narration": "Which tree is the big one?",
+     "focus": [
+      "sizes:big,small"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the big tree"
+     },
+     "note": "Points to the big tree",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-T6",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 3,
+     "narration": "Tell me one thing you can see in my garden.",
+     "focus": [],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Names anything in the picture"
+     },
+     "note": "Names anything in the picture",
+     "subject": "english"
+    }
+   ]
+  },
+  {
+   "key": "shape-path",
+   "title": "The stepping stones",
+   "narration": "Mama put stepping stones through the garden so my feet stay dry. Let's look at their shapes before we walk on them.",
+   "sees": "Stepping stones shaped like a circle, a square and a triangle.",
+   "subject": "mathematics",
+   "items": [
+    {
+     "code": "G-G1",
+     "competency": "geometry",
+     "strand": "Shapes",
+     "difficulty": 1,
+     "narration": "Point to the round one. The circle.",
+     "focus": [
+      "shapes:circle,square,triangle"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the circle"
+     },
+     "note": "Points to the circle",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-G2",
+     "competency": "geometry",
+     "strand": "Shapes",
+     "difficulty": 2,
+     "narration": "Now point to the square.",
+     "focus": [
+      "shapes:circle,square,triangle"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the square"
+     },
+     "note": "Points to the square",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-G3",
+     "competency": "geometry",
+     "strand": "Shapes",
+     "difficulty": 3,
+     "narration": "Which one is the triangle? Tap it for me.",
+     "focus": [
+      "shapes:circle,square,triangle"
+     ],
+     "mode": "tap",
+     "type": "single_choice",
+     "marks": 1,
+     "options": [
+      "Circle",
+      "Square",
+      "Triangle"
+     ],
+     "key": {
+      "correct": "Triangle"
+     },
+     "note": "Taps Triangle",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-G4",
+     "competency": "geometry",
+     "strand": "Shapes",
+     "difficulty": 3,
+     "narration": "Can you find one that is the same shape as this one?",
+     "focus": [
+      "shapes:circle,square,circle,triangle"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the matching shape"
+     },
+     "note": "Points to the matching shape",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-Z2",
+     "competency": "measures_data",
+     "strand": "Big and small",
+     "difficulty": 3,
+     "narration": "Which path is the long one?",
+     "focus": [
+      "sizes:long,short"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the long path"
+     },
+     "note": "Points to the long path",
+     "subject": "mathematics"
+    }
+   ]
+  },
+  {
+   "key": "garden-count",
+   "title": "Counting stones",
+   "narration": "I love counting my stones. Will you count with me?",
+   "sees": "Small piles of stones on the garden path.",
+   "subject": "mathematics",
+   "items": [
+    {
+     "code": "G-N1",
+     "competency": "number_sense",
+     "strand": "Counting",
+     "difficulty": 1,
+     "narration": "Count these stones for me. Touch each one.",
+     "focus": [
+      "count:3"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Counts three, touching each once"
+     },
+     "note": "Counts three, touching each once",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-N2",
+     "competency": "number_sense",
+     "strand": "Counting",
+     "difficulty": 2,
+     "narration": "Now count these ones.",
+     "focus": [
+      "count:5"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Counts five, touching each once"
+     },
+     "note": "Counts five, touching each once",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-N3",
+     "competency": "number_sense",
+     "strand": "Counting",
+     "difficulty": 2,
+     "narration": "How many stones are there? Tap the number.",
+     "focus": [
+      "count:4"
+     ],
+     "mode": "tap",
+     "type": "single_choice",
+     "marks": 1,
+     "options": [
+      "3",
+      "4",
+      "5"
+     ],
+     "key": {
+      "correct": "4"
+     },
+     "note": "Taps 4",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-N4",
+     "competency": "number_sense",
+     "strand": "Counting",
+     "difficulty": 3,
+     "narration": "Can you give me just two stones?",
+     "focus": [
+      "count:5"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Hands over exactly two"
+     },
+     "note": "Hands over exactly two",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-N5",
+     "competency": "number_sense",
+     "strand": "More and fewer",
+     "difficulty": 3,
+     "narration": "Which pile has more stones?",
+     "focus": [
+      "count:2",
+      "count:5"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the pile of five"
+     },
+     "note": "Points to the pile of five",
+     "subject": "mathematics"
+    },
+    {
+     "code": "G-N6",
+     "competency": "number_sense",
+     "strand": "Counting",
+     "difficulty": 4,
+     "narration": "Let's count together, as high as you can go.",
+     "focus": [],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Counts to five or beyond"
+     },
+     "note": "Counts to five or beyond",
+     "subject": "mathematics"
+    }
+   ]
+  },
+  {
+   "key": "goodbye",
+   "title": "Time to go",
+   "narration": "That was lovely. Mama is calling me now, so I must go. Thank you for helping me today!",
+   "sees": "Tumi waving goodbye at the garden gate.",
+   "subject": "personal_social",
+   "items": [
+    {
+     "code": "G-S3",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Can you wave goodbye to me?",
+     "focus": [],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Waves, or says goodbye"
+     },
+     "note": "Waves, or says goodbye",
+     "subject": "personal_social"
+    },
+    {
+     "code": "G-S4",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Taking turns with the adult.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Waited for their turn without needing much reminding"
+     },
+     "note": "Waited for their turn without needing much reminding",
+     "subject": "personal_social"
+    },
+    {
+     "code": "G-S5",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Sticking at something hard.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Tried again after something did not work"
+     },
+     "note": "Tried again after something did not work",
+     "subject": "personal_social"
+    },
+    {
+     "code": "G-S6",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 1,
+     "narration": "Settled through the session.",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Stayed settled from start to finish"
+     },
+     "note": "Stayed settled from start to finish",
+     "subject": "personal_social"
+    }
+   ]
+  }
+ ]
+}

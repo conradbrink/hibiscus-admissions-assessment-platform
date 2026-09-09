@@ -66,6 +66,26 @@ that computer. This needs the `assessments.deliver` permission.
 
 ## Running a story sitting (Reception to Stage 3)
 
+Four chapters of *Tumi's Journey*, one per stage. They were re-levelled in
+September 2026 after the school found them too hard for the age they were set
+at: every chapter now serves the stage above the one it was written for, and
+Reception has a gentler chapter of its own.
+
+| Stage | Chapter | Items |
+|---|---|---|
+| Reception | The garden | 28 |
+| Stage 1 | The river | 45 |
+| Stage 2 | The village | 43 |
+| Stage 3 | The market | 40 |
+
+*The hill* is retired and kept as a draft; it can be brought back from
+Settings if a Stage 4 sitting is ever wanted.
+
+The Reception chapter is deliberately shorter and gentler: 45 minutes rather
+than 60, and it moves on after **two** misses in a strand rather than three,
+because a four-year-old who cannot do something should not be asked a third
+time.
+
 The youngest applicants do not sit a paper. Their template is a **story**
 (Tumi's Journey, one chapter per stage) and an adult sits beside the child.
 
@@ -86,15 +106,18 @@ The youngest applicants do not sit a paper. Their template is a **story**
    look for; press **Yes**, **Partly** or **Not yet** for what the child did,
    or **Skip** to move on without a mark. When the child answers on screen
    (tap, number pad, ordering), press **Next**.
-4. A strand stops on its own after three "Not yet" in a row: the remaining
-   items of that strand are skipped and saved as skipped. That is by design,
-   so a child is never pushed through things that are too hard.
+4. A strand stops on its own after three "Not yet" in a row — two, in the
+   Reception chapter: the remaining items of that strand are skipped and saved
+   as skipped. That is by design, so a child is never pushed through things
+   that are too hard.
 5. **Pause** stops the voice and hides the scene. **Finish and hand in** on
    the last screen ends the sitting; marking and the learning profile follow
    as for a paper.
-6. To rehearse without a child, open `/sit/preview?c=reception` (also
-   `stage1`, `stage2`, `stage3`) while signed in to the staff console; on
-   a preview deployment it needs no sign-in. Nothing is saved.
+6. To rehearse without a child, open `/sit/preview?c=garden` (also `river`,
+   `village`, `market`, and `hill` for the retired one) while signed in to the
+   staff console; on a preview deployment it needs no sign-in. Nothing is
+   saved. The chapters are named for their story, not their stage, because
+   they have moved stage once already.
 
 To change a chapter, edit `web/content/story/<chapter>.json`, run
 `node web/scripts/story-seed.mjs > seed.sql` and apply it: the seed upserts

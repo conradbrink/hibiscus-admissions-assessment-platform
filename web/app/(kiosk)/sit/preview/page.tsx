@@ -21,7 +21,10 @@ async function noop(): Promise<SubmitState> {
   return {};
 }
 
-const CHAPTERS = new Set(["reception", "stage1", "stage2", "stage3"]);
+// Named for their story, not their stage: the chapters moved up a stage in
+// September 2026, and a code called "stage1" holding Stage 2's assessment is
+// a trap for whoever edits it next. "hill" is retired but still previewable.
+const CHAPTERS = new Set(["garden", "river", "village", "market", "hill"]);
 
 /** An hour from the request; a server component reads the clock once per request. */
 function previewExpiry(): number {
@@ -31,7 +34,7 @@ function previewExpiry(): number {
 export default async function Preview({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   if (process.env.VERCEL_ENV === "production") await requireStaff("assessments.deliver");
   const { c } = await searchParams;
-  const code = c && CHAPTERS.has(c) ? c : "reception";
+  const code = c && CHAPTERS.has(c) ? c : "garden";
   const chapter = JSON.parse(readFileSync(path.join(process.cwd(), "content", "story", `${code}.json`), "utf8")) as Chapter;
   const total = chapter.scenes.reduce((n, s) => n + s.items.length, 0);
   const expiresAt = previewExpiry();
