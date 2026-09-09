@@ -269,7 +269,23 @@ export function accountsRow(f: FamilyExport): string[] {
  * One row per family, not per child: two siblings share a family, and sending
  * it twice would either duplicate the account or refuse the batch.
  */
-export function parentWorkbook(families: FamilyExport[]): Buffer {
+/**
+ * One row per FAMILY, never one per child.
+ *
+ * Two siblings share a family code, and the whole point of the code is that
+ * their fees land on one account. A workbook carrying the family twice asks
+ * the other system to create the same family twice, and what it does then is
+ * its business, not ours. The download route already narrows the selection,
+ * but the guarantee belongs here where the file is built: nothing else can
+ * hand this function a list it has not deduplicated.
+ */
+function byFamily(families: FamilyExport[]): FamilyExport[] {
+  const seen = new Set<string>();
+  return families.filter((f) => (seen.has(f.familyCode) ? false : (seen.add(f.familyCode), true)));
+}
+
+export function parentWorkbook(all: FamilyExport[]): Buffer {
+  const families = byFamily(all);
   const sheets: Sheet[] = [
     { name: "Basic", headers: BASIC_COLUMNS, rows: families.map(basicRow) },
     { name: "G1 Contact", headers: G1_CONTACT_COLUMNS, rows: families.map((f) => contactRow(f, f.record.guardians[0])) },
