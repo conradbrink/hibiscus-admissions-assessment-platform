@@ -10,11 +10,53 @@ import { mintStaffInvite } from "@/lib/staff/invites";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { guarded } from "@/lib/staff/action-helpers";
-import { requireStaffAction } from "@/lib/staff/session";
-import { PERMISSION_CODES } from "@/lib/permissions";
+import { requireStaffAction, type StaffContext } from "@/lib/staff/session";
+import { can, PERMISSION_CODES, type PermissionCode } from "@/lib/permissions";
 
 function ids(formData: FormData, name: string): string[] {
   return formData.getAll(name).filter((v): v is string => typeof v === "string" && v.length > 0);
+}
+
+/**
+ * Nobody hands out more than they hold. Without this, a person who may
+ * manage staff invites a second account for themselves, makes it a super
+ * administrator, and signs in as it — so `staff.write` would quietly be
+ * `admin`. The database enforces the same rule on `staff_roles`
+ * (`can_grant_role`); this is here because inviting goes through the service
+ * role, where row-level security does not apply, and because the message is
+ * better than a policy refusal.
+ */
+async function assertRolesWithinCeiling(ctx: StaffContext, roleIds: string[]): Promise<void> {
+  if (!roleIds.length || can(ctx.permissions, "admin")) return;
+  const { data, error } = await ctx.supabase
+    .from("role_permissions")
+    .select("role_id, permission_code, roles!inner(name)")
+    .in("role_id", roleIds);
+  if (error) throw new Error(error.message);
+  const tooHigh = new Map<string, string[]>();
+  for (const row of data ?? []) {
+    if (can(ctx.permissions, row.permission_code as PermissionCode)) continue;
+    const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
+    const name = (role as { name: string } | null)?.name ?? "that role";
+    tooHigh.set(name, [...(tooHigh.get(name) ?? []), row.permission_code]);
+  }
+  if (tooHigh.size) {
+    const [name, codes] = [...tooHigh.entries()][0];
+    throw new Error(
+      `You cannot give somebody ${name}: it carries ${codes.join(", ")}, which you do not have yourself. Ask a super administrator.`
+    );
+  }
+}
+
+/**
+ * Changing your own roles or campus scope is how a limited account becomes
+ * an unlimited one, so it belongs to whoever may edit the matrix in the
+ * first place. Everything else on your own row — your name, the morning
+ * digest — is still yours to change.
+ */
+function assertNotSelfPromotion(ctx: StaffContext, staffId: string, changing: boolean): void {
+  if (!changing || staffId !== ctx.userId || can(ctx.permissions, "roles.write")) return;
+  throw new Error("You cannot change your own roles or campuses. Ask a super administrator.");
 }
 
 /**
@@ -74,6 +116,7 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
       .parse({ email: formData.get("email"), fullName: formData.get("fullName") });
     const roleIds = ids(formData, "roleIds");
     const campusIds = ids(formData, "campusIds");
+    await assertRolesWithinCeiling(ctx, roleIds);
 
     const admin = createAdminClient();
     await assertCampusScopedRolesHaveCampuses(admin, roleIds, campusIds);
@@ -215,7 +258,7 @@ const STAFF_ASSIGNMENTS: ReadonlyArray<{ table: string; column: string; label: s
  */
 export async function deleteStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
-    const ctx = await requireStaffAction("staff.write");
+    const ctx = await requireStaffAction("staff.delete");
     const { staffId } = z.object({ staffId: z.uuid() }).parse({ staffId: formData.get("staffId") });
     if (staffId === ctx.userId) throw new Error("You cannot delete your own account.");
 
@@ -283,6 +326,24 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
     const campusIds = ids(formData, "campusIds");
     await assertCampusScopedRolesHaveCampuses(ctx.supabase, roleIds, campusIds);
 
+    // What is actually changing decides what is allowed: saving your own row
+    // with the same roles is fine, promoting yourself is not.
+    const [{ data: hasRoles }, { data: hasCampuses }] = await Promise.all([
+      ctx.supabase.from("staff_roles").select("role_id").eq("staff_id", staffId),
+      ctx.supabase.from("staff_campuses").select("campus_id").eq("staff_id", staffId),
+    ]);
+    const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+    const rolesChanging = !same((hasRoles ?? []).map((r) => r.role_id), roleIds);
+    const campusesChanging = !same((hasCampuses ?? []).map((c) => c.campus_id), campusIds);
+    assertNotSelfPromotion(ctx, staffId, rolesChanging || campusesChanging);
+    // Only the roles being added or taken away need to be within reach; a
+    // role the person already has and keeps is not being handed out.
+    const touched = [
+      ...roleIds.filter((id) => !(hasRoles ?? []).some((r) => r.role_id === id)),
+      ...(hasRoles ?? []).map((r) => r.role_id).filter((id) => !roleIds.includes(id)),
+    ];
+    await assertRolesWithinCeiling(ctx, touched);
+
     // Guard against locking everyone out: the last active holder of the
     // super_admin role cannot be deactivated or stripped of it.
     const { data: superRole } = await ctx.supabase.from("roles").select("id").eq("code", "super_admin").single();
@@ -338,7 +399,7 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
 
 export async function updateRolePermissions(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
-    const ctx = await requireStaffAction("staff.write");
+    const ctx = await requireStaffAction("roles.write");
     const roleId = z.uuid().parse(formData.get("roleId"));
     const codes = ids(formData, "codes").filter((c) => (PERMISSION_CODES as readonly string[]).includes(c));
     const { data: role } = await ctx.supabase.from("roles").select("code").eq("id", roleId).single();

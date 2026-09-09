@@ -1320,6 +1320,129 @@ begin
   perform pg_temp.service();
 
   -- -------------------------------------------------------------------------
+  -- 42. Managing people is not the same as deciding what a role may do.
+  --     An admissions manager holds `staff.write`. That must let them invite
+  --     and staff-up colleagues, and must NOT let them rewrite the matrix,
+  --     promote themselves, or hand out more than they hold — each of those
+  --     is a way of turning `staff.write` into `admin`.
+  -- -------------------------------------------------------------------------
+  declare
+    r_super uuid;
+    r_campus uuid;
+    r_manager uuid;
+  begin
+    select id into r_super from public.roles where code = 'super_admin';
+    select id into r_campus from public.roles where code = 'campus_admin';
+    select id into r_manager from public.roles where code = 'admissions_manager';
+
+    -- The manager fixture must actually hold staff.write for the attacks
+    -- below to mean anything.
+    if not exists (
+      select 1 from public.role_permissions
+      where role_id = r_manager and permission_code = 'staff.write'
+    ) then
+      v_fail := v_fail || E'\n  - ' || '42: the admissions manager no longer holds staff.write';
+    end if;
+
+    -- Attack: rewrite the matrix.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.role_permissions (role_id, permission_code) values (r_manager, 'admin');
+      v_fail := v_fail || E'\n  - ' || '42: an admissions manager granted their own role the admin permission';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('42: matrix insert refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: strip a permission from the matrix.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      delete from public.role_permissions where role_id = r_super;
+      if found then
+        v_fail := v_fail || E'\n  - ' || '42: an admissions manager emptied the super administrator role';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('42: matrix delete refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: promote yourself.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.staff_roles (staff_id, role_id) values (u_campus_mgr, r_super);
+      v_fail := v_fail || E'\n  - ' || '42: an admissions manager made themselves a super administrator';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('42: self-promotion refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: promote somebody else, then sign in as them. Same escalation,
+    -- one step longer.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.staff_roles (staff_id, role_id) values (u_staff, r_super);
+      v_fail := v_fail || E'\n  - ' || '42: an admissions manager made a colleague a super administrator';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('42: granting above the ceiling refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: demote the super administrator, locking the school out.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      delete from public.staff_roles where staff_id = u_admin and role_id = r_super;
+      if found then
+        v_fail := v_fail || E'\n  - ' || '42: an admissions manager demoted the super administrator';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('42: demotion refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: the legitimate case still works. A campus administrator is
+    -- entirely within an admissions manager's own ceiling, so handing it to a
+    -- colleague is exactly what `staff.write` is for.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.staff_roles (staff_id, role_id) values (u_noroles, r_campus);
+      delete from public.staff_roles where staff_id = u_noroles and role_id = r_campus;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('42 control: an admissions manager cannot staff up a colleague: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Control: a super administrator still edits the matrix.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      insert into public.role_permissions (role_id, permission_code) values (r_campus, 'analytics.read');
+      delete from public.role_permissions where role_id = r_campus and permission_code = 'analytics.read';
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('42 control: a super administrator cannot edit the matrix: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

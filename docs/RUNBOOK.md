@@ -483,11 +483,33 @@ school gets **Admissions manager** with the same campus limit. Head-office
 staff have no campus limit and see every school. Every list, count and
 report in the console follows the same rule automatically.
 
-The invitation link lasts 24 hours. Until the person has used it their card
-shows **Invitation not yet accepted** with a **Resend invitation** button;
-press it to send a fresh link (Supabase allows one auth email a minute per
-address). Once they have set a password the button goes away, and a
-forgotten password is reset from the sign-in page instead.
+Until the person has used their invitation their card shows **Invitation not
+yet accepted** with a **Resend invitation** button; press it to send a fresh
+link. Once they have set a password the button goes away, and a forgotten
+password is reset from the sign-in page instead.
+
+### Who may do what to the staff list
+
+Three separate powers, so that running admissions does not quietly mean
+running the whole system:
+
+| | Admissions manager | Super administrator |
+|---|---|---|
+| Invite a colleague, set their roles and campuses, turn a sign-in on or off | yes | yes |
+| Change what each role may do (the matrix at the bottom of the page) | no — shown for reference | yes |
+| Delete a person's account outright | no | yes |
+| Change their **own** roles or campuses | no | yes |
+| Give somebody a role carrying a permission they do not hold themselves | no | yes |
+
+The last two matter more than they look. Someone who can edit the matrix can
+give their own role every permission there is, and someone who can hand out
+**Super administrator** can invite a second account for themselves and sign in
+as it — either one turns "may manage staff" into "may do anything". The
+database refuses both, not merely the screen, so it holds even if somebody
+reaches past the console.
+
+A role that is above your own ceiling appears greyed out with *above what you
+hold*. Ask a super administrator to make that change.
 
 ## An invitation link says it has expired
 
@@ -512,7 +534,8 @@ invitation**. Anyone who has never signed in can be sent one.
 their sessions end on the next request. Nothing they did is deleted; the audit
 trail keeps their name.
 
-**Delete** removes a person entirely (sign-in, profile, roles, campuses) and
+**Delete** is a super administrator's button and does not appear for anyone
+else. It removes a person entirely (sign-in, profile, roles, campuses) and
 is for mistakes: a wrong email, a test account, an invitation never accepted.
 Applications, tasks and sessions assigned to the person are unassigned. It
 refuses anyone with history (a decision, an approval, a marked answer, a
