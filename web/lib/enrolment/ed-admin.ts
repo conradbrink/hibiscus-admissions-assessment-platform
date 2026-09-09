@@ -1,4 +1,5 @@
 import accepted from "@/content/enrolment/accepted-values.json";
+import edAdminCodes from "@/content/enrolment/ed-admin-codes.json";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
 import { buildWorkbook, type Sheet } from "@/lib/enrolment/xlsx";
 
@@ -30,6 +31,20 @@ import { buildWorkbook, type Sheet } from "@/lib/enrolment/xlsx";
 
 const LANGUAGES = new Set(accepted.languages);
 const NATIONALITIES = new Set(accepted.nationalities);
+
+/**
+ * Ed-admin's own dropdown lists, copied from the school's live system. Its
+ * importer matches the exact string and drops anything else in silence, so
+ * every value we put in a constrained column comes from here.
+ */
+export const ED_ADMIN = edAdminCodes as {
+  note: string;
+  grades: string[];
+  relations: string[];
+  titles: string[];
+  studentStatus: string;
+  genders: string[];
+};
 
 export type DateStyle = "dmy" | "ymd";
 
@@ -75,15 +90,43 @@ export function addressLines(address: string | null | undefined): [string, strin
 }
 
 /** Their Title, Relation and Gender columns are required and come from one answer. */
+/**
+ * Our relationship, in Ed-admin's words.
+ *
+ * Their Relation list is a fixed dropdown and almost every entry is gendered:
+ * there is `Guardian (female)` and `Guardian (male)` but no plain `Guardian`,
+ * `Grandmother` and `Grandfather` but no `Grandparent`. Sending a word that
+ * is not on the list is the same as sending nothing.
+ *
+ * We ask a parent for the relationship, not for their sex, and guessing it
+ * from a first name is exactly the kind of thing this codebase does not do.
+ * So `mother` and `father` map cleanly, and the four that do not carry a sex
+ * come back empty for a person to set — reported by the export, never
+ * guessed. Filling that gap properly means asking for a title during
+ * registration, which Ed-admin needs anyway.
+ */
 function fromRelationship(relationship: string | null | undefined): { title: string; relation: string; gender: string } {
   const r = (relationship ?? "").toLowerCase();
-  if (r === "mother" || r === "stepmother") return { title: "Mrs", relation: "Mother", gender: "F" };
-  if (r === "father" || r === "stepfather") return { title: "Mr", relation: "Father", gender: "M" };
-  if (r === "grandmother" || r === "aunt" || r === "sister") return { title: "Mrs", relation: "Guardian", gender: "F" };
-  if (r === "grandfather" || r === "uncle" || r === "brother") return { title: "Mr", relation: "Guardian", gender: "M" };
-  // Sex is not asked of a guardian anywhere, so anything else is left for a
-  // person to fill in rather than guessed from a name.
-  return { title: "", relation: relationship ? relationship.replace(/^./, (c) => c.toUpperCase()) : "Guardian", gender: "" };
+  if (r === "mother" || r === "stepmother" || r === "step-mother") return { title: "Mrs", relation: "Mother", gender: "F" };
+  if (r === "father" || r === "stepfather" || r === "step-father") return { title: "Mr", relation: "Father", gender: "M" };
+  if (r === "grandmother") return { title: "Mrs", relation: "Grandmother", gender: "F" };
+  if (r === "grandfather") return { title: "Mr", relation: "Grandfather", gender: "M" };
+  if (r === "aunt") return { title: "Mrs", relation: "Aunt", gender: "F" };
+  if (r === "sister") return { title: "Miss", relation: "Sister", gender: "F" };
+  if (r === "brother") return { title: "Mr", relation: "Brother", gender: "M" };
+  if (r === "uncle") return { title: "Mr", relation: "Guardian (male)", gender: "M" };
+  return { title: "", relation: "", gender: "" };
+}
+
+/** The guardians whose relationship Ed-admin has no word for, so staff can set one. */
+export function unmappedRelationships(families: FamilyExport[]): string[] {
+  const out = new Set<string>();
+  for (const f of families) {
+    for (const g of f.record.guardians) {
+      if (!fromRelationship(g.relationship).relation) out.add(g.relationship || "(blank)");
+    }
+  }
+  return [...out].sort();
 }
 
 type Guardian = StudentRecordSnapshot["guardians"][number];
@@ -94,6 +137,14 @@ export type FamilyExport = {
   familyCode: string;
   record: StudentRecordSnapshot;
   enquiredAt?: string | null;
+  /**
+   * What Ed-admin calls this child's stage at this campus — `Stage5-HPS`,
+   * `NURSERY-TLK`, `RECEP_PHASE_2`. Resolved at export time from
+   * `campus_grades.external_grade_code` rather than read from the snapshot,
+   * so a stage the school renames in Ed-admin is right on the next download
+   * without rewriting frozen records.
+   */
+  externalGradeCode?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -114,7 +165,10 @@ export function studentRow(f: FamilyExport, opts: { dateStyle?: DateStyle; statu
   return [
     f.familyCode,
     f.record.application.reference,
-    f.record.application.grade,
+    // Their word for the stage, never ours. `Stage 5` is not a grade in
+    // Ed-admin and importing it loses the child's grade and, with it, the
+    // link to the family; the export refuses to send an unmapped pair.
+    f.externalGradeCode ?? "",
     "",
     s.legal_last_name ?? "",
     s.legal_first_name ?? "",
@@ -135,7 +189,7 @@ export function studentRow(f: FamilyExport, opts: { dateStyle?: DateStyle; statu
     formatDate(f.enquiredAt ?? null, style),
     formatDate(f.record.application.start_date, style),
     "",
-    opts.status ?? "Active",
+    opts.status ?? ED_ADMIN.studentStatus,
   ];
 }
 
@@ -213,7 +267,9 @@ export function basicRow(f: FamilyExport): string[] {
     g2?.last_name ?? "", g2?.first_name ?? "", g2 ? b.title : "", g2 ? b.relation : "", g2 ? b.gender : "",
     acceptedLanguage(f.record.student.home_language), "", "",
     "",
-    "Active",
+    // Their word for a live record, taken from the same list as everything
+    // else here; "Active" is not one of Ed-admin's.
+    ED_ADMIN.studentStatus,
     salutation(g1, g2),
   ];
 }

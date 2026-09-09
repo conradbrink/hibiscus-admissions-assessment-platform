@@ -1,0 +1,33 @@
+{
+  "note": "Ed-admin's own dropdown lists, copied from the school's live system on 9 September 2026 (Student Records > Grade, Parent Records > Relation and Title, Student Status). Their importer matches on the exact string: any other spelling is dropped without a message, which is why a grade of 'Stage 5' rather than 'Stage5-HPS' left students unlinked. Copy a value, never invent one.",
+  "grades": [
+    "NURSERY-TLK", "NURSERY-VILLAGE", "KINDER-HPS", "BABIES_CBD", "NURSERY_PHASE_2",
+    "NURSERY-SARONA", "PRE-K-SARONA", "PRE-K-TLK", "PRE-K-VILLAGE", "PRE-REC-HPS",
+    "PRE-K_PHASE_2", "TODDLERS_CBD", "KINDER-SARONA", "KINDER-TLK", "KINDER-VILLAGE",
+    "JUNIOR_CBD", "KINDER_PHASE_2", "GradeRR_CBD", "PRE-REC-SARONA", "PRE-REC-TLK",
+    "PRE-REC-VILLAGE", "PRE-REC_PHASE_2", "RECEP_PHASE_2", "RECEPT-SARONA", "RECEPT-TLK",
+    "RECEPT-VILLAGE", "GradeR_CBD", "NUR-HPP", "PREK-HPP", "KIN-HPP", "PRER-HPP",
+    "REC-HPP", "REC-HLA", "Stage1-HLA", "Stage2-HLA", "Stage3-HLA", "Stage4-HLA",
+    "Stage5-HLA", "Stage6-HLA", "Stage7-HLA", "REC-HPS", "Stage1-HPS", "Stage2-HPS",
+    "Stage3-HPS", "Stage4-HPS", "Stage5-HPS", "Stage6-HPS", "Stage7-HPS", "Form1-HPS",
+    "Form2-HPS", "Form3-HPS", "Form4-HPS", "Form5-HPS"
+  ],
+  "relations": [
+    "Alternative Contact (female)", "Alternative Contact (male)", "Aunt", "Brother",
+    "Cousin (female)", "Cousin (male)", "Daughter", "Family (female)", "Family (male)",
+    "Father", "Friend (female)", "Friend (male)", "Grandchild (female)", "Grandchild (male)",
+    "Grandfather", "Grandmother", "Guardian (female)", "Guardian (male)", "Gvt Sponsor",
+    "Husband", "Independent Sponsor", "Mother", "Nephew", "Niece", "Partner (female)",
+    "Partner (male)", "Primary Guardian (female)", "Primary Guardian (male)",
+    "Relative (female)", "Relative (male)", "Secondary Guardian (female)",
+    "Secondary Guardian (male)", "Self Sponsor", "Sister", "Son", "Step-brother",
+    "Step-daughter", "Step-father", "Step-mother"
+  ],
+  "titles": [
+    "Advocate", "Bishop", "Captain", "Chief", "Councillor", "Dr", "Honourable", "Judge",
+    "Minister", "Miss", "Mr", "Mrs", "Ms", "Nkosi", "Other", "Pastor", "Prince",
+    "Princess", "Professor", "Rabbi", "Reverend"
+  ],
+  "studentStatus": "Current",
+  "genders": ["M", "F"]
+}

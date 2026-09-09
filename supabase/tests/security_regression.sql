@@ -1520,6 +1520,49 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 44. Ed-admin stage names: settings.write to change, readable by staff
+  -- -------------------------------------------------------------------------
+  begin
+    -- Attack: an admissions officer renames a stage in the other system.
+    -- Every enrolled child at that campus would then import into the wrong
+    -- grade, or into none, which is a data change dressed as a label.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.campus_grades set external_grade_code = 'Stage1-HLA' where campus_id = c_block7;
+      if found then
+        v_fail := v_fail || E'\n  - ' || '44: an admissions officer renamed an Ed-admin stage';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('44: the rename was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an administrator sets one, and any signed-in staff member can
+    -- read it — the export needs it and runs as the person downloading.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      update public.campus_grades set external_grade_code = 'Stage1-HPS' where campus_id = c_block7;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('44 control: an administrator cannot set a stage name: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.campus_grades where external_grade_code is not null;
+      if v_count = 0 then
+        v_fail := v_fail || E'\n  - ' || '44: staff cannot read the Ed-admin stage names the export needs';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('44: reading the stage names failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

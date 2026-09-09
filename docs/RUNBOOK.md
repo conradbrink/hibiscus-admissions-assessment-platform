@@ -533,6 +533,33 @@ route past the rule that a code never changes. **Anything already exported
 keeps the code it went out with**, so tell the other system about the merge
 too — otherwise the older half stays on its own account there.
 
+## Ed-admin will not take a stage it does not recognise
+
+Ed-admin has no stage called "Stage 5". It has `Stage5-HPS` at Block 7 and
+`Stage5-HLA` at Broadhurst, `NURSERY-TLK` at Tlokweng and `NURSERY_PHASE_2`
+at Phase 2 — the stage and the site in one word, hyphenated at some sites and
+underscored at others. Its importer matches the whole string and ignores
+anything else **without saying so**, which is the trap: the row imports, the
+grade does not resolve, and the child sits there with no stage and no family.
+The same is true of nationality, language, title and relation.
+
+**Set up → Ed-admin stage names** holds the mapping, one row per stage per
+campus, chosen from Ed-admin's own Grade list. It is filled in already. When
+the school opens a site or renames a stage in Ed-admin, change it here — not
+in the code — and the next download is right.
+
+The student export refuses to send a child whose stage has no name yet, and
+says which campus and stage to fix. That refusal is deliberate: a file that
+half imports is worse than one that does not go.
+
+One gap remains. Ed-admin's Relation list is gendered throughout — there is
+`Guardian (female)` and `Guardian (male)` but no plain `Guardian`,
+`Grandmother` but no `Grandparent` — and registration asks a parent for the
+relationship, not their sex. A mother and a father map cleanly; a guardian,
+a grandparent or "other" comes out blank rather than guessed, and those rows
+need a person. Asking for a title during registration would close it, and
+Ed-admin wants a title anyway.
+
 ## A mobile number the school cannot message
 
 Every form that asks for a mobile asks for the country first and the number
@@ -707,7 +734,10 @@ instead so the record of who did what stays intact. Deletions are audited.
     **Data retention**, which anonymises: deleting also removes the figures
     the school reports on, and the audit line it leaves behind still names
     the child. Deleting is for records that should never have existed.
-14. Never hand `applications.delete` to a role people share. It is the super
+14. Never type a stage name into the Ed-admin export by hand or invent one
+    that "looks right". Copy it from Ed-admin's own Grade dropdown into
+    **Set up → Ed-admin stage names**. A near miss imports as nothing.
+15. Never hand `applications.delete` to a role people share. It is the super
     administrator's, and one mis-click is not recoverable.
 13. Never turn a medical export column on without the data-protection
     officer's say-so, and never switch `retention_enabled` on without reading

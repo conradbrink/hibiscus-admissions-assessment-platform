@@ -227,6 +227,12 @@ export type CampusGradeRow = {
   is_active: boolean;
   /** Places per academic year. Null is unlimited. */
   capacity: number | null;
+  /**
+   * What Ed-admin calls this stage at this campus (Stage5-HPS, NURSERY-TLK,
+   * RECEP_PHASE_2). Null until an administrator maps it; the student export
+   * refuses to send an unmapped pair rather than importing a blank grade.
+   */
+  external_grade_code: string | null;
 };
 
 export type SubjectRow = {
@@ -1409,7 +1415,7 @@ export type Database = {
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
-        "is_active" | "capacity",
+        "is_active" | "capacity" | "external_grade_code",
         [
           Rel<"campus_grades_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campus_grades_grade_id_fkey", "grade_id", "grades">,

@@ -79,6 +79,11 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
               <Button type="submit" name="layout" value="parent" size="lg" variant="outline">Parent details (CSV)</Button>
               <Button type="submit" name="layout" value="student" size="lg">Student details (CSV) — {rows.length}</Button>
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Ed-admin knows a stage by its own name — <code>Stage5-HPS</code>, <code>NURSERY-TLK</code> — and ignores
+              any other spelling, so a child whose stage is not mapped is refused rather than sent without one.{" "}
+              <Link href="/staff/admin/ed-admin-grades" className="underline">Check the stage names</Link>.
+            </p>
             <details className="mt-4">
               <summary className="cursor-pointer text-xs text-muted-foreground">Or the older, configurable layout</summary>
               <p className="mt-2 mb-2 text-xs text-muted-foreground">

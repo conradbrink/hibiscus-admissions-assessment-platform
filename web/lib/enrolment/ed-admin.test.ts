@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
 import {
+  ED_ADMIN,
   acceptedLanguage,
   acceptedNationality,
   accountsRow,
@@ -17,6 +18,7 @@ import {
   phoneFor,
   studentRow,
   studentWorkbook,
+  unmappedRelationships,
   STUDENT_COLUMNS,
   type FamilyExport,
 } from "@/lib/enrolment/ed-admin";
@@ -228,7 +230,7 @@ describe("the values their importer will accept", () => {
     expect(at("G1 Title*")).toBe("Mrs");
     expect(at("G1 Relation*")).toBe("Mother");
     expect(at("G1 Gender*")).toBe("F");
-    expect(at("Record Status*")).toBe("Active");
+    expect(at("Record Status*")).toBe("Current");
     expect(at("Family Salutation*")).not.toBe("");
     expect(at("G2 Relation")).toBe("Father");
   });
@@ -257,5 +259,67 @@ describe("one row per family", () => {
     // The opposite guarantee, and the reason the two files are separate:
     // siblings are one account and two pupils.
     expect(studentWorkbook([family, sibling])).not.toEqual(studentWorkbook([family]));
+  });
+});
+
+
+describe("only Ed-admin's own words", () => {
+  // Their importer matches the exact string and drops anything else without a
+  // message. That silence is what made a student import look like it worked
+  // while every child arrived with no grade and therefore no family, so each
+  // constrained column is checked against the list copied from their system.
+  const withGrade: FamilyExport = { ...family, externalGradeCode: "Stage1-HLA" };
+
+  it("sends a grade only from their list", () => {
+    const row = studentRow(withGrade);
+    const grade = row[STUDENT_COLUMNS.indexOf("Grade*")];
+    expect(ED_ADMIN.grades).toContain(grade);
+  });
+
+  it("sends nothing at all for a stage nobody has mapped", () => {
+    // Better an empty cell the route refuses to ship than "Stage 1", which
+    // imports and quietly loses the child's grade.
+    const row = studentRow({ ...family, externalGradeCode: null });
+    expect(row[STUDENT_COLUMNS.indexOf("Grade*")]).toBe("");
+    expect(row[STUDENT_COLUMNS.indexOf("Grade*")]).not.toBe(family.record.application.grade);
+  });
+
+  it("sends a status and a gender from their lists", () => {
+    const row = studentRow(withGrade);
+    expect(row[STUDENT_COLUMNS.indexOf("Status")]).toBe(ED_ADMIN.studentStatus);
+    expect(ED_ADMIN.genders).toContain(row[STUDENT_COLUMNS.indexOf("Gender*")]);
+  });
+
+  it("sends a relation and a title from their lists, or nothing", () => {
+    const row = basicRow(family);
+    for (const column of ["G1 Relation*", "G2 Relation"]) {
+      const value = row[BASIC_COLUMNS.indexOf(column)];
+      if (value) expect(ED_ADMIN.relations, `${column} = ${value}`).toContain(value);
+    }
+    for (const column of ["G1 Title*", "G2 Title"]) {
+      const value = row[BASIC_COLUMNS.indexOf(column)];
+      if (value) expect(ED_ADMIN.titles, `${column} = ${value}`).toContain(value);
+    }
+    expect(row[BASIC_COLUMNS.indexOf("Record Status*")]).toBe(ED_ADMIN.studentStatus);
+  });
+
+  it("has no word for a plain guardian or grandparent, and says so", () => {
+    // Ed-admin's list is gendered throughout — Guardian (female), Grandmother —
+    // and we ask a parent for the relationship, not their sex. So these come
+    // back empty and get reported rather than guessed.
+    const vague: FamilyExport = {
+      ...family,
+      record: {
+        ...record,
+        guardians: [
+          { ...record.guardians[0], relationship: "guardian" },
+          { ...record.guardians[0], relationship: "grandparent" },
+        ],
+      },
+    };
+    const row = basicRow(vague);
+    expect(row[BASIC_COLUMNS.indexOf("G1 Relation*")]).toBe("");
+    expect(unmappedRelationships([vague])).toEqual(["grandparent", "guardian"]);
+    expect(unmappedRelationships([family])).toEqual([]);
   });
 });
