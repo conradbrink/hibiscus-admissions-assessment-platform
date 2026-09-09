@@ -90,6 +90,7 @@ export function prefillRegistration(
     if (a.current_grade) prefilled.push("currentGrade");
   }
   const primaryValues: Record<string, string> = {
+    title: primary?.title ?? "",
     firstName: primary?.first_name ?? c.first_name,
     lastName: primary?.last_name ?? c.last_name,
     relationship: primary?.relationship ?? "",

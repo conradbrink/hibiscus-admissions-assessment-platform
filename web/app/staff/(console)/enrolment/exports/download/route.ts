@@ -42,12 +42,22 @@ function layoutOf(value: FormDataEntryValue | string | null): Layout {
 }
 
 /** The snapshot plus the one thing that is not in it: the family's code. */
-type ExportRow = { id: string | null; snapshot: unknown; familyCode: string; enquiredAt: string | null };
+type ExportRow = {
+  id: string | null;
+  snapshot: unknown;
+  familyCode: string;
+  enquiredAt: string | null;
+  /** Ed-admin's own name for the stage at this campus; null when unmapped. */
+  externalGradeCode: string | null;
+  /** For the message when it is unmapped, in words a person recognises. */
+  campusAndGrade: string;
+};
 
 const asFamily = (r: ExportRow): FamilyExport => ({
   familyCode: r.familyCode,
   record: r.snapshot as StudentRecordSnapshot,
   enquiredAt: r.enquiredAt,
+  externalGradeCode: r.externalGradeCode,
 });
 
 /**
@@ -74,20 +84,51 @@ type JoinedRecord = {
   applications?: unknown;
 };
 
-function toExportRows(records: JoinedRecord[]): { rows: ExportRow[]; skipped: number } {
+/** Keyed the way `campus_grades` is: one stage at one campus. */
+const pairKey = (campusId: string, gradeId: string) => `${campusId}:${gradeId}`;
+
+function toExportRows(records: JoinedRecord[], codes: Map<string, string>): { rows: ExportRow[]; skipped: number } {
   const rows: ExportRow[] = [];
   let skipped = 0;
   for (const r of records) {
-    const app = one(r.applications) as { created_at?: string; contacts?: unknown } | null;
+    const app = one(r.applications) as
+      | { created_at?: string; campus_id?: string; grade_id?: string; contacts?: unknown }
+      | null;
     const contact = one(app?.contacts) as { family_code?: string | null } | null;
     const familyCode = contact?.family_code ?? "";
     if (!familyCode) {
       skipped += 1;
       continue;
     }
-    rows.push({ id: r.id ?? null, snapshot: r.snapshot, familyCode, enquiredAt: app?.created_at ?? null });
+    const snapshot = r.snapshot as StudentRecordSnapshot;
+    const key = app?.campus_id && app?.grade_id ? pairKey(app.campus_id, app.grade_id) : "";
+    rows.push({
+      id: r.id ?? null,
+      snapshot: r.snapshot,
+      familyCode,
+      enquiredAt: app?.created_at ?? null,
+      externalGradeCode: codes.get(key) ?? null,
+      campusAndGrade: `${snapshot?.application?.campus ?? "?"} · ${snapshot?.application?.grade ?? "?"}`,
+    });
   }
   return { rows, skipped };
+}
+
+/**
+ * What Ed-admin calls each stage at each campus. Read through the caller's
+ * own client, so the campus scoping that applies to everything else on this
+ * route applies here too.
+ */
+async function loadGradeCodes(supabase: Awaited<ReturnType<typeof requireStaff>>["supabase"]): Promise<Map<string, string>> {
+  const { data } = await supabase
+    .from("campus_grades")
+    .select("campus_id, grade_id, external_grade_code")
+    .not("external_grade_code", "is", null);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    if (row.external_grade_code) map.set(pairKey(row.campus_id, row.grade_id), row.external_grade_code);
+  }
+  return map;
 }
 
 /**
@@ -111,7 +152,7 @@ function layoutSnapshot(layout: "parent" | "student"): ExportColumn[] {
 }
 
 const SELECT =
-  "id, application_id, snapshot, applications!inner(campus_id, intake_id, created_at, campuses(code), contacts!applications_contact_id_fkey(family_code))";
+  "id, application_id, snapshot, applications!inner(campus_id, grade_id, intake_id, created_at, campuses(code), contacts!applications_contact_id_fkey(family_code))";
 
 export async function POST(request: Request) {
   const ctx = await requireStaff("data.export");
@@ -135,9 +176,23 @@ export async function POST(request: Request) {
   const campusCode = campus ? (one(one(records[0].applications)?.campuses)?.code ?? null) : null;
 
   if (layout === "parent" || layout === "student") {
-    const { rows, skipped } = toExportRows(records);
+    const { rows, skipped } = toExportRows(records, await loadGradeCodes(ctx.supabase));
     if (!rows.length) {
       return new Response("None of those families has a family code yet.", { status: 409 });
+    }
+
+    // A stage with no Ed-admin name is the bug this whole mapping exists to
+    // stop: the row imports, the grade does not resolve, and the child ends
+    // up in their system with no grade and no family. Refusing here is the
+    // point — a file that half works is worse than one that does not go.
+    if (layout === "student") {
+      const missing = [...new Set(rows.filter((r) => !r.externalGradeCode).map((r) => r.campusAndGrade))].sort();
+      if (missing.length) {
+        return new Response(
+          `Ed-admin has no name yet for ${missing.join(", ")}. Set it under Settings → Ed-admin stage names, then download again.`,
+          { status: 409 }
+        );
+      }
     }
     const filename = exportFilename("csv", now, campusCode).replace(/^hibiscus-students-/, `hibiscus-${layout}s-`).replace(/\.csv$/, ".xlsx");
     const body = edAdminBody(layout, rows);
@@ -241,7 +296,9 @@ export async function GET(request: Request) {
 
   let filename = batch.filename;
   if (layout) {
-    const { rows } = toExportRows(records ?? []);
+    // A re-download resolves the stage names again, so a batch taken before
+    // a name was corrected comes back with the corrected one.
+    const { rows } = toExportRows(records ?? [], await loadGradeCodes(ctx.supabase));
     const bytes = edAdminBody(layout, rows);
     filename = batch.filename.replace(/hibiscus-(parent|student)s-/, `hibiscus-${layout}s-`);
     await createAdminClient().from("audit_log").insert({

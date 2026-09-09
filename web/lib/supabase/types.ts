@@ -227,6 +227,12 @@ export type CampusGradeRow = {
   is_active: boolean;
   /** Places per academic year. Null is unlimited. */
   capacity: number | null;
+  /**
+   * What Ed-admin calls this stage at this campus (Stage5-HPS, NURSERY-TLK,
+   * RECEP_PHASE_2). Null until an administrator maps it; the student export
+   * refuses to send an unmapped pair rather than importing a blank grade.
+   */
+  external_grade_code: string | null;
 };
 
 export type SubjectRow = {
@@ -1118,6 +1124,8 @@ export type RegistrationContactRow = {
   kind: RegistrationContactKind;
   position: number;
   contact_id: string | null;
+  /** Mr, Mrs, Dr — Ed-admin requires one, and it is what genders their Relation list. */
+  title: string | null;
   first_name: string;
   last_name: string;
   relationship: GuardianRelationship;
@@ -1409,7 +1417,7 @@ export type Database = {
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
-        "is_active" | "capacity",
+        "is_active" | "capacity" | "external_grade_code",
         [
           Rel<"campus_grades_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campus_grades_grade_id_fkey", "grade_id", "grades">,
@@ -1899,7 +1907,7 @@ export type Database = {
       >;
       registration_contacts: TableOf<
         RegistrationContactRow,
-        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality",
+        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality" | "title",
         [
           Rel<"registration_contacts_application_id_fkey", "application_id", "applications">,
           Rel<"registration_contacts_contact_id_fkey", "contact_id", "contacts">,

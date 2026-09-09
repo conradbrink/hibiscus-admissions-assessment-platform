@@ -15,7 +15,7 @@ const doc = (code: string, review: DocumentRow["review_status"] = "pending"): Do
 });
 const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, document_url: null, sort_order: 100, is_active: true, created_by: null, created_at: "", updated_at: "" });
 const contact = (kind: RegistrationContactRow["kind"]): RegistrationContactRow => ({
-  id: kind, application_id: "a", kind, position: 1, contact_id: null, first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",
+  id: kind, application_id: "a", kind, position: 1, contact_id: null, title: "Mrs", first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",
 });
 const stamped = (): RegistrationRow =>
   ({
@@ -122,15 +122,15 @@ describe("schemas", () => {
     expect(rare.success && rare.data.homeLanguage).toBe("Klingon");
   });
   it("secondary guardian is all-or-nothing", () => {
-    const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com", mobile: "+26771234567" };
+    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com", mobile: "+26771234567" };
     expect(familySchema.safeParse({ primary }).success).toBe(true);
     const half = familySchema.safeParse({ primary, secondaryFirstName: "Neo" });
     expect(half.success).toBe(false);
     if (!half.success) expect(Object.keys(issuesToFields(half.error))).toContain("secondaryLastName");
-    expect(familySchema.safeParse({ primary, secondaryFirstName: "Neo", secondaryLastName: "Moeti", secondaryRelationship: "mother", secondaryMobile: "+26771234568" }).success).toBe(true);
+    expect(familySchema.safeParse({ primary, secondaryFirstName: "Neo", secondaryLastName: "Moeti", secondaryRelationship: "mother", secondaryTitle: "Mrs", secondaryMobile: "+26771234568" }).success).toBe(true);
   });
   it("takes a mobile number only in the form WhatsApp accepts", () => {
-    const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com" };
+    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com" };
     // Without a country code we would be guessing which country it is from.
     const bare = familySchema.safeParse({ primary: { ...primary, mobile: "71234567" } });
     expect(bare.success).toBe(false);

@@ -122,6 +122,7 @@ export const SETTINGS_SECTIONS: NavGroup[] = [
       { href: "/staff/admin/settings", label: "Workflow settings", icon: "workflow", permission: "settings.write", blurb: "Reminders, expiry days and the automation switches" },
       { href: "/staff/admin/retention", label: "Data retention", icon: "retention", permission: "settings.write", blurb: "When old applications are anonymised" },
       { href: "/staff/admin/export-columns", label: "Export columns", icon: "columns", permission: "settings.write", blurb: "The shape of the student export file" },
+      { href: "/staff/admin/ed-admin-grades", label: "Ed-admin stage names", icon: "columns", permission: "settings.write", blurb: "What each stage is called in the school's other system" },
       { href: "/staff/admin/dev-outbox", label: "Outbox", icon: "outbox", permission: "admin", blurb: "Messages the test providers would have sent" },
       { href: "/staff/admin/jobs", label: "Job queue", icon: "jobs", permission: "admin", blurb: "Background work and anything that failed" },
     ],

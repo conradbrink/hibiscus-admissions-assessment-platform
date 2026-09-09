@@ -27,7 +27,7 @@ export type StudentRecordSnapshot = {
     previous_institution: string | null;
     current_grade: string | null;
   };
-  guardians: Array<{ kind: string; first_name: string; last_name: string; relationship: string; email: string | null; mobile: string | null; phone: string | null; address: string | null; nationality: string | null }>;
+  guardians: Array<{ kind: string; title: string | null; first_name: string; last_name: string; relationship: string; email: string | null; mobile: string | null; phone: string | null; address: string | null; nationality: string | null }>;
   emergency_contacts: Array<{ first_name: string; last_name: string; relationship: string; phone: string | null; email: string | null; address: string | null }>;
   medical: {
     medical_aid_name: string | null;
@@ -82,7 +82,7 @@ export function buildStudentRecord(
     },
     guardians: bundle.contacts
       .filter((c) => c.kind !== "emergency")
-      .map((c) => ({ kind: c.kind, first_name: c.first_name, last_name: c.last_name, relationship: c.relationship, email: c.email, mobile: c.mobile_normalised ?? c.mobile, phone: c.phone, address: c.address, nationality: c.nationality })),
+      .map((c) => ({ kind: c.kind, title: c.title ?? null, first_name: c.first_name, last_name: c.last_name, relationship: c.relationship, email: c.email, mobile: c.mobile_normalised ?? c.mobile, phone: c.phone, address: c.address, nationality: c.nationality })),
     emergency_contacts: bundle.contacts
       .filter((c) => c.kind === "emergency")
       .map((c) => ({ first_name: c.first_name, last_name: c.last_name, relationship: c.relationship, phone: c.phone, email: c.email, address: c.address })),

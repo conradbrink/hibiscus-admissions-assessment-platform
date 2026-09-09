@@ -8,7 +8,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { RELATIONSHIP_LABELS, RELATIONSHIPS } from "@/lib/registration/schema";
+import { RELATIONSHIP_LABELS, RELATIONSHIPS, TITLES } from "@/lib/registration/schema";
+
+/**
+ * Ed-admin requires a title on every guardian, and its relationship list is
+ * gendered — `Guardian (female)`, `Grandmother` — so a title is also what
+ * lets the school's other system file a guardian without anybody guessing
+ * from a first name.
+ */
+function TitleSelect({ name, value, error, readOnly }: { name: string; value: string; error?: string; readOnly: boolean }) {
+  return (
+    <Field id={name} label="Title" error={error}>
+      <NativeSelect id={name} name={name} defaultValue={value} disabled={readOnly} {...(error ? { "aria-invalid": true } : {})}>
+        <option value="">Choose…</option>
+        {TITLES.map((t) => <option key={t} value={t}>{t}</option>)}
+      </NativeSelect>
+    </Field>
+  );
+}
 
 function RelationshipSelect({ name, value, error, readOnly }: { name: string; value: string; error?: string; readOnly: boolean }) {
   return (
@@ -53,6 +70,7 @@ export function FamilyForm({
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Primary parent or guardian</legend>
         <p className="text-xs text-muted-foreground">The person the school contacts first. You enquired with these details; check they are still right.</p>
+        <TitleSelect name="primary.title" value={p("title")} error={f["primary.title"]} readOnly={readOnly} />
         {input("primary.firstName", "First name", p("firstName"), { required: true, prefilled: pre("firstName") })}
         {input("primary.lastName", "Surname", p("lastName"), { required: true, prefilled: pre("lastName") })}
         <RelationshipSelect name="primary.relationship" value={p("relationship")} error={f["primary.relationship"]} readOnly={readOnly} />
@@ -74,6 +92,7 @@ export function FamilyForm({
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Second parent or guardian</legend>
         <p className="text-xs text-muted-foreground">Optional. Leave the whole section blank if there is nobody else.</p>
+        <TitleSelect name="secondaryTitle" value={s("title")} error={f.secondaryTitle} readOnly={readOnly} />
         {input("secondaryFirstName", "First name", s("firstName"))}
         {input("secondaryLastName", "Surname", s("lastName"))}
         <RelationshipSelect name="secondaryRelationship" value={s("relationship")} error={f.secondaryRelationship} readOnly={readOnly} />

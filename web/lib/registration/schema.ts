@@ -19,6 +19,19 @@ export const NOT_AT_SCHOOL = "Not at school yet";
 export const IDENTITY_TYPES = ["omang", "passport", "birth_certificate", "other"] as const;
 export const RELATIONSHIPS = ["mother", "father", "parent", "guardian", "grandparent", "other"] as const;
 
+/**
+ * How a guardian is addressed. Ed-admin requires a title on every guardian
+ * and its Relation list is gendered throughout — `Guardian (female)`,
+ * `Grandmother`, with no neutral form — so the title is also what tells us
+ * which one to send without guessing a person's sex from their first name.
+ *
+ * These are Ed-admin's own spellings, taken from its Title dropdown. The
+ * short list is the one a family actually uses; the rest of theirs (Bishop,
+ * Judge, Nkosi, Advocate) are reachable as "Other" rather than making every
+ * parent scroll past them.
+ */
+export const TITLES = ["Mr", "Mrs", "Miss", "Ms", "Dr", "Professor", "Reverend", "Pastor", "Other"] as const;
+
 export const RELATIONSHIP_LABELS: Record<(typeof RELATIONSHIPS)[number], string> = {
   mother: "Mother",
   father: "Father",
@@ -86,6 +99,7 @@ export const medicalSchema = z.object({
 });
 
 const guardian = z.object({
+  title: z.enum(TITLES, { error: "Choose a title." }),
   firstName: required(80, "Enter a first name."),
   lastName: required(80, "Enter a surname."),
   relationship: z.enum(RELATIONSHIPS, { error: "Choose the relationship." }),
@@ -104,6 +118,7 @@ const emptyGuardian = (g: Record<string, unknown>) => Object.values(g).every((v)
 export const familySchema = z
   .object({
     primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
+    secondaryTitle: z.enum(TITLES).optional(),
     secondaryFirstName: optional(80),
     secondaryLastName: optional(80),
     secondaryRelationship: z.enum(RELATIONSHIPS).optional(),
@@ -119,6 +134,7 @@ export const familySchema = z
     if (!v.secondaryFirstName) ctx.addIssue({ code: "custom", path: ["secondaryFirstName"], message: "Enter the second guardian's first name, or leave the whole section blank." });
     if (!v.secondaryLastName) ctx.addIssue({ code: "custom", path: ["secondaryLastName"], message: "Enter the second guardian's surname." });
     if (!v.secondaryRelationship) ctx.addIssue({ code: "custom", path: ["secondaryRelationship"], message: "Choose the relationship." });
+    if (!v.secondaryTitle) ctx.addIssue({ code: "custom", path: ["secondaryTitle"], message: "Choose a title." });
     if (!v.secondaryMobile && !v.secondaryEmail) ctx.addIssue({ code: "custom", path: ["secondaryMobile"], message: "Enter a mobile number or an email address." });
   });
 
