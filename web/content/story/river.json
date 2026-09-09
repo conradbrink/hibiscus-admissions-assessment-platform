@@ -1,0 +1,908 @@
+{
+ "code": "river",
+ "name": "Tumi's Journey · Stage 1 · The river",
+ "grade_sort": 60,
+ "character": "Tumi",
+ "time_limit_minutes": 60,
+ "stop_after_misses": 3,
+ "scenes": [
+  {
+   "key": "river-wake",
+   "title": "Waking up by the river",
+   "narration": "Hello! My name is Tumi. I'm a little dinosaur, and I fell asleep in the long grass. Now I don't know the way home. Will you help me? Great! First, tell me your name.",
+   "sees": "Tumi yawning in tall grass by a river.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "R-W1",
+     "competency": "talking_listening",
+     "strand": "Warm-up",
+     "difficulty": 1,
+     "narration": "What is your name? And how old are you?",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 0.5,
+     "key": {
+      "expected": "Warm-up: any answer is fine"
+     },
+     "note": "Warm-up: any answer is fine",
+     "subject": "english"
+    }
+   ]
+  },
+  {
+   "key": "picnic",
+   "title": "The picnic",
+   "narration": "Look, somebody left a picnic! I'm so hungry. Can you help me find the food?",
+   "sees": "A blanket with a banana, an apple, an orange, a cup, a hat and a book.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "R-T1",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Point to the apple.",
+     "focus": [
+      "blanket",
+      "apple",
+      "banana",
+      "orange",
+      "cup",
+      "hat",
+      "book"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the apple"
+     },
+     "note": "Points to the apple",
+     "subject": "english"
+    },
+    {
+     "code": "R-T2",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Point to the cup.",
+     "focus": [
+      "blanket",
+      "apple",
+      "banana",
+      "orange",
+      "cup",
+      "hat",
+      "book"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the cup"
+     },
+     "note": "Points to the cup",
+     "subject": "english"
+    },
+    {
+     "code": "R-T3",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 1,
+     "narration": "Which one is the banana? Point to it for me.",
+     "focus": [
+      "blanket",
+      "apple",
+      "banana",
+      "orange",
+      "cup",
+      "hat",
+      "book"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the banana"
+     },
+     "note": "Points to the banana",
+     "subject": "english"
+    },
+    {
+     "code": "R-T4",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 2,
+     "narration": "What is this?",
+     "focus": [
+      "hat!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says hat"
+     },
+     "note": "Says hat",
+     "subject": "english"
+    },
+    {
+     "code": "R-T5",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 3,
+     "narration": "What do we do with a book?",
+     "focus": [
+      "book!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Read it, look at it, or similar"
+     },
+     "note": "Read it, look at it, or similar",
+     "subject": "english"
+    },
+    {
+     "code": "R-T6",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 3,
+     "narration": "Which one is under the blanket?",
+     "focus": [
+      "blanket",
+      "ball-under",
+      "bird-on"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the ball"
+     },
+     "note": "Points to the ball",
+     "subject": "english"
+    },
+    {
+     "code": "R-N1",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 1,
+     "narration": "How many apples are there? Count them for me.",
+     "focus": [
+      "apples:3"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says three, touching each once"
+     },
+     "note": "Says three, touching each once",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N2",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 2,
+     "narration": "And now how many?",
+     "focus": [
+      "apples:6"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says six"
+     },
+     "note": "Says six",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N3",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 2,
+     "narration": "Point to the pile that has more apples.",
+     "focus": [
+      "pile:2",
+      "pile:5"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the pile of five"
+     },
+     "note": "Points to the pile of five",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N4",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 3,
+     "narration": "I had two apples and I found one more. How many do I have now?",
+     "focus": [
+      "apples:2+1"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says three"
+     },
+     "note": "Says three",
+     "subject": "mathematics"
+    }
+   ]
+  },
+  {
+   "key": "river-sounds",
+   "title": "Sounds by the river",
+   "narration": "Shh! Listen. The river is full of sounds. Can you hear them with me?",
+   "sees": "Riverbank with a snake, a sun, a moon, a frog, a boat.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "R-S1",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 2,
+     "narration": "Which one starts with sss? Sss… snake, sss… sun. Point to one that starts with sss.",
+     "focus": [
+      "snake",
+      "frog",
+      "moon"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the snake"
+     },
+     "note": "Points to the snake",
+     "subject": "english"
+    },
+    {
+     "code": "R-S2",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 3,
+     "narration": "Frog. What sound does frog start with?",
+     "focus": [
+      "frog!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says f"
+     },
+     "note": "Says f",
+     "subject": "english"
+    },
+    {
+     "code": "R-S3",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 3,
+     "narration": "Cat, hat. They rhyme! Which one rhymes with boat?",
+     "focus": [
+      "goat",
+      "sun",
+      "frog"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the goat"
+     },
+     "note": "Points to the goat",
+     "subject": "english"
+    },
+    {
+     "code": "R-S4",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 4,
+     "narration": "Say the word slowly with me: m… oo… n. What word is that?",
+     "focus": [
+      "moon!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says moon"
+     },
+     "note": "Says moon",
+     "subject": "english"
+    },
+    {
+     "code": "R-S5",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 4,
+     "narration": "Clap the parts of the word with me. Cro-co-dile. How many claps?",
+     "focus": [
+      "crocodile!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Three claps"
+     },
+     "note": "Three claps",
+     "subject": "english"
+    }
+   ]
+  },
+  {
+   "key": "signpost",
+   "title": "The signpost",
+   "narration": "A signpost! It says which way to go. But I can't read yet. Can you help me look at the letters?",
+   "sees": "A wooden signpost reading TUMI, an arm with a house picture, an open book on the ground.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "R-S6",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 1,
+     "narration": "Point to a letter.",
+     "focus": [
+      "sign:TUMI",
+      "house-sign"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Any letter, not the picture"
+     },
+     "note": "Any letter, not the picture",
+     "subject": "english"
+    },
+    {
+     "code": "R-S7",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 2,
+     "narration": "This is my name. Point to the letter t, the first letter of Tumi.",
+     "focus": [
+      "sign:TUMI"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to T"
+     },
+     "note": "Points to T",
+     "subject": "english"
+    },
+    {
+     "code": "R-S8",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 2,
+     "narration": "Here is a book. Show me where we start reading.",
+     "focus": [
+      "book-open"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Top left of the text"
+     },
+     "note": "Top left of the text",
+     "subject": "english"
+    },
+    {
+     "code": "R-S9",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 3,
+     "narration": "Can you find the letter m?",
+     "focus": [
+      "letters:a,m,s,t"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to m"
+     },
+     "note": "Points to m",
+     "subject": "english"
+    },
+    {
+     "code": "R-S10",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 3,
+     "narration": "What sound does this letter make?",
+     "focus": [
+      "letter:s"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says sss"
+     },
+     "note": "Says sss",
+     "subject": "english"
+    },
+    {
+     "code": "R-S11",
+     "competency": "sounds_letters",
+     "strand": "Sounds and letters",
+     "difficulty": 5,
+     "narration": "Can you read this word?",
+     "focus": [
+      "word:sun",
+      "sun"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Reads or sounds out sun"
+     },
+     "note": "Reads or sounds out sun",
+     "subject": "english"
+    }
+   ]
+  },
+  {
+   "key": "market",
+   "title": "The market",
+   "narration": "The signpost sent us to a market. Look at all the numbers! Numbers help us know how many.",
+   "sees": "Stalls with numbered price cards and baskets of oranges.",
+   "subject": "mathematics",
+   "items": [
+    {
+     "code": "R-N5",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 2,
+     "narration": "Point to the number 3.",
+     "focus": [
+      "cards:1,3,5"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to 3"
+     },
+     "note": "Points to 3",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N6",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 3,
+     "narration": "What number is this?",
+     "focus": [
+      "cards:7"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says seven"
+     },
+     "note": "Says seven",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N7",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 3,
+     "narration": "Count with me as high as you can. One, two…",
+     "focus": [
+      "oranges:20"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Highest number reached in order (note it)"
+     },
+     "note": "Highest number reached in order (note it)",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N8",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 3,
+     "narration": "Which basket has fewer oranges?",
+     "focus": [
+      "basket:8",
+      "basket:4"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the basket of four"
+     },
+     "note": "Points to the basket of four",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N9",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 4,
+     "narration": "I have five oranges. If I eat two, how many are left?",
+     "focus": [
+      "oranges:5-2"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says three"
+     },
+     "note": "Says three",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N10",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 5,
+     "narration": "Put these in order: which number comes first, then next, then last?",
+     "focus": [
+      "cards:6,2,9"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "2, 6, 9"
+     },
+     "note": "2, 6, 9",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-N11",
+     "competency": "number_sense",
+     "strand": "Number",
+     "difficulty": 5,
+     "narration": "Which number is one more than four?",
+     "focus": [
+      "cards:3,5,6"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to 5"
+     },
+     "note": "Points to 5",
+     "subject": "mathematics"
+    }
+   ]
+  },
+  {
+   "key": "shape-path",
+   "title": "The path of shapes",
+   "narration": "This path is made of shapes! If we follow the pattern, it will take us to the hill.",
+   "sees": "Stepping stones in circle, square and triangle shapes.",
+   "subject": "mathematics",
+   "items": [
+    {
+     "code": "R-P1",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 1,
+     "narration": "Point to the circle.",
+     "focus": [
+      "shapes:circle,square,triangle"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the circle"
+     },
+     "note": "Points to the circle",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-P2",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 2,
+     "narration": "What shape is this?",
+     "focus": [
+      "shapes:triangle!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says triangle"
+     },
+     "note": "Says triangle",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-P3",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 2,
+     "narration": "Which stone is the biggest?",
+     "focus": [
+      "sizes:square"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Points to the biggest"
+     },
+     "note": "Points to the biggest",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-P4",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 3,
+     "narration": "Circle, square, circle, square… what comes next?",
+     "focus": [
+      "pattern:circle,square,circle,square,?"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says or points to circle"
+     },
+     "note": "Says or points to circle",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-P5",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 4,
+     "narration": "How many sides does a square have? You can count them on the stone.",
+     "focus": [
+      "shapes:square!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says four"
+     },
+     "note": "Says four",
+     "subject": "mathematics"
+    },
+    {
+     "code": "R-P6",
+     "competency": "geometry",
+     "strand": "Shape and pattern",
+     "difficulty": 5,
+     "narration": "Red, red, blue, red, red, blue… what colour comes next?",
+     "focus": [
+      "colours:red,red,blue,red,red,blue,?"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Says red"
+     },
+     "note": "Says red",
+     "subject": "mathematics"
+    }
+   ]
+  },
+  {
+   "key": "story",
+   "title": "Tumi's story",
+   "narration": "We're nearly there. While we walk, let me tell you a story. One morning a little bird called Pula could not find her nest. She flew over the river. She flew over the market. At last she saw a big tree, and there was her nest, with her mother waiting inside.",
+   "sees": "Three frames: bird over the river, bird over the market, bird at the tree.",
+   "subject": "english",
+   "items": [
+    {
+     "code": "R-T7",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 2,
+     "narration": "What was the bird's name?",
+     "focus": [
+      "frames:river,market,tree"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Pula"
+     },
+     "note": "Pula",
+     "subject": "english"
+    },
+    {
+     "code": "R-T8",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 3,
+     "narration": "What was Pula looking for?",
+     "focus": [
+      "frames:river,market,tree"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Her nest, home or mother"
+     },
+     "note": "Her nest, home or mother",
+     "subject": "english"
+    },
+    {
+     "code": "R-T9",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 4,
+     "narration": "Where did Pula fly first: over the river or over the market?",
+     "focus": [
+      "frames:river,market,tree"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "The river"
+     },
+     "note": "The river",
+     "subject": "english"
+    },
+    {
+     "code": "R-T10",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 5,
+     "narration": "How do you think Pula felt when she saw her mother? Why?",
+     "focus": [
+      "frames:tree!"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "A feeling with a reason"
+     },
+     "note": "A feeling with a reason",
+     "subject": "english"
+    },
+    {
+     "code": "R-T11",
+     "competency": "talking_listening",
+     "strand": "Talking and listening",
+     "difficulty": 5,
+     "narration": "Can you tell me the story back, in your own words?",
+     "focus": [
+      "frames:river,market,tree"
+     ],
+     "mode": "adult",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Two or more events in order"
+     },
+     "note": "Two or more events in order",
+     "subject": "english"
+    }
+   ]
+  },
+  {
+   "key": "home",
+   "title": "Home",
+   "narration": "I can see my house! Thank you for helping me all the way home. You were a wonderful friend. Goodbye!",
+   "sees": "Tumi's family at the door of a round house under a big tree.",
+   "subject": "personal_social",
+   "items": [
+    {
+     "code": "R-G1",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 3,
+     "narration": "Getting on: settled quickly",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Settled quickly at the start"
+     },
+     "note": "Settled quickly at the start",
+     "subject": "personal_social"
+    },
+    {
+     "code": "R-G2",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 3,
+     "narration": "Getting on: listened to instructions",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Listened to the instructions"
+     },
+     "note": "Listened to the instructions",
+     "subject": "personal_social"
+    },
+    {
+     "code": "R-G3",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 3,
+     "narration": "Getting on: kept going when unsure",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Kept going when unsure"
+     },
+     "note": "Kept going when unsure",
+     "subject": "personal_social"
+    },
+    {
+     "code": "R-G4",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 3,
+     "narration": "Getting on: spoke in sentences",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Spoke in sentences"
+     },
+     "note": "Spoke in sentences",
+     "subject": "personal_social"
+    },
+    {
+     "code": "R-G5",
+     "competency": "getting_on",
+     "strand": "Getting on",
+     "difficulty": 3,
+     "narration": "Getting on: separated from parent comfortably",
+     "focus": [],
+     "mode": "rating",
+     "type": "adult_marked",
+     "marks": 1,
+     "key": {
+      "expected": "Separated from the parent comfortably"
+     },
+     "note": "Separated from the parent comfortably",
+     "subject": "personal_social"
+    }
+   ]
+  }
+ ]
+}

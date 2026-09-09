@@ -1,4 +1,4 @@
-import { PARENT_COLUMNS, parentRow, STUDENT_COLUMNS, studentRow } from "@/lib/enrolment/ed-admin";
+import { droppedValues, parentWorkbook, studentWorkbook, type FamilyExport } from "@/lib/enrolment/ed-admin";
 import { exportFilename, renderRows, toCsv, toJson, type ExportColumn } from "@/lib/enrolment/export";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
 import { requireStaff } from "@/lib/staff/session";
@@ -44,6 +44,22 @@ function layoutOf(value: FormDataEntryValue | string | null): Layout {
 /** The snapshot plus the one thing that is not in it: the family's code. */
 type ExportRow = { id: string | null; snapshot: unknown; familyCode: string; enquiredAt: string | null };
 
+const asFamily = (r: ExportRow): FamilyExport => ({
+  familyCode: r.familyCode,
+  record: r.snapshot as StudentRecordSnapshot,
+  enquiredAt: r.enquiredAt,
+});
+
+/**
+ * The student workbook is one row per child. The parent workbook is one row
+ * per FAMILY on every sheet — two siblings share a family, and sending it
+ * twice would either duplicate the account or refuse the batch.
+ */
+function oneRowPerFamily(rows: ExportRow[]): ExportRow[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.familyCode) ? false : (seen.add(r.familyCode), true)));
+}
+
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
@@ -79,18 +95,10 @@ function toExportRows(records: JoinedRecord[]): { rows: ExportRow[]; skipped: nu
  * **family** — two siblings share a family, and sending it twice would have
  * their system either duplicate the account or reject the batch.
  */
-function edAdminBody(layout: "parent" | "student", rows: ExportRow[]): string {
-  if (layout === "student") {
-    return toCsv([...STUDENT_COLUMNS], rows.map((r) => studentRow(r.snapshot as StudentRecordSnapshot, r.familyCode, { enquiredAt: r.enquiredAt })));
-  }
-  const seen = new Set<string>();
-  const families: string[][] = [];
-  for (const r of rows) {
-    if (seen.has(r.familyCode)) continue;
-    seen.add(r.familyCode);
-    families.push(parentRow(r.snapshot as StudentRecordSnapshot, r.familyCode));
-  }
-  return toCsv([...PARENT_COLUMNS], families);
+function edAdminBody(layout: "parent" | "student", rows: ExportRow[]): Buffer {
+  return layout === "student"
+    ? studentWorkbook(rows.map(asFamily))
+    : parentWorkbook(oneRowPerFamily(rows).map(asFamily));
 }
 
 /**
@@ -99,8 +107,7 @@ function edAdminBody(layout: "parent" | "student", rows: ExportRow[]): string {
  * these are not configurable columns.
  */
 function layoutSnapshot(layout: "parent" | "student"): ExportColumn[] {
-  const columns = layout === "parent" ? PARENT_COLUMNS : STUDENT_COLUMNS;
-  return columns.map((header) => ({ header, source_path: `${LAYOUT_MARKER}${layout}`, transform: "none" as const }));
+  return [{ header: layout === "parent" ? "Parent workbook" : "Student workbook", source_path: `${LAYOUT_MARKER}${layout}`, transform: "none" as const }];
 }
 
 const SELECT =
@@ -132,11 +139,15 @@ export async function POST(request: Request) {
     if (!rows.length) {
       return new Response("None of those families has a family code yet.", { status: 409 });
     }
-    const filename = exportFilename("csv", now, campusCode).replace(/^students-/, `${layout}s-`);
+    const filename = exportFilename("csv", now, campusCode).replace(/^hibiscus-students-/, `hibiscus-${layout}s-`).replace(/\.csv$/, ".xlsx");
     const body = edAdminBody(layout, rows);
+    // Values their lists do not carry are sent empty rather than risking the
+    // row; the count goes on the response and into the audit trail.
+    const dropped = droppedValues(rows.map(asFamily));
+    const unknown = dropped.nationalities.length + dropped.languages.length;
 
     // Only the student file is the record of transfer.
-    if (layout === "parent") return file(body, filename, "csv", skipped);
+    if (layout === "parent") return workbook(body, filename, skipped, unknown);
 
     const admin = createAdminClient();
     const { data: batch, error } = await admin
@@ -166,9 +177,17 @@ export async function POST(request: Request) {
       action: "student_records.exported",
       entity_type: "student_export",
       entity_id: batch.id,
-      after: { record_count: rows.length, layout, skipped_without_family_code: skipped, campus_id: campus, intake_id: intake },
+      after: {
+        record_count: rows.length,
+        layout,
+        skipped_without_family_code: skipped,
+        unknown_nationalities: dropped.nationalities,
+        unknown_languages: dropped.languages,
+        campus_id: campus,
+        intake_id: intake,
+      },
     });
-    return file(body, filename, "csv", skipped);
+    return workbook(body, filename, skipped, unknown);
   }
 
   // The configurable mapping.
@@ -220,13 +239,24 @@ export async function GET(request: Request) {
   const asked = url.searchParams.get("layout");
   const layout = storedLayout ? (asked === "parent" || asked === "student" ? asked : storedLayout) : null;
 
-  let body: string;
   let filename = batch.filename;
   if (layout) {
     const { rows } = toExportRows(records ?? []);
-    body = edAdminBody(layout, rows);
-    filename = batch.filename.replace(/^(parent|student)s-/, `${layout}s-`);
-  } else {
+    const bytes = edAdminBody(layout, rows);
+    filename = batch.filename.replace(/hibiscus-(parent|student)s-/, `hibiscus-${layout}s-`);
+    await createAdminClient().from("audit_log").insert({
+      actor_type: "staff",
+      actor_id: ctx.userId,
+      actor_label: ctx.profile.email,
+      action: "student_export.downloaded_again",
+      entity_type: "student_export",
+      entity_id: batch.id,
+      after: { layout },
+    });
+    return workbook(bytes, filename, 0, 0);
+  }
+  let body: string;
+  {
     body = render(batch.format, stored, (records ?? []).map((r) => r.snapshot));
   }
 
@@ -237,15 +267,27 @@ export async function GET(request: Request) {
     action: "student_export.downloaded_again",
     entity_type: "student_export",
     entity_id: batch.id,
-    after: layout ? { layout } : null,
   });
-  return file(body, filename, layout ? "csv" : batch.format);
+  return file(body, filename, batch.format);
 }
 
 function render(format: "csv" | "json", columns: ExportColumn[], snapshots: unknown[]): string {
   const headers = columns.map((c) => c.header);
   const rows = renderRows(snapshots, columns);
   return format === "json" ? toJson(headers, rows) : toCsv(headers, rows);
+}
+
+/** Their importer takes a workbook, which is why a CSV was refused. */
+function workbook(bytes: Buffer, filename: string, skipped: number, unknownValues: number): Response {
+  return new Response(new Blob([new Uint8Array(bytes)]), {
+    headers: {
+      "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "content-disposition": `attachment; filename="${filename}"`,
+      "cache-control": "private, no-store",
+      ...(skipped ? { "x-records-skipped": String(skipped) } : {}),
+      ...(unknownValues ? { "x-values-dropped": String(unknownValues) } : {}),
+    },
+  });
 }
 
 function file(body: string, filename: string, format: "csv" | "json", skipped = 0): Response {

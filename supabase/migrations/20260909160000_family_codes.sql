@@ -7,10 +7,11 @@
 -- stored on the contact the moment the family first appears, and nothing
 -- rewrites it afterwards.
 --
--- Shape follows the school's template ("AAA1"): three letters from the
--- family's surname, then a number that makes it unique. COE1, COE2 for two
--- unrelated Coetzer families. Readable on a statement, which is the point —
--- a UUID would be correct and useless.
+-- Shape follows the codes already in the school's other system (BAN3637,
+-- MAV5765): three letters from the family's surname and a four-digit number.
+-- COE0001, COE0002 for two unrelated Coetzer families. Readable on a
+-- statement, which is the point — a UUID would be correct and useless — and
+-- the same shape as everything already in there.
 
 alter table public.contacts
   add column if not exists family_code text;
@@ -55,8 +56,13 @@ begin
     into v_n
     from public.contacts
    where family_code ~ ('^' || v_prefix || '[0-9]+$');
+  -- Distinct families each keep their own code, so the count is over codes
+  -- rather than contacts: two guardians merged onto one code count once.
 
-  return v_prefix || v_n::text;
+  -- Four digits, zero padded, so it sorts and reads like the codes already
+  -- in their system. A school with more than 9,999 families of one surname
+  -- simply gets a longer code.
+  return v_prefix || lpad(v_n::text, 4, '0');
 end;
 $$;
 
