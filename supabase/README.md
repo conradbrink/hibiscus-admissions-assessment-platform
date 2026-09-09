@@ -50,9 +50,11 @@ change.
 | `…20260909180000_special_needs_photo_consent_parent_id` (9 Sep) | `applications.has_special_needs`/`special_needs_detail` asked at enquiry; the optional `photography_consent` agreement; `parent_id` added to the required documents |
 | `…20260909190000_offer_uniform_and_books` (9 Sep) | The offer letter says uniform and books are not in the fees and are invoiced separately; a new template version, so offers already sent keep their wording |
 | `…20260909200000_retire_old_story_chapters` (9 Sep) | The Tumi chapters move up a stage after the school found them too hard: the old grade-keyed templates stand down, the content is re-keyed by story (garden, river, village, market, hill) and a gentler Reception chapter is added; refuses to finish if a grade is left with two active chapters |
+| `…20260909230000_delete_application` (9 Sep) | `applications.delete`, held by the super administrator alone; `delete_application()` (service role only) removes an applicant and everything that cascades from it and leaves one audit row naming what was destroyed; admission decisions gain the one narrow escape from append-only that the cascade needs, and updates are still refused |
 | `…20260909210000_tuition_per_month` (9 Sep) | `tuition_month` as a fee line, for a campus that prices by the month; the offer letter gains a "Tuition per month" row above the annual one, printed only when the schedule carries it |
 | `…20260909000000_story_assessments` (9 Sep) | Story delivery: `assessment_templates.delivery`/`story_character`, scene fields on sections, narration/answer mode/scene focus/adult note on questions and on the frozen form, the `adult_marked` question type, four early-years competencies and the `personal_social` subject; `launch_attempt()` copies the story fields |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
+| `…20260907090000_stage_7_active` (7 Sep) | Data only: Stage 7 switched on after the school confirmed the primary phase runs Stage 1 to 7, so it appears in the parent's stage list at the campuses that already offer it |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |
 | `…100500_policy_documents_and_signatures` | `agreement_templates.sort_order`, links that may be a path on this site, `agreement_acceptances.signature_svg`; the four January 2026 documents (Learner Code of Conduct, Parent Policy, Fees Policy, Parent Acknowledgement and Agreement) in their own words |
 
@@ -143,6 +145,6 @@ su postgres -c "supabase/tests/replay_local.sh"
 
 Creates `hibiscus_local` from scratch on a stock Ubuntu Postgres, applies
 `tests/local_supabase_stub.sql` (roles, `auth.uid()`), every migration in
-order, then `tests/security_regression.sql` (41 attacks, each with a control
+order, then `tests/security_regression.sql` (42 attacks, each with a control
 that the legitimate case still works). Exit code 0 means both "the schema
 builds" and "the schema refuses what it should".

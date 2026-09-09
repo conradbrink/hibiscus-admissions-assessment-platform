@@ -415,6 +415,31 @@ status, dates, campus and grade stay so the reports still count it. Nothing
 runs until **retention_enabled** is on; **Run now** runs it today under
 your name.
 
+## Deleting an applicant for good
+
+Almost never the right answer, and behind a permission only the super
+administrator has. Reach for one of the other two first:
+
+* a family who is no longer applying → **Withdraw** on the applicant page.
+  The record stays, the pipeline stops, the reports still count the enquiry.
+* a family asking to be forgotten → **Set up → Data retention**. Anonymising
+  removes the person and keeps the shape of the funnel honest.
+
+Deleting is for a record that should never have existed: a parent who sent
+the form twice, a training entry, a walk-in typed against the wrong family.
+It is at the bottom of the applicant page, it asks for a reason and for the
+reference typed out in full, and it removes the child, the family, their
+documents, assessments, offers and payments. The files go from storage
+first, then the database rows.
+
+It cannot be undone. What survives is one line in the audit trail saying
+what the reference was, whose child it was, and why you deleted it — so
+**Set up → Audit trail** still answers "where did HBS-2026-00019 go?".
+
+If two children of one family are applying, deleting one leaves the parent
+and the other child alone. The parent's record only goes when their last
+application does.
+
 ## Updating a policy document
 
 The four agreements a parent signs at registration (Learner Code of
@@ -507,6 +532,26 @@ Ask for this to be run; it refuses a code no family holds, and it is the only
 route past the rule that a code never changes. **Anything already exported
 keeps the code it went out with**, so tell the other system about the merge
 too — otherwise the older half stays on its own account there.
+
+## A mobile number the school cannot message
+
+Every form that asks for a mobile asks for the country first and the number
+second, and checks the two together before it will accept them: a Botswana
+mobile is eight digits starting with 7, a South African one is nine starting
+with 6, 7 or 8, and so on down the list. What is stored is always the one
+form WhatsApp accepts — `+26771234567`, no spaces, no leading zero — so a
+number that saved is a number a message can reach.
+
+Two things follow. A parent who types a landline is told so on the field
+rather than at the point a message silently fails. And a number from a
+country not on the list is entered under **Somewhere else** with its country
+code included; the shape is checked, the network is not, so read it back to
+the family.
+
+Numbers taken before this was in place are untouched. If a message to one
+fails, open the applicant, and under **Parent** choose **Correct the mobile
+number**: it asks for the country and the number the same way, checks them
+the same way, and records the change under your name.
 
 ## A parent cannot change their booking online
 
@@ -658,6 +703,12 @@ instead so the record of who did what stays intact. Deletions are audited.
     wording would live outside the templates the school controls.
 12. Never copy a document reading into a registration by hand. The parent
     confirms or corrects; that is the record.
+13. Never delete an applicant to satisfy a data-protection request. Use
+    **Data retention**, which anonymises: deleting also removes the figures
+    the school reports on, and the audit line it leaves behind still names
+    the child. Deleting is for records that should never have existed.
+14. Never hand `applications.delete` to a role people share. It is the super
+    administrator's, and one mis-click is not recoverable.
 13. Never turn a medical export column on without the data-protection
     officer's say-so, and never switch `retention_enabled` on without reading
     the preview first. Anonymisation cannot be undone.

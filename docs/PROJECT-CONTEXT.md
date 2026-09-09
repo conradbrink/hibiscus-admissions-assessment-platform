@@ -76,13 +76,45 @@ idioms, international formats. The AI prompts carry the same rules
 (`PLAIN_ENGLISH_RULES`). Migration `…180000_plain_english` republished the
 offer letter and eleven emails to that standard; the rest already met it.
 
+### Deleting an applicant (9 September 2026)
+
+- Three ways to end an application, and they are not interchangeable.
+  **Withdraw** stops the pipeline and keeps the record, which is what staff
+  want almost always. **`anonymise_application`** (the retention run) removes
+  the person and keeps the status, dates, campus and grade, so the reports
+  stay honest — this is the answer to a data-protection erasure request.
+  **`delete_application`** removes everything, and exists for records that
+  should never have existed: a form submitted twice, a training entry, a
+  walk-in typed against the wrong family.
+- The delete is gated three ways: `applications.delete`, held by the super
+  administrator alone; the campus check every applicant action goes through;
+  and the reference typed back by hand. Files leave storage before the rows
+  go, because a storage failure has to be able to abort the whole thing and
+  cannot do that from inside the database.
+- Admission decisions are still append-only. The trigger now allows a delete
+  when `app.deleting_application` is set — a transaction-local flag only
+  `delete_application` sets, around its own statement — because the cascade
+  needs it. An update is refused as it always was, and check 43 of the
+  security suite proves both.
+- One audit row survives, naming the reference, the child, the parent, the
+  campus, the status and the reason. An audit trail that cannot say what was
+  destroyed is not one.
+
 ### Phones, WhatsApp and bank details (7 September 2026)
 
-- A parent may type a Botswana or South African mobile in any local shape:
-  with or without the leading 0, with or without the country code. The two
-  countries' numbers never share a length, so `normaliseMobile` needs no
-  country hint (8 digits or 0 + 8 is Botswana; 9 digits or 0 + 9 is South
-  Africa).
+- **Since 9 September a form asks for the country and the number separately**
+  (`MobileInput`, rules in `lib/phone.ts`, the same check server-side through
+  `mobileNumber`/`optionalMobileNumber`). The school messages on WhatsApp,
+  which takes nothing but E.164, and a single field is guesswork the moment a
+  third country appears. Twelve countries have a mobile rule; anything else is
+  entered under "Somewhere else", where the shape is checked and the network
+  is not. Staff can correct an older number from the applicant page.
+- `normaliseMobile` in `lib/contacts.ts` stays for what arrives from outside a
+  form — an import, a webhook matching an inbound WhatsApp number — where
+  there is no country to ask for. It leans on the fact that a Botswana and a
+  South African number never share a length (8 digits or 0 + 8 is Botswana;
+  9 or 0 + 9 is South Africa). It is deliberately the lenient path; the forms
+  are the strict one.
 - WhatsApp updates are on by default at enquiry, beside a plain notice and
   a one-tap untick; STOP still opts out. The tick is still recorded as the
   parent's choice (`whatsapp_opt_in_source`), which is what Meta's opt-in

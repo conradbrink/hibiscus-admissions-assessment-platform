@@ -18,6 +18,8 @@ export const PERMISSION_CODES = [
   "admin",
   "applications.read",
   "applications.write",
+  /** Remove an applicant outright. The super administrator alone, by default. */
+  "applications.delete",
   "assessments.deliver",
   "assessments.score.write",
   "assessments.author",
@@ -43,6 +45,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   admin: "Full administrative access",
   "applications.read": "View applicants and the pipeline",
   "applications.write": "Edit applicants, book and reschedule",
+  "applications.delete": "Delete an applicant and everything attached to them",
   "assessments.deliver": "Run assessment days: check in, launch, mark no-shows",
   "assessments.score.write": "Mark and amend assessment scores",
   "assessments.author": "Author questions, templates and benchmarks",

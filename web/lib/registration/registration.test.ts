@@ -122,12 +122,27 @@ describe("schemas", () => {
     expect(rare.success && rare.data.homeLanguage).toBe("Klingon");
   });
   it("secondary guardian is all-or-nothing", () => {
-    const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com", mobile: "71234567" };
+    const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com", mobile: "+26771234567" };
     expect(familySchema.safeParse({ primary }).success).toBe(true);
     const half = familySchema.safeParse({ primary, secondaryFirstName: "Neo" });
     expect(half.success).toBe(false);
     if (!half.success) expect(Object.keys(issuesToFields(half.error))).toContain("secondaryLastName");
-    expect(familySchema.safeParse({ primary, secondaryFirstName: "Neo", secondaryLastName: "Moeti", secondaryRelationship: "mother", secondaryMobile: "71234568" }).success).toBe(true);
+    expect(familySchema.safeParse({ primary, secondaryFirstName: "Neo", secondaryLastName: "Moeti", secondaryRelationship: "mother", secondaryMobile: "+26771234568" }).success).toBe(true);
+  });
+  it("takes a mobile number only in the form WhatsApp accepts", () => {
+    const primary = { firstName: "Kago", lastName: "Moeti", relationship: "father", email: "kago@example.com" };
+    // Without a country code we would be guessing which country it is from.
+    const bare = familySchema.safeParse({ primary: { ...primary, mobile: "71234567" } });
+    expect(bare.success).toBe(false);
+    // A Gaborone landline is a real number and still no use for a message.
+    const landline = familySchema.safeParse({ primary: { ...primary, mobile: "+2673971234" } });
+    expect(landline.success).toBe(false);
+    // Spaces and a trunk zero are the parent's business, not the database's.
+    const spaced = familySchema.safeParse({ primary: { ...primary, mobile: "+267 71 234 567" } });
+    expect(spaced.success && spaced.data.primary.mobile).toBe("+26771234567");
+    // A second guardian may have no number at all.
+    const noSecond = familySchema.safeParse({ primary: { ...primary, mobile: "+26771234567" } });
+    expect(noSecond.success && noSecond.data.primary.phone).toBe(null);
   });
   it("matches the signature loosely to the guardian's name", () => {
     expect(signatureMatches("Kago Moeti", "Kago", "Moeti")).toBe(true);

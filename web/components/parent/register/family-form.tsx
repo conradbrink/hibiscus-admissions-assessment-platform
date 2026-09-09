@@ -6,6 +6,7 @@ import { CountryField } from "@/components/parent/register/country-field";
 import { Field, invalidProps, type RegisterFormState } from "@/components/parent/register/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { RELATIONSHIP_LABELS, RELATIONSHIPS } from "@/lib/registration/schema";
 
@@ -56,7 +57,9 @@ export function FamilyForm({
         {input("primary.lastName", "Surname", p("lastName"), { required: true, prefilled: pre("lastName") })}
         <RelationshipSelect name="primary.relationship" value={p("relationship")} error={f["primary.relationship"]} readOnly={readOnly} />
         {input("primary.email", "Email", p("email"), { required: true, type: "email", prefilled: pre("email") })}
-        {input("primary.mobile", "Mobile", p("mobile"), { required: true, type: "tel", prefilled: pre("mobile") })}
+        <Field id="primary.mobile" label="Mobile" error={f["primary.mobile"]} prefilled={pre("mobile")}>
+          <MobileInput name="primary.mobile" defaultValue={p("mobile")} required readOnly={readOnly} invalid={Boolean(f["primary.mobile"])} />
+        </Field>
         {input("primary.phone", "Other phone", p("phone"), { type: "tel" })}
         {input("primary.address", "Home address", p("address"))}
         <CountryField name="primary.nationality" label="Nationality" kind="nationality" initial={p("nationality")} error={f["primary.nationality"]} fields={f} readOnly={readOnly} />
@@ -75,7 +78,9 @@ export function FamilyForm({
         {input("secondaryLastName", "Surname", s("lastName"))}
         <RelationshipSelect name="secondaryRelationship" value={s("relationship")} error={f.secondaryRelationship} readOnly={readOnly} />
         {input("secondaryEmail", "Email", s("email"), { type: "email" })}
-        {input("secondaryMobile", "Mobile", s("mobile"), { type: "tel" })}
+        <Field id="secondaryMobile" label="Mobile" error={f.secondaryMobile}>
+          <MobileInput name="secondaryMobile" defaultValue={s("mobile")} readOnly={readOnly} invalid={Boolean(f.secondaryMobile)} />
+        </Field>
         {input("secondaryPhone", "Other phone", s("phone"), { type: "tel" })}
         {input("secondaryAddress", "Home address, if different", s("address"))}
         <CountryField name="secondaryNationality" label="Nationality" kind="nationality" initial={s("nationality")} error={f.secondaryNationality} fields={f} readOnly={readOnly} />

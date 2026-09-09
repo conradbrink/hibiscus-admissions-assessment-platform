@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
+import { removeDocumentObjects } from "@/lib/documents/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
 import { generateSummary } from "@/lib/summary/generate";
@@ -11,6 +13,7 @@ import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-
 import { requireStaffAction } from "@/lib/staff/session";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
+import { mobileNumber } from "@/lib/validation";
 import {
   onBookingCancelled,
   onBookingCreated,
@@ -402,6 +405,108 @@ export async function changeGrade(_: StaffActionState, formData: FormData): Prom
         action: "application.grade_changed",
         before: { grade: from?.name ?? null },
         after: { grade: to.name, reason: parsed.reason ?? null },
+      },
+      actor: ctx.actor,
+    });
+    done(app.id);
+  });
+}
+
+/**
+ * Delete an applicant outright.
+ *
+ * The system is append-only nearly everywhere on purpose, and for a family
+ * that asks to be forgotten the right tool is the retention run, which
+ * anonymises and keeps the funnel's counts honest. This is for the other
+ * case: a record that should never have existed — a parent who submitted the
+ * form twice, a training entry, a walk-in typed against the wrong family.
+ * Those rows are noise, and until now the only way to remove one was hand
+ * written SQL.
+ *
+ * Three gates, because the act cannot be undone: `applications.delete`, which
+ * only the super administrator holds; the campus check every other action on
+ * this page goes through; and the reference typed back by hand. The files go
+ * first — a storage failure must stop the whole thing, and it cannot do that
+ * from inside the database — then one function does the rest and leaves an
+ * audit row naming what was destroyed.
+ */
+export async function deleteApplicant(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  // `redirect` throws and `guarded` would catch it, so the redirect happens
+  // after the guard — there is no applicant page left to return to.
+  let deleted = false;
+
+  const state = await guarded(async () => {
+    const ctx = await requireStaffAction("applications.delete");
+    const parsed = idSchema
+      .extend({
+        confirm: z.string().trim().max(40),
+        reason: z.string().trim().min(3, "Say why, in a few words.").max(300),
+      })
+      .parse(Object.fromEntries(formData));
+
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    if (parsed.confirm.toUpperCase() !== app.reference.toUpperCase()) {
+      throw new Error(`Type ${app.reference} to confirm. Nothing has been deleted.`);
+    }
+
+    await removeDocumentObjects(admin, app.id);
+
+    const { error } = await admin.rpc("delete_application", {
+      p_application_id: app.id,
+      p_reason: parsed.reason,
+      p_actor_id: ctx.userId,
+      p_actor_label: ctx.actor.label ?? null,
+    });
+    if (error) throw new Error(error.message);
+
+    deleted = true;
+    done(app.id);
+  });
+
+  if (deleted) redirect("/staff/applications");
+  return state;
+}
+
+/**
+ * Correct a parent's mobile number.
+ *
+ * Numbers taken before the country and the number were asked for separately
+ * can be anything a person typed, and a message to one of those fails
+ * quietly. This is how a member of staff puts one right after reading it back
+ * to the family: the same check the parent's own form runs, so what is stored
+ * is a number WhatsApp will accept, and the change is audited under the name
+ * of whoever made it.
+ */
+export async function updateParentMobile(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema.extend({ mobile: mobileNumber }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    if (!app.contact_id) throw new Error("This application has no parent record to change.");
+
+    const { data: before } = await admin.from("contacts").select("mobile, mobile_normalised").eq("id", app.contact_id).maybeSingle();
+    if (before?.mobile_normalised === parsed.mobile) return;
+
+    const { error } = await admin
+      .from("contacts")
+      .update({ mobile: parsed.mobile, mobile_normalised: parsed.mobile })
+      .eq("id", app.contact_id);
+    if (error) throw new Error(error.message);
+
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "contact.mobile_changed",
+        summary: "The parent's mobile number was corrected by staff",
+        payload: {},
+      },
+      audit: {
+        action: "contact.mobile_changed",
+        before: { mobile: before?.mobile ?? null },
+        after: { mobile: parsed.mobile },
       },
       actor: ctx.actor,
     });

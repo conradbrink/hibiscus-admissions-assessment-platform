@@ -11,6 +11,7 @@ import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/sta
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { MobileInput } from "@/components/ui/mobile-input";
 import { formatDate, formatDateLong, formatDateTime, formatTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
@@ -26,6 +27,7 @@ import {
   checkIn,
   completeCallback,
   completeTask,
+  deleteApplicant,
   generateLinkForStaff,
   markNoShow,
   recordDecision,
@@ -34,6 +36,7 @@ import {
   resendLink,
   sendWhatsAppTemplate,
   setWhatsAppOptInByStaff,
+  updateParentMobile,
   withdraw,
 } from "./actions";
 
@@ -117,6 +120,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const bookingSession = booking ? one(booking.sessions) : null;
   const na = isNextAction(app.next_action) ? NEXT_ACTIONS[app.next_action] : null;
   const canWrite = can(permissions, "applications.write");
+  const canDelete = can(permissions, "applications.delete");
   const canDeliver = can(permissions, "assessments.deliver");
   const canDecide = can(permissions, "decisions.override");
   const terminal = TERMINAL_STATUSES.has(app.status);
@@ -301,6 +305,16 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                     <input type="hidden" name="optIn" value={contact.whatsapp_opt_in ? "0" : "1"} />
                   </ActionForm>
                 ) : null}
+                {/* Numbers taken before the country was asked for separately
+                    can be anything; a message to one of those fails quietly.
+                    Read it back to the family and put it right here. */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">Correct the mobile number</summary>
+                  <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
+                    {idField}
+                    <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
+                  </ActionForm>
+                </details>
               </div>
             ) : null}
             {tokens && tokens.length > 0 ? (
@@ -463,6 +477,41 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               <ActionForm action={withdraw} label="Withdraw application" variant="destructive" size="sm" className="mt-2" confirm="Withdraw this application? Bookings and open tasks are cancelled.">
                 {idField}
                 <Input name="reason" placeholder="Reason" required minLength={3} />
+              </ActionForm>
+            </section>
+          ) : null}
+
+          {/* Delete. Deliberately last, deliberately its own box, and only for
+              the permission the super administrator holds alone. Withdrawing
+              is what staff want almost always; this is for a record that
+              should never have existed. */}
+          {canDelete ? (
+            <section className="surface border-destructive/40 p-4 text-sm">
+              <h2 className="text-sm font-semibold text-destructive">Delete this applicant</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Removes the child, the family, their documents, assessments, offers and payments. It cannot be undone,
+                and the school keeps only an audit line saying you did it. Use <strong>Withdraw</strong> for a family
+                who is no longer applying, and the retention run for a family asking to be forgotten — both keep the
+                figures honest.
+              </p>
+              <ActionForm
+                action={deleteApplicant}
+                label="Delete permanently"
+                variant="destructive"
+                size="sm"
+                className="mt-3"
+                confirm={`Delete ${app.reference} and everything attached to it? This cannot be undone.`}
+              >
+                {idField}
+                <Input name="reason" placeholder="Why is this being deleted?" required minLength={3} maxLength={300} />
+                <Input
+                  name="confirm"
+                  placeholder={`Type ${app.reference} to confirm`}
+                  required
+                  pattern={app.reference}
+                  autoComplete="off"
+                  aria-label={`Type ${app.reference} to confirm`}
+                />
               </ActionForm>
             </section>
           ) : null}
