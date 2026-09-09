@@ -1,6 +1,6 @@
 # Database schema
 
-Thirty-nine migrations, replayable from an empty database. That last property is not
+Forty-six migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -45,6 +45,12 @@ change.
 | `…230000_paygate` (7 Sep) | `payments.provider` accepts `paygate`, the school's card gateway |
 | `…20260909100000_science_subject` (9 Sep) | Science as an assessed subject with four strands (biology, chemistry, physics, working scientifically), for the Cambridge Progression papers |
 | `…20260909120000_staff_invites` (9 Sep) | `staff_invites`: invitation links for the console that do not expire and are spent only when the password is set, replacing Supabase's own invite email; the `staff_invite` email template |
+| `…20260909140000_staff_permission_split` (9 Sep) | `staff.write` split into three: inviting and staffing colleagues (`staff.write`), changing the role/permission matrix (`roles.write`) and deleting an account (`staff.delete`); `can_grant_role()` and policies that stop anyone editing their own roles or handing out more than they hold |
+| `…20260909160000_family_codes` (9 Sep) | `contacts.family_code`: a stable identifier per family (COE1, COE2) minted on insert and never changed, so siblings land on one account in the school's student system; `next_family_code()`, `merge_family_code()` for two parents who enquired separately |
+| `…20260909180000_special_needs_photo_consent_parent_id` (9 Sep) | `applications.has_special_needs`/`special_needs_detail` asked at enquiry; the optional `photography_consent` agreement; `parent_id` added to the required documents |
+| `…20260909190000_offer_uniform_and_books` (9 Sep) | The offer letter says uniform and books are not in the fees and are invoiced separately; a new template version, so offers already sent keep their wording |
+| `…20260909200000_retire_old_story_chapters` (9 Sep) | The Tumi chapters move up a stage after the school found them too hard: the old grade-keyed templates stand down, the content is re-keyed by story (garden, river, village, market, hill) and a gentler Reception chapter is added; refuses to finish if a grade is left with two active chapters |
+| `…20260909210000_tuition_per_month` (9 Sep) | `tuition_month` as a fee line, for a campus that prices by the month; the offer letter gains a "Tuition per month" row above the annual one, printed only when the schedule carries it |
 | `…20260909000000_story_assessments` (9 Sep) | Story delivery: `assessment_templates.delivery`/`story_character`, scene fields on sections, narration/answer mode/scene focus/adult note on questions and on the frozen form, the `adult_marked` question type, four early-years competencies and the `personal_social` subject; `launch_attempt()` copies the story fields |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |

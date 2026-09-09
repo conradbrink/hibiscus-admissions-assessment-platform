@@ -6,12 +6,15 @@ import { PageHeader } from "@/components/parent/page-header";
 
 export const metadata: Metadata = { title: "Join Hibiscus International Schools" };
 
-const CHOICES = [
+const CHOICES: Array<{ href: string; icon: typeof CalendarCheck; title: string; detail: string; badge?: string; primary: boolean }> = [
   {
     href: "/join/assessment",
     icon: CalendarCheck,
-    title: "Book an assessment",
+    title: "Join Primary and Secondary",
     detail: "Reception to Form 5. Choose a date in about a minute.",
+    // Said on the card itself, where a parent decides: cost is the first
+    // thing people assume about an entrance assessment.
+    badge: "Assessment is free",
     primary: true,
   },
   {
@@ -47,7 +50,7 @@ export default function JoinPage() {
         description="Tell us a little about your child and choose how you would like to begin. No account, no password, no paperwork."
       />
       <div className="space-y-3">
-        {CHOICES.map(({ href, icon: Icon, title, detail, primary }) => (
+        {CHOICES.map(({ href, icon: Icon, title, detail, badge, primary }) => (
           <Link
             key={href}
             href={href}
@@ -67,7 +70,14 @@ export default function JoinPage() {
               <Icon className="size-5" aria-hidden />
             </span>
             <span className="min-w-0">
-              <span className="block text-lg font-semibold">{title}</span>
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-semibold">{title}</span>
+                {badge ? (
+                  <span className={primary ? "rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-medium" : "rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"}>
+                    {badge}
+                  </span>
+                ) : null}
+              </span>
               <span className={primary ? "block text-sm text-primary-foreground/85" : "block text-sm text-muted-foreground"}>
                 {detail}
               </span>

@@ -295,6 +295,13 @@ export type ContactRow = {
   whatsapp_opt_in_at: string | null;
   whatsapp_opt_out_at: string | null;
   whatsapp_opt_in_source: "enquiry" | "registration" | "staff" | "reply" | null;
+  /**
+   * The family's identifier in the school's student system, e.g. "COE1".
+   * Given once and never changed: siblings share it, which is what puts their
+   * fees on one account. A trigger fills it in on insert, so in practice it
+   * is always set.
+   */
+  family_code: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -332,6 +339,13 @@ export type ApplicationRow = {
   next_action: string | null;
   next_action_due_at: string | null;
   withdrawn_reason: string | null;
+  /**
+   * The family said at enquiry that the child has additional needs. It exists
+   * so the sitting can be arranged properly — extra time, a quieter room, an
+   * adult beside them — and for nothing else. No rule and no model reads it.
+   */
+  has_special_needs: boolean;
+  special_needs_detail: string | null;
   anonymised_at: string | null;
   retention_hold: boolean;
   retention_hold_reason: string | null;
@@ -836,7 +850,7 @@ export type OfferStatus =
   | "withdrawn"
   | "accepted"
   | "declined";
-export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term";
+export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term" | "tuition_month";
 export type FeeScheduleStatus = "draft" | "active";
 
 export type AdmissionRulesetRow = {
@@ -1418,7 +1432,7 @@ export type Database = {
         "updated_by",
         [Rel<"settings_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
-      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source">;
+      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source" | "family_code">;
       reference_counters: TableOf<ReferenceCounterRow, "next_value">;
       applications: TableOf<
         ApplicationRow,
@@ -1434,6 +1448,7 @@ export type Database = {
         | "next_action"
         | "next_action_due_at"
         | "withdrawn_reason"
+        | "has_special_needs" | "special_needs_detail"
         | "anonymised_at" | "retention_hold" | "retention_hold_reason",
         [
           Rel<"applications_contact_id_fkey", "contact_id", "contacts">,

@@ -40,6 +40,12 @@ export const enquirySchema = z.object({
   currentGrade: z.string().trim().max(40).optional(),
   /** "Send updates on WhatsApp too": ticked by default beside a plain notice, and unticked in one tap. */
   whatsappOptIn: z.literal("1").optional(),
+  /**
+   * Additional needs, asked so the sitting can be arranged around the child.
+   * Never an input to a decision — see `applications.has_special_needs`.
+   */
+  hasSpecialNeeds: z.literal("1").optional(),
+  specialNeedsDetail: z.string().trim().max(600, "Too long").optional(),
   /** "How did you hear about us?" — for the school's advertising, one pick from a fixed list. */
   heardFrom: z.enum(HEARD_FROM_KEYS, { error: "Choose one" }),
   heardFromDetail: z.string().trim().max(120, "Too long").optional(),

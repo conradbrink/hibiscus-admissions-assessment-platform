@@ -7,7 +7,7 @@ import { parseMoneyToMinor } from "@/lib/money";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 
-const FEE_CODES = ["registration", "admission", "tuition_annual", "tuition_term"] as const;
+const FEE_CODES = ["registration", "admission", "tuition_month", "tuition_term", "tuition_annual"] as const;
 
 export async function createSchedule(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -40,7 +40,7 @@ export async function createSchedule(_: StaffActionState, formData: FormData): P
       FEE_CODES.map((code, i) => ({
         schedule_id: data.id,
         code,
-        label: { registration: "Registration fee", admission: "Admission fee", tuition_annual: "Annual tuition", tuition_term: "Tuition per term" }[code],
+        label: { registration: "Registration fee", admission: "Admission fee", tuition_month: "Tuition per month", tuition_term: "Tuition per term", tuition_annual: "Annual tuition" }[code],
         amount_minor: 0,
         payable_at_acceptance: code === "registration" || code === "admission",
         position: i + 1,

@@ -5,6 +5,7 @@ import { buildIcs } from "@/lib/email/ics";
 import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
 import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@/lib/email/render";
+import { paymentReferenceFor } from "@/lib/payments/reference";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
@@ -182,7 +183,10 @@ export async function paymentExtras(
   }
   if (payment && payment.status === "succeeded") {
     out.amountPaid = formatMoney(Number(payment.amount_minor), payment.currency);
-    out.paymentReference = payment.method === "eft" ? (payment.bank_reference ?? payment.company_ref) : payment.company_ref;
+    // The child's name, which is what the family used and what they will
+    // recognise. The gateway's own reference stays on the payment row for
+    // the finance console.
+    out.paymentReference = paymentReferenceFor(graph.application.child_first_name, graph.application.child_last_name);
     out.paymentDate = formatDateLong(payment.received_on ?? payment.updated_at);
     out.receipt = {
       receiptNumber: `R-${payment.id.slice(0, 8).toUpperCase()}`,

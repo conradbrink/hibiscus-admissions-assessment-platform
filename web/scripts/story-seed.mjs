@@ -26,7 +26,17 @@ const chapters = readdirSync(contentDir)
   .sort((a, b) => a.grade_sort - b.grade_sort);
 
 // Validate before printing anything, so a bad chapter fails loudly.
+const claimed = new Map();
 for (const chapter of chapters) {
+  if ((chapter.status ?? "active") === "active") {
+    const already = claimed.get(chapter.grade_sort);
+    if (already) {
+      throw new Error(
+        `${chapter.code} and ${already} both claim grade ${chapter.grade_sort}. Only one chapter can be active per grade, or the launcher has to guess.`
+      );
+    }
+    claimed.set(chapter.grade_sort, chapter.code);
+  }
   for (const scene of chapter.scenes) {
     for (const item of scene.items) {
       const options = item.options ?? [];
@@ -73,10 +83,10 @@ begin
 
   insert into public.assessment_templates (id, name, description, grade_sort_min, grade_sort_max, time_limit_minutes, status, delivery, story_character)
   values (v_tmpl, ch->>'name', 'A read-aloud story assessment. An adult sits with the child and marks alongside.',
-          v_grade, v_grade, (ch->>'time_limit_minutes')::int, 'active', 'story', ch->>'character')
+          v_grade, v_grade, (ch->>'time_limit_minutes')::int, coalesce(ch->>'status', 'active'), 'story', ch->>'character')
   on conflict (id) do update set name = excluded.name, description = excluded.description, grade_sort_min = excluded.grade_sort_min,
     grade_sort_max = excluded.grade_sort_max, time_limit_minutes = excluded.time_limit_minutes, delivery = 'story',
-    story_character = excluded.story_character, status = 'active';
+    story_character = excluded.story_character, status = coalesce(ch->>'status', 'active');
 
   delete from public.template_sections where template_id = v_tmpl and position > jsonb_array_length(ch->'scenes');
 

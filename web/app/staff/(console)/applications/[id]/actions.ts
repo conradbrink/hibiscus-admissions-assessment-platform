@@ -23,6 +23,7 @@ import {
   onWithdrawn,
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
+import { isNextAction } from "@/lib/workflow/states";
 
 /**
  * Staff actions on one applicant. Each checks the permission, loads the
@@ -347,5 +348,63 @@ export async function refreshSummary(_: StaffActionState, formData: FormData): P
     await generateSummary(admin, app.id, ctx.userId);
     revalidatePath(`/staff/applications/${app.id}`);
     revalidatePath("/staff/applications");
+  });
+}
+
+/**
+ * The stage a child is joining, changed by hand.
+ *
+ * The date of birth suggests it and the parent confirms it, but a family
+ * transferring mid-year, a school report that arrives late, or a child who
+ * has repeated a year all mean the answer is a person's, not a formula's.
+ *
+ * The grade decides which assessment paper is drawn and which fee schedule
+ * the offer uses, so it is refused once the child is enrolled — by then the
+ * record has left for the school's own system, and changing it here would
+ * only make the two disagree. The recommendation from the date of birth is
+ * left alone, so the two can still be compared.
+ */
+export async function changeGrade(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema.extend({ gradeId: z.uuid(), reason: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    if (app.grade_id === parsed.gradeId) return;
+    if (app.status === "enrolled") {
+      throw new Error("This child is enrolled, so the stage is now the school system's to change.");
+    }
+
+    const [{ data: to }, { data: from }, { data: offered }] = await Promise.all([
+      admin.from("grades").select("id, name").eq("id", parsed.gradeId).maybeSingle(),
+      admin.from("grades").select("id, name").eq("id", app.grade_id).maybeSingle(),
+      admin.from("campus_grades").select("grade_id").eq("campus_id", app.campus_id).eq("grade_id", parsed.gradeId).eq("is_active", true).maybeSingle(),
+    ]);
+    if (!to) throw new Error("That stage does not exist.");
+    if (!offered) throw new Error(`${to.name} is not taught at this campus. Change the campus first, or choose another stage.`);
+
+    const { error } = await admin.from("applications").update({ grade_id: parsed.gradeId }).eq("id", app.id);
+    if (error) throw new Error(error.message);
+
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      // The stage changes; where the application is in the pipeline does not.
+      // `next_action` is a plain string on the row and the engine wants its
+      // own union, so it is narrowed through the shared guard.
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "application.grade_changed",
+        summary: `Stage changed from ${from?.name ?? "unknown"} to ${to.name}${parsed.reason ? ` — ${parsed.reason}` : ""}`,
+        payload: { from: from?.name ?? null, to: to.name, reason: parsed.reason ?? null },
+      },
+      audit: {
+        action: "application.grade_changed",
+        before: { grade: from?.name ?? null },
+        after: { grade: to.name, reason: parsed.reason ?? null },
+      },
+      actor: ctx.actor,
+    });
+    done(app.id);
   });
 }

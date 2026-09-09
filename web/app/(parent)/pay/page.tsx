@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Download } from "lucide-react";
+import { paymentReferenceFor } from "@/lib/payments/reference";
 import { PageHeader } from "@/components/parent/page-header";
 import { CheckPaymentButton, PayOnlineButton } from "@/components/parent/pay-buttons";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
             <details className="surface p-5 text-sm">
               <summary className="cursor-pointer font-semibold">Pay by bank transfer instead</summary>
               <p className="mt-2 whitespace-pre-line">{bank.body_text}</p>
-              <p className="mt-3">Please use the reference <strong>{app.reference}</strong> so we can match your payment. We will email a receipt once it reaches us; this can take a working day or two.</p>
+              <p className="mt-3">Please use the reference <strong>{paymentReferenceFor(app.child_first_name, app.child_last_name)}</strong> — your child&rsquo;s name — so we can match your payment. We will email a receipt once it reaches us; this can take a working day or two.</p>
             </details>
           ) : null}
         </section>

@@ -3,13 +3,19 @@ import { PageTitle } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PERMISSION_CODES, PERMISSION_LABELS } from "@/lib/permissions";
+import { can, PERMISSION_CODES, PERMISSION_LABELS, type PermissionCode } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteStaff, inviteStaff, resendInvite, updateRolePermissions, updateStaffAccess } from "./actions";
 
 export default async function StaffAdminPage() {
-  const { supabase, userId } = await requireStaff("staff.write");
+  const { supabase, userId, permissions } = await requireStaff("staff.write");
+  // Managing people, changing what a role may do, and removing somebody are
+  // three different powers. Most people who can do the first can do neither
+  // of the others, so the screen shows the matrix as a reference and hides
+  // the buttons that would refuse them.
+  const canEditRoles = can(permissions, "roles.write");
+  const canDelete = can(permissions, "staff.delete");
   const [{ data: staff }, { data: roles }, { data: rolePerms }, { data: staffRoles }, { data: staffCampuses }, { data: campuses }] =
     await Promise.all([
       supabase.from("staff_profiles").select("*").order("full_name"),
@@ -30,6 +36,16 @@ export default async function StaffAdminPage() {
   const rolesOf = (id: string) => new Set((staffRoles ?? []).filter((r) => r.staff_id === id).map((r) => r.role_id));
   const campusesOf = (id: string) => new Set((staffCampuses ?? []).filter((r) => r.staff_id === id).map((r) => r.campus_id));
   const permsOf = (roleId: string) => new Set((rolePerms ?? []).filter((r) => r.role_id === roleId).map((r) => r.permission_code));
+  /**
+   * A role can only be handed out by somebody who already holds everything it
+   * carries — otherwise inviting a colleague as a super administrator would
+   * be a way round every other check. The database refuses it too
+   * (`can_grant_role`); this only keeps the tick box from being offered.
+   */
+  const canGrant = (roleId: string) =>
+    [...permsOf(roleId)].every((code) => can(permissions, code as PermissionCode));
+  const grantNote = (roleId: string) =>
+    canGrant(roleId) ? "" : " — above what you hold";
 
   return (
     <>
@@ -46,7 +62,11 @@ export default async function StaffAdminPage() {
             <legend className="mb-1 font-medium">Roles</legend>
             <div className="flex flex-wrap gap-3">
               {(roles ?? []).map((r) => (
-                <label key={r.id} className="flex items-center gap-1.5"><input type="checkbox" name="roleIds" value={r.id} /> {r.name}{r.campus_scoped ? <span className="text-xs text-muted-foreground">(needs a campus)</span> : null}</label>
+                <label key={r.id} className={`flex items-center gap-1.5 ${canGrant(r.id) ? "" : "text-muted-foreground"}`}>
+                  <input type="checkbox" name="roleIds" value={r.id} disabled={!canGrant(r.id)} /> {r.name}
+                  {r.campus_scoped ? <span className="text-xs text-muted-foreground">(needs a campus)</span> : null}
+                  {canGrant(r.id) ? null : <span className="text-xs">{grantNote(r.id)}</span>}
+                </label>
               ))}
             </div>
           </fieldset>
@@ -80,7 +100,7 @@ export default async function StaffAdminPage() {
                     <input type="hidden" name="staffId" value={s.id} />
                   </ActionForm>
                 ) : null}
-                {s.id !== userId ? (
+                {s.id !== userId && canDelete ? (
                   <ActionForm action={deleteStaff} label="Delete" size="xs" variant="ghost" confirm={`Delete ${s.full_name} completely? Their sign-in, roles and campus access are removed. Anything assigned to them (applications, tasks, sessions) is unassigned. Only possible while they have not decided, approved, marked or recorded anything; otherwise untick "Can sign in" instead.`}>
                     <input type="hidden" name="staffId" value={s.id} />
                   </ActionForm>
@@ -91,14 +111,37 @@ export default async function StaffAdminPage() {
                 <label className="flex items-center gap-1.5"><input type="checkbox" name="isActive" value="1" defaultChecked={s.is_active} /> Can sign in</label>
                 <label className="flex items-center gap-1.5"><input type="checkbox" name="digestEnabled" value="1" defaultChecked={s.digest_enabled} /> Receives the morning digest</label>
                 <div className="flex flex-wrap gap-3">
-                  {(roles ?? []).map((r) => (
-                    <label key={r.id} className="flex items-center gap-1.5"><input type="checkbox" name="roleIds" value={r.id} defaultChecked={mine.has(r.id)} /> {r.name}</label>
-                  ))}
+                  {(roles ?? []).map((r) => {
+                    // Your own roles are not yours to change, and no role can
+                    // be handed out above what you hold yourself.
+                    const locked = (s.id === userId && !canEditRoles) || !canGrant(r.id);
+                    return (
+                      <label key={r.id} className={`flex items-center gap-1.5 ${locked ? "text-muted-foreground" : ""}`}>
+                        <input type="checkbox" name="roleIds" value={r.id} defaultChecked={mine.has(r.id)} disabled={locked} />
+                        {/* A disabled box submits nothing, which would read as
+                            "role removed". This carries what they already have
+                            through the save untouched. */}
+                        {locked && mine.has(r.id) ? <input type="hidden" name="roleIds" value={r.id} /> : null}
+                        {r.name}
+                        {!canGrant(r.id) ? <span className="text-xs">{grantNote(r.id)}</span> : null}
+                      </label>
+                    );
+                  })}
                 </div>
+                {s.id === userId && !canEditRoles ? (
+                  <p className="text-xs text-muted-foreground">Your own roles and campuses can only be changed by a super administrator.</p>
+                ) : null}
                 <div className="flex flex-wrap gap-3 text-muted-foreground">
-                  {(campuses ?? []).map((c) => (
-                    <label key={c.id} className="flex items-center gap-1.5"><input type="checkbox" name="campusIds" value={c.id} defaultChecked={myCampuses.has(c.id)} /> {c.name}</label>
-                  ))}
+                  {(campuses ?? []).map((c) => {
+                    const locked = s.id === userId && !canEditRoles;
+                    return (
+                      <label key={c.id} className="flex items-center gap-1.5">
+                        <input type="checkbox" name="campusIds" value={c.id} defaultChecked={myCampuses.has(c.id)} disabled={locked} />
+                        {locked && myCampuses.has(c.id) ? <input type="hidden" name="campusIds" value={c.id} /> : null}
+                        {c.name}
+                      </label>
+                    );
+                  })}
                 </div>
               </ActionForm>
             </div>
@@ -108,6 +151,12 @@ export default async function StaffAdminPage() {
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">What each role may do</h2>
+        {canEditRoles ? null : (
+          <p className="mb-2 text-xs text-muted-foreground">
+            For reference. Changing what a role may do is a super administrator&rsquo;s job — it decides what everyone
+            on the system can reach.
+          </p>
+        )}
         <div className="overflow-x-auto surface">
           <table className="data-table text-xs">
             <thead className="bg-muted/60 text-left text-muted-foreground">
@@ -122,19 +171,27 @@ export default async function StaffAdminPage() {
                   <td className="px-3 py-1.5"><span className="font-mono">{code}</span><span className="block text-muted-foreground">{PERMISSION_LABELS[code]}</span></td>
                   {(roles ?? []).map((r) => (
                     <td key={r.id} className="px-2 py-1.5 text-center">
-                      <input type="checkbox" form={`role-${r.id}`} name="codes" value={code} defaultChecked={permsOf(r.id).has(code)} />
+                      {canEditRoles ? (
+                        <input type="checkbox" form={`role-${r.id}`} name="codes" value={code} defaultChecked={permsOf(r.id).has(code)} />
+                      ) : (
+                        <span className={permsOf(r.id).has(code) ? "text-foreground" : "text-muted-foreground/40"} aria-label={permsOf(r.id).has(code) ? "yes" : "no"}>
+                          {permsOf(r.id).has(code) ? "✓" : "·"}
+                        </span>
+                      )}
                     </td>
                   ))}
                 </tr>
               ))}
-              <tr>
-                <td className="px-3 py-2"></td>
-                {(roles ?? []).map((r) => (
-                  <td key={r.id} className="px-2 py-2 text-center">
-                    <RoleSaveForm roleId={r.id} />
-                  </td>
-                ))}
-              </tr>
+              {canEditRoles ? (
+                <tr>
+                  <td className="px-3 py-2"></td>
+                  {(roles ?? []).map((r) => (
+                    <td key={r.id} className="px-2 py-2 text-center">
+                      <RoleSaveForm roleId={r.id} />
+                    </td>
+                  ))}
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

@@ -66,6 +66,26 @@ that computer. This needs the `assessments.deliver` permission.
 
 ## Running a story sitting (Reception to Stage 3)
 
+Four chapters of *Tumi's Journey*, one per stage. They were re-levelled in
+September 2026 after the school found them too hard for the age they were set
+at: every chapter now serves the stage above the one it was written for, and
+Reception has a gentler chapter of its own.
+
+| Stage | Chapter | Items |
+|---|---|---|
+| Reception | The garden | 28 |
+| Stage 1 | The river | 45 |
+| Stage 2 | The village | 43 |
+| Stage 3 | The market | 40 |
+
+*The hill* is retired and kept as a draft; it can be brought back from
+Settings if a Stage 4 sitting is ever wanted.
+
+The Reception chapter is deliberately shorter and gentler: 45 minutes rather
+than 60, and it moves on after **two** misses in a strand rather than three,
+because a four-year-old who cannot do something should not be asked a third
+time.
+
 The youngest applicants do not sit a paper. Their template is a **story**
 (Tumi's Journey, one chapter per stage) and an adult sits beside the child.
 
@@ -86,15 +106,18 @@ The youngest applicants do not sit a paper. Their template is a **story**
    look for; press **Yes**, **Partly** or **Not yet** for what the child did,
    or **Skip** to move on without a mark. When the child answers on screen
    (tap, number pad, ordering), press **Next**.
-4. A strand stops on its own after three "Not yet" in a row: the remaining
-   items of that strand are skipped and saved as skipped. That is by design,
-   so a child is never pushed through things that are too hard.
+4. A strand stops on its own after three "Not yet" in a row — two, in the
+   Reception chapter: the remaining items of that strand are skipped and saved
+   as skipped. That is by design, so a child is never pushed through things
+   that are too hard.
 5. **Pause** stops the voice and hides the scene. **Finish and hand in** on
    the last screen ends the sitting; marking and the learning profile follow
    as for a paper.
-6. To rehearse without a child, open `/sit/preview?c=reception` (also
-   `stage1`, `stage2`, `stage3`) while signed in to the staff console; on
-   a preview deployment it needs no sign-in. Nothing is saved.
+6. To rehearse without a child, open `/sit/preview?c=garden` (also `river`,
+   `village`, `market`, and `hill` for the retired one) while signed in to the
+   staff console; on a preview deployment it needs no sign-in. Nothing is
+   saved. The chapters are named for their story, not their stage, because
+   they have moved stage once already.
 
 To change a chapter, edit `web/content/story/<chapter>.json`, run
 `node web/scripts/story-seed.mjs > seed.sql` and apply it: the seed upserts
@@ -196,6 +219,22 @@ following conditions". The wording of the standard conditions lives in
   **Generate offer** on the applicant. Finance owns the amounts.
 - **No active offer template**: `/staff/admin/offer-templates` — publish a
   version.
+
+## Fees for a campus that charges by the month
+
+Most campuses quote a term. Potchefstroom quotes a month over eleven months,
+so its schedules carry **both**: a `Tuition per month` line and the year it
+adds up to. The offer letter prints whichever the schedule has — the monthly
+row first, because that is the figure a family budgets against.
+
+**Settings → Fees**, choose the campus and year. A monthly line is invoiced,
+never payable on acceptance; only the administration, application and
+admission lines secure a place. If you change the monthly figure, change the
+annual line to match — nothing works it out for you, deliberately, because a
+school year is not always eleven months.
+
+Potch is priced in Rand while every other campus is in Pula. That is per
+schedule and correct; be aware the card gateway has not been tested with ZAR.
 
 ## Running a promotion
 
@@ -421,11 +460,53 @@ registration page.
 
 ## Exporting students to Ed-admin
 
-**Enrolment → Student export**: choose the campus and intake, download CSV
-or JSON. Each download is a batch; the records are marked exported so the
-default view shows only what is new, and a batch can be downloaded again
-from the list. The columns are under **Set up → Export columns**; medical
-fields are off unless an administrator turns one on, and that is deliberate.
+**Enrolment → Student export**: choose the campus and intake, then take
+**two** files in the school system's own layout.
+
+1. **Parent details (CSV)** — 96 columns, the guardians and their contact
+   details. Take this one first. It changes nothing, so it can be taken as
+   often as you like.
+2. **Student details (CSV)** — 33 columns, the children. This is the one that
+   records the transfer: it creates the batch and marks those records as
+   sent, so the default view then shows only what is new.
+
+They are separate files on purpose — that system will not take parent and
+student details together. The **only** thing in both is the **family code**,
+which is what tells it that these parents and these children are one family.
+Import the parent file first, then the student file; the codes in the second
+attach each child to the account the first one opened.
+
+A past batch can be taken again as either half, from the list at the bottom.
+The pair always matches, because both are rendered from the same records.
+
+Columns we do not collect (employer, passport number, debit order, religion,
+class) are present and empty, because a row has to be the same shape as the
+header. Dates are written `dd/mm/yyyy`.
+
+The older, configurable layout is still there under *Or the older,
+configurable layout*, with its columns under **Set up → Export columns**;
+medical fields are off unless an administrator turns one on, deliberately.
+
+## Family codes, and two parents who enquired separately
+
+A family gets a code the first time it appears — three letters of the surname
+and a number: `COE1`, and `COE2` for an unrelated second Coetzer family. It is
+given once and **never changes**, which is the whole point: the second child
+carries the same code as the first, so the school's other system puts them on
+one account and sends one statement.
+
+If a mother enquires for one child and a father enquires for another, they are
+two contacts with two codes, and the school would get two accounts. That is
+the one case where a code is changed, and it takes a deliberate step:
+
+```sql
+select merge_family_code('<the second contact id>', '<the code to join>');
+```
+
+Ask for this to be run; it refuses a code no family holds, and it is the only
+route past the rule that a code never changes. **Anything already exported
+keeps the code it went out with**, so tell the other system about the merge
+too — otherwise the older half stays on its own account there.
 
 ## A parent cannot change their booking online
 
@@ -483,11 +564,33 @@ school gets **Admissions manager** with the same campus limit. Head-office
 staff have no campus limit and see every school. Every list, count and
 report in the console follows the same rule automatically.
 
-The invitation link lasts 24 hours. Until the person has used it their card
-shows **Invitation not yet accepted** with a **Resend invitation** button;
-press it to send a fresh link (Supabase allows one auth email a minute per
-address). Once they have set a password the button goes away, and a
-forgotten password is reset from the sign-in page instead.
+Until the person has used their invitation their card shows **Invitation not
+yet accepted** with a **Resend invitation** button; press it to send a fresh
+link. Once they have set a password the button goes away, and a forgotten
+password is reset from the sign-in page instead.
+
+### Who may do what to the staff list
+
+Three separate powers, so that running admissions does not quietly mean
+running the whole system:
+
+| | Admissions manager | Super administrator |
+|---|---|---|
+| Invite a colleague, set their roles and campuses, turn a sign-in on or off | yes | yes |
+| Change what each role may do (the matrix at the bottom of the page) | no — shown for reference | yes |
+| Delete a person's account outright | no | yes |
+| Change their **own** roles or campuses | no | yes |
+| Give somebody a role carrying a permission they do not hold themselves | no | yes |
+
+The last two matter more than they look. Someone who can edit the matrix can
+give their own role every permission there is, and someone who can hand out
+**Super administrator** can invite a second account for themselves and sign in
+as it — either one turns "may manage staff" into "may do anything". The
+database refuses both, not merely the screen, so it holds even if somebody
+reaches past the console.
+
+A role that is above your own ceiling appears greyed out with *above what you
+hold*. Ask a super administrator to make that change.
 
 ## An invitation link says it has expired
 
@@ -512,7 +615,8 @@ invitation**. Anyone who has never signed in can be sent one.
 their sessions end on the next request. Nothing they did is deleted; the audit
 trail keeps their name.
 
-**Delete** removes a person entirely (sign-in, profile, roles, campuses) and
+**Delete** is a super administrator's button and does not appear for anyone
+else. It removes a person entirely (sign-in, profile, roles, campuses) and
 is for mistakes: a wrong email, a test account, an invitation never accepted.
 Applications, tasks and sessions assigned to the person are unassigned. It
 refuses anyone with history (a decision, an approval, a marked answer, a
