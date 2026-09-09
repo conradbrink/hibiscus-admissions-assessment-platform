@@ -18,6 +18,7 @@ export function ActionForm({
   size = "default",
   className,
   confirm,
+  id,
   children,
 }: {
   action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
@@ -26,11 +27,18 @@ export function ActionForm({
   size?: "default" | "sm" | "xs" | "lg";
   className?: string;
   confirm?: string;
+  /**
+   * Give the form an id when fields outside it belong to it — a column of
+   * checkboxes in a table, say, which cannot sit inside the form itself.
+   * Those fields carry `form="<this id>"` and are submitted with it.
+   */
+  id?: string;
   children?: React.ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
     <form
+      id={id}
       action={formAction}
       className={cn("space-y-2", className)}
       onSubmit={(e) => {

@@ -143,20 +143,17 @@ export default async function StaffAdminPage() {
   );
 }
 
+/**
+ * The matrix's checkboxes cannot sit inside the form — they are cells in
+ * other rows of the table — so they belong to it through the `form`
+ * attribute instead and each column saves on its own. That attribute has to
+ * name the form element itself: pointed at anything else, the browser gives
+ * those checkboxes no form at all and the column submits nothing.
+ */
 function RoleSaveForm({ roleId }: { roleId: string }) {
   return (
-    <ActionForm action={updateRolePermissions} label="Save" size="xs" variant="outline">
-      <input type="hidden" name="roleId" value={roleId} form={`role-${roleId}`} />
-      <RoleFormId id={`role-${roleId}`} />
+    <ActionForm id={`role-${roleId}`} action={updateRolePermissions} label="Save" size="xs" variant="outline">
+      <input type="hidden" name="roleId" value={roleId} />
     </ActionForm>
   );
-}
-
-/**
- * The matrix's checkboxes belong to a form per role via the `form`
- * attribute, so each column saves independently. This gives the ActionForm
- * the id those checkboxes reference.
- */
-function RoleFormId({ id }: { id: string }) {
-  return <input type="hidden" name="_" value="" id={id} />;
 }
