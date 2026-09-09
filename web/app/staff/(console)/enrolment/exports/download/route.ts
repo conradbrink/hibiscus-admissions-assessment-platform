@@ -74,14 +74,23 @@ function toExportRows(records: JoinedRecord[]): { rows: ExportRow[]; skipped: nu
   return { rows, skipped };
 }
 
+/**
+ * The student file is one row per child. The parent file is one row per
+ * **family** — two siblings share a family, and sending it twice would have
+ * their system either duplicate the account or reject the batch.
+ */
 function edAdminBody(layout: "parent" | "student", rows: ExportRow[]): string {
-  const columns = layout === "parent" ? PARENT_COLUMNS : STUDENT_COLUMNS;
-  const built = rows.map((r) =>
-    layout === "parent"
-      ? parentRow(r.snapshot as StudentRecordSnapshot, r.familyCode)
-      : studentRow(r.snapshot as StudentRecordSnapshot, r.familyCode, { enquiredAt: r.enquiredAt })
-  );
-  return toCsv([...columns], built);
+  if (layout === "student") {
+    return toCsv([...STUDENT_COLUMNS], rows.map((r) => studentRow(r.snapshot as StudentRecordSnapshot, r.familyCode, { enquiredAt: r.enquiredAt })));
+  }
+  const seen = new Set<string>();
+  const families: string[][] = [];
+  for (const r of rows) {
+    if (seen.has(r.familyCode)) continue;
+    seen.add(r.familyCode);
+    families.push(parentRow(r.snapshot as StudentRecordSnapshot, r.familyCode));
+  }
+  return toCsv([...PARENT_COLUMNS], families);
 }
 
 /**

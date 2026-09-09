@@ -5,6 +5,7 @@ import {
   formatDate,
   parentRow,
   PARENT_COLUMNS,
+  phoneFor,
   studentRow,
   STUDENT_COLUMNS,
 } from "@/lib/enrolment/ed-admin";
@@ -153,6 +154,28 @@ describe("parents and students stay apart", () => {
 });
 
 describe("the fields themselves", () => {
+  it("writes phone numbers as their template does — digits, no plus", () => {
+    // A leading + would be prefixed with an apostrophe by the CSV writer, to
+    // stop a spreadsheet running it as a formula, and that apostrophe would
+    // land in their database.
+    expect(phoneFor("+26774809801")).toBe("74809801");
+    expect(phoneFor("+267 74 809 801")).toBe("74809801");
+    expect(phoneFor("74809801")).toBe("74809801");
+    expect(phoneFor("3901234")).toBe("3901234");
+    // Another country keeps its code; without it the number is unreachable.
+    expect(phoneFor("+27821234567")).toBe("27821234567");
+    expect(phoneFor(null)).toBe("");
+    for (const p of [phoneFor("+26774809801"), phoneFor("+27821234567")]) {
+      expect(p.startsWith("+")).toBe(false);
+    }
+  });
+
+  it("puts no phone number in the file with a leading plus", () => {
+    for (const v of [...parentRow(record, "COE1"), ...studentRow(record, "COE1")]) {
+      expect(v.startsWith("+")).toBe(false);
+    }
+  });
+
   it("writes dates the way their template holds them", () => {
     expect(formatDate("2020-09-09")).toBe("09/09/2020");
     expect(formatDate("2020-09-09", "ymd")).toBe("2020/09/09");

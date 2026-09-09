@@ -161,6 +161,24 @@ export function addressLines(address: string | null | undefined): [string, strin
   return [parts[0], parts[1], parts[2], parts.slice(3).join(", ")];
 }
 
+/**
+ * A telephone number as their template writes them: digits, no plus.
+ *
+ * We hold mobiles in international form (+267 74 809 801). Exporting that
+ * verbatim is wrong twice over — their samples are local numbers, and a value
+ * beginning with `+` is prefixed with an apostrophe by the CSV writer so that
+ * a spreadsheet cannot run it as a formula, which would put that apostrophe
+ * into their database. Botswana's own code is dropped so the number reads the
+ * way the school writes it; any other country's is kept, since without it the
+ * number would be unreachable.
+ */
+export function phoneFor(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/[^\d+]/g, "");
+  if (!digits) return "";
+  const bare = digits.replace(/^\+/, "");
+  return bare.startsWith("267") && bare.length > 8 ? bare.slice(3) : bare;
+}
+
 /** "Mr"/"Mrs" is not asked for; the relationship is the closest honest guess. */
 function titleFor(relationship: string | null | undefined): string {
   const r = (relationship ?? "").toLowerCase();
@@ -186,15 +204,15 @@ function guardianValues(g: Guardian | undefined, emergencies: Emergency[]): stri
     if (!c) return "";
     if (field === "name") return `${c.first_name} ${c.last_name}`.trim();
     if (field === "rel") return c.relationship ?? "";
-    return c.phone ?? c.email ?? "";
+    return c.phone ? phoneFor(c.phone) : (c.email ?? "");
   };
   return [
     g.last_name ?? "",
     g.first_name ?? "",
     title,
     g.relationship ?? "",
-    g.phone ?? "",
-    g.mobile ?? "",
+    phoneFor(g.phone),
+    phoneFor(g.mobile),
     g.email ?? "",
     "", // Prof. — not collected
     "", // Employer — not collected
@@ -254,8 +272,8 @@ export function parentRow(record: StudentRecordSnapshot, familyCode: string): st
     "",
     "",
     "", // Inv. Res. block
-    g1?.phone ?? "",
-    g1?.mobile ?? "",
+    phoneFor(g1?.phone),
+    phoneFor(g1?.mobile),
     g1?.email ?? "",
     "", // Inv. Fax
     "OFF", // Debit Order — the school sets these up itself
