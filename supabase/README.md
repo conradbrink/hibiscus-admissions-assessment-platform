@@ -1,6 +1,6 @@
 # Database schema
 
-Forty-one migrations, replayable from an empty database. That last property is not
+Forty-two migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -46,6 +46,7 @@ change.
 | `…20260909100000_science_subject` (9 Sep) | Science as an assessed subject with four strands (biology, chemistry, physics, working scientifically), for the Cambridge Progression papers |
 | `…20260909120000_staff_invites` (9 Sep) | `staff_invites`: invitation links for the console that do not expire and are spent only when the password is set, replacing Supabase's own invite email; the `staff_invite` email template |
 | `…20260909140000_staff_permission_split` (9 Sep) | `staff.write` split into three: inviting and staffing colleagues (`staff.write`), changing the role/permission matrix (`roles.write`) and deleting an account (`staff.delete`); `can_grant_role()` and policies that stop anyone editing their own roles or handing out more than they hold |
+| `…20260909160000_family_codes` (9 Sep) | `contacts.family_code`: a stable identifier per family (COE1, COE2) minted on insert and never changed, so siblings land on one account in the school's student system; `next_family_code()`, `merge_family_code()` for two parents who enquired separately |
 | `…20260909000000_story_assessments` (9 Sep) | Story delivery: `assessment_templates.delivery`/`story_character`, scene fields on sections, narration/answer mode/scene focus/adult note on questions and on the frozen form, the `adult_marked` question type, four early-years competencies and the `personal_social` subject; `launch_attempt()` copies the story fields |
 | `…180000_plain_english` (7 Sep) | Data only: plain-English (CEFR B1 to B2) versions of the offer letter and of eleven emails whose sentences were long or used phrases that do not travel |
 | `…120000_school_closures_and_weekday_sessions` (7 Sep) | `school_closures` (the 2026 term calendar seeded), the `auto_sessions_*` settings that keep a sitting and a visit on the books every weekday at every campus |

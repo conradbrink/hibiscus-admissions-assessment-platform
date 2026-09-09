@@ -421,11 +421,53 @@ registration page.
 
 ## Exporting students to Ed-admin
 
-**Enrolment → Student export**: choose the campus and intake, download CSV
-or JSON. Each download is a batch; the records are marked exported so the
-default view shows only what is new, and a batch can be downloaded again
-from the list. The columns are under **Set up → Export columns**; medical
-fields are off unless an administrator turns one on, and that is deliberate.
+**Enrolment → Student export**: choose the campus and intake, then take
+**two** files in the school system's own layout.
+
+1. **Parent details (CSV)** — 96 columns, the guardians and their contact
+   details. Take this one first. It changes nothing, so it can be taken as
+   often as you like.
+2. **Student details (CSV)** — 33 columns, the children. This is the one that
+   records the transfer: it creates the batch and marks those records as
+   sent, so the default view then shows only what is new.
+
+They are separate files on purpose — that system will not take parent and
+student details together. The **only** thing in both is the **family code**,
+which is what tells it that these parents and these children are one family.
+Import the parent file first, then the student file; the codes in the second
+attach each child to the account the first one opened.
+
+A past batch can be taken again as either half, from the list at the bottom.
+The pair always matches, because both are rendered from the same records.
+
+Columns we do not collect (employer, passport number, debit order, religion,
+class) are present and empty, because a row has to be the same shape as the
+header. Dates are written `dd/mm/yyyy`.
+
+The older, configurable layout is still there under *Or the older,
+configurable layout*, with its columns under **Set up → Export columns**;
+medical fields are off unless an administrator turns one on, deliberately.
+
+## Family codes, and two parents who enquired separately
+
+A family gets a code the first time it appears — three letters of the surname
+and a number: `COE1`, and `COE2` for an unrelated second Coetzer family. It is
+given once and **never changes**, which is the whole point: the second child
+carries the same code as the first, so the school's other system puts them on
+one account and sends one statement.
+
+If a mother enquires for one child and a father enquires for another, they are
+two contacts with two codes, and the school would get two accounts. That is
+the one case where a code is changed, and it takes a deliberate step:
+
+```sql
+select merge_family_code('<the second contact id>', '<the code to join>');
+```
+
+Ask for this to be run; it refuses a code no family holds, and it is the only
+route past the rule that a code never changes. **Anything already exported
+keeps the code it went out with**, so tell the other system about the merge
+too — otherwise the older half stays on its own account there.
 
 ## A parent cannot change their booking online
 

@@ -8,6 +8,13 @@ import { requireStaff } from "@/lib/staff/session";
 
 type Search = { campus?: string; intake?: string; all?: string };
 
+/** A batch taken in the school system's own layout, rather than the configurable one. */
+function isTemplateBatch(columnsSnapshot: unknown): boolean {
+  const first = Array.isArray(columnsSnapshot) ? columnsSnapshot[0] : null;
+  const path = (first as { source_path?: string } | null)?.source_path ?? "";
+  return path.startsWith("ed-admin:");
+}
+
 /**
  * Enrolled students as a file for the student management system. The
  * columns are configuration; each record remembers the batch that carried
@@ -55,17 +62,34 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
         <Button type="submit" size="lg" variant="secondary">Show</Button>
       </form>
 
-      <p className="mb-2 text-xs text-muted-foreground">{(columns ?? []).length} columns: {(columns ?? []).map((c) => c.header).join(", ")}. <Link href="/staff/admin/export-columns" className="underline">Change the columns</Link>.</p>
-
       {rows.length ? (
         <>
-          <form method="post" action="/staff/enrolment/exports/download" className="mb-3 flex flex-wrap items-center gap-2">
+          <form method="post" action="/staff/enrolment/exports/download" className="mb-4 surface p-4">
             <input type="hidden" name="campus" value={sp.campus ?? ""} />
             <input type="hidden" name="intake" value={sp.intake ?? ""} />
             <input type="hidden" name="all" value={includeExported ? "1" : "0"} />
-            <Button type="submit" name="format" value="csv" size="lg">Download CSV ({rows.length})</Button>
-            <Button type="submit" name="format" value="json" size="lg" variant="outline">Download JSON</Button>
-            <span className="text-xs text-muted-foreground">Downloading marks these records as exported and records the batch.</span>
+            <h2 className="text-sm font-semibold">Two files, in the school system&rsquo;s own layout</h2>
+            <p className="mt-1 mb-3 max-w-2xl text-xs text-muted-foreground">
+              Parent details and student details are separate files, as that system requires. The only thing in both is
+              the <strong>family code</strong>, which is how it puts brothers and sisters on one account and sends one
+              statement. Take the parent file first, then the student file — the student file is the one that records
+              the transfer and marks these records as sent.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" name="layout" value="parent" size="lg" variant="outline">Parent details (CSV)</Button>
+              <Button type="submit" name="layout" value="student" size="lg">Student details (CSV) — {rows.length}</Button>
+            </div>
+            <details className="mt-4">
+              <summary className="cursor-pointer text-xs text-muted-foreground">Or the older, configurable layout</summary>
+              <p className="mt-2 mb-2 text-xs text-muted-foreground">
+                {(columns ?? []).length} columns: {(columns ?? []).map((c) => c.header).join(", ")}.{" "}
+                <Link href="/staff/admin/export-columns" className="underline">Change the columns</Link>.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="submit" name="layout" value="custom" size="sm" variant="outline">Download CSV</Button>
+                <Button type="submit" name="layout" value="custom-json" size="sm" variant="ghost">Download JSON</Button>
+              </div>
+            </details>
           </form>
           <div className="overflow-x-auto surface">
             <table className="data-table">
@@ -111,7 +135,16 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
               <span className="w-36 shrink-0 text-xs text-muted-foreground">{formatDateTime(b.created_at)}</span>
               <span className="font-mono text-xs">{b.filename}</span>
               <span className="text-xs text-muted-foreground">{b.record_count} record(s) · {one(b.campuses)?.name ?? "all campuses"} · {one(b.staff_profiles)?.full_name ?? "—"}</span>
-              <Link href={`/staff/enrolment/exports/download?batch=${b.id}`} prefetch={false} className="ml-auto text-xs text-primary underline underline-offset-2">Download again</Link>
+              {/* A batch made from the school system's templates can be taken
+                  again as either half, so the pair always matches. */}
+              {isTemplateBatch(b.columns_snapshot) ? (
+                <span className="ml-auto flex gap-3 text-xs">
+                  <Link href={`/staff/enrolment/exports/download?batch=${b.id}&layout=parent`} prefetch={false} className="text-primary underline underline-offset-2">Parents again</Link>
+                  <Link href={`/staff/enrolment/exports/download?batch=${b.id}&layout=student`} prefetch={false} className="text-primary underline underline-offset-2">Students again</Link>
+                </span>
+              ) : (
+                <Link href={`/staff/enrolment/exports/download?batch=${b.id}`} prefetch={false} className="ml-auto text-xs text-primary underline underline-offset-2">Download again</Link>
+              )}
             </li>
           ))}
         </ul>

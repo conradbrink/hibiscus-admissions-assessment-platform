@@ -295,6 +295,13 @@ export type ContactRow = {
   whatsapp_opt_in_at: string | null;
   whatsapp_opt_out_at: string | null;
   whatsapp_opt_in_source: "enquiry" | "registration" | "staff" | "reply" | null;
+  /**
+   * The family's identifier in the school's student system, e.g. "COE1".
+   * Given once and never changed: siblings share it, which is what puts their
+   * fees on one account. A trigger fills it in on insert, so in practice it
+   * is always set.
+   */
+  family_code: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1418,7 +1425,7 @@ export type Database = {
         "updated_by",
         [Rel<"settings_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
-      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source">;
+      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source" | "family_code">;
       reference_counters: TableOf<ReferenceCounterRow, "next_value">;
       applications: TableOf<
         ApplicationRow,
