@@ -233,3 +233,29 @@ describe("the values their importer will accept", () => {
     expect(at("G2 Relation")).toBe("Father");
   });
 });
+
+describe("one row per family", () => {
+  const sibling: FamilyExport = {
+    ...family,
+    record: { ...record, student: { ...record.student, legal_first_name: "Daniel", legal_middle_names: null } },
+  };
+  const other: FamilyExport = {
+    familyCode: "MOK0001",
+    record: { ...record, student: { ...record.student, legal_first_name: "Naledi", legal_last_name: "Mokwena" } },
+    enquiredAt: "2026-09-09T06:08:33Z",
+  };
+
+  it("writes a family once however many children it has", () => {
+    // The zip is deterministic (fixed timestamps), so two siblings producing
+    // the same bytes as one child is the whole assertion: the second child
+    // added no row anywhere in the parent workbook.
+    expect(parentWorkbook([family, sibling])).toEqual(parentWorkbook([family]));
+    expect(parentWorkbook([family, sibling, other]).length).toBeGreaterThan(parentWorkbook([family]).length);
+  });
+
+  it("still writes one row per child in the student workbook", () => {
+    // The opposite guarantee, and the reason the two files are separate:
+    // siblings are one account and two pupils.
+    expect(studentWorkbook([family, sibling])).not.toEqual(studentWorkbook([family]));
+  });
+});
