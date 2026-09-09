@@ -1,6 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
+import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
 import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
 import { recommendGrade } from "@/lib/grades";
@@ -83,6 +83,17 @@ export type EnquiryInput = {
   /** "How did you hear about us?" — a key from HEARD_FROM_OPTIONS, and a free line when it is "other". */
   heardFrom?: HeardFrom | null;
   heardFromDetail?: string | null;
+  /**
+   * Which door this came through. The parent's own form is "website"; the
+   * front desk typing it for a family standing there is "walk_in".
+   */
+  source?: ApplicationSource;
+  /**
+   * The grade, when someone has chosen it — the front desk, with the family
+   * in front of them and a school report in hand, knows better than the date
+   * of birth alone. Left out, the age recommendation decides.
+   */
+  gradeId?: string | null;
 };
 
 export type EnquiryResult = {
@@ -116,9 +127,14 @@ export async function createEnquiry(
   const offeredHere = catalogue.offered[campus.id] ?? [];
   let gradeId: string;
   let recommendedGradeId: string | null = null;
-  if (rec.kind === "grade") {
+  if (rec.kind === "grade") recommendedGradeId = rec.grade.id;
+  // A grade someone chose wins over the age recommendation, but the
+  // recommendation is still recorded, so the two can be compared later.
+  const chosen = input.gradeId && catalogue.grades.some((g) => g.id === input.gradeId) ? input.gradeId : null;
+  if (chosen) {
+    gradeId = chosen;
+  } else if (rec.kind === "grade") {
     gradeId = rec.grade.id;
-    recommendedGradeId = rec.grade.id;
   } else {
     // No age match. Park the application on the campus's highest grade so
     // it exists; the confirmation screen asks the parent to choose.
@@ -143,7 +159,7 @@ export async function createEnquiry(
     p_recommended_grade_id: recommendedGradeId,
     p_intake_id: intake.id,
     p_entry_route: input.entryRoute,
-    p_source: "website",
+    p_source: input.source ?? "website",
     p_current_school: input.currentSchool?.trim() || null,
     p_current_grade: input.currentGrade?.trim() || null,
     p_heard_from: input.heardFrom ?? null,
@@ -158,7 +174,14 @@ export async function createEnquiry(
   if (input.whatsappOptIn) {
     await admin
       .from("contacts")
-      .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "enquiry", whatsapp_opt_out_at: null })
+      .update({
+        whatsapp_opt_in: true,
+        whatsapp_opt_in_at: new Date().toISOString(),
+        // Who recorded the consent: the parent on the form, or a member of
+        // staff repeating what the parent said at the desk.
+        whatsapp_opt_in_source: input.source && input.source !== "website" ? "staff" : "enquiry",
+        whatsapp_opt_out_at: null,
+      })
       .eq("id", row.contact_id);
   }
 

@@ -55,6 +55,8 @@ export const LIMITS = {
   extraction: { bucket: "extraction", limit: 30, windowSeconds: 3600 },
   /** Refreshing an applicant summary, per person. */
   summary: { bucket: "summary", limit: 60, windowSeconds: 3600 },
+  /** Adding an applicant at the desk, per person. A busy open day is nowhere near this. */
+  staffApplicant: { bucket: "staff_applicant", limit: 60, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };

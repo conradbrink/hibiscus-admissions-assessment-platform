@@ -447,9 +447,31 @@ nobody else can book into it), books the child, checks them in, launches the
 sitting and shows the code. If the child already has a booking for today it
 uses that one rather than making a second.
 
-The enquiry has to exist first. For a family with nothing on the system, take
-the enquiry at `/join` on any device (or on the office computer on their
-behalf), then start the walk-in from their applicant page.
+The applicant has to exist first. For a family with nothing on the system,
+press **Add applicant** on Applicants (see below), then start the walk-in
+from their applicant page.
+
+## Adding an applicant by hand
+
+**Applicants → Add applicant.** For a family at the desk or on the telephone.
+Fill in the child, the parent, the campus and the start term; leave **Grade**
+on "Work it out from the date of birth" unless the family is transferring
+into a particular year, in which case choose it — the campus must teach it.
+
+What it makes is an ordinary application: the same reference, the same first
+emails to the parent, the same link for them to carry on at home. Two things
+differ. It is recorded as a walk-in rather than a website enquiry, so the
+analytics can tell the two apart, and the audit trail names the member of
+staff who added it.
+
+Read the email address back to the parent before pressing the button —
+everything the school sends goes there, and a wrong letter means silence.
+
+If the family already has an application, this opens the one they have rather
+than making a second.
+
+Tick the WhatsApp line only when the parent has actually said yes; it is
+consent, and it is recorded as having come from staff.
 
 ## Setting up a school's admissions team
 

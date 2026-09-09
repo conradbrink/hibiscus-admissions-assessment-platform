@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { isNextAction, NEXT_ACTIONS, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
@@ -23,7 +24,10 @@ const PAGE = 50;
 
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const { supabase, userId } = await requireStaff("applications.read");
+  const { supabase, userId, permissions } = await requireStaff("applications.read");
+  // Adding a family by hand is a write; someone with read-only access sees
+  // the list without the button.
+  const canAdd = can(permissions, "applications.write");
 
   const group = PIPELINE_GROUPS.find((g) => g.key === sp.group);
   const statuses: ApplicationStatus[] | null = sp.status
@@ -82,7 +86,13 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <PageTitle title="Applicants" description={`${total} matching`} />
+      <PageTitle title="Applicants" description={`${total} matching`}>
+        {canAdd ? (
+          <Link href="/staff/applications/new" className={buttonVariants({ size: "lg" })}>
+            Add applicant
+          </Link>
+        ) : null}
+      </PageTitle>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         <Link href={qs({ group: undefined, status: undefined, page: undefined })} className={`rounded-full border px-3 py-1 text-xs ${!sp.group && !sp.status ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
