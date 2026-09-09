@@ -1124,6 +1124,8 @@ export type RegistrationContactRow = {
   kind: RegistrationContactKind;
   position: number;
   contact_id: string | null;
+  /** Mr, Mrs, Dr — Ed-admin requires one, and it is what genders their Relation list. */
+  title: string | null;
   first_name: string;
   last_name: string;
   relationship: GuardianRelationship;
@@ -1905,7 +1907,7 @@ export type Database = {
       >;
       registration_contacts: TableOf<
         RegistrationContactRow,
-        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality",
+        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality" | "title",
         [
           Rel<"registration_contacts_application_id_fkey", "application_id", "applications">,
           Rel<"registration_contacts_contact_id_fkey", "contact_id", "contacts">,

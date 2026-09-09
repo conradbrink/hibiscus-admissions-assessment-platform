@@ -13,6 +13,7 @@ export default async function FamilyStep() {
   const secondary = bundle.contacts.find((c) => c.kind === "secondary_guardian") ?? null;
   const prefill = prefillRegistration(graph, bundle.registration, primary);
   const secondaryValues: Record<string, string> = {
+    title: secondary?.title ?? "",
     firstName: secondary?.first_name ?? "",
     lastName: secondary?.last_name ?? "",
     relationship: secondary?.relationship ?? "",

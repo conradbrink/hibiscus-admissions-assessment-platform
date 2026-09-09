@@ -61,6 +61,7 @@ const record: StudentRecordSnapshot = {
   guardians: [
     {
       kind: "guardian",
+      title: "Mrs",
       first_name: "Sanet",
       last_name: "Coetzer",
       relationship: "mother",
@@ -72,6 +73,7 @@ const record: StudentRecordSnapshot = {
     },
     {
       kind: "guardian",
+      title: "Mr",
       first_name: "Pieter",
       last_name: "Coetzer",
       relationship: "father",
@@ -303,23 +305,53 @@ describe("only Ed-admin's own words", () => {
     expect(row[BASIC_COLUMNS.indexOf("Record Status*")]).toBe(ED_ADMIN.studentStatus);
   });
 
-  it("has no word for a plain guardian or grandparent, and says so", () => {
-    // Ed-admin's list is gendered throughout — Guardian (female), Grandmother —
-    // and we ask a parent for the relationship, not their sex. So these come
-    // back empty and get reported rather than guessed.
-    const vague: FamilyExport = {
+  it("uses the title to choose between their gendered pair", () => {
+    // Ed-admin has Guardian (female) and Guardian (male) but no plain
+    // Guardian, so the title is what settles it. Asking a parent for their
+    // title is the whole reason it is on the registration form.
+    const withTitle = (title: string | null, relationship: string): FamilyExport => ({
       ...family,
-      record: {
-        ...record,
-        guardians: [
-          { ...record.guardians[0], relationship: "guardian" },
-          { ...record.guardians[0], relationship: "grandparent" },
-        ],
-      },
+      record: { ...record, guardians: [{ ...record.guardians[0], title, relationship }] },
+    });
+    const relationOf = (f: FamilyExport) => basicRow(f)[BASIC_COLUMNS.indexOf("G1 Relation*")];
+    const genderOf = (f: FamilyExport) => basicRow(f)[BASIC_COLUMNS.indexOf("G1 Gender*")];
+
+    expect(relationOf(withTitle("Mrs", "guardian"))).toBe("Guardian (female)");
+    expect(relationOf(withTitle("Mr", "guardian"))).toBe("Guardian (male)");
+    expect(relationOf(withTitle("Mrs", "grandparent"))).toBe("Grandmother");
+    expect(relationOf(withTitle("Mr", "grandparent"))).toBe("Grandfather");
+    expect(relationOf(withTitle("Ms", "other"))).toBe("Family (female)");
+    expect(genderOf(withTitle("Mrs", "guardian"))).toBe("F");
+    for (const value of [relationOf(withTitle("Mrs", "guardian")), relationOf(withTitle("Mr", "grandparent"))]) {
+      expect(ED_ADMIN.relations).toContain(value);
+    }
+  });
+
+  it("says so rather than guessing when nothing settles the pair", () => {
+    // A doctor who is a guardian: the title carries no sex and neither does
+    // the relationship. Guessing from a first name is not something this does.
+    const doctor: FamilyExport = {
+      ...family,
+      record: { ...record, guardians: [{ ...record.guardians[0], title: "Dr", relationship: "guardian" }] },
     };
-    const row = basicRow(vague);
+    const row = basicRow(doctor);
     expect(row[BASIC_COLUMNS.indexOf("G1 Relation*")]).toBe("");
-    expect(unmappedRelationships([vague])).toEqual(["grandparent", "guardian"]);
+    expect(row[BASIC_COLUMNS.indexOf("G1 Gender*")]).toBe("");
+    // The title itself still goes: it is theirs and it is on their list.
+    expect(row[BASIC_COLUMNS.indexOf("G1 Title*")]).toBe("Dr");
+    expect(unmappedRelationships([doctor])).toHaveLength(1);
     expect(unmappedRelationships([family])).toEqual([]);
+  });
+
+  it("still exports a record taken before titles were asked for", () => {
+    // A mother is a Mother whatever her title says, so nothing older breaks.
+    const untitled: FamilyExport = {
+      ...family,
+      record: { ...record, guardians: [{ ...record.guardians[0], title: null, relationship: "mother" }] },
+    };
+    const row = basicRow(untitled);
+    expect(row[BASIC_COLUMNS.indexOf("G1 Relation*")]).toBe("Mother");
+    expect(row[BASIC_COLUMNS.indexOf("G1 Title*")]).toBe("Mrs");
+    expect(unmappedRelationships([untitled])).toEqual([]);
   });
 });

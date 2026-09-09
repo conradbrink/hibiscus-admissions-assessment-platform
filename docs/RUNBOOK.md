@@ -552,13 +552,19 @@ The student export refuses to send a child whose stage has no name yet, and
 says which campus and stage to fix. That refusal is deliberate: a file that
 half imports is worse than one that does not go.
 
-One gap remains. Ed-admin's Relation list is gendered throughout — there is
-`Guardian (female)` and `Guardian (male)` but no plain `Guardian`,
-`Grandmother` but no `Grandparent` — and registration asks a parent for the
-relationship, not their sex. A mother and a father map cleanly; a guardian,
-a grandparent or "other" comes out blank rather than guessed, and those rows
-need a person. Asking for a title during registration would close it, and
-Ed-admin wants a title anyway.
+Ed-admin's Relation list is gendered throughout — `Guardian (female)` and
+`Guardian (male)` but no plain `Guardian`, `Grandmother` but no
+`Grandparent` — so registration asks each guardian for a **title**, which
+Ed-admin requires anyway. Mr and Mrs settle it; a mother is a Mother whatever
+her title, so records taken before the question existed still export. A
+guardian who is a Dr or a Professor settles neither, and comes out blank and
+reported rather than guessed from a first name — put a title on that guardian
+and it resolves.
+
+Potchefstroom is Ed-admin's **CBD**, and its stages are the South African
+early years — Babies, Toddlers, Junior, Grade RR, Grade R — not the Botswana
+ladder. Those five are its own stages here, offered nowhere else. Until they
+were added it had fees but no stage list, so no parent could apply to it.
 
 ## A mobile number the school cannot message
 
