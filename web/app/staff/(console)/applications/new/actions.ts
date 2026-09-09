@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { optionalMobileNumber } from "@/lib/validation";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createEnquiry, loadCatalogue } from "@/lib/enquiry";
 import { HEARD_FROM_KEYS } from "@/lib/heard-from";
@@ -27,7 +28,10 @@ const schema = z.object({
   parentFirstName: z.string().trim().min(1, "Please give the parent's first name").max(80),
   parentLastName: z.string().trim().min(1, "Please give the parent's last name").max(80),
   email: z.email("That email address does not look right").max(160),
-  mobile: z.string().trim().max(40).optional().default(""),
+  // Optional at the desk — a family without a mobile still gets a record —
+  // but a number that is given is checked, because it is the one the school
+  // will message.
+  mobile: optionalMobileNumber,
   childFirstName: z.string().trim().min(1, "Please give the child's first name").max(80),
   childLastName: z.string().trim().min(1, "Please give the child's last name").max(80),
   childDateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Please give the child's date of birth"),
@@ -76,7 +80,7 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
       parentFirstName: parsed.parentFirstName,
       parentLastName: parsed.parentLastName,
       email: parsed.email,
-      mobile: parsed.mobile,
+      mobile: parsed.mobile ?? "",
       childFirstName: parsed.childFirstName,
       childLastName: parsed.childLastName,
       childDateOfBirth: parsed.childDateOfBirth,

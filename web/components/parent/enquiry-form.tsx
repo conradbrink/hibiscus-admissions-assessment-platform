@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MobileInput } from "@/components/ui/mobile-input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,8 +96,8 @@ export function EnquiryForm({ route, campuses, promoCodesLive = false, action }:
             <Input id="parentLastName" name="parentLastName" autoComplete="family-name" defaultValue={v.parentLastName} required {...invalid("parentLastName")} />
           </Field>
         </div>
-        <Field id="mobile" label="Mobile number" error={f.mobile} hint="Botswana or South Africa, with or without the country code. We only call if you ask us to.">
-          <Input id="mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel" placeholder="71 234 567 or 082 123 4567" defaultValue={v.mobile} required {...invalid("mobile")} />
+        <Field id="mobile" label="Mobile number" error={f.mobile}>
+          <MobileInput name="mobile" defaultValue={v.mobile} required invalid={Boolean(f.mobile)} />
         </Field>
         <Field id="email" label="Email address" error={f.email} hint="Everything about your application arrives here.">
           <Input id="email" name="email" type="email" inputMode="email" autoComplete="email" defaultValue={v.email} required {...invalid("email")} />

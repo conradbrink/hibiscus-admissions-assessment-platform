@@ -2,6 +2,7 @@ import { ActionForm } from "@/components/staff/action-form";
 import { PageTitle } from "@/components/staff/page-title";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { HEARD_FROM_OPTIONS } from "@/lib/heard-from";
 import { requireStaff } from "@/lib/staff/session";
@@ -89,7 +90,7 @@ export default async function NewApplicantPage() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="mobile">Mobile <span className="text-muted-foreground">(optional)</span></Label>
-                  <Input id="mobile" name="mobile" type="tel" autoComplete="off" placeholder="71 234 567" />
+                  <MobileInput name="mobile" autoComplete="off" />
                 </div>
               </div>
               <label className="flex items-center gap-2 text-sm">

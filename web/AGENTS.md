@@ -166,3 +166,6 @@ showing history.
   one. British English.
 
 - **A paper's content lives in `web/content/papers`, not in the database by hand.** Edit the JSON, re-run `web/scripts/paper-seed.mjs`; the seed upserts by question code so a sitting already taken is untouched. Licensed material (Cambridge) is served only through `/api/sit/media` behind a sitting or a staff session.
+
+- **A mobile number is asked for as a country plus a number, and stored in E.164.** `lib/phone.ts` owns the rules and every form uses `MobileInput`; `mobileNumber`/`optionalMobileNumber` in `lib/validation.ts` run the same check on the server. Nothing else should hand-roll a phone regex, and nothing should store a number WhatsApp cannot reach.
+- **Deleting an applicant is the exception, not a tool.** `delete_application()` is service role only and gated on `applications.delete`, which only the super administrator holds; withdrawing keeps the record, `anonymise_application()` removes the person and keeps the figures. Deleting is for records that should never have existed, and leaves one audit row behind.

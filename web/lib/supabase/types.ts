@@ -2094,6 +2094,10 @@ export type Database = {
         Returns: string[];
       };
       anonymise_application: { Args: { p_application_id: string }; Returns: undefined };
+      delete_application: {
+        Args: { p_application_id: string; p_reason: string; p_actor_id: string | null; p_actor_label: string | null };
+        Returns: { reference: string; documents: number; contact_deleted: boolean };
+      };
       campus_dashboard_counts: { Args: { p_campus_id: string }; Returns: Json };
       mark_student_records_exported: {
         Args: { p_record_ids: string[]; p_batch_id: string };

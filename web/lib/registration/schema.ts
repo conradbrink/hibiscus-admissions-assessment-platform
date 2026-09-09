@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { canonicalCountry, canonicalNationality } from "@/lib/countries";
 import { canonicalFromList, LANGUAGES, MEDICAL_AIDS } from "@/lib/pick-lists";
+import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 
 /**
  * What each registration step accepts. Shared by the server actions (the
@@ -89,7 +90,10 @@ const guardian = z.object({
   lastName: required(80, "Enter a surname."),
   relationship: z.enum(RELATIONSHIPS, { error: "Choose the relationship." }),
   email: z.string().trim().max(160).optional().transform((v) => (v ? v : null)),
-  mobile: optional(40),
+  // A mobile is the number the school messages, so it is checked against the
+  // country it claims to be from; "other phone" is a landline nobody messages
+  // and stays free text.
+  mobile: optionalMobileNumber,
   phone: optional(40),
   address: optional(300),
   nationality: optionalNationality,
@@ -99,12 +103,12 @@ const emptyGuardian = (g: Record<string, unknown>) => Object.values(g).every((v)
 
 export const familySchema = z
   .object({
-    primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: required(40, "Enter a mobile number.") }),
+    primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
     secondaryFirstName: optional(80),
     secondaryLastName: optional(80),
     secondaryRelationship: z.enum(RELATIONSHIPS).optional(),
     secondaryEmail: optional(160),
-    secondaryMobile: optional(40),
+    secondaryMobile: optionalMobileNumber,
     secondaryPhone: optional(40),
     secondaryAddress: optional(300),
     secondaryNationality: optional(80),

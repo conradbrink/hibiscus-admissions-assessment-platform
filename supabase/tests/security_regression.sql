@@ -1450,6 +1450,76 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 43. Deleting an applicant: the permission, the grant, and what is left
+  -- -------------------------------------------------------------------------
+  declare
+    v_before int;
+    v_audit int;
+  begin
+    -- The permission belongs to the super administrator and to nobody else by
+    -- default. An admissions officer with applications.write must not have it.
+    select count(*) into v_count
+      from public.role_permissions rp
+      join public.roles r on r.id = rp.role_id
+     where rp.permission_code = 'applications.delete' and r.code <> 'super_admin';
+    if v_count <> 0 then
+      v_fail := v_fail || E'\n  - ' || '43: applications.delete is granted to a role other than super_admin';
+    end if;
+
+    -- Attack: call the function as a signed-in super administrator. It is
+    -- service role only; the console checks the permission and then uses the
+    -- admin client, so nothing signed in should ever reach it.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      perform public.delete_application(app_block7, 'attack', u_admin, 'attack');
+      v_fail := v_fail || E'\n  - ' || '43: super admin called delete_application';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('43: delete_application refused by "' || sqlerrm || '" rather than the execute grant');
+    end;
+    perform pg_temp.service();
+
+    -- The escape hatch is for deleting, and only for deleting: a decision
+    -- still cannot be rewritten.
+    begin
+      update public.admission_decisions set override_reason = 'rewritten' where application_id = app_block7;
+      v_fail := v_fail || E'\n  - ' || '43: an admission decision was updated';
+    exception when others then
+      if sqlerrm not like '%append-only%' then
+        v_fail := v_fail || E'\n  - ' || ('43: decision update refused by "' || sqlerrm || '" rather than the append-only trigger');
+      end if;
+    end;
+
+    -- Control: the service role deletes, everything attached goes with it,
+    -- and the audit line naming what was destroyed stays behind.
+    begin
+      select count(*) into v_before from public.admission_decisions where application_id = app_block7;
+      if v_before = 0 then
+        v_fail := v_fail || E'\n  - ' || '43: the fixture has nothing attached, so the cascade proves nothing';
+      end if;
+      perform public.delete_application(app_block7, 'a duplicate', u_admin, 'admin@example.com');
+
+      select count(*) into v_count from public.applications where id = app_block7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '43: the application survived the delete'; end if;
+      select count(*) into v_count from public.registrations where application_id = app_block7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '43: the registration survived the delete'; end if;
+      select count(*) into v_count from public.documents where application_id = app_block7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '43: documents survived the delete'; end if;
+      select count(*) into v_count from public.payments where application_id = app_block7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '43: payments survived the delete'; end if;
+      select count(*) into v_count from public.admission_decisions where application_id = app_block7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '43: admission decisions survived the delete'; end if;
+      select count(*) into v_audit from public.audit_log
+       where application_id = app_block7 and action = 'application.deleted';
+      if v_audit <> 1 then v_fail := v_fail || E'\n  - ' || '43: no audit line was left behind'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('43: the service role could not delete an applicant: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

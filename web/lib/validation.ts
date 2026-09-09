@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HEARD_FROM_KEYS } from "@/lib/heard-from";
+import { checkStoredMobile } from "@/lib/phone";
 import { isPlausibleDateOfBirth } from "@/lib/grades";
 import { toSchoolDateString } from "@/lib/format-date";
 
@@ -16,16 +17,48 @@ const name = z
   .max(80, "Too long")
   .regex(/^[\p{L}\p{M}'’\-. ]+$/u, "Letters, spaces, hyphens and apostrophes only");
 
+/**
+ * A mobile number, in the one form WhatsApp accepts. The field asks for the
+ * country and the number separately and submits them joined; this refuses
+ * anything else, so a browser that skipped the field cannot store a number
+ * the school will not be able to message.
+ */
+export const mobileNumber = z
+  .string()
+  .trim()
+  .min(1, "Enter a mobile number we can reach you on")
+  .max(25, "Too long")
+  .superRefine((value, ctx) => {
+    const checked = checkStoredMobile(value);
+    if (!checked.ok) ctx.addIssue({ code: "custom", message: checked.reason });
+  })
+  .transform((value) => {
+    const checked = checkStoredMobile(value);
+    return checked.ok ? checked.e164 : value;
+  });
+
+/** The same rule where a number is welcome but not required. */
+export const optionalMobileNumber = z
+  .string()
+  .trim()
+  .max(25, "Too long")
+  .optional()
+  .superRefine((value, ctx) => {
+    if (!value) return;
+    const checked = checkStoredMobile(value);
+    if (!checked.ok) ctx.addIssue({ code: "custom", message: checked.reason });
+  })
+  .transform((value) => {
+    if (!value) return null;
+    const checked = checkStoredMobile(value);
+    return checked.ok ? checked.e164 : value;
+  });
+
 export const enquirySchema = z.object({
   parentFirstName: name,
   parentLastName: name,
   email: z.email("Enter a valid email address").max(200),
-  mobile: z
-    .string()
-    .trim()
-    .min(7, "Enter a mobile number we can reach you on")
-    .max(25, "Too long")
-    .regex(/^[+\d\s\-().]+$/, "Digits only, with an optional + and spaces"),
+  mobile: mobileNumber,
   childFirstName: name,
   childLastName: name,
   childDateOfBirth: z
