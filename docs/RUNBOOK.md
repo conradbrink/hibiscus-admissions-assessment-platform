@@ -220,6 +220,22 @@ following conditions". The wording of the standard conditions lives in
 - **No active offer template**: `/staff/admin/offer-templates` — publish a
   version.
 
+## Fees for a campus that charges by the month
+
+Most campuses quote a term. Potchefstroom quotes a month over eleven months,
+so its schedules carry **both**: a `Tuition per month` line and the year it
+adds up to. The offer letter prints whichever the schedule has — the monthly
+row first, because that is the figure a family budgets against.
+
+**Settings → Fees**, choose the campus and year. A monthly line is invoiced,
+never payable on acceptance; only the administration, application and
+admission lines secure a place. If you change the monthly figure, change the
+annual line to match — nothing works it out for you, deliberately, because a
+school year is not always eleven months.
+
+Potch is priced in Rand while every other campus is in Pula. That is per
+schedule and correct; be aware the card gateway has not been tested with ZAR.
+
 ## Running a promotion
 
 Settings → **Promotions**. Name the deal, tick the fees it waives, set a

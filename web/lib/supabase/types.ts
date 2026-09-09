@@ -850,7 +850,7 @@ export type OfferStatus =
   | "withdrawn"
   | "accepted"
   | "declined";
-export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term";
+export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term" | "tuition_month";
 export type FeeScheduleStatus = "draft" | "active";
 
 export type AdmissionRulesetRow = {
