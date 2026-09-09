@@ -23,7 +23,9 @@ export default async function StaffAdminPage() {
   // only the service role can read. This page is already limited to
   // staff.write, and the map carries nothing but a yes/no per person.
   const { data: authUsers } = await createAdminClient().auth.admin.listUsers({ perPage: 1000 });
-  const accepted = new Map((authUsers?.users ?? []).map((u) => [u.id, Boolean(u.email_confirmed_at)]));
+  // "Accepted" means they have actually signed in: the account is created
+  // already confirmed, so a confirmation date proves nothing.
+  const accepted = new Map((authUsers?.users ?? []).map((u) => [u.id, Boolean(u.last_sign_in_at)]));
 
   const rolesOf = (id: string) => new Set((staffRoles ?? []).filter((r) => r.staff_id === id).map((r) => r.role_id));
   const campusesOf = (id: string) => new Set((staffCampuses ?? []).filter((r) => r.staff_id === id).map((r) => r.campus_id));

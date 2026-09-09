@@ -80,3 +80,56 @@ export async function deleteSession(_: StaffActionState, formData: FormData): Pr
     revalidatePath("/staff/admin/sessions");
   });
 }
+
+const updateSchema = z.object({
+  sessionId: z.uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  durationMinutes: z.coerce.number().int().min(15).max(480),
+  capacity: z.coerce.number().int().min(1).max(200),
+  minGradeSort: z.coerce.number().int().optional().or(z.literal("")),
+  maxGradeSort: z.coerce.number().int().optional().or(z.literal("")),
+  assessorStaffId: z.string().optional(),
+  location: z.string().trim().max(120).optional(),
+});
+
+/**
+ * Edits one session. Capacity cannot drop below the number already booked,
+ * which would leave a parent holding a place that no longer exists; the
+ * count is read here rather than trusted from the form.
+ */
+export async function updateSession(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const p = updateSchema.parse(Object.fromEntries(formData));
+    const start = new Date(`${p.date}T${p.startTime}:00+02:00`);
+    if (Number.isNaN(start.getTime())) throw new Error("Invalid date or time.");
+    const end = new Date(start.getTime() + p.durationMinutes * 60_000);
+
+    const { count } = await ctx.supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("session_id", p.sessionId)
+      .in("status", ["booked", "checked_in", "in_progress", "completed"]);
+    if ((count ?? 0) > p.capacity) {
+      throw new Error(`${count} places are already booked; the capacity cannot be lower than that.`);
+    }
+
+    const { data, error } = await ctx.supabase
+      .from("sessions")
+      .update({
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        capacity: p.capacity,
+        min_grade_sort: p.minGradeSort === "" || p.minGradeSort === undefined ? null : p.minGradeSort,
+        max_grade_sort: p.maxGradeSort === "" || p.maxGradeSort === undefined ? null : p.maxGradeSort,
+        assessor_staff_id: p.assessorStaffId || null,
+        location: p.location || null,
+      })
+      .eq("id", p.sessionId)
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("That session no longer exists.");
+    revalidatePath("/staff/admin/sessions");
+  });
+}

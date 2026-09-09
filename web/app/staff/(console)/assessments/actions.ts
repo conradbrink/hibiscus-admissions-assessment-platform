@@ -12,6 +12,7 @@ import { requireStaffAction, type StaffContext } from "@/lib/staff/session";
 import { WorkflowError } from "@/lib/workflow/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
+import { onBookingCreated, onCheckedIn } from "@/lib/workflow/actions";
 import {
   onAssessmentAbandoned,
   onAssessmentLaunched,
@@ -102,6 +103,107 @@ export async function launchAttempt(_: LaunchState, formData: FormData): Promise
       timeLimitMinutes: Math.round(launched.timeLimitSeconds / 60),
     };
   } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+/**
+ * A family who walks in without a booking. Everything a booked child gets
+ * happens here in one press: a session for right now at their campus (one
+ * place, unpublished, so nobody else can book into it), the booking, the
+ * check-in, then the launch and the code. A child who already has a live
+ * booking uses that instead of a second one.
+ */
+export async function startWalkIn(_: LaunchState, formData: FormData): Promise<LaunchState> {
+  try {
+    const ctx = await requireStaffAction("assessments.deliver");
+    const p = z
+      .object({
+        applicationId: z.uuid(),
+        location: z.string().trim().max(120).optional(),
+        timeMultiplier: z.coerce.number().min(1).max(3).default(1),
+        accommodationNote: z.string().trim().max(300).optional(),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app: guarded } = await loadApplicationForStaff(ctx, p.applicationId);
+    const { data: app, error } = await admin
+      .from("applications")
+      .select("id, status, campus_id, child_first_name, requires_assessment, grades!applications_grade_id_fkey(sort_order)")
+      .eq("id", p.applicationId)
+      .single();
+    if (error || !app) throw new Error("Application not found.");
+    if (!app.requires_assessment) throw new Error("This grade does not sit an assessment.");
+
+    const { data: existing } = await admin
+      .from("bookings")
+      .select("id, kind, status")
+      .eq("application_id", app.id)
+      .in("status", ["booked", "checked_in", "in_progress"])
+      .maybeSingle();
+
+    let booking = existing;
+    if (!booking) {
+      const starts = new Date();
+      const { data: session, error: sErr } = await admin
+        .from("sessions")
+        .insert({
+          kind: "assessment",
+          campus_id: app.campus_id,
+          starts_at: starts.toISOString(),
+          ends_at: new Date(starts.getTime() + 120 * 60_000).toISOString(),
+          capacity: 1,
+          location: p.location || "Walk-in",
+          is_published: false,
+          notes: "Walk-in, started from the staff console.",
+          created_by: ctx.userId,
+        })
+        .select("id, kind, starts_at")
+        .single();
+      if (sErr || !session) throw new Error(sErr?.message ?? "Could not open a session for the walk-in.");
+
+      const { data: bookingId, error: bErr } = await admin.rpc("book_session", {
+        p_application_id: app.id,
+        p_session_id: session.id,
+      });
+      if (bErr) throw new Error(bErr.message);
+      await onBookingCreated(admin, guarded, { id: bookingId, kind: session.kind }, session, ctx.actor);
+      booking = { id: bookingId, kind: session.kind, status: "booked" };
+    }
+
+    if (booking.status === "booked") {
+      await onCheckedIn(admin, guarded, booking, ctx.actor);
+      booking = { ...booking, status: "checked_in" };
+    }
+
+    const grade = Array.isArray(app.grades) ? app.grades[0] : app.grades;
+    const gradeSort = (grade as { sort_order: number } | null)?.sort_order ?? 0;
+    const template = await resolveTemplate(admin, { campusId: app.campus_id, gradeSort });
+    if (!template) throw new Error("No active assessment template covers this child's grade. Activate one under Assessment templates.");
+
+    const settings = await getSettings(admin);
+    const launched = await onAssessmentLaunched(
+      admin,
+      app,
+      booking,
+      { templateId: template.id, timeMultiplier: p.timeMultiplier, accommodationNote: p.accommodationNote || null },
+      ctx.actor
+    );
+    const minted = await mintKioskCode(admin, launched.attemptId, settings.kioskCodeMinutes);
+    const url = `${siteUrl()}/sit/${minted.code}`;
+    const qr = await QRCode.toDataURL(url, { margin: 1, width: 240 });
+    drainSoon();
+    done(app.id, launched.attemptId);
+    return {
+      ok: true,
+      code: minted.code,
+      url,
+      qr,
+      expiresAt: minted.expiresAt.toISOString(),
+      attemptId: launched.attemptId,
+      timeLimitMinutes: Math.round(launched.timeLimitSeconds / 60),
+    };
+  } catch (e) {
+    if (e instanceof WorkflowError) return { error: e.message };
     return { error: (e as Error).message };
   }
 }

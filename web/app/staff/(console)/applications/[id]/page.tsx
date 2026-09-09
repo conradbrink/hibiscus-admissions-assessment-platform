@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/staff/action-form";
 import { ApplicantPhase2 } from "@/components/staff/applicant-phase2";
 import { SummaryPanel } from "@/components/staff/summary-panel";
+import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
@@ -16,6 +17,7 @@ import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { isNextAction, NEXT_ACTIONS, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addNote,
   assignOwner,
@@ -167,6 +169,12 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">No live booking.</p>
             )}
+            {/* A family at the desk: open a session for right now, book, check in and launch in one press. */}
+            {canDeliver && !terminal && app.requires_assessment && (!booking || booking.status === "booked" || booking.status === "checked_in") ? (
+              <div className="mt-3">
+                <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={startWalkIn} walkIn />
+              </div>
+            ) : null}
             {canWrite && !terminal && eligibleSessions.length > 0 && (!booking || booking.status === "booked") ? (
               <ActionForm action={rescheduleByStaff} label={booking ? "Move to selected" : "Book selected"} variant="outline" size="sm" className="mt-3">
                 {idField}

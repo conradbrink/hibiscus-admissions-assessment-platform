@@ -1259,8 +1259,16 @@ begin
      where key = 'staff_digest' and is_active and audience = 'staff'
        and not exists (select 1 from unnest(allowed_variables) v where v like '%_link' and v <> 'console_link');
     if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('39: staff_digest is not a staff-only template without parent links'); end if;
-    select count(*) into v_count from public.email_templates where audience = 'staff' and key <> 'staff_digest';
+    -- The staff audience is a closed list: a parent template marked staff
+    -- would be sent to a colleague's address with a parent's magic link in it.
+    select count(*) into v_count from public.email_templates
+     where audience = 'staff' and key not in ('staff_digest', 'staff_invite');
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('39: a parent template is marked as staff'); end if;
+    -- Whatever a staff template links to, it is never a parent's link.
+    select count(*) into v_count from public.email_templates
+     where audience = 'staff'
+       and exists (select 1 from unnest(allowed_variables) v where v like '%_link' and v not in ('console_link', 'invite_link'));
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('39: a staff template carries a parent link'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('39: unexpected error: ' || sqlerrm);
   end;

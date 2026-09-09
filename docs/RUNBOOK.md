@@ -303,6 +303,18 @@ rejection emails the parent with your reason and asks for it again.
    START turns it back on. Staff can turn it on for a parent who asked by
    phone, from the applicant page — that is audited.
 
+## Changing a session (time, place, assessor, places)
+
+**Settings → Sessions**. The page opens on today and groups by day. Narrow it
+with the filters at the top: campus, kind, from a date, or only the sessions
+somebody has booked. Press **Edit** under any session to change its date,
+time, length, number of places, grade range, assessor or room. The capacity
+cannot be set below the number already booked; move those families first.
+
+Delete only works while nobody is booked. When somebody is, **Unpublish** it
+instead: it disappears from the parents' list and the people already booked
+keep their place.
+
 ## Closing the school for a day, or changing the daily times
 
 Sittings and visits appear on every weekday at every campus by themselves,
@@ -427,6 +439,18 @@ They are computed live from the same rows the pipeline shows; if the pipeline
 is right, the counts are right. Campus-restricted staff see only their
 campuses in both.
 
+## A family walks in without a booking
+
+On the applicant's page, under Assessment, press **Start now (walk-in)**. It
+opens a session for right now at their campus (one place, unpublished, so
+nobody else can book into it), books the child, checks them in, launches the
+sitting and shows the code. If the child already has a booking for today it
+uses that one rather than making a second.
+
+The enquiry has to exist first. For a family with nothing on the system, take
+the enquiry at `/join` on any device (or on the office computer on their
+behalf), then start the walk-in from their applicant page.
+
 ## Setting up a school's admissions team
 
 `/staff/admin/staff`. Invite each person with the **Campus administrator**
@@ -442,6 +466,23 @@ shows **Invitation not yet accepted** with a **Resend invitation** button;
 press it to send a fresh link (Supabase allows one auth email a minute per
 address). Once they have set a password the button goes away, and a
 forgotten password is reset from the sign-in page instead.
+
+## An invitation link says it has expired
+
+It should not any more. Invitations are ours now, not Supabase's: the link in
+the email does not expire, and it is spent only when the person actually sets
+a password, so the scanners that school mail systems run over links cannot use
+it up. If someone still cannot get in:
+
+1. **They have already signed in once.** The link works once. Send them to the
+   sign-in page and use **Forgot password** instead.
+2. **A newer invitation was sent.** Sending a new one revokes the old, so an
+   older email in the inbox stops working. Ask them to use the most recent.
+3. **The account was deactivated.** Tick "Can sign in" on the staff page, save,
+   then press **Resend invitation**.
+
+To send a fresh one: **Settings → Staff**, find the person, **Resend
+invitation**. Anyone who has never signed in can be sent one.
 
 ## Somebody left, or joined
 
