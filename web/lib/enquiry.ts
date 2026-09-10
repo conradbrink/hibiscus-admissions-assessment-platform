@@ -4,6 +4,7 @@ import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } fr
 import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
 import { recommendGrade } from "@/lib/grades";
+import { offerableIntakes } from "@/lib/intakes";
 
 /**
  * What the funnel needs to render, and how it turns eight fields into an
@@ -31,11 +32,13 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     admin.from("campuses").select("*").eq("is_active", true).order("sort_order"),
     admin.from("grades").select("*").eq("is_active", true).order("sort_order"),
     admin.from("campus_grades").select("campus_id, grade_id, requires_assessment").eq("is_active", true),
+    // Every open term, past starts included: `offerableIntakes` decides which
+    // are still joinable, because "the term running now" needs the academic
+    // year's end date and not just a comparison against today.
     admin
       .from("intakes")
-      .select("*, academic_years(age_cutoff_on)")
+      .select("*, academic_years(age_cutoff_on, ends_on)")
       .eq("is_open", true)
-      .gte("starts_on", today)
       .order("starts_on"),
   ]);
   for (const r of [campusesRes, gradesRes, offeredRes, intakesRes]) {
@@ -49,8 +52,16 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     (assessed[row.campus_id] ??= {})[row.grade_id] =
       row.requires_assessment ?? gradeAssessed.get(row.grade_id) ?? false;
   }
-  const intakes = (intakesRes.data ?? []).map((row) => {
+  const dated = (intakesRes.data ?? []).map((row) => {
     const ay = Array.isArray(row.academic_years) ? row.academic_years[0] : row.academic_years;
+    const year = ay as { age_cutoff_on: string; ends_on: string } | null;
+    return { row, age_cutoff_on: year?.age_cutoff_on ?? "", year_ends_on: year?.ends_on ?? null };
+  });
+
+  const intakes = offerableIntakes(
+    dated.map((d) => ({ ...d, starts_on: d.row.starts_on, is_open: d.row.is_open })),
+    today
+  ).map(({ row, age_cutoff_on }) => {
     const intake: IntakeRow = {
       id: row.id,
       academic_year_id: row.academic_year_id,
@@ -62,10 +73,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
-    return {
-      ...intake,
-      age_cutoff_on: (ay as { age_cutoff_on: string } | null)?.age_cutoff_on ?? "",
-    };
+    return { ...intake, age_cutoff_on };
   });
   return {
     campuses: campusesRes.data ?? [],
