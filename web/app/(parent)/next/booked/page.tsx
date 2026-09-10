@@ -47,7 +47,11 @@ export default async function BookedPage() {
         qrDataUrl={qr}
       />
       <div className="mt-6 space-y-2 text-sm text-muted-foreground">
-        <p>We will remind you two days before and on the morning.</p>
+        {/* Only an assessment gets reminders queued; promising them for a
+            visit was a promise nothing kept. */}
+        {booking.kind === "assessment" ? (
+          <p>We will remind you two days before and on the morning.</p>
+        ) : null}
         <p>
           Need to change the time?{" "}
           <Link href="/next/booking" className="font-medium text-foreground underline underline-offset-2">

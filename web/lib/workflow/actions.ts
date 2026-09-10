@@ -4,6 +4,7 @@ import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/type
 import { getSettings } from "@/lib/settings";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
+import { statusAfterBooking } from "@/lib/workflow/states";
 import {
   commit,
   hoursBefore,
@@ -177,12 +178,16 @@ export async function onBookingCreated(
   const live = { booking_id: booking.id, booking_status: ["booked"] };
 
   if (booking.kind === "visit") {
+    // Null when the application is past the booking stage: the visit is
+    // recorded and confirmed, and where the family actually is — awaiting an
+    // offer, paying — is left alone. See `statusAfterBooking`.
+    const moved = statusAfterBooking(app.status, "visit");
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
-      newStatus: "visit_booked",
-      nextAction: "attend_visit",
-      nextActionDueAt: startsAt,
+      newStatus: moved,
+      nextAction: moved ? "attend_visit" : null,
+      nextActionDueAt: moved ? startsAt : null,
       event: {
         type: "booking.created",
         summary: bookingSummary(session, "visit"),
@@ -227,12 +232,13 @@ export async function onBookingCreated(
     );
   }
 
+  const moved = statusAfterBooking(app.status, "assessment");
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
-    newStatus: "assessment_booked",
-    nextAction: "attend_assessment",
-    nextActionDueAt: startsAt,
+    newStatus: moved,
+    nextAction: moved ? "attend_assessment" : null,
+    nextActionDueAt: moved ? startsAt : null,
     event: {
       type: opts.rescheduledFromId ? "booking.rescheduled" : "booking.created",
       summary: opts.rescheduledFromId

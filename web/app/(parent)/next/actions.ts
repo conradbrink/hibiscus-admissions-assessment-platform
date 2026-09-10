@@ -168,7 +168,25 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
         p_session_id: target.id,
       });
       if (error) throw error;
-      await onBookingCreated(admin, app, { id: bookingId, kind: target.kind }, target, actor);
+      try {
+        await onBookingCreated(admin, app, { id: bookingId, kind: target.kind }, target, actor);
+      } catch (e) {
+        // `book_session` has already committed the row; recording the moment
+        // is a second call. If that fails there is no transaction to roll
+        // back, so undo the booking by hand — otherwise the parent is told
+        // the booking failed and holds one anyway, and their next attempt
+        // hits `already_booked`.
+        await admin
+          .from("bookings")
+          .update({
+            status: "cancelled",
+            cancelled_at: new Date().toISOString(),
+            cancel_reason: "The booking could not be recorded",
+          })
+          .eq("id", bookingId)
+          .eq("status", "booked");
+        throw e;
+      }
     }
   } catch (e) {
     const msg = (e as Error).message ?? "";
