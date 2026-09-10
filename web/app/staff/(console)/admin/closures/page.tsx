@@ -34,9 +34,10 @@ export default async function ClosuresPage() {
         <h2 className="mb-1 text-sm font-semibold">The weekday schedule</h2>
         {settings.autoSessionsEnabled ? (
           <p className="text-muted-foreground">
-            Every weekday, {settings.autoSessionsWeeksAhead} weeks ahead: an assessment sitting at {clock(settings.autoAssessmentStartMinutes)} for{" "}
-            {settings.autoAssessmentDurationMinutes} minutes and a school visit at {clock(settings.autoVisitStartMinutes)} for {settings.autoVisitDurationMinutes} minutes,{" "}
-            {settings.autoSessionCapacity} places each. Change these under Workflow settings; the next run of the job queue applies them to days that have no session yet.
+            Every weekday, {settings.autoSessionsWeeksAhead} weeks ahead: an assessment sitting at{" "}
+            {settings.autoAssessmentStarts.map(clock).join(", ")} lasting {settings.autoAssessmentDurationMinutes} minutes, and a school visit at{" "}
+            {settings.autoVisitStarts.map(clock).join(", ")} lasting {settings.autoVisitDurationMinutes} minutes,{" "}
+            {settings.autoSessionCapacity} places each. Change these under Workflow settings; the next run of the job queue applies them to any time that has no session yet.
           </p>
         ) : (
           <p className="text-muted-foreground">Switched off under Workflow settings (auto_sessions_enabled). Sessions are created by hand.</p>

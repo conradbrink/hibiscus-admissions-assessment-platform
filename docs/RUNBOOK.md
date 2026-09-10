@@ -457,11 +457,15 @@ keep their place.
 ## Closing the school for a day, or changing the daily times
 
 Sittings and visits appear on every weekday at every campus by themselves,
-six weeks ahead. To keep a day free, add it under **Set up → School
+six weeks ahead, one of each at each of the school's sitting times (08:00,
+09:30 and 11:00). To keep a day free, add it under **Set up → School
 holidays** before the day is created; deleting a session by hand only frees
-the day until the next run adds one back. To change the times, places or
+that slot until the next run adds one back. To change the times, places or
 how far ahead they run, edit the `auto_sessions_*` rows under **Workflow
-settings**; existing days keep their old times, new days take the new ones.
+settings** — `auto_assessment_starts` and `auto_visit_starts` are lists of
+clock readings in minutes after midnight, school time, so `[480, 570, 660]`
+is 08:00, 09:30 and 11:00. Existing days keep their old times, new days take
+the new ones; adding a time fills it in on days that already exist too.
 To stop the schedule altogether, set `auto_sessions_enabled` to false.
 
 ## A parent replied on WhatsApp

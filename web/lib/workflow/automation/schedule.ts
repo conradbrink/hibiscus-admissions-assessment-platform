@@ -53,10 +53,24 @@ export type PlannedSession = {
   ends_at: string;
 };
 
+/** The school-time clock reading of an instant, in minutes after midnight. */
+export function schoolMinutes(now: Date): number {
+  const local = new Date(now.getTime() + 2 * 3_600_000);
+  return local.getUTCHours() * 60 + local.getUTCMinutes();
+}
+
 /**
  * The sessions that should exist and do not yet: one per rule per open
- * weekday per campus, skipping any day that already has a session of that
+ * weekday per campus, skipping any *time* that already has a session of that
  * kind at that campus, whoever created it.
+ *
+ * The skip used to be per day rather than per time, which meant a campus
+ * could only ever have one sitting of each kind a day: the first rule claimed
+ * the day and every later rule for that kind was silently dropped. With three
+ * sittings a day that is the whole feature, so the key carries the clock
+ * reading now. The consequence worth knowing: a session made by hand at 08:00
+ * still suppresses the generated 08:00 one, but a session made by hand at any
+ * other time no longer suppresses anything.
  */
 export function planSessions(opts: {
   today: string;
@@ -66,14 +80,21 @@ export function planSessions(opts: {
   rules: ScheduleRule[];
   existing: Array<{ campus_id: string; kind: string; starts_at: string }>;
 }): PlannedSession[] {
-  const taken = new Set(opts.existing.map((e) => `${e.campus_id}:${e.kind}:${schoolDate(new Date(e.starts_at))}`));
+  const key = (campusId: string, kind: string, date: string, startMinutes: number) =>
+    `${campusId}:${kind}:${date}:${startMinutes}`;
+  const taken = new Set(
+    opts.existing.map((e) => {
+      const at = new Date(e.starts_at);
+      return key(e.campus_id, e.kind, schoolDate(at), schoolMinutes(at));
+    })
+  );
   const days = weekdaysAhead(opts.today, opts.weeksAhead);
   const out: PlannedSession[] = [];
   for (const campusId of opts.campusIds) {
     for (const date of days) {
       if (isClosed(date, campusId, opts.closures)) continue;
       for (const rule of opts.rules) {
-        if (taken.has(`${campusId}:${rule.kind}:${date}`)) continue;
+        if (taken.has(key(campusId, rule.kind, date, rule.startMinutes))) continue;
         const start = schoolInstant(date, rule.startMinutes);
         out.push({
           campus_id: campusId,

@@ -85,7 +85,7 @@ export default async function SessionsAdminPage({
       <PageTitle
         back={{ href: "/staff/admin", label: "Settings" }}
         title="Sessions"
-        description="The dates and times parents can book. Only published sessions are offered. A sitting and a visit are created for every weekday at every campus automatically, except on the dates under School holidays; add extra sessions here."
+        description="The dates and times parents can book. Only published sessions are offered. A sitting and a visit are created at each of the school's times, every weekday at every campus, except on the dates under School holidays; add extra sessions here."
       />
 
       {/* A plain GET form, so a filtered view can be bookmarked or sent to a colleague. */}
@@ -131,7 +131,7 @@ export default async function SessionsAdminPage({
               {(campuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </NativeSelect></div>
           <div className="space-y-1"><Label htmlFor="date">Date</Label><Input id="date" name="date" type="date" defaultValue={toSchoolDateString(new Date())} required /></div>
-          <div className="space-y-1"><Label htmlFor="startTime">Start</Label><Input id="startTime" name="startTime" type="time" defaultValue="09:00" required /></div>
+          <div className="space-y-1"><Label htmlFor="startTime">Start</Label><Input id="startTime" name="startTime" type="time" defaultValue="08:00" required /></div>
           <div className="space-y-1"><Label htmlFor="durationMinutes">Duration (min)</Label><Input id="durationMinutes" name="durationMinutes" type="number" defaultValue={90} min={15} max={480} required /></div>
           <div className="space-y-1"><Label htmlFor="capacity">Places</Label><Input id="capacity" name="capacity" type="number" defaultValue={6} min={1} required /></div>
           <div className="space-y-1"><Label htmlFor="minGradeSort">From grade</Label>

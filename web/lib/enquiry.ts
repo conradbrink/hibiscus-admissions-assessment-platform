@@ -250,7 +250,11 @@ export async function loadAvailableSlots(
     .eq("is_published", true)
     .gt("starts_at", new Date().toISOString())
     .order("starts_at")
-    .limit(60);
+    // Read enough to cover the whole horizon: the cap is applied before the
+    // grade band and the places-left filter below, so a short read hides
+    // dates that exist rather than showing fewer of them. Six weeks of
+    // weekdays at three sittings a day is ninety.
+    .limit(200);
   if (error) throw new Error(error.message);
 
   const eligible = (sessions ?? []).filter(
