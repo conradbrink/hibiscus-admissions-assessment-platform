@@ -1,0 +1,397 @@
+{
+  "code": "s3-english",
+  "name": "Cambridge Progression · Stage 3 · English",
+  "subject": "english",
+  "stage": 3,
+  "time_limit_minutes": 40,
+  "source": "0058 English 2025 Stage 3 Paper 1 Non-fiction",
+  "passages": [
+    {
+      "key": "insert",
+      "title": "What do fairy tales teach us?",
+      "body": "What do fairy tales teach us?\n\nDid you enjoy listening to fairy tales when you were younger? You may have\nlearnt a lot more than you think from these traditional tales...\n\nPart 1\n\nChildren’s stories can help us understand the world, and fairy tales¹ provide ways [5]\nfor children to receive important messages. Although there are some themes in\nfairy tales that are unrealistic, the overall effect is, I believe, important for\nchildren’s development.\n\nOne way fairy tales help children develop is that they’re often written in a way\nthat encourages creativity. As well as reading the story, you can act it out, which [10]\nhelps to develop your imagination. Fairy tales and fables are also important for\nteaching us the difference between right and wrong. And fairy tales and fables\nteach us about being more in touch with nature and animals too. Have you ever\nnoticed how many of the fairy tales are set in the woods, in the countryside or\neven in the sea? [15]\n\nFairy tales teach us life lessons wrapped in a story. In The Princess and the\nFrog, we learn that we must try to give people a chance whatever their\nappearance, while in Goldilocks and the Three Bears, we see that we should not\ntake things that don’t belong to us. The wolf in Little Red Riding Hood teaches us\nabout trust and that strangers can be dangerous. And, of course, in Pinocchio, [20]\nwe learn that we mustn’t tell lies.\n\nThese lessons teach us so many things about life, about friendship, and most of\nall about love. Love is always the most powerful magic in every story. Children\nlearn from the characters in the stories, and this helps them connect the situation\nwith their own lives. The tales can show children how to have a positive outlook, [25]\nespecially if they have problems or feel anxious about something.\n\nPart 2\n\nFairy tales teach children how to be creative. They also teach them about story\nstructure, story development and the description of characters – both heroes and\nvillains. Furthermore, fairy tales help children see the difference between fiction [30]\nand non-fiction. They are, therefore, ideal for teachers to use in the classroom.\n\nLike the magical characters they portray, fairy tales are not limited to a time or\nplace and can be found in many different cultures. India, for instance, has its own\nCinderella, as does China. Meanwhile, the 1000-year-old story of Little Red [35]\nRiding Hood was famous in the Middle East centuries ago. But no matter where\nthe fairy tales came from, happy endings are an essential feature. We certainly\nhope that Cinderella will find happiness. And in Snow White or Sleeping Beauty,\nreaders know that the princess will marry the prince and live happily ever after in\na palace. [40]\n\nHowever, the world has changed a lot since the days of Cinderella. Some people\npoint out that feeding children a diet of fairy tales full of make-believe just isn’t\nwhat they need. They argue that with a tough world out there, full of tricky\nproblems but not so full of enchanted frogs and fairy godmothers to resolve them,\nchildren should read modern, realistic fiction that prepares them for everyday life.\n\nGlossary\n\n¹fairy tale: a children’s story with magical characters or set in magical places that\n has a happy ending"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Section A: Reading",
+      "instructions": "Spend 30 minutes on this section. Read the text in the insert, and answer Questions 1–9.",
+      "items": [
+        {
+          "code": "S3-EN-Q1a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the first paragraph in Part 1 (lines 5–8).\n\nGive a two-word phrase from the first paragraph that tells us the writer is giving an opinion.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "I believe"
+            ]
+          },
+          "note": "Mark scheme: I believe."
+        },
+        {
+          "code": "S3-EN-Q1b",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the first paragraph in Part 1 (lines 5–8).\n\n‘I’ is an example of a pronoun. Give one more pronoun from the first paragraph.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 1,
+          "key": {
+            "accepted": [
+              "us"
+            ]
+          },
+          "note": "Mark scheme: us."
+        },
+        {
+          "code": "S3-EN-Q2a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the second paragraph in Part 1 (lines 9–15).\n\nHow does the writer connect the end of the first paragraph with the beginning of the second paragraph?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "The writer mentions the importance of fairy tales for children’s development in both places",
+              "talks about children’s development in both",
+              "links children’s development in both paragraphs",
+              "both mention children’s development"
+            ]
+          },
+          "note": "Mark scheme: any answer conveying that the writer mentions / talks about / links the importance of fairy tales for children’s development in both places. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-EN-Q2b",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the second paragraph in Part 1 (lines 9–15).\n\nWhy is an apostrophe ( ’ ) used in the first sentence in this second paragraph?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "to replace a letter",
+              "to replace a missing a",
+              "a missing a",
+              "to show a contraction",
+              "to show a contracted verb form",
+              "to show the short form of they are",
+              "it is short for they are",
+              "contraction"
+            ]
+          },
+          "note": "Mark scheme: to replace a letter / a missing ‘a’; to show a contraction / contracted verb form; to show the short form of ‘they are’."
+        },
+        {
+          "code": "S3-EN-Q2c",
+          "competency": "grammar",
+          "type": "single_choice",
+          "stem": "Look at the second paragraph in Part 1 (lines 9–15).\n\nLook at the final sentence in this paragraph (lines 13–15). What kind of sentence is this?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "statement",
+            "exclamation",
+            "question",
+            "instruction"
+          ],
+          "key": {
+            "correct": "question"
+          },
+          "note": "Mark scheme: question."
+        },
+        {
+          "code": "S3-EN-Q3",
+          "competency": "reading",
+          "type": "matching",
+          "stem": "Look at the third paragraph in Part 1 (lines 16–21).\n\nBased on the information in this paragraph, match each fairy tale with its main message.",
+          "passage": "insert",
+          "marks": 4,
+          "difficulty": 3,
+          "pairs": [
+            [
+              "The Princess and the Frog",
+              "do not judge people based on how they look"
+            ],
+            [
+              "Goldilocks and the Three Bears",
+              "never steal from others"
+            ],
+            [
+              "Little Red Riding Hood",
+              "be careful with people you don’t know"
+            ],
+            [
+              "Pinocchio",
+              "it is always better to tell the truth"
+            ]
+          ],
+          "partial_credit": true,
+          "note": "Mark scheme: 1 mark each, maximum 4. On the printed paper a fifth message, ‘it is important to share what we have’, is offered and not used; this format has no unused option, so add it as a distractor in the editor if the sitting should keep one."
+        },
+        {
+          "code": "S3-EN-Q4",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the fourth paragraph in Part 1 (lines 22–26).\n\nLook at lines 25–26. Write the conditional clause in this sentence.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "if they have problems",
+              "especially if they have problems",
+              "if they have problems or feel anxious about something",
+              "especially if they have problems or feel anxious about something"
+            ]
+          },
+          "note": "Mark scheme: (especially) if they have problems (or feel anxious about something)."
+        },
+        {
+          "code": "S3-EN-Q5a",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Now look at Part 2. Look at the first paragraph in Part 2 (lines 28–31).\n\nTeachers use fairy tales to teach students about characters in stories and help develop their creativity. Give two other ways teachers use fairy tales.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "story structure and story development",
+              "story structure; the difference between fiction and non-fiction",
+              "to teach story structure and story development",
+              "story development and the difference between fiction and non-fiction"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: 1 mark each, maximum 2 — to teach story structure; to teach story development; to show the difference between fiction and non-fiction. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-EN-Q5b",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the first paragraph in Part 2 (lines 28–31).\n\nFor is a preposition used in the first paragraph in Part 2. Give one more preposition.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "about",
+              "between",
+              "in"
+            ]
+          },
+          "note": "Mark scheme: about / between / in."
+        },
+        {
+          "code": "S3-EN-Q5c",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the first paragraph in Part 2 (lines 28–31).\n\nGive one sentence opening that tells us the writer is adding more information.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "Furthermore",
+              "Furthermore,"
+            ]
+          },
+          "note": "Mark scheme: Furthermore, …"
+        },
+        {
+          "code": "S3-EN-Q5d",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the first paragraph in Part 2 (lines 28–31).\n\nGive one sentence opening that tells us the writer is explaining something.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "They are, therefore",
+              "They are, therefore,",
+              "therefore"
+            ]
+          },
+          "note": "Mark scheme: They are, therefore …"
+        },
+        {
+          "code": "S3-EN-Q6a",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the second paragraph in Part 2 (lines 32–39).\n\nWhich verb does the writer use instead of ‘show’?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "portray"
+            ]
+          },
+          "note": "Mark scheme: portray."
+        },
+        {
+          "code": "S3-EN-Q6b",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the second paragraph in Part 2 (lines 32–39).\n\nGive one phrase that tells us that the Little Red Riding Hood fairy tale has been around for a long time.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "1000-year-old story",
+              "the 1000-year-old story",
+              "centuries ago",
+              "famous in the Middle East centuries ago"
+            ]
+          },
+          "note": "Mark scheme: 1000-year-old story; (famous in the Middle East) centuries ago."
+        },
+        {
+          "code": "S3-EN-Q6c",
+          "competency": "grammar",
+          "type": "short_text",
+          "stem": "Look at the second paragraph in Part 2 (lines 32–39).\n\nWas is an example of a past tense irregular verb. Give one other past tense irregular verb in this paragraph.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "came",
+              "came from",
+              "found"
+            ]
+          },
+          "note": "Mark scheme: came (from). Accept found."
+        },
+        {
+          "code": "S3-EN-Q7a",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the third paragraph in Part 2 (lines 40–44).\n\nGive one example of metaphor in this paragraph.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "a diet of fairy tales",
+              "feeding children a diet of fairy tales",
+              "diet of fairy tales"
+            ]
+          },
+          "note": "Mark scheme: … (feeding children) a diet of fairy tales."
+        },
+        {
+          "code": "S3-EN-Q7b",
+          "competency": "vocabulary",
+          "type": "single_choice",
+          "stem": "Look at the third paragraph in Part 2 (lines 40–44).\n\nLook at lines 42–44. What does tricky mean in this sentence?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "options": [
+            "magical",
+            "difficult",
+            "common",
+            "modern"
+          ],
+          "key": {
+            "correct": "difficult"
+          },
+          "note": "Mark scheme: difficult."
+        },
+        {
+          "code": "S3-EN-Q7c",
+          "competency": "vocabulary",
+          "type": "short_text",
+          "stem": "Look at the third paragraph in Part 2 (lines 40–44).\n\nWhich word tells us that an animal is under a magic spell?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 2,
+          "key": {
+            "accepted": [
+              "enchanted",
+              "enchanted frogs"
+            ]
+          },
+          "note": "Mark scheme: enchanted (frogs)."
+        },
+        {
+          "code": "S3-EN-Q7d",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the third paragraph in Part 2 (lines 40–44).\n\nDo you agree with the main idea in the final paragraph? Answer Yes or No, and give one reason for your choice.",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "Yes — it is more important to read realistic, modern stories",
+              "No — it is more important to read fairy tales"
+            ]
+          },
+          "note": "Mark scheme: 1 mark for an explanation that matches the answer given. Yes: reading realistic, modern stories is more useful. No: reading fairy tales and make-believe is more useful. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-EN-Q8",
+          "competency": "comprehension",
+          "type": "short_text",
+          "stem": "Look at the whole text.\n\nWhat do you think are the most important things that fairy tales can teach us about? Choose two of: dealing with our problems; using our imagination; telling the difference between right and wrong; describing characters.\n\nGive reasons for your opinions using information from the text.",
+          "passage": "insert",
+          "marks": 2,
+          "difficulty": 4,
+          "key": {
+            "accepted": [
+              "dealing with problems — fairy tales help me feel better about real situations; using our imagination — they help me make up other stories"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: 1 mark for each reason that matches a choice made, maximum 2. Any valid reason. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-EN-Q9",
+          "competency": "reading",
+          "type": "short_text",
+          "stem": "Look at the whole text.\n\nHow does the writer organise the information in the text?",
+          "passage": "insert",
+          "marks": 1,
+          "difficulty": 3,
+          "key": {
+            "accepted": [
+              "paragraphs",
+              "the writer uses paragraphs",
+              "subheadings",
+              "the writer uses subheadings",
+              "subheadings Part 1 and Part 2"
+            ]
+          },
+          "note": "Mark scheme: (The writer uses) paragraphs; (The writer uses) subheadings Part 1 and Part 2."
+        }
+      ]
+    },
+    {
+      "title": "Section B: Writing",
+      "instructions": "Spend 30 minutes on this section.",
+      "items": [
+        {
+          "code": "S3-EN-Q10",
+          "competency": "written_language",
+          "type": "extended_text",
+          "marks": 25,
+          "difficulty": 5,
+          "stem": "Your headteacher is suggesting that all students should spend 20 minutes a day reading fiction for pleasure and wants to know what you think of this idea.\n\nWrite a letter to your headteacher explaining what you think of this idea.\n\nThink about:\n• whether you agree with this idea\n• when would be the best time of day to do this\n• what sort of books you would like to read\n• if there is anything else you would like to read\n• whether reading for pleasure is important.\n\nRemember to use the conventions of formal letter-writing.\n\nPlan your letter first, then write it.",
+          "note": "Marked with the Stage 3 writing grid: Creation of texts 5, Vocabulary and language 3, Grammar and punctuation 7, Structure of texts 7, Word structure (spelling) 3 = 25. 0 marks for 20 words or fewer; maximum 7 marks for 21–60 words."
+        }
+      ]
+    }
+  ],
+  "omitted": []
+}

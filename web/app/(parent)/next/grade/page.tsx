@@ -37,8 +37,18 @@ export default async function GradePage({ searchParams }: { searchParams: Promis
   // Through the pre-school door only the classes without an assessment are
   // offered, and the recommendation is shown only if it is one of them. A
   // child too old for pre-school is pointed at the full list.
-  const grades = preschool ? catalogue.grades.filter((g) => !g.requires_assessment) : catalogue.grades;
-  const recommendedShown = recGrade && (!preschool || !recGrade.requires_assessment) ? recGrade : null;
+  //
+  // Assessed-or-not is a fact about the class at a campus, so a grade stays
+  // on the pre-school list while any campus that offers it treats it as a
+  // pre-school class; the form then narrows to the campus in the picker.
+  // Reception reaches this list that way: assessed at Block 7, an ordinary
+  // class at Bana Tlokweng.
+  const unassessedSomewhere = (gradeId: string) =>
+    Object.values(catalogue.assessed).some((byGrade) => byGrade[gradeId] === false);
+  const grades = preschool ? catalogue.grades.filter((g) => unassessedSomewhere(g.id)) : catalogue.grades;
+  const assessedHere = (gradeId: string) =>
+    catalogue.assessed[app.campus_id]?.[gradeId] ?? recGrade?.requires_assessment ?? false;
+  const recommendedShown = recGrade && (!preschool || !assessedHere(recGrade.id)) ? recGrade : null;
   const gradeIds = new Set(grades.map((g) => g.id));
   const initialGradeId = gradeIds.has(app.grade_id)
     ? app.grade_id
@@ -64,6 +74,8 @@ export default async function GradePage({ searchParams }: { searchParams: Promis
           requires_assessment: g.requires_assessment,
         }))}
         offered={catalogue.offered}
+        assessed={catalogue.assessed}
+        preschoolOnly={preschool}
         intakes={catalogue.intakes.map((i) => ({ id: i.id, label: i.label }))}
         initial={{ campusId: app.campus_id, gradeId: initialGradeId, intakeId: app.intake_id }}
         recommended={
@@ -75,7 +87,7 @@ export default async function GradePage({ searchParams }: { searchParams: Promis
       />
       {preschool ? (
         <p className="mt-6 text-sm text-muted-foreground">
-          {recGrade && recGrade.requires_assessment
+          {recGrade && assessedHere(recGrade.id)
             ? `Based on ${app.child_first_name}’s age we would suggest ${recGrade.name}, which sits a short assessment. `
             : "Joining Reception or above instead? "}
           <Link href="/next/grade" className="font-medium text-primary underline underline-offset-4">See all grades</Link>

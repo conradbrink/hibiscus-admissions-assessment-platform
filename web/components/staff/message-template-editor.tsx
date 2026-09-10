@@ -35,8 +35,19 @@ const SAMPLE: Record<string, string> = {
 
 const LINK_PURPOSES = ["next_step", "results", "offer", "payment", "registration"] as const;
 
+/** Twilio's Content Template SIDs are `HX` and thirty-two hex characters. */
+export const TWILIO_CONTENT_SID = /^HX[0-9a-fA-F]{32}$/;
+
 /** Problems the server will also refuse; shown live so the save button is honest. */
-export function templateProblems(input: { parameters: string[]; bodyPreview: string; allowed: string[]; metaName: string; active: boolean }): string[] {
+export function templateProblems(input: {
+  parameters: string[];
+  bodyPreview: string;
+  allowed: string[];
+  metaName: string;
+  twilioContentSid?: string;
+  zavuTemplateId?: string;
+  active: boolean;
+}): string[] {
   const problems: string[] = [];
   const unknown = input.parameters.filter((p) => !input.allowed.includes(p));
   if (unknown.length) problems.push(`Not an allowed variable for this email: ${unknown.join(", ")}`);
@@ -44,7 +55,18 @@ export function templateProblems(input: { parameters: string[]; bodyPreview: str
   if (links.length) problems.push(`Links go on the button, not in the text: ${links.join(", ")}`);
   const n = placeholderCount(input.bodyPreview);
   if (n !== input.parameters.length) problems.push(`The wording has ${n} placeholder(s) but ${input.parameters.length} variable(s) are listed`);
-  if (input.active && !/^[a-z0-9_]+$/.test(input.metaName)) problems.push("An active template needs the Meta template name (lower-case letters, digits and underscores)");
+  const sid = (input.twilioContentSid ?? "").trim();
+  if (input.metaName && !/^[a-z0-9_]+$/.test(input.metaName)) {
+    problems.push("A Meta template name is lower-case letters, digits and underscores");
+  }
+  if (sid && !TWILIO_CONTENT_SID.test(sid)) {
+    problems.push("A Twilio content SID starts HX and has thirty-two more characters");
+  }
+  // Either identifier will do: whichever provider is delivering reads its
+  // own, and a school moving between them keeps both for a while.
+  if (input.active && !input.metaName && !sid && !(input.zavuTemplateId ?? "").trim()) {
+    problems.push("An active template needs an id from whichever provider is sending: Zavu, Twilio or Meta");
+  }
   return problems;
 }
 
@@ -57,6 +79,8 @@ export function MessageTemplateEditor({
     key: string;
     name: string;
     meta_template_name: string | null;
+    twilio_content_sid: string | null;
+    zavu_template_id: string | null;
     language: string;
     body_preview: string;
     parameters: string[];
@@ -69,6 +93,8 @@ export function MessageTemplateEditor({
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const [metaName, setMetaName] = useState(template.meta_template_name ?? "");
+  const [twilioContentSid, setTwilioContentSid] = useState(template.twilio_content_sid ?? "");
+  const [zavuTemplateId, setZavuTemplateId] = useState(template.zavu_template_id ?? "");
   const [body, setBody] = useState(template.body_preview);
   const [params, setParams] = useState(template.parameters.join("\n"));
   const [active, setActive] = useState(template.is_active);
@@ -76,7 +102,10 @@ export function MessageTemplateEditor({
 
   const parameters = useMemo(() => params.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean), [params]);
   const allowed = useMemo(() => allowedVariables.filter((v) => !v.endsWith("_link")), [allowedVariables]);
-  const problems = useMemo(() => templateProblems({ parameters, bodyPreview: body, allowed, metaName, active }), [parameters, body, allowed, metaName, active]);
+  const problems = useMemo(
+    () => templateProblems({ parameters, bodyPreview: body, allowed, metaName, twilioContentSid, zavuTemplateId, active }),
+    [parameters, body, allowed, metaName, twilioContentSid, zavuTemplateId, active]
+  );
   const preview = useMemo(() => renderPreview(body, parameters.map((p) => sanitiseParam(SAMPLE[p] ?? `[${p}]`))), [body, parameters]);
 
   return (
@@ -89,6 +118,35 @@ export function MessageTemplateEditor({
           <Label htmlFor="metaTemplateName">Meta template name</Label>
           <Input id="metaTemplateName" name="metaTemplateName" value={metaName} onChange={(e) => setMetaName(e.target.value)} placeholder="booking_confirmed_v1" />
           <p className="text-xs text-muted-foreground">Exactly as approved in Meta Business Manager. The approved template must have the same number of body parameters{button ? " and one dynamic-URL button" : ""}.</p>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="zavuTemplateId">Zavu template id</Label>
+          <Input
+            id="zavuTemplateId"
+            name="zavuTemplateId"
+            value={zavuTemplateId}
+            onChange={(e) => setZavuTemplateId(e.target.value)}
+            placeholder="From the Zavu console"
+          />
+          <p className="text-xs text-muted-foreground">
+            The template&rsquo;s id in Zavu, if Zavu is delivering. Its variables are numbered, so the order of the
+            variables below is the order they fill&nbsp;
+            {button ? "— and the link token fills the button's own first variable" : "the wording"}.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="twilioContentSid">Twilio content SID</Label>
+          <Input
+            id="twilioContentSid"
+            name="twilioContentSid"
+            value={twilioContentSid}
+            onChange={(e) => setTwilioContentSid(e.target.value)}
+            placeholder="HX0123456789abcdef0123456789abcdef"
+          />
+          <p className="text-xs text-muted-foreground">
+            From the Twilio console, if Twilio is delivering. Twilio addresses a template by this SID rather than by name, and
+            its variables are numbered in one flat list{button ? " — the link token is the one after the body's" : ""}.
+          </p>
         </div>
         <div className="space-y-1"><Label htmlFor="language">Language code</Label><Input id="language" name="language" defaultValue={template.language} pattern="[a-z]{2}(_[A-Z]{2})?" required className="w-32" /></div>
         <div className="space-y-1">

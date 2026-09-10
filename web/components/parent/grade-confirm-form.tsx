@@ -13,6 +13,10 @@ export type GradeConfirmProps = {
   campuses: Array<{ id: string; name: string }>;
   grades: Array<{ id: string; name: string; requires_assessment: boolean }>;
   offered: Record<string, string[]>;
+  /** campus id → grade id → whether that class is assessed there. */
+  assessed: Record<string, Record<string, boolean>>;
+  /** The pre-school door: only classes that campus does not assess. */
+  preschoolOnly?: boolean;
   intakes: Array<{ id: string; label: string }>;
   initial: { campusId: string; gradeId: string; intakeId: string };
   recommended: { gradeId: string; gradeName: string; ageOnCutoff: number } | null;
@@ -32,8 +36,9 @@ export function GradeConfirmForm(props: GradeConfirmProps) {
 
   const gradesHere = useMemo(() => {
     const ids = new Set(props.offered[campusId] ?? []);
-    return props.grades.filter((g) => ids.has(g.id));
-  }, [campusId, props.grades, props.offered]);
+    const here = props.assessed[campusId] ?? {};
+    return props.grades.filter((g) => ids.has(g.id) && !(props.preschoolOnly && here[g.id]));
+  }, [campusId, props.grades, props.offered, props.assessed, props.preschoolOnly]);
 
   const recommendedHere = props.recommended
     ? (props.offered[campusId] ?? []).includes(props.recommended.gradeId)

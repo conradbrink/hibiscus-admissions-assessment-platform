@@ -328,19 +328,119 @@ rejection emails the parent with your reason and asks for it again.
 
 ## Setting up WhatsApp
 
-1. The school needs a WhatsApp Business Account and a verified number in
-   Meta Business Manager. The engineer sets `MESSAGING_PROVIDER=meta` and the
-   credentials, and registers `<site>/api/webhooks/whatsapp` in Meta.
-2. Every message is a **template** Meta has approved: submit the wording for
-   each moment (booking confirmed, reminder, offer, fees due…) in Meta
-   Business Manager. **Set up → WhatsApp templates** lists the moments, shows
-   the suggested wording, and says which variables fill which placeholder.
-3. When Meta approves a template, enter its name on that row and tick
-   **Active**. Then switch **Workflow settings → whatsapp_enabled** on.
-4. Parents only get messages if they ticked the box on the enquiry form, the
-   registration, or their application page. Replying STOP turns it off;
-   START turns it back on. Staff can turn it on for a parent who asked by
-   phone, from the applicant page — that is audited.
+The school sends through **Zavu**. Two other ways in are built and kept —
+**Meta's own Cloud API** and **Twilio** — and which one is live is the
+`MESSAGING_PROVIDER` setting, so moving between them is configuration rather
+than a deployment. Whichever it is, the wording is a template WhatsApp has
+approved: free text is never sent, because WhatsApp only allows it inside a
+24-hour reply window and it would put the school's words in code.
+
+**Through Zavu** (`MESSAGING_PROVIDER=zavu`)
+
+1. In the Zavu dashboard: connect the WhatsApp account, then mint an API key
+   under **API keys**. A key beginning `zv_test_` sends against Zavu's
+   WhatsApp sandbox instead of a real number — start there. `zv_live_`
+   reaches real people. The engineer sets it as `ZAVU_API_KEY`.
+2. Create a template per moment in Zavu and let it submit each for WhatsApp's
+   approval. The wording, the variables and the button of every one of them
+   are in `web/content/messaging/zavu-templates.json`; print them as the
+   dashboard's own fields with
+
+       node web/scripts/zavu-templates.mjs            # all of them
+       node web/scripts/zavu-templates.mjs --only offer_reminder
+
+   Variables are numbered, so the order of the variables listed on the row in
+   **Set up → WhatsApp templates** is the order they fill the wording; a
+   message with a link fills the button's own first variable, numbered
+   separately from the body's.
+
+   The button is a **URL** button, not a Quick Reply, its **URL type** is
+   **Dynamic**, and Meta accepts a pattern containing `{{1}}` only when an
+   example is submitted beside it. Without the example the submission comes
+   back *"components[1]['buttons'][0]['url'] is not a valid URI"* — braces are
+   not legal in a URI, and Meta has not been told to expect them. **Example
+   value** takes what fills `{{1}}` — the token on its own, not the whole
+   address, which the dashboard appends to the pattern: paste an address there
+   and the preview reads `…/a/https://…/a/…`.
+
+   Meta also refuses wording that ends on a variable, full stop or not, so
+   every template closes on words.
+3. When a template is approved, copy its **id** onto the row in **Set up →
+   WhatsApp templates** and tick **Active**. To do a batch at the console
+   instead:
+
+       node web/scripts/zavu-templates.mjs --sql booking_confirmed=<id> offer_reminder=<id>
+4. Point the sender's webhook at `<site>/api/webhooks/whatsapp`. Zavu shows
+   the signing secret **once**, when it registers the webhook — put it in as
+   `ZAVU_WEBHOOK_SECRET` there and then. Without it every delivery is refused,
+   which is the safe direction but means no reply ever arrives.
+5. If the account has more than one sender, set `ZAVU_SENDER_ID` to the one
+   the school sends as. It is the sender profile's own id — the last part of
+   the dashboard address when the profile is open. With a single sender,
+   leave it unset and Zavu picks the only one.
+
+**Through Twilio** (`MESSAGING_PROVIDER=twilio`)
+
+1. In the Twilio console: a WhatsApp sender (the school's number, through
+   Twilio's WhatsApp onboarding), then the account SID and auth token from the
+   dashboard. The engineer puts those in as `TWILIO_ACCOUNT_SID` and
+   `TWILIO_AUTH_TOKEN`, with `TWILIO_WHATSAPP_FROM` set to the sending number
+   in full international form.
+2. Each message is a **Content Template** in Twilio, which submits it to
+   WhatsApp for approval. Its variables are numbered `{{1}}`, `{{2}}` in one
+   flat list; where a message carries a link, the token is the variable
+   **after** the body's, because Twilio has no separate button component.
+3. When it is approved, copy its **content SID** (`HX…`) onto the row in
+   **Set up → WhatsApp templates** and tick **Active**.
+4. Point Twilio at `<site>/api/webhooks/whatsapp` twice: as the sender's
+   inbound webhook, and as `TWILIO_STATUS_CALLBACK_URL` so delivery is
+   reported. One route serves both.
+
+**Through Meta** (`MESSAGING_PROVIDER=meta`)
+
+1. The school needs a WhatsApp Business Account and a verified number in Meta
+   Business Manager. The engineer sets the credentials and registers
+   `<site>/api/webhooks/whatsapp` in Meta.
+2. Templates are submitted and approved in Meta Business Manager. When one is
+   approved, enter its **name** on the row and tick **Active**.
+
+**Either way**
+
+* **Set up → WhatsApp templates** lists every moment, shows the suggested
+  wording, and says which variables fill which placeholder. A row can carry
+  both identifiers at once, which is what makes moving between providers a
+  settings change rather than a deployment.
+* Switch **Workflow settings → whatsapp_enabled** on last.
+* Parents only get messages if they ticked the box on the enquiry form, the
+  registration, or their application page. Replying STOP turns it off; START
+  turns it back on. Staff can turn it on for a parent who asked by phone,
+  from the applicant page — that is audited.
+
+## Every WhatsApp message says "no template id set"
+
+The row is active but has nothing in the column the live provider reads:
+Twilio needs the content SID, Meta the template name. Open **Set up →
+WhatsApp templates**, and the row will show a dash against whichever is
+missing. Nothing was sent and nothing was lost — each attempt is recorded as
+skipped with that reason, and the moment will send once the id is in.
+
+## Zavu rejects every webhook
+
+The reason is logged each time, and there are only three. **"no webhook
+secret configured"**: `ZAVU_WEBHOOK_SECRET` is unset — Zavu reveals it only
+when it first registers a sender's webhook, so re-register the webhook to
+mint a new one. **"signature mismatch"**: the secret belongs to a different
+sender. **"delivery is …s old"**: the delivery is more than five minutes old,
+which is a replay or a clock that has drifted — check the server's time
+before anything else.
+
+## Twilio rejects every webhook as unsigned
+
+Twilio signs the **URL it called** together with every form field, so the
+address the app sees has to match Twilio's exactly. Behind a proxy that
+terminates TLS the app can see `http` where Twilio used `https`, and then
+every signature fails and every reply is answered 401. Set
+`TWILIO_WEBHOOK_URL` to the exact address configured in the Twilio console.
 
 ## Changing a session (time, place, assessor, places)
 

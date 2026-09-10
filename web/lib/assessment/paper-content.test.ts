@@ -25,8 +25,20 @@ type Item = {
 type Paper = { code: string; subject: string; stage: number; time_limit_minutes: number; passages?: { key: string }[]; sections: { title: string; items: Item[] }[] };
 
 describe("Cambridge paper content", () => {
-  it("has the nine papers", () => {
-    expect(files.sort()).toEqual(["s4-english.json", "s4-mathematics.json", "s4-science.json", "s5-english.json", "s5-mathematics.json", "s5-science.json", "s6-english.json", "s6-mathematics.json", "s6-science.json"]);
+  it("has the twelve papers", () => {
+    expect(files.sort()).toEqual([
+      "s3-english.json", "s3-mathematics.json", "s3-science.json",
+      "s4-english.json", "s4-mathematics.json", "s4-science.json",
+      "s5-english.json", "s5-mathematics.json", "s5-science.json",
+      "s6-english.json", "s6-mathematics.json", "s6-science.json",
+    ]);
+  });
+
+  it("covers every entry stage from Stage 4 to Stage 7", () => {
+    // Each paper is sat by the stage above it, so Stage 3 to Stage 6 as
+    // papers is Stage 4 to Stage 7 as entry bands, with no gap in between.
+    const stages = new Set(files.map((f) => Number(f[1])));
+    expect([...stages].sort()).toEqual([3, 4, 5, 6]);
   });
 
   for (const file of files) {

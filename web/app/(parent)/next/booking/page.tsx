@@ -41,7 +41,7 @@ export default async function BookingPage() {
       />
       {locked && booking.status === "booked" ? (
         <p className="mt-6 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Your assessment is less than {settings.rescheduleCutoffHours} hours away, so the booking can no longer be changed or cancelled online. If something has come up, please call {campus.name}.
+          Your {booking.kind === "assessment" ? "assessment" : "visit"} is less than {settings.rescheduleCutoffHours} hours away, so the booking can no longer be changed or cancelled online. If something has come up, please call {campus.name}.
         </p>
       ) : null}
       {!past && !locked && booking.status === "booked" ? (

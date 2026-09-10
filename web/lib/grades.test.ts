@@ -83,3 +83,34 @@ describe("isPlausibleDateOfBirth", () => {
     expect(isPlausibleDateOfBirth("2027-01-01", "2026-09-04")).toBe(false);
   });
 });
+
+describe("two ladders, one age", () => {
+  // Potchefstroom teaches the South African classes and everywhere else
+  // teaches the Botswana ones. They collide on age: a child turning four is
+  // Grade RR in the one and Pre-Reception in the other.
+  const SOUTH_AFRICAN = [grade("babies", null), grade("toddlers", 2), grade("junior", 3), grade("grade_rr", 4), grade("grade_r", 5)];
+  const BOTSWANA = [grade("nursery", null), grade("pre_kindergarten", 2), grade("kindergarten", 3), grade("pre_reception", 4), grade("reception", 5)];
+
+  it("answers with the campus's own class, not the other country's", () => {
+    const sa = recommendGrade("2022-03-01", "2026-07-31", SOUTH_AFRICAN);
+    const bw = recommendGrade("2022-03-01", "2026-07-31", BOTSWANA);
+    expect(sa.kind === "grade" && sa.grade.code).toBe("grade_rr");
+    expect(bw.kind === "grade" && bw.grade.code).toBe("pre_reception");
+  });
+
+  it("would answer every campus in South African if both ladders were offered at once", () => {
+    // The bug this guards: the South African grades sort first, so a single
+    // catalogue-wide recommendation wins for both countries. The caller must
+    // narrow to the campus before asking.
+    const both = [...SOUTH_AFRICAN, ...BOTSWANA];
+    const rec = recommendGrade("2022-03-01", "2026-07-31", both);
+    expect(rec.kind === "grade" && rec.grade.code).toBe("grade_rr");
+  });
+
+  it("falls to the rolling class in each ladder for a child below the youngest ruled age", () => {
+    const sa = recommendGrade("2025-06-01", "2026-07-31", SOUTH_AFRICAN);
+    const bw = recommendGrade("2025-06-01", "2026-07-31", BOTSWANA);
+    expect(sa.kind === "grade" && sa.grade.code).toBe("babies");
+    expect(bw.kind === "grade" && bw.grade.code).toBe("nursery");
+  });
+});

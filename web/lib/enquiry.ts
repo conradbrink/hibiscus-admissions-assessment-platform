@@ -16,6 +16,12 @@ export type FunnelCatalogue = {
   grades: GradeRow[];
   /** campus id → grade ids it offers */
   offered: Record<string, string[]>;
+  /**
+   * campus id → grade id → whether that class is assessed *there*. Reception
+   * is assessed at Block 7 and is an ordinary pre-school class at Bana
+   * Tlokweng, so the question cannot be answered by the grade alone.
+   */
+  assessed: Record<string, Record<string, boolean>>;
   intakes: Array<IntakeRow & { age_cutoff_on: string }>;
 };
 
@@ -24,7 +30,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
   const [campusesRes, gradesRes, offeredRes, intakesRes] = await Promise.all([
     admin.from("campuses").select("*").eq("is_active", true).order("sort_order"),
     admin.from("grades").select("*").eq("is_active", true).order("sort_order"),
-    admin.from("campus_grades").select("campus_id, grade_id").eq("is_active", true),
+    admin.from("campus_grades").select("campus_id, grade_id, requires_assessment").eq("is_active", true),
     admin
       .from("intakes")
       .select("*, academic_years(age_cutoff_on)")
@@ -36,8 +42,12 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     if (r.error) throw new Error(r.error.message);
   }
   const offered: Record<string, string[]> = {};
+  const gradeAssessed = new Map((gradesRes.data ?? []).map((g) => [g.id, g.requires_assessment]));
+  const assessed: Record<string, Record<string, boolean>> = {};
   for (const row of offeredRes.data ?? []) {
     (offered[row.campus_id] ??= []).push(row.grade_id);
+    (assessed[row.campus_id] ??= {})[row.grade_id] =
+      row.requires_assessment ?? gradeAssessed.get(row.grade_id) ?? false;
   }
   const intakes = (intakesRes.data ?? []).map((row) => {
     const ay = Array.isArray(row.academic_years) ? row.academic_years[0] : row.academic_years;
@@ -61,6 +71,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     campuses: campusesRes.data ?? [],
     grades: gradesRes.data ?? [],
     offered,
+    assessed,
     intakes,
   };
 }
@@ -123,8 +134,19 @@ export async function createEnquiry(
     catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0];
   if (!intake) throw new Error("no_open_intake");
 
-  const rec = recommendGrade(input.childDateOfBirth, intake.age_cutoff_on, catalogue.grades);
+  // Recommend from the ladder this campus actually teaches. The two ladders
+  // share ages — a child turning four is Grade RR in Potchefstroom and
+  // Pre-Reception in Gaborone — and the South African grades sort first, so
+  // recommending across the whole catalogue answered every Botswana enquiry
+  // with a South African class. Which ruleset a campus follows is not a rule
+  // in code: it is whichever grades the campus offers.
   const offeredHere = catalogue.offered[campus.id] ?? [];
+  const gradesHere = catalogue.grades.filter((g) => offeredHere.includes(g.id));
+  const rec = recommendGrade(
+    input.childDateOfBirth,
+    intake.age_cutoff_on,
+    gradesHere.length > 0 ? gradesHere : catalogue.grades
+  );
   let gradeId: string;
   let recommendedGradeId: string | null = null;
   if (rec.kind === "grade") recommendedGradeId = rec.grade.id;

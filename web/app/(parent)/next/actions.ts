@@ -74,9 +74,15 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
   const unrouted = app.status === "new_enquiry" && app.next_action === null;
   if (!unrouted) redirect("/next");
 
+  // Whether an assessment applies follows the class *at this campus*, and the
+  // parent may have moved either since the enquiry. Recomputing it here is
+  // what keeps a child who switched from Nursery to Stage 1 from skipping the
+  // assessment, and a Reception child at a pre-school from being sent to one.
+  const requiresAssessment = catalogue.assessed[campusId]?.[gradeId] ?? app.requires_assessment;
+
   const { error } = await admin
     .from("applications")
-    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId })
+    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId, requires_assessment: requiresAssessment })
     .eq("id", app.id)
     .eq("status", "new_enquiry");
   if (error) return { error: "Could not save your choice. Please try again." };
@@ -142,15 +148,19 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
     return { error: "That time is at a different campus. Please choose another." };
   }
 
-  if (graph.booking && graph.booking.kind === target.kind) {
+  // A parent has one appointment at a time, whichever kind it is. Treating a
+  // move from an assessment to a visit as a fresh booking left the old one
+  // live, and the new one then collided with it.
+  if (graph.booking) {
     const settings = await getSettings(admin);
     if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) {
-      return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the assessment. Please call ${graph.campus.name}.` };
+      const noun = graph.booking.kind === "assessment" ? "assessment" : "visit";
+      return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the ${noun}. Please call ${graph.campus.name}.` };
     }
   }
 
   try {
-    if (graph.booking && graph.booking.kind === target.kind) {
+    if (graph.booking) {
       await onRescheduled(admin, app, graph.booking, target.id, actor);
     } else {
       const { data: bookingId, error } = await admin.rpc("book_session", {
@@ -168,6 +178,14 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
     }
     if (msg.includes("grade_not_in_range")) {
       return { error: "That session is for a different age group. Please choose another." };
+    }
+    // Both of these reached the parent as "could not make the booking", which
+    // says nothing and invites a retry that fails the same way.
+    if (msg.includes("already_booked")) {
+      return { error: "You already have a booking. Open it from your application to change the time." };
+    }
+    if (msg.includes("application_not_found")) {
+      return { error: "We could not find the grade on your application. Please confirm it first." };
     }
     console.error("[booking] failed", msg);
     return { error: "Could not make the booking. Please try again." };

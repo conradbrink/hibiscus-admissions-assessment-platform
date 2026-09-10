@@ -233,6 +233,12 @@ export type CampusGradeRow = {
    * refuses to send an unmapped pair rather than importing a blank grade.
    */
   external_grade_code: string | null;
+  /**
+   * Whether this class is assessed *here*. Reception at Block 7 sits an
+   * assessment; Reception at a pre-school is a pre-school class and does not.
+   * Null defers to `grades.requires_assessment`.
+   */
+  requires_assessment: boolean | null;
 };
 
 export type SubjectRow = {
@@ -1249,6 +1255,10 @@ export type MessageTemplateRow = {
   key: string;
   name: string;
   meta_template_name: string | null;
+  /** Twilio's Content Template SID (HX…), used instead of the name when Twilio is the provider. */
+  twilio_content_sid: string | null;
+  /** Zavu's own id for the template, used when Zavu is the provider. */
+  zavu_template_id: string | null;
   language: string;
   body_preview: string;
   parameters: string[];
@@ -1417,7 +1427,7 @@ export type Database = {
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
-        "is_active" | "capacity" | "external_grade_code",
+        "is_active" | "capacity" | "external_grade_code" | "requires_assessment",
         [
           Rel<"campus_grades_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campus_grades_grade_id_fkey", "grade_id", "grades">,
@@ -1959,7 +1969,7 @@ export type Database = {
       >;
       message_templates: TableOf<
         MessageTemplateRow,
-        "meta_template_name" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        "meta_template_name" | "twilio_content_sid" | "zavu_template_id" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
         [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
       messages: TableOf<

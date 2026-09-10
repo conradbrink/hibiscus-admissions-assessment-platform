@@ -403,12 +403,15 @@ export async function onRescheduled(
   actor: Actor
 ): Promise<string> {
   // Free the seat first so a parent moving to another slot on the same
-  // session's day does not hit its own unique index.
+  // session's day does not hit its own unique index. The release has to name
+  // every status that index covers — `in_progress` included — or it matches
+  // nothing and the booking below collides with the one it was meant to free,
+  // which surfaces to the parent as "could not make the booking".
   const { error: relErr } = await admin
     .from("bookings")
     .update({ status: "rescheduled" })
     .eq("id", oldBooking.id)
-    .in("status", ["booked", "checked_in"]);
+    .in("status", ["booked", "checked_in", "in_progress"]);
   if (relErr) throw new WorkflowError(relErr.message, "database");
 
   const { data: newId, error } = await admin.rpc("book_session", {

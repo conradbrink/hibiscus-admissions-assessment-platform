@@ -80,7 +80,7 @@ export async function ApplicantPhase2({
   const [{ data: scores }, { data: messages }, { data: messageTemplates }] = await Promise.all([
     latestAttempt ? supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id) : Promise.resolve({ data: [] }),
     supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
-    supabase.from("message_templates").select("key, name, is_active, meta_template_name").eq("is_active", true).order("name"),
+    supabase.from("message_templates").select("key, name, is_active, meta_template_name, twilio_content_sid, zavu_template_id").eq("is_active", true).order("name"),
   ]);
   const { data: gradeRows } = await supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order");
   const grades = gradeRows ?? [];
@@ -372,7 +372,10 @@ export async function ApplicantPhase2({
           <MessagesPanel
             applicationId={app.id}
             messages={messages ?? []}
-            templates={(messageTemplates ?? []).filter((t) => t.meta_template_name)}
+            // Either identifier will do here: which one is needed depends on
+            // the provider the deploy is using, and the send records the exact
+            // reason if the wrong one is the only one set.
+            templates={(messageTemplates ?? []).filter((t) => t.meta_template_name || t.twilio_content_sid || t.zavu_template_id)}
             canSend={can(permissions, "applications.write")}
             action={sendWhatsApp}
           />
