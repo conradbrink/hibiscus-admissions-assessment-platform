@@ -121,6 +121,21 @@ function fromGuardian(g: Guardian | undefined): { title: string; relation: strin
   const r = (g.relationship ?? "").toLowerCase();
   const title = g.title && ED_ADMIN.titles.includes(g.title) ? g.title : "";
 
+  // Registration asks for the gender now, so use the answer. The derivation
+  // below is what older records fall back on: it reads the sex off the title,
+  // which only some titles carry.
+  const asked = g.gender === "F" || g.gender === "M" ? g.gender : null;
+  if (asked) {
+    const suffix = asked === "F" ? "(female)" : "(male)";
+    if (r === "mother" || r === "stepmother" || r === "step-mother") return { title: title || "Mrs", relation: "Mother", gender: asked };
+    if (r === "father" || r === "stepfather" || r === "step-father") return { title: title || "Mr", relation: "Father", gender: asked };
+    if (r === "grandparent" || r === "grandmother" || r === "grandfather") {
+      return { title, relation: asked === "F" ? "Grandmother" : "Grandfather", gender: asked };
+    }
+    if (r === "guardian" || r === "parent") return { title, relation: `Guardian ${suffix}`, gender: asked };
+    return { title, relation: `Family ${suffix}`, gender: asked };
+  }
+
   // What the relationship settles on its own, whatever the title says.
   if (r === "mother" || r === "stepmother" || r === "step-mother") return { title: title || "Mrs", relation: "Mother", gender: "F" };
   if (r === "father" || r === "stepfather" || r === "step-father") return { title: title || "Mr", relation: "Father", gender: "M" };
@@ -137,6 +152,22 @@ function fromGuardian(g: Guardian | undefined): { title: string; relation: strin
   if (r === "grandparent") return { title, relation: sex === "F" ? "Grandmother" : "Grandfather", gender: sex };
   if (r === "guardian" || r === "parent") return { title, relation: `Guardian ${suffix}`, gender: sex };
   return { title, relation: `Family ${suffix}`, gender: sex };
+}
+
+/**
+ * The child's sex in Ed-admin's words, from ours.
+ *
+ * Our list has four answers and theirs has two, so `other` and `undisclosed`
+ * have nowhere to go. Sending the first letter of the word — which is what
+ * this did — put `O` and `U` in a required column and Ed-admin refused the
+ * row. Empty is sent instead and the child is named in the report, the same
+ * as a nationality their list does not carry.
+ */
+export function edAdminGender(value: string | null | undefined): string {
+  const v = (value ?? "").trim().toLowerCase();
+  if (v === "female" || v === "f") return "F";
+  if (v === "male" || v === "m") return "M";
+  return "";
 }
 
 /** The guardians whose relationship Ed-admin has no word for, so staff can set one. */
@@ -195,7 +226,7 @@ export function studentRow(f: FamilyExport, opts: { dateStyle?: DateStyle; statu
     s.legal_first_name ?? "",
     s.legal_middle_names ?? "",
     s.preferred_name ?? "",
-    (s.gender ?? "").slice(0, 1).toUpperCase(),
+    edAdminGender(s.gender),
     formatDate(s.date_of_birth, style),
     s.place_of_birth ?? "",
     acceptedNationality(s.nationality),
@@ -375,9 +406,15 @@ export function parentWorkbook(all: FamilyExport[]): Buffer {
 }
 
 /** What was left out because their lists do not carry the spelling we hold. */
-export function droppedValues(families: FamilyExport[]): { nationalities: string[]; languages: string[] } {
+export function droppedValues(families: FamilyExport[]): {
+  nationalities: string[];
+  languages: string[];
+  genders: string[];
+  relationships: string[];
+} {
   const nationalities = new Set<string>();
   const languages = new Set<string>();
+  const genders = new Set<string>();
   for (const f of families) {
     const check = (v: string | null | undefined, set: Set<string>, ok: (s: string) => string) => {
       const t = (v ?? "").trim();
@@ -386,6 +423,17 @@ export function droppedValues(families: FamilyExport[]): { nationalities: string
     check(f.record.student.nationality, nationalities, acceptedNationality);
     check(f.record.student.home_language, languages, acceptedLanguage);
     for (const g of f.record.guardians) check(g.nationality, nationalities, acceptedNationality);
+    // Gender* is required, so a child their list has no word for is named
+    // rather than counted: somebody has to decide what to send.
+    if (!edAdminGender(f.record.student.gender)) {
+      const who = [f.record.student.legal_first_name, f.record.student.legal_last_name].filter(Boolean).join(" ");
+      genders.add(`${who || f.record.application.reference} (${f.record.student.gender || "not given"})`);
+    }
   }
-  return { nationalities: [...nationalities], languages: [...languages] };
+  return {
+    nationalities: [...nationalities],
+    languages: [...languages],
+    genders: [...genders].sort(),
+    relationships: unmappedRelationships(families),
+  };
 }

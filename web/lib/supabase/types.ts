@@ -1135,6 +1135,13 @@ export type RegistrationContactRow = {
   first_name: string;
   last_name: string;
   relationship: GuardianRelationship;
+  /**
+   * Ed-admin's Gender column, in its own values. It used to be worked out
+   * from the title, which answers for Mr and Mrs and for nobody else, so a
+   * Dr or a Reverend exported with Relation and Gender blank and the row was
+   * refused. Null only on records written before it was asked for.
+   */
+  gender: "F" | "M" | null;
   email: string | null;
   mobile: string | null;
   mobile_normalised: string | null;
@@ -1917,7 +1924,7 @@ export type Database = {
       >;
       registration_contacts: TableOf<
         RegistrationContactRow,
-        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality" | "title",
+        "position" | "contact_id" | "email" | "mobile" | "mobile_normalised" | "phone" | "address" | "nationality" | "title" | "gender",
         [
           Rel<"registration_contacts_application_id_fkey", "application_id", "applications">,
           Rel<"registration_contacts_contact_id_fkey", "contact_id", "contacts">,

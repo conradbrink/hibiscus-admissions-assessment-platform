@@ -199,7 +199,11 @@ export async function POST(request: Request) {
     // Values their lists do not carry are sent empty rather than risking the
     // row; the count goes on the response and into the audit trail.
     const dropped = droppedValues(rows.map(asFamily));
-    const unknown = dropped.nationalities.length + dropped.languages.length;
+    // Gender and Relation are required columns: a row missing either is
+    // refused on import, so they count the same as a value their lists do
+    // not carry rather than going out unremarked.
+    const unknown =
+      dropped.nationalities.length + dropped.languages.length + dropped.genders.length + dropped.relationships.length;
 
     // Only the student file is the record of transfer.
     if (layout === "parent") return workbook(body, filename, skipped, unknown);
