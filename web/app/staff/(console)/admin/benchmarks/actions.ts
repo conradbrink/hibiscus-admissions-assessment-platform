@@ -8,7 +8,7 @@ import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 
 const schema = z.object({
-  benchmarkId: z.uuid().optional().or(z.literal("")),
+  benchmarkId: z.guid().optional().or(z.literal("")),
   scope: z.enum(["overall", "subject", "competency"]),
   scopeId: z.string().optional(),
   gradeSortMin: z.union([z.literal(""), z.coerce.number().int()]).optional(),

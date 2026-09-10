@@ -45,7 +45,7 @@ export async function createBank(_: StaffActionState, formData: FormData): Promi
 export async function setBankStatus(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ bankId: z.uuid(), status: z.enum(["draft", "active", "retired"]) }).parse(Object.fromEntries(formData));
+    const p = z.object({ bankId: z.guid(), status: z.enum(["draft", "active", "retired"]) }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("question_banks").update({ status: p.status }).eq("id", p.bankId);
     if (error) throw new Error(error.message);
     revalidatePath("/staff/admin/question-banks");
@@ -62,8 +62,8 @@ export async function savePassage(_: StaffActionState, formData: FormData): Prom
     const ctx = await requireStaffAction("assessments.author");
     const p = z
       .object({
-        bankId: z.uuid(),
-        passageId: z.uuid().optional().or(z.literal("")),
+        bankId: z.guid(),
+        passageId: z.guid().optional().or(z.literal("")),
         title: z.string().trim().min(1).max(160),
         body: z.string().trim().min(1).max(20_000),
         mediaPath: z.string().trim().max(400).optional(),
@@ -81,7 +81,7 @@ export async function savePassage(_: StaffActionState, formData: FormData): Prom
 export async function deletePassage(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ bankId: z.uuid(), passageId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ bankId: z.guid(), passageId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("passages").delete().eq("id", p.passageId);
     if (error) throw new Error(error.message);
     revalidatePath(bankPath(p.bankId));
@@ -93,8 +93,8 @@ export async function deletePassage(_: StaffActionState, formData: FormData): Pr
 // ---------------------------------------------------------------------------
 
 const questionMeta = z.object({
-  bankId: z.uuid(),
-  competencyId: z.uuid(),
+  bankId: z.guid(),
+  competencyId: z.guid(),
   type: z.enum(QUESTION_TYPES as [QuestionType, ...QuestionType[]]),
   stem: z.string().trim().min(1).max(4000),
   stemMediaPath: z.string().trim().max(400).optional(),
@@ -148,7 +148,7 @@ export async function createQuestion(_: StaffActionState, formData: FormData): P
 export async function saveQuestion(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = questionMeta.extend({ questionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = questionMeta.extend({ questionId: z.guid() }).parse(Object.fromEntries(formData));
     const { data, error } = await ctx.supabase
       .from("questions")
       .update({
@@ -179,7 +179,7 @@ export async function setQuestionStatus(_: StaffActionState, formData: FormData)
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
     const p = z
-      .object({ bankId: z.uuid(), questionId: z.uuid(), status: z.enum(["draft", "active", "retired"]) })
+      .object({ bankId: z.guid(), questionId: z.guid(), status: z.enum(["draft", "active", "retired"]) })
       .parse(Object.fromEntries(formData));
     if (p.status === "active") {
       const [{ data: q }, { data: key }] = await Promise.all([
@@ -210,7 +210,7 @@ export async function setQuestionStatus(_: StaffActionState, formData: FormData)
 export async function deleteQuestion(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ bankId: z.uuid(), questionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ bankId: z.guid(), questionId: z.guid() }).parse(Object.fromEntries(formData));
     const { data, error } = await ctx.supabase.from("questions").delete().eq("id", p.questionId).select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error("Only a draft question can be deleted. Retire it instead.");
@@ -227,8 +227,8 @@ export async function addOption(_: StaffActionState, formData: FormData): Promis
     const ctx = await requireStaffAction("assessments.author");
     const p = z
       .object({
-        bankId: z.uuid(),
-        questionId: z.uuid(),
+        bankId: z.guid(),
+        questionId: z.guid(),
         label: z.string().trim().min(1).max(500),
         side: z.enum(["left", "right", ""]).optional(),
         mediaPath: z.string().trim().max(400).optional(),
@@ -257,9 +257,9 @@ export async function saveOption(_: StaffActionState, formData: FormData): Promi
     const ctx = await requireStaffAction("assessments.author");
     const p = z
       .object({
-        bankId: z.uuid(),
-        questionId: z.uuid(),
-        optionId: z.uuid(),
+        bankId: z.guid(),
+        questionId: z.guid(),
+        optionId: z.guid(),
         label: z.string().trim().min(1).max(500),
         position: z.coerce.number().int().min(1).max(50),
       })
@@ -276,7 +276,7 @@ export async function saveOption(_: StaffActionState, formData: FormData): Promi
 export async function deleteOption(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ bankId: z.uuid(), questionId: z.uuid(), optionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ bankId: z.guid(), questionId: z.guid(), optionId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("question_options").delete().eq("id", p.optionId);
     if (error) throw new Error(error.message);
     revalidatePath(questionPath(p.bankId, p.questionId));
@@ -295,7 +295,7 @@ export async function deleteOption(_: StaffActionState, formData: FormData): Pro
 export async function saveKey(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const base = z.object({ bankId: z.uuid(), questionId: z.uuid() }).parse({
+    const base = z.object({ bankId: z.guid(), questionId: z.guid() }).parse({
       bankId: formData.get("bankId"),
       questionId: formData.get("questionId"),
     });
@@ -350,7 +350,7 @@ export async function saveKey(_: StaffActionState, formData: FormData): Promise<
         break;
       }
       case "extended_text": {
-        rubricId = z.uuid().parse(formData.get("rubricId"));
+        rubricId = z.guid().parse(formData.get("rubricId"));
         break;
       }
       case "adult_marked": {

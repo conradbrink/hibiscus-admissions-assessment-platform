@@ -7,7 +7,7 @@ import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 
 const schema = z.object({
-  campusId: z.uuid(),
+  campusId: z.guid(),
   name: z.string().trim().min(1).max(80),
   descriptor: z.string().trim().max(120).optional(),
   country: z.enum(["BW", "ZA"]),

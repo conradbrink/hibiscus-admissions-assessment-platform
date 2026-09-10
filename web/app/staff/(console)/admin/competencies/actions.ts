@@ -11,7 +11,7 @@ export async function saveCompetency(_: StaffActionState, formData: FormData): P
     const ctx = await requireStaffAction("assessments.author");
     const p = z
       .object({
-        competencyId: z.uuid(),
+        competencyId: z.guid(),
         name: z.string().trim().min(1).max(80),
         focusLabel: z.string().trim().max(80).optional(),
         sortOrder: z.coerce.number().int().min(0).max(1000),
@@ -39,7 +39,7 @@ export async function addCompetency(_: StaffActionState, formData: FormData): Pr
     const ctx = await requireStaffAction("assessments.author");
     const p = z
       .object({
-        subjectId: z.uuid(),
+        subjectId: z.guid(),
         code: z.string().regex(/^[a-z0-9_]+$/).max(40),
         name: z.string().trim().min(1).max(80),
         focusLabel: z.string().trim().max(80).optional(),

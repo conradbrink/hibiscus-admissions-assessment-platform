@@ -29,7 +29,7 @@ export async function recordEft(_: StaffActionState, formData: FormData): Promis
     const ctx = await requireStaffAction("finance.write");
     const p = z
       .object({
-        applicationId: z.uuid(),
+        applicationId: z.guid(),
         amount: z.string().trim().min(1),
         receivedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         bankReference: z.string().trim().min(2).max(80),
@@ -54,7 +54,7 @@ export async function recordEft(_: StaffActionState, formData: FormData): Promis
 export async function checkWithGateway(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const p = z.object({ applicationId: z.uuid(), paymentId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), paymentId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: payment } = await admin.from("payments").select("*").eq("id", p.paymentId).eq("application_id", app.id).maybeSingle();
     if (!payment) throw new WorkflowError("Payment not found.", "application_not_found");
@@ -68,7 +68,7 @@ export async function checkWithGateway(_: StaffActionState, formData: FormData):
 export async function recordRefund(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const p = z.object({ applicationId: z.uuid(), paymentId: z.uuid(), note: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), paymentId: z.guid(), note: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: payment } = await admin.from("payments").select("*").eq("id", p.paymentId).eq("application_id", app.id).maybeSingle();
     if (!payment) throw new WorkflowError("Payment not found.", "application_not_found");

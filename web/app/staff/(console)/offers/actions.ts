@@ -32,7 +32,7 @@ export async function generateOffer(_: StaffActionState, formData: FormData): Pr
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
     const entries = Object.fromEntries([...formData.entries()].filter(([, v]) => typeof v === "string"));
-    const p = z.object({ applicationId: z.uuid() }).parse(entries);
+    const p = z.object({ applicationId: z.guid() }).parse(entries);
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const sel = parseConditionSelection(entries);
 
@@ -69,7 +69,7 @@ export async function generateOffer(_: StaffActionState, formData: FormData): Pr
 export async function approveOffer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
-    const p = z.object({ applicationId: z.uuid(), offerId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), offerId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: offer } = await admin.from("offers").select("*").eq("id", p.offerId).eq("application_id", app.id).single();
     if (!offer) throw new Error("Offer not found.");
@@ -82,7 +82,7 @@ export async function approveOffer(_: StaffActionState, formData: FormData): Pro
 export async function withdrawOffer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
-    const p = z.object({ applicationId: z.uuid(), offerId: z.uuid(), reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), offerId: z.guid(), reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: offer } = await admin.from("offers").select("*").eq("id", p.offerId).eq("application_id", app.id).single();
     if (!offer) throw new Error("Offer not found.");
@@ -94,7 +94,7 @@ export async function withdrawOffer(_: StaffActionState, formData: FormData): Pr
 export async function sendOutcome(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
-    const p = z.object({ applicationId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     await onOutcomeSent(admin, app, ctx.actor);
     drainSoon();
@@ -112,7 +112,7 @@ export async function applyPromotionToOffer(_: StaffActionState, formData: FormD
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
     const p = z
-      .object({ applicationId: z.uuid(), promotionId: z.uuid({ error: "Choose a promotion" }), reason: z.string().trim().min(3, "Give a reason").max(300) })
+      .object({ applicationId: z.guid(), promotionId: z.guid({ error: "Choose a promotion" }), reason: z.string().trim().min(3, "Give a reason").max(300) })
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     if (app.status !== "offer_pending_approval" && app.status !== "offer_draft" && app.status !== "approved") {
@@ -135,7 +135,7 @@ export async function applyPromotionToOffer(_: StaffActionState, formData: FormD
 export async function removePromotionFromOffer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("offers.approve");
-    const p = z.object({ applicationId: z.uuid(), reason: z.string().trim().min(3, "Give a reason").max(300) }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), reason: z.string().trim().min(3, "Give a reason").max(300) }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     if (app.status !== "offer_pending_approval" && app.status !== "offer_draft" && app.status !== "approved") {
       throw new Error("A promotion can only be removed before the offer is sent.");

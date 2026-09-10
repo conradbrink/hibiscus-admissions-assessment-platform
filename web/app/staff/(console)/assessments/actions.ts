@@ -54,7 +54,7 @@ export async function launchAttempt(_: LaunchState, formData: FormData): Promise
     const ctx = await requireStaffAction("assessments.deliver");
     const p = z
       .object({
-        applicationId: z.uuid(),
+        applicationId: z.guid(),
         timeMultiplier: z.coerce.number().min(1).max(3).default(1),
         accommodationNote: z.string().trim().max(300).optional(),
       })
@@ -119,7 +119,7 @@ export async function startWalkIn(_: LaunchState, formData: FormData): Promise<L
     const ctx = await requireStaffAction("assessments.deliver");
     const p = z
       .object({
-        applicationId: z.uuid(),
+        applicationId: z.guid(),
         location: z.string().trim().max(120).optional(),
         timeMultiplier: z.coerce.number().min(1).max(3).default(1),
         accommodationNote: z.string().trim().max(300).optional(),
@@ -212,7 +212,7 @@ export async function startWalkIn(_: LaunchState, formData: FormData): Promise<L
 export async function reissueCode(_: LaunchState, formData: FormData): Promise<LaunchState> {
   try {
     const ctx = await requireStaffAction("assessments.deliver");
-    const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ attemptId: z.guid() }).parse(Object.fromEntries(formData));
     // Read through the caller's client so campus scoping applies to the action.
     const { data: attempt } = await ctx.supabase.from("attempts").select("id, status, application_id, time_limit_seconds").eq("id", p.attemptId).maybeSingle();
     if (!attempt) throw new Error("Attempt not found.");
@@ -245,7 +245,7 @@ async function loadAttemptAndApp(ctx: Pick<StaffContext, "supabase">, attemptId:
 export async function abandonAttempt(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
-    const p = z.object({ attemptId: z.uuid(), reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
+    const p = z.object({ attemptId: z.guid(), reason: z.string().trim().min(3).max(300) }).parse(Object.fromEntries(formData));
     const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     await onAssessmentAbandoned(admin, app, attempt, p.reason, ctx.actor);
     done(app.id, attempt.id);
@@ -256,7 +256,7 @@ export async function abandonAttempt(_: StaffActionState, formData: FormData): P
 export async function submitForChild(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.deliver");
-    const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ attemptId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     await onAssessmentSubmitted(admin, app, attempt, { auto: false }, ctx.actor);
     drainSoon();
@@ -271,11 +271,11 @@ export async function submitForChild(_: StaffActionState, formData: FormData): P
 export async function markWriting(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.score.write");
-    const attemptId = z.uuid().parse(formData.get("attemptId"));
+    const attemptId = z.guid().parse(formData.get("attemptId"));
     const marks: Array<{ responseId: string; marksAwarded: number }> = [];
     for (const [name, value] of formData.entries()) {
       if (!name.startsWith("marks_") || typeof value !== "string" || value.trim() === "") continue;
-      const responseId = z.uuid().parse(name.slice(6));
+      const responseId = z.guid().parse(name.slice(6));
       const n = Number(value);
       if (!Number.isFinite(n) || n < 0) throw new Error("Marks must be a number, zero or more.");
       marks.push({ responseId, marksAwarded: Math.round(n * 100) / 100 });
@@ -292,7 +292,7 @@ export async function markWriting(_: StaffActionState, formData: FormData): Prom
 export async function remarkAttempt(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.score.write");
-    const p = z.object({ attemptId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ attemptId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, attempt, app } = await loadAttemptAndApp(ctx, p.attemptId);
     if (attempt.status !== "submitted" && attempt.status !== "marked") throw new Error("Only a submitted attempt can be marked.");
     await runMarking(admin, attempt.id, ctx.actor);

@@ -38,9 +38,9 @@ function drainSoon() {
 }
 
 const confirmGradeSchema = z.object({
-  gradeId: z.uuid(),
-  campusId: z.uuid(),
-  intakeId: z.uuid(),
+  gradeId: z.guid(),
+  campusId: z.guid(),
+  intakeId: z.guid(),
   t0: z.coerce.number().int().nonnegative().optional(),
 });
 
@@ -117,7 +117,7 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
 }
 
 const bookSchema = z.object({
-  sessionId: z.uuid(),
+  sessionId: z.guid(),
   t0: z.coerce.number().int().nonnegative().optional(),
 });
 

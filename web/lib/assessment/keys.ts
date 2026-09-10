@@ -15,7 +15,7 @@ import type { Json, QuestionType } from "@/lib/supabase/types";
  * of "the key disagrees with the options" mistakes.
  */
 
-const uuid = z.uuid();
+const uuid = z.guid();
 
 export const ANSWER_KEY_SCHEMAS = {
   single_choice: z.object({ option_ids: z.array(uuid).length(1) }),
