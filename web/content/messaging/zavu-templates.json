@@ -3,7 +3,7 @@
   "category": "UTILITY",
   "language": "en",
   "buttonUrl": "https://admissions.hibiscus.co.bw/a/{{1}}",
-  "buttonExample": "https://admissions.hibiscus.co.bw/a/k4mQx8Rt2vNp",
+  "buttonExample": "k4mQx8Rt2vNp",
   "templates": [
     {
       "key": "booking_confirmed",
@@ -14,7 +14,7 @@
     },
     {
       "key": "assessment_reminder_48h",
-      "body": "Hi {{1}}, a reminder that {{2}}'s assessment at {{3}} is on {{4}} at {{5}}.",
+      "body": "Hi {{1}}, a reminder that {{2}}'s assessment at {{3}} is on {{4}} at {{5}}. Tap below to see the details.",
       "parameters": ["parent_first_name", "student_first_name", "campus", "assessment_date", "assessment_time"],
       "samples": ["Neo", "Lesedi", "Block 7", "14 September 2026", "09:00"],
       "button": "See the details"

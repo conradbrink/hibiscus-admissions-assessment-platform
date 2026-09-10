@@ -25,15 +25,19 @@ describe("zavu template content", () => {
     expect(key).toMatch(/^[a-z][a-z0-9_]*$/);
     expect(t.body.length).toBeLessThanOrEqual(1024);
     expect(t.body).not.toMatch(/\n|\t/);
-    // A template that ends on a variable reads as unfinished and is a
-    // documented rejection reason.
-    expect(t.body.trimEnd()).not.toMatch(/\{\{\d+\}\}$/);
+    // A template that ends on a variable is refused before it ever reaches
+    // Meta, and the trailing full stop does not save it: what follows the
+    // last variable has to be words.
+    expect(t.body.trimEnd()).not.toMatch(/\{\{\d+\}\}[\s.,!?;:'")\]]*$/);
     if (t.button) expect(t.button.length).toBeLessThanOrEqual(25);
   });
 
   it("gives the dynamic button an example, which is what Meta rejected without", () => {
     expect(templates.buttonUrl).toContain("{{1}}");
+    // The example fills {{1}}; it is not the whole address. Zavu appends it
+    // to the pattern, so a full URL here previews as the address twice over.
     expect(templates.buttonExample).not.toContain("{{");
-    expect(templates.buttonExample.startsWith(templates.buttonUrl.replace("{{1}}", ""))).toBe(true);
+    expect(templates.buttonExample).not.toContain("://");
+    expect(templates.buttonExample).not.toContain("/");
   });
 });

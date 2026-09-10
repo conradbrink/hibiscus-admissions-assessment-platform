@@ -354,11 +354,17 @@ approved: free text is never sent, because WhatsApp only allows it inside a
    message with a link fills the button's own first variable, numbered
    separately from the body's.
 
-   The button is a **URL** button, not a Quick Reply, and Meta accepts a URL
-   containing `{{1}}` only when an example of a filled-in URL is submitted
-   beside it. Without the example the submission comes back
-   *"components[1]['buttons'][0]['url'] is not a valid URI"* — braces are not
-   legal in a URI, and Meta has not been told to expect them.
+   The button is a **URL** button, not a Quick Reply, its **URL type** is
+   **Dynamic**, and Meta accepts a pattern containing `{{1}}` only when an
+   example is submitted beside it. Without the example the submission comes
+   back *"components[1]['buttons'][0]['url'] is not a valid URI"* — braces are
+   not legal in a URI, and Meta has not been told to expect them. **Example
+   value** takes what fills `{{1}}` — the token on its own, not the whole
+   address, which the dashboard appends to the pattern: paste an address there
+   and the preview reads `…/a/https://…/a/…`.
+
+   Meta also refuses wording that ends on a variable, full stop or not, so
+   every template closes on words.
 3. When a template is approved, copy its **id** onto the row in **Set up →
    WhatsApp templates** and tick **Active**. To do a batch at the console
    instead:
