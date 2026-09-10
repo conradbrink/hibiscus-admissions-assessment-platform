@@ -46,3 +46,14 @@ export async function pruneRateLimits(admin: AdminClient): Promise<number> {
   if (error) throw new Error(error.message);
   return data ?? 0;
 }
+
+/**
+ * A week of drain history is kept: long enough to see a gap and prove a fix,
+ * short enough that a row per request never becomes a table worth thinking
+ * about.
+ */
+export async function pruneDrainRuns(admin: AdminClient): Promise<number> {
+  const { data, error } = await admin.rpc("prune_drain_runs");
+  if (error) throw new Error(error.message);
+  return data ?? 0;
+}

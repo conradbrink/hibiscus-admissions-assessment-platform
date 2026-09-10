@@ -7,17 +7,27 @@ import { sweepReenrolment } from "@/lib/workflow/automation/reenrolment";
 import { anonymiseExpired } from "@/lib/workflow/automation/retention";
 import { ensureWeekdaySessions } from "@/lib/workflow/automation/sessions";
 import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
-import { pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
+import { pruneDrainRuns, pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * The cron entry point (vercel.json: every five minutes). Vercel sends
- * `Authorization: Bearer $CRON_SECRET`; anything else is refused. This is
- * the durability guarantee behind the `after()` drains — if every one of
- * those failed, nothing would be more than five minutes late.
+ * The scheduled entry point. Whoever calls it sends
+ * `Authorization: Bearer $CRON_SECRET`; anything else is refused.
+ *
+ * Three things call it, deliberately, at three cadences: Supabase's `pg_cron`
+ * every five minutes (the real schedule — the database is the one part of
+ * this system that is always awake), the GitHub Actions workflow hourly as a
+ * backstop, and Vercel's own cron nightly as a last resort. The drain is
+ * idempotent — `claim_jobs` hands each job to one worker and the session
+ * generator upserts — so an overlap costs nothing.
+ *
+ * This is the durability guarantee behind the `after()` drains: if every one
+ * of those failed, nothing would be more than five minutes late. Every run
+ * leaves a row in `drain_runs`, because for months this endpoint was being
+ * called once every three and a half hours and nothing said so.
  */
 function authorised(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -63,18 +73,26 @@ export async function GET(request: Request) {
     console.error("[sessions] weekday schedule failed", e);
     return -1;
   });
-  const summary = await drainJobs(admin, 50);
-  const pruned = await pruneRateLimits(admin);
-  return Response.json({
-    ...summary,
+  // The sweeps above are this endpoint's own work and are not visible in the
+  // queue's counters, so they ride along on the drain's record — otherwise a
+  // run that created 48 sittings and promoted a waitlist would be filed as
+  // having done nothing.
+  const detail = {
     routed_enquiries: routed,
     reenrolment,
     reconciled_payments: reconciled,
-    pruned_rate_limits: pruned,
     waitlist_promoted: waitlist.promoted,
     waitlist_tasks: waitlist.tasks,
     retention_anonymised: retention.anonymised,
     digests_queued: digests,
     sessions_created: sessionsCreated,
+  };
+  const summary = await drainJobs(admin, 50, { source: "schedule", detail });
+  const [pruned, prunedRuns] = await Promise.all([pruneRateLimits(admin), pruneDrainRuns(admin)]);
+  return Response.json({
+    ...summary,
+    ...detail,
+    pruned_rate_limits: pruned,
+    pruned_drain_runs: prunedRuns,
   });
 }

@@ -84,6 +84,17 @@ export function hasStarted(value: string | Date): boolean {
   return d !== null && d.getTime() < Date.now();
 }
 
+/**
+ * An instant N hours back, as an ISO string, for a `gte` on a timestamptz.
+ *
+ * A rolling window rather than `daysAgoDateString`'s calendar one: "in the
+ * last 24 hours" has to mean 24 hours when it is being compared against a
+ * count of what a schedule should have delivered in them.
+ */
+export function hoursAgoIso(hours: number): string {
+  return new Date(Date.now() - hours * 3_600_000).toISOString();
+}
+
 /** `YYYY-MM-DD` for N days ago, in the school's zone. */
 export function daysAgoDateString(days: number): string {
   return toSchoolDateString(new Date(Date.now() - days * 86_400_000));

@@ -1,25 +1,45 @@
 import { ActionForm } from "@/components/staff/action-form";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/format-date";
+import { formatDateTime, hoursAgoIso } from "@/lib/format-date";
 import { requireStaff } from "@/lib/staff/session";
+import { drainHealth } from "@/lib/workflow/drain-health";
 import { drainNow, retryJob } from "./actions";
 
 export default async function JobsPage() {
   const { supabase } = await requireStaff("admin");
-  const { data: jobs } = await supabase
-    .from("jobs")
-    .select("*, applications(reference)")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const dayAgo = hoursAgoIso(24);
+  const [{ data: jobs }, { data: lastScheduled }, { count: scheduledToday }] = await Promise.all([
+    supabase.from("jobs").select("*, applications(reference)").order("created_at", { ascending: false }).limit(200),
+    supabase.from("drain_runs").select("ran_at").eq("source", "schedule").order("ran_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("drain_runs").select("id", { count: "exact", head: true }).eq("source", "schedule").gte("ran_at", dayAgo),
+  ]);
+  // Every five minutes for a day is 288. Showing what arrived against what
+  // was asked for is the whole point: a schedule that claims five minutes and
+  // delivers seven runs a day looked healthy for months.
+  const health = drainHealth(lastScheduled?.ran_at ?? null);
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
   const tone = (s: string) => (s === "failed" ? "destructive" : s === "done" ? "success" : s === "skipped" ? "muted" : s === "running" ? "warning" : "info");
 
   return (
     <>
-      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Job queue" description="Emails and scheduled follow-ups. Runs after every request that queues work, and every five minutes by cron.">
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Job queue" description="Emails and scheduled follow-ups. The queue drains after every request that puts work on it, and on a five-minute schedule for the work nobody triggered.">
         <ActionForm action={drainNow} label="Run pending now" size="sm" variant="outline" />
       </PageTitle>
+
+      <section aria-label="Schedule" className="mb-4 surface p-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Badge variant={health.tone}>
+            {health.tone === "success" ? "On schedule" : health.tone === "warning" ? "Running late" : "Not running"}
+          </Badge>
+          <span>{health.phrase}</span>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {scheduledToday ?? 0} scheduled {scheduledToday === 1 ? "run" : "runs"} in the last 24 hours, out of the 288 a
+          five-minute schedule asks for. Reminders, the weekday sittings and the nightly sweeps are the work that depends
+          on this; anything a parent or a member of staff does drains the queue by itself.
+        </p>
+      </section>
       {jobs && jobs.length > 0 ? (
         <div className="overflow-x-auto surface">
           <table className="data-table text-xs">
