@@ -67,8 +67,8 @@ export const enquirySchema = z.object({
     .refine((v) => isPlausibleDateOfBirth(v, toSchoolDateString(new Date())), {
       message: "Check the date of birth",
     }),
-  campusId: z.uuid("Choose a campus"),
-  intakeId: z.uuid().nullable().optional(),
+  campusId: z.guid("Choose a campus"),
+  intakeId: z.guid().nullable().optional(),
   currentSchool: z.string().trim().max(120).optional(),
   currentGrade: z.string().trim().max(40).optional(),
   /** "Send updates on WhatsApp too": ticked by default beside a plain notice, and unticked in one tap. */

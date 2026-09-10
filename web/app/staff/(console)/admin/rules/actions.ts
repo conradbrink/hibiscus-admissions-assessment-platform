@@ -46,7 +46,7 @@ export async function createRuleset(_: StaffActionState, formData: FormData): Pr
 export async function saveRuleset(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("rules.write");
-    const p = meta.extend({ rulesetId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = meta.extend({ rulesetId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase
       .from("admission_rulesets")
       .update({
@@ -68,7 +68,7 @@ export async function addRule(_: StaffActionState, formData: FormData): Promise<
     const ctx = await requireStaffAction("rules.write");
     const p = z
       .object({
-        rulesetId: z.uuid(),
+        rulesetId: z.guid(),
         scope: z.enum(["overall", "subject", "competency"]),
         scopeId: z.string().optional(),
         operator: z.enum([">=", ">", "<=", "<"]),
@@ -103,7 +103,7 @@ export async function addRule(_: StaffActionState, formData: FormData): Promise<
 export async function deleteRule(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("rules.write");
-    const p = z.object({ rulesetId: z.uuid(), ruleId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ rulesetId: z.guid(), ruleId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("admission_rules").delete().eq("id", p.ruleId);
     if (error) throw new Error(error.message);
     revalidatePath(path(p.rulesetId));
@@ -113,7 +113,7 @@ export async function deleteRule(_: StaffActionState, formData: FormData): Promi
 export async function activateRuleset(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("rules.write");
-    const p = z.object({ rulesetId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ rulesetId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.rpc("activate_ruleset", { p_ruleset_id: p.rulesetId });
     if (error) {
       if (error.message.includes("ruleset_empty")) throw new Error("Add at least one rule before activating.");
@@ -128,7 +128,7 @@ export async function activateRuleset(_: StaffActionState, formData: FormData): 
 export async function deleteRuleset(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("rules.write");
-    const p = z.object({ rulesetId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ rulesetId: z.guid() }).parse(Object.fromEntries(formData));
     const { data, error } = await ctx.supabase.from("admission_rulesets").delete().eq("id", p.rulesetId).select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error("Only a draft ruleset can be deleted.");

@@ -7,7 +7,7 @@ import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 
 const schema = z.object({
-  id: z.uuid().optional(),
+  id: z.guid().optional(),
   position: z.coerce.number().int().min(0).max(100000).default(1000),
   header: z.string().trim().min(1).max(80),
   sourcePath: z.string().trim().regex(/^[a-z_]+(\[[0-9]+\])?(\.[a-z_]+(\[[0-9]+\])?)*$/, "A path like student.date_of_birth or guardians[0].mobile."),
@@ -30,7 +30,7 @@ export async function saveColumn(_: StaffActionState, formData: FormData): Promi
 export async function deleteColumn(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
-    const { id } = z.object({ id: z.uuid() }).parse(Object.fromEntries(formData));
+    const { id } = z.object({ id: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("export_columns").delete().eq("id", id);
     if (error) throw new Error(error.message);
     revalidatePath("/staff/admin/export-columns");

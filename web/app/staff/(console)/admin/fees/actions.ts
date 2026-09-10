@@ -17,8 +17,8 @@ export async function createSchedule(_: StaffActionState, formData: FormData): P
     const p = z
       .object({
         name: z.string().trim().min(1).max(120),
-        campusId: z.uuid(),
-        academicYearId: z.uuid(),
+        campusId: z.guid(),
+        academicYearId: z.guid(),
         gradeSortMin: z.union([z.literal(""), z.coerce.number().int()]).optional(),
         gradeSortMax: z.union([z.literal(""), z.coerce.number().int()]).optional(),
       })
@@ -52,13 +52,42 @@ export async function createSchedule(_: StaffActionState, formData: FormData): P
  * "Tuition per term P 0.00". And a fee the list had never heard of — Bana
  * Tlokweng's annual stationery — rendered as an editable field whose edits
  * went nowhere.
+ *
+ * The scope is editable too: a band that no longer covers the grades the
+ * campus teaches, or a schedule built against the wrong year, used to mean
+ * delete and retype, and delete only works on drafts. Editing it changes
+ * which schedule wins the *next* offer and nothing about one already sent,
+ * because an offer freezes its own copy of the fees at drafting.
+ *
+ * Moving a schedule to a campus in another currency is the one move that
+ * cannot be quiet. A trigger rewrites the currency from the campus, so
+ * P 300.00 would silently become R 300.00 on every line. That needs saying
+ * out loud and agreeing to, so it is refused until it is.
  */
 export async function saveSchedule(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const scheduleId = z.uuid().parse(formData.get("scheduleId"));
+    const scheduleId = z.guid().parse(formData.get("scheduleId"));
     const status = z.enum(["draft", "active"]).parse(formData.get("status") ?? "draft");
     const name = z.string().trim().min(1).max(120).parse(formData.get("name"));
+    const scope = z
+      .object({
+        campusId: z.guid(),
+        academicYearId: z.guid(),
+        gradeSortMin: z.union([z.literal(""), z.coerce.number().int()]).optional(),
+        gradeSortMax: z.union([z.literal(""), z.coerce.number().int()]).optional(),
+      })
+      .parse({
+        campusId: formData.get("campusId"),
+        academicYearId: formData.get("academicYearId"),
+        gradeSortMin: formData.get("gradeSortMin") ?? "",
+        gradeSortMax: formData.get("gradeSortMax") ?? "",
+      });
+    const bandMin = scope.gradeSortMin === "" || scope.gradeSortMin === undefined ? null : scope.gradeSortMin;
+    const bandMax = scope.gradeSortMax === "" || scope.gradeSortMax === undefined ? null : scope.gradeSortMax;
+    if (bandMin !== null && bandMax !== null && bandMax < bandMin) {
+      throw new Error("The band runs backwards — the last grade comes before the first.");
+    }
 
     const rendered = formData.getAll("lineCode").map(String);
     const { keep, remove } = parseSubmittedLines(formData, rendered);
@@ -92,7 +121,31 @@ export async function saveSchedule(_: StaffActionState, formData: FormData): Pro
       );
       if (error) throw new Error(error.message);
     }
-    const { error } = await ctx.supabase.from("fee_schedules").update({ name, status }).eq("id", scheduleId);
+    // The currency is not ours to set — a trigger takes it from the campus —
+    // so the check is on what that trigger is about to do to the amounts.
+    const [{ data: current }, { data: target }] = await Promise.all([
+      ctx.supabase.from("fee_schedules").select("currency").eq("id", scheduleId).single(),
+      ctx.supabase.from("campuses").select("name, currency").eq("id", scope.campusId).single(),
+    ]);
+    if (current && target && current.currency !== target.currency && formData.get("allowCurrencyChange") !== "1") {
+      throw new Error(
+        `${target.name} is a ${target.currency} campus and this schedule is in ${current.currency}. ` +
+          `Moving it keeps every amount as typed, so ${current.currency} 300.00 becomes ${target.currency} 300.00 — ` +
+          "a different sum of money. Tick \u201clet this change the currency\u201d if that is what you want, then check the amounts."
+      );
+    }
+
+    const { error } = await ctx.supabase
+      .from("fee_schedules")
+      .update({
+        name,
+        status,
+        campus_id: scope.campusId,
+        academic_year_id: scope.academicYearId,
+        grade_sort_min: bandMin,
+        grade_sort_max: bandMax,
+      })
+      .eq("id", scheduleId);
     if (error) throw new Error(error.message);
     done();
   });
@@ -102,7 +155,7 @@ export async function saveSchedule(_: StaffActionState, formData: FormData): Pro
 export async function saveBankInstructions(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const p = z.object({ currency: z.enum(["BWP", "ZAR"]), campusId: z.uuid().optional(), bodyText: z.string().max(2000) }).parse(Object.fromEntries(formData));
+    const p = z.object({ currency: z.enum(["BWP", "ZAR"]), campusId: z.guid().optional(), bodyText: z.string().max(2000) }).parse(Object.fromEntries(formData));
     const body = p.bodyText.trim();
     const campusId = p.campusId ?? null;
     let lookup = ctx.supabase.from("bank_instructions").select("id").eq("currency", p.currency);
@@ -122,7 +175,7 @@ export async function saveBankInstructions(_: StaffActionState, formData: FormDa
 export async function deleteSchedule(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("finance.write");
-    const scheduleId = z.uuid().parse(formData.get("scheduleId"));
+    const scheduleId = z.guid().parse(formData.get("scheduleId"));
     const { error } = await ctx.supabase.from("fee_schedules").delete().eq("id", scheduleId).eq("status", "draft");
     if (error) throw new Error(error.message);
     done();

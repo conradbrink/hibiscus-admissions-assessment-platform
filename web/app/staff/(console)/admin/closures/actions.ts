@@ -30,7 +30,7 @@ export async function createClosure(_: StaffActionState, formData: FormData): Pr
 export async function deleteClosure(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
-    const p = z.object({ closureId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ closureId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("school_closures").delete().eq("id", p.closureId);
     if (error) throw new Error(error.message);
     revalidatePath("/staff/admin/closures");

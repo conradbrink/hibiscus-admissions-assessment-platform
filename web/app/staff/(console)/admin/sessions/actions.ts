@@ -8,7 +8,7 @@ import { requireStaffAction } from "@/lib/staff/session";
 
 const createSchema = z.object({
   kind: z.enum(["assessment", "visit"]),
-  campusId: z.uuid(),
+  campusId: z.guid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   durationMinutes: z.coerce.number().int().min(15).max(480),
@@ -58,7 +58,7 @@ export async function createSessions(_: StaffActionState, formData: FormData): P
 export async function setPublished(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ sessionId: z.uuid(), published: z.enum(["0", "1"]) }).parse(Object.fromEntries(formData));
+    const p = z.object({ sessionId: z.guid(), published: z.enum(["0", "1"]) }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase
       .from("sessions")
       .update({ is_published: p.published === "1" })
@@ -71,7 +71,7 @@ export async function setPublished(_: StaffActionState, formData: FormData): Pro
 export async function deleteSession(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ sessionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ sessionId: z.guid() }).parse(Object.fromEntries(formData));
     // RLS refuses the delete while anybody is booked; PostgREST reports
     // zero rows rather than an error, so check.
     const { data, error } = await ctx.supabase.from("sessions").delete().eq("id", p.sessionId).select("id");
@@ -82,7 +82,7 @@ export async function deleteSession(_: StaffActionState, formData: FormData): Pr
 }
 
 const updateSchema = z.object({
-  sessionId: z.uuid(),
+  sessionId: z.guid(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   durationMinutes: z.coerce.number().int().min(15).max(480),

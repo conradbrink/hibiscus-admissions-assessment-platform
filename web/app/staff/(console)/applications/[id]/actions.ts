@@ -56,7 +56,7 @@ function done(applicationId: string) {
   revalidatePath("/staff");
 }
 
-const idSchema = z.object({ applicationId: z.uuid() });
+const idSchema = z.object({ applicationId: z.guid() });
 
 export async function assignOwner(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -127,7 +127,7 @@ export async function cancelBookingByStaff(_: StaffActionState, formData: FormDa
 export async function rescheduleByStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const parsed = idSchema.extend({ sessionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const parsed = idSchema.extend({ sessionId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const booking = await loadLiveBooking(admin, parsed.applicationId);
     if (booking) {
@@ -244,7 +244,7 @@ export async function generateLinkForStaff(_: StaffActionState, formData: FormDa
 export async function completeTask(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const parsed = z.object({ taskId: z.uuid(), note: z.string().trim().max(500).optional(), applicationId: z.uuid().optional() }).parse(Object.fromEntries(formData));
+    const parsed = z.object({ taskId: z.guid(), note: z.string().trim().max(500).optional(), applicationId: z.guid().optional() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase
       .from("tasks")
       .update({
@@ -265,7 +265,7 @@ export async function completeTask(_: StaffActionState, formData: FormData): Pro
 export async function assignTask(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const parsed = z.object({ taskId: z.uuid(), assigneeStaffId: z.string(), applicationId: z.uuid().optional() }).parse(Object.fromEntries(formData));
+    const parsed = z.object({ taskId: z.guid(), assigneeStaffId: z.string(), applicationId: z.guid().optional() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase
       .from("tasks")
       .update({ assignee_staff_id: parsed.assigneeStaffId || null })
@@ -370,7 +370,7 @@ export async function refreshSummary(_: StaffActionState, formData: FormData): P
 export async function changeGrade(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const parsed = idSchema.extend({ gradeId: z.uuid(), reason: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
+    const parsed = idSchema.extend({ gradeId: z.guid(), reason: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     if (app.grade_id === parsed.gradeId) return;
     if (app.status === "enrolled") {

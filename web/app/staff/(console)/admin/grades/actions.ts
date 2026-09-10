@@ -12,7 +12,7 @@ export async function saveGrade(_: StaffActionState, formData: FormData): Promis
     const ctx = await requireStaffAction("settings.write");
     const p = z
       .object({
-        gradeId: z.uuid(),
+        gradeId: z.guid(),
         name: z.string().trim().min(1).max(60),
         ageTurning: z.union([z.literal(""), z.coerce.number().int().min(0).max(20)]),
         requiresAssessment: z.string().optional(),
@@ -45,7 +45,7 @@ export async function saveGrade(_: StaffActionState, formData: FormData): Promis
 export async function saveCampusGrades(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
-    const campusId = z.uuid().parse(formData.get("campusId"));
+    const campusId = z.guid().parse(formData.get("campusId"));
     const gradeIds = formData.getAll("gradeIds").filter((v): v is string => typeof v === "string");
 
     const { data: existing } = await ctx.supabase
@@ -76,13 +76,13 @@ export async function saveCampusGrades(_: StaffActionState, formData: FormData):
 export async function saveEdAdminGrades(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
-    const campusId = z.uuid().parse(formData.get("campusId"));
+    const campusId = z.guid().parse(formData.get("campusId"));
     const allowed = new Set(ED_ADMIN.grades);
 
     for (const [key, value] of formData.entries()) {
       if (!key.startsWith("code:")) continue;
       const gradeId = key.slice("code:".length);
-      if (!z.uuid().safeParse(gradeId).success) continue;
+      if (!z.guid().safeParse(gradeId).success) continue;
       const code = String(value).trim();
       if (code && !allowed.has(code)) throw new Error(`${code} is not one of Ed-admin's stages.`);
       const { error } = await ctx.supabase

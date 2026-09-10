@@ -11,7 +11,7 @@ import { drainJobs } from "@/lib/workflow/jobs";
 export async function retryJob(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     await requireStaffAction("admin");
-    const jobId = z.uuid().parse(formData.get("jobId"));
+    const jobId = z.guid().parse(formData.get("jobId"));
     const admin = createAdminClient();
     const { error } = await admin
       .from("jobs")

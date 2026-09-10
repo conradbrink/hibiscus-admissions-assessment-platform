@@ -51,7 +51,7 @@ export async function createTemplate(_: StaffActionState, formData: FormData): P
 export async function saveTemplate(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = templateMeta.extend({ templateId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = templateMeta.extend({ templateId: z.guid() }).parse(Object.fromEntries(formData));
     if (p.gradeSortMax < p.gradeSortMin) throw new Error("The grade band is upside down.");
     const { error } = await ctx.supabase
       .from("assessment_templates")
@@ -80,7 +80,7 @@ export async function saveTemplate(_: StaffActionState, formData: FormData): Pro
 export async function setTemplateStatus(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ templateId: z.uuid(), status: z.enum(["draft", "active", "retired"]) }).parse(Object.fromEntries(formData));
+    const p = z.object({ templateId: z.guid(), status: z.enum(["draft", "active", "retired"]) }).parse(Object.fromEntries(formData));
     if (p.status === "active") {
       const { data: sections } = await ctx.supabase
         .from("template_sections")
@@ -107,11 +107,11 @@ export async function setTemplateStatus(_: StaffActionState, formData: FormData)
 }
 
 const sectionSchema = z.object({
-  templateId: z.uuid(),
-  sectionId: z.uuid().optional().or(z.literal("")),
+  templateId: z.guid(),
+  sectionId: z.guid().optional().or(z.literal("")),
   position: z.coerce.number().int().min(1).max(50),
   title: z.string().trim().min(1).max(120),
-  subjectId: z.uuid(),
+  subjectId: z.guid(),
   instructions: z.string().trim().max(2000).optional(),
   timeLimitMinutes: z.union([z.literal(""), z.coerce.number().int().min(1).max(300)]).optional(),
   selection: z.enum(["fixed", "random"]),
@@ -169,7 +169,7 @@ export async function saveSection(_: StaffActionState, formData: FormData): Prom
 export async function deleteSection(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ templateId: z.uuid(), sectionId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ templateId: z.guid(), sectionId: z.guid() }).parse(Object.fromEntries(formData));
     const { error } = await ctx.supabase.from("template_sections").delete().eq("id", p.sectionId);
     if (error) throw new Error(error.message);
     revalidatePath(templatePath(p.templateId));
@@ -180,7 +180,7 @@ export async function deleteSection(_: StaffActionState, formData: FormData): Pr
 export async function saveSectionQuestions(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("assessments.author");
-    const p = z.object({ templateId: z.uuid(), sectionId: z.uuid() }).parse({
+    const p = z.object({ templateId: z.guid(), sectionId: z.guid() }).parse({
       templateId: formData.get("templateId"),
       sectionId: formData.get("sectionId"),
     });
