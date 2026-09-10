@@ -139,12 +139,20 @@ parent page.
 ## A message is an approved template
 
 `lib/messaging/provider.ts` is the only seam; nothing else imports a vendor
-API. WhatsApp messages are sent only by `sendCompanionMessage`, only as a
+API. WhatsApp messages are sent only by `sendCompanionMessage` (an
+applicant moment) or `sendFamilyMessage` (a family one), only as a
 `message_templates` row that names a Meta-approved template, only to a
 contact with `whatsapp_opt_in`, and only as the companion of an email moment
 (or by hand from the applicant page, still a template). Do not add a path
 that sends free text, and do not teach an engine action about the channel:
-`handlers/send-email.ts` queues the companion.
+`handlers/send-email.ts` queues or sends the companion for both.
+
+The two senders are separate because `sendCompanionMessage` starts by loading
+an application graph and builds its variables from it. A family moment has
+none: the applications those families arrived on are terminal, possibly
+anonymised, and say nothing about the term being asked about. They share the
+seam, the sanitising and the preview by calling the same helpers — not by one
+growing a second mode.
 
 ## Extraction proposes, the parent confirms
 

@@ -167,6 +167,152 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
   return { status: "sent", messageId: message.id };
 }
 
+// ---------------------------------------------------------------------------
+// The family companion
+// ---------------------------------------------------------------------------
+
+export type SendFamilyMessageOptions = {
+  familyId: string;
+  studentId?: string | null;
+  contactId?: string | null;
+  templateKey: string;
+  idempotencyKey: string;
+  emailMessageId?: string | null;
+  /** The caller's, because a family moment has no one graph to build them from. */
+  variables: Record<string, string | null>;
+  /** Which family link the button carries, when the template has one. */
+  link?: "family" | "onboarding" | "reenrolment" | "checkin" | "event" | null;
+};
+
+/**
+ * The WhatsApp companion of a family email moment.
+ *
+ * Every rule that governs the applicant companion still governs this one: an
+ * approved template and never free text, a contact who opted in, a recorded
+ * `skipped` row with the reason when it cannot go, and never a send that the
+ * live provider has no template id for.
+ *
+ * It is its own function rather than a branch inside `sendCompanionMessage`
+ * because that one begins by loading an application graph and builds its
+ * variables from it. A family moment has neither: the applications these
+ * families arrived on are terminal, possibly anonymised, and say nothing
+ * about the term being asked about. What the two share — sanitising, the
+ * preview, the provider seam — they share by calling the same helpers.
+ */
+export async function sendFamilyMessage(
+  admin: AdminClient,
+  opts: SendFamilyMessageOptions
+): Promise<SendCompanionResult> {
+  const settings = await getSettings(admin);
+  const { data: template, error: tErr } = await admin
+    .from("message_templates")
+    .select("*")
+    .eq("key", opts.templateKey)
+    .maybeSingle();
+  if (tErr) return { status: "failed", error: tErr.message, retryable: true };
+
+  const { data: contact, error: cErr } = await (opts.contactId
+    ? admin.from("contacts").select("id, first_name, mobile_normalised, whatsapp_opt_in").eq("id", opts.contactId).maybeSingle()
+    : admin
+        .from("contacts")
+        .select("id, first_name, mobile_normalised, whatsapp_opt_in")
+        .eq("family_id", opts.familyId)
+        .order("created_at")
+        .limit(1)
+        .maybeSingle());
+  if (cErr) return { status: "failed", error: cErr.message, retryable: true };
+
+  const skip = async (reason: string): Promise<SendCompanionResult> => {
+    await admin.from("messages").upsert(
+      {
+        family_id: opts.familyId,
+        student_id: opts.studentId ?? null,
+        contact_id: contact?.id ?? null,
+        direction: "out",
+        template_key: opts.templateKey,
+        to_normalised: contact?.mobile_normalised ?? null,
+        provider: "none",
+        status: "skipped",
+        rendered_text: "",
+        error: reason,
+        idempotency_key: opts.idempotencyKey,
+        email_message_id: opts.emailMessageId ?? null,
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true }
+    );
+    return { status: "skipped", reason };
+  };
+
+  if (!settings.whatsappEnabled) return skip("WhatsApp is switched off");
+  const provider = await getMessagingProvider();
+  if (!template || !template.is_active) return skip(`no active message template for "${opts.templateKey}"`);
+  const templateId = template[provider.templateIdField];
+  if (!templateId) return skip(`the "${opts.templateKey}" template has no ${provider.name} template id set`);
+  if (!contact) return skip("the family has no contact to message");
+  if (!contact.whatsapp_opt_in) return skip("the parent has not opted in to WhatsApp");
+  if (!contact.mobile_normalised) return skip("the parent's mobile number could not be normalised");
+
+  const vars: Record<string, string | null> = { ...opts.variables, parent_first_name: contact.first_name };
+  let buttonSuffix: string | null = null;
+  if (template.button_link && opts.link) {
+    const minted = await mintToken(admin, {
+      familyId: opts.familyId,
+      purpose: opts.link,
+      ttlDays: settings.nextStepTokenDays,
+      maxUses: null,
+      reason: `whatsapp:${opts.templateKey}`,
+    });
+    buttonSuffix = minted.token;
+  }
+
+  const params = template.parameters.map((name) => sanitiseParam(vars[name] ?? ""));
+  const rendered = renderPreview(template.body_preview, params) + (buttonSuffix ? ` [${template.link_purpose} link]` : "");
+
+  const { data: message, error: mErr } = await admin
+    .from("messages")
+    .upsert(
+      {
+        family_id: opts.familyId,
+        student_id: opts.studentId ?? null,
+        contact_id: contact.id,
+        direction: "out",
+        template_key: template.key,
+        to_normalised: contact.mobile_normalised,
+        provider: provider.name,
+        status: "queued",
+        rendered_text: rendered,
+        idempotency_key: opts.idempotencyKey,
+        email_message_id: opts.emailMessageId ?? null,
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true }
+    )
+    .select("id")
+    .maybeSingle();
+  if (mErr) return { status: "failed", error: mErr.message, retryable: true };
+  // The key already existed: an earlier attempt got this far. Never twice.
+  if (!message) return { status: "skipped", reason: "already sent" };
+
+  const result = await provider.sendTemplate({
+    to: contact.mobile_normalised,
+    templateName: template.meta_template_name ?? template.key,
+    providerTemplateId: templateId,
+    language: template.language,
+    bodyParams: params,
+    buttonUrlSuffix: buttonSuffix,
+    idempotencyKey: opts.idempotencyKey,
+  });
+
+  if (!result.ok) {
+    await admin.from("messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    return { status: "failed", error: result.error, retryable: result.retryable };
+  }
+  await admin
+    .from("messages")
+    .update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() })
+    .eq("id", message.id);
+  return { status: "sent", messageId: message.id };
+}
+
 /**
  * The message template rows staff may choose from when sending by hand.
  *

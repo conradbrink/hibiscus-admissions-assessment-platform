@@ -3,6 +3,7 @@ import { reconcileProcessingPayments } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainJobs } from "@/lib/workflow/jobs";
 import { queueDigests } from "@/lib/workflow/automation/digest";
+import { sweepReenrolment } from "@/lib/workflow/automation/reenrolment";
 import { anonymiseExpired } from "@/lib/workflow/automation/retention";
 import { ensureWeekdaySessions } from "@/lib/workflow/automation/sessions";
 import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
@@ -54,6 +55,10 @@ export async function GET(request: Request) {
     console.error("[digest] queue failed", e);
     return -1;
   });
+  const reenrolment = await sweepReenrolment(admin).catch((e) => {
+    console.error("[reenrolment] sweep failed", e);
+    return { asked: -1, chased: -1 };
+  });
   const sessionsCreated = await ensureWeekdaySessions(admin).catch((e) => {
     console.error("[sessions] weekday schedule failed", e);
     return -1;
@@ -63,6 +68,7 @@ export async function GET(request: Request) {
   return Response.json({
     ...summary,
     routed_enquiries: routed,
+    reenrolment,
     reconciled_payments: reconciled,
     pruned_rate_limits: pruned,
     waitlist_promoted: waitlist.promoted,

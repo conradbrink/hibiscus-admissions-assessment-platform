@@ -391,6 +391,25 @@ is answering anyway, to check what we hold is still true.
   `/family/returning`. Most first-round answers will arrive by telephone, so
   recording one by hand is a first-class action rather than an afterthought.
 
+### Messages that are about a family (PR #63 onward)
+
+Every message the product had ever sent was about an application. The
+re-enrolment ask is not: it asks a family about children who enrolled years
+ago, through applications that are terminal and may have been anonymised. So
+both logs learned a second subject, exactly as `access_tokens` did, and
+`sendFamilyEmail` sits beside `sendStaffEmail` on the same renderer.
+
+The rule that a WhatsApp message is an approved template, to an opted-in
+contact, as the companion of an email moment, is **unchanged** — only who the
+moment is about is new. `sendFamilyMessage` is a second sender rather than a
+mode of the first, because the first begins by loading an application graph.
+
+The ask and its reminders are `reenrolment_asks_enabled`, off by default:
+the school should watch one round work by hand before the product writes to
+every family at a campus at once. The two WhatsApp companions ship inactive
+and need a provider template id pasted in before they can send, like every
+other message template.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until

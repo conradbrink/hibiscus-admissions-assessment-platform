@@ -561,7 +561,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
-  audience: "parent" | "staff";
+  audience: "parent" | "staff" | "family";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -570,6 +570,8 @@ export type EmailTemplateRow = {
 export type EmailMessageRow = {
   id: string;
   application_id: string | null;
+  family_id: string | null;
+  student_id: string | null;
   contact_id: string | null;
   template_key: string | null;
   template_version: number | null;
@@ -1420,6 +1422,7 @@ export type MessageLinkPurpose = "next_step" | "results" | "offer" | "payment" |
 export type MessageTemplateRow = {
   key: string;
   name: string;
+  audience: "applicant" | "family";
   meta_template_name: string | null;
   /** Twilio's Content Template SID (HX…), used instead of the name when Twilio is the provider. */
   twilio_content_sid: string | null;
@@ -1500,7 +1503,10 @@ export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" 
 
 export type MessageRow = {
   id: string;
-  application_id: string;
+  /** Exactly one of these two names what the message is about. */
+  application_id: string | null;
+  family_id: string | null;
+  student_id: string | null;
   contact_id: string | null;
   direction: "out" | "in";
   channel: "whatsapp";
@@ -1746,6 +1752,8 @@ export type Database = {
       email_messages: TableOf<
         EmailMessageRow,
         | "application_id"
+        | "family_id"
+        | "student_id"
         | "contact_id"
         | "template_key"
         | "template_version"
@@ -2205,11 +2213,12 @@ export type Database = {
       >;
       message_templates: TableOf<
         MessageTemplateRow,
-        "meta_template_name" | "twilio_content_sid" | "zavu_template_id" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        "audience" | "meta_template_name" | "twilio_content_sid" | "zavu_template_id" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
         [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
       messages: TableOf<
         MessageRow,
+        | "application_id" | "family_id" | "student_id"
         | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
         | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at",
         [

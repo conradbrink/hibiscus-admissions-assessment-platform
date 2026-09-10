@@ -269,7 +269,7 @@ type TemplateLookup =
   | { ok: true; template: EmailTemplateRow }
   | { ok: false; result: SendTemplatedResult };
 
-async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff"): Promise<TemplateLookup> {
+async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff" | "family"): Promise<TemplateLookup> {
   const { data: template, error } = await admin
     .from("email_templates")
     .select("*")
@@ -288,8 +288,8 @@ async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "p
 /** Where the email goes, and which row of ours the address belongs to. */
 type EmailRecipient = { email: string; contactId?: string | null; staffId?: string | null };
 
-/** What the email is about, for the record. */
-type EmailSubject = { applicationId?: string | null };
+/** What the email is about, for the record. Exactly one, in practice. */
+type EmailSubject = { applicationId?: string | null; familyId?: string | null; studentId?: string | null };
 
 type EmailAttachment = { filename: string; content: string | Uint8Array; contentType: string };
 
@@ -327,6 +327,8 @@ async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Pr
     .from("email_messages")
     .insert({
       application_id: opts.subject?.applicationId ?? null,
+      family_id: opts.subject?.familyId ?? null,
+      student_id: opts.subject?.studentId ?? null,
       contact_id: opts.recipient.contactId ?? null,
       recipient_staff_id: opts.recipient.staffId ?? null,
       template_key: template.key,
@@ -493,6 +495,81 @@ export async function sendStaffEmail(admin: AdminClient, opts: SendStaffOptions)
     template: lookup.template,
     variables: opts.variables,
     recipient: { email: staff.email, staffId: staff.id },
+    idempotencyKey: opts.idempotencyKey,
+  });
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Family email: a template with audience 'family', about a child, not an
+// application
+// ---------------------------------------------------------------------------
+
+export type FamilyLinkPurpose = "family" | "onboarding" | "reenrolment" | "checkin" | "event";
+
+export type SendFamilyOptions = {
+  familyId: string;
+  /** The child the moment is about, when it is about one. */
+  studentId?: string | null;
+  /** Which contact to write to. The loader picks the family's first if unset. */
+  contactId?: string | null;
+  templateKey: string;
+  idempotencyKey: string;
+  /** Minted here, at send time, exactly as the funnel's links are. */
+  link?: FamilyLinkPurpose | null;
+  linkTtlDays?: number;
+  variables: Record<string, string | null>;
+};
+
+/**
+ * Sends one templated email to a family, and records it against them.
+ *
+ * The same renderer, layout and provider as every other email; what differs
+ * is the subject. A family moment cannot borrow `sendTemplatedEmail`, which
+ * starts by loading an application graph — the applications these families
+ * arrived on are terminal, years old, and may have been anonymised.
+ *
+ * The variables are the caller's, because a family moment has no single graph
+ * to build them from: a re-enrolment ask is about one child inside a round,
+ * a first-day note is about a class. What is *not* the caller's is the link:
+ * it is minted here, at send time, so a raw token lives in the email and
+ * nowhere else.
+ */
+export async function sendFamilyEmail(admin: AdminClient, opts: SendFamilyOptions): Promise<SendTemplatedResult> {
+  const lookup = await loadActiveTemplate(admin, opts.templateKey, "family");
+  if (!lookup.ok) return lookup.result;
+
+  const { data: contact, error: cErr } = await (opts.contactId
+    ? admin.from("contacts").select("id, first_name, email").eq("id", opts.contactId).maybeSingle()
+    : admin
+        .from("contacts")
+        .select("id, first_name, email")
+        .eq("family_id", opts.familyId)
+        .order("created_at")
+        .limit(1)
+        .maybeSingle());
+  if (cErr) return { status: "failed", error: cErr.message, retryable: true };
+  if (!contact?.email) return { status: "skipped", reason: "the family has no contact to write to" };
+
+  const settings = await getSettings(admin);
+  const vars: TemplateVariables = { ...opts.variables, parent_first_name: contact.first_name };
+  if (opts.link) {
+    const minted = await mintToken(admin, {
+      familyId: opts.familyId,
+      purpose: opts.link,
+      ttlDays: opts.linkTtlDays ?? settings.nextStepTokenDays,
+      // Never single-use: a parent opens the same link from two devices.
+      maxUses: null,
+      reason: `email:${opts.templateKey}`,
+    });
+    vars[`${opts.link}_link`] = minted.url;
+  }
+
+  const { result } = await renderAndSend(admin, {
+    template: lookup.template,
+    variables: vars,
+    recipient: { email: contact.email, contactId: contact.id },
+    subject: { familyId: opts.familyId, studentId: opts.studentId ?? null },
     idempotencyKey: opts.idempotencyKey,
   });
   return result;
