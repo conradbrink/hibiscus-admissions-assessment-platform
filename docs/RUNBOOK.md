@@ -342,17 +342,36 @@ approved: free text is never sent, because WhatsApp only allows it inside a
    WhatsApp sandbox instead of a real number — start there. `zv_live_`
    reaches real people. The engineer sets it as `ZAVU_API_KEY`.
 2. Create a template per moment in Zavu and let it submit each for WhatsApp's
-   approval. Variables are numbered, so the order of the variables listed on
-   the row in **Set up → WhatsApp templates** is the order they fill the
-   wording; a message with a link fills the button's own first variable.
-3. When a template is approved, copy its **id** onto the row and tick
-   **Active**.
+   approval. The wording, the variables and the button of every one of them
+   are in `web/content/messaging/zavu-templates.json`; print them as the
+   dashboard's own fields with
+
+       node web/scripts/zavu-templates.mjs            # all of them
+       node web/scripts/zavu-templates.mjs --only offer_reminder
+
+   Variables are numbered, so the order of the variables listed on the row in
+   **Set up → WhatsApp templates** is the order they fill the wording; a
+   message with a link fills the button's own first variable, numbered
+   separately from the body's.
+
+   The button is a **URL** button, not a Quick Reply, and Meta accepts a URL
+   containing `{{1}}` only when an example of a filled-in URL is submitted
+   beside it. Without the example the submission comes back
+   *"components[1]['buttons'][0]['url'] is not a valid URI"* — braces are not
+   legal in a URI, and Meta has not been told to expect them.
+3. When a template is approved, copy its **id** onto the row in **Set up →
+   WhatsApp templates** and tick **Active**. To do a batch at the console
+   instead:
+
+       node web/scripts/zavu-templates.mjs --sql booking_confirmed=<id> offer_reminder=<id>
 4. Point the sender's webhook at `<site>/api/webhooks/whatsapp`. Zavu shows
    the signing secret **once**, when it registers the webhook — put it in as
    `ZAVU_WEBHOOK_SECRET` there and then. Without it every delivery is refused,
    which is the safe direction but means no reply ever arrives.
 5. If the account has more than one sender, set `ZAVU_SENDER_ID` to the one
-   the school sends as.
+   the school sends as. It is the sender profile's own id — the last part of
+   the dashboard address when the profile is open. With a single sender,
+   leave it unset and Zavu picks the only one.
 
 **Through Twilio** (`MESSAGING_PROVIDER=twilio`)
 
