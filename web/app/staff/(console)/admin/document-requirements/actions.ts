@@ -16,7 +16,6 @@ const schema = z.object({
   gradeSortMin: bound,
   gradeSortMax: bound,
   sortOrder: z.coerce.number().int().min(0).max(1000).default(0),
-  isActive: z.string().optional(),
 });
 
 export async function saveRequirement(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
@@ -32,7 +31,9 @@ export async function saveRequirement(_: StaffActionState, formData: FormData): 
         grade_sort_min: p.gradeSortMin,
         grade_sort_max: p.gradeSortMax,
         sort_order: p.sortOrder,
-        is_active: p.isActive !== "0",
+        // Read straight off the FormData: a checkbox that is not ticked
+        // submits nothing, so getAll gives [] and this is false.
+        is_active: formData.getAll("isActive").includes("1"),
       },
       { onConflict: "code" }
     );

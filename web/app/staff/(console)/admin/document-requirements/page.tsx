@@ -23,7 +23,6 @@ export default async function DocumentRequirementsPage() {
       <div className="flex items-center gap-3 text-xs">
         <label className="flex items-center gap-1"><input type="checkbox" name="required" value="1" defaultChecked={r ? r.required : true} /> required</label>
         <label className="flex items-center gap-1"><input type="checkbox" name="isActive" value="1" defaultChecked={r ? r.is_active : true} /> active</label>
-        <input type="hidden" name="isActive" value="0" />
       </div>
     </ActionForm>
   );
