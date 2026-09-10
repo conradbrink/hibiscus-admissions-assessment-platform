@@ -204,7 +204,7 @@ describe("the values their importer will accept", () => {
     const dropped = droppedValues([odd]);
     expect(dropped.nationalities).toContain("Botswanan");
     expect(dropped.languages).toContain("Tswana");
-    expect(droppedValues([family])).toEqual({ nationalities: [], languages: [] });
+    expect(droppedValues([family])).toEqual({ nationalities: [], languages: [], genders: [], relationships: [] });
   });
 
   it("writes phone numbers as digits, never with a leading plus", () => {
@@ -390,5 +390,41 @@ describe("guardian gender, asked rather than inferred", () => {
     const old = withGuardian({ title: "Mrs", relationship: "guardian", gender: null });
     expect(relationOf(old)).toBe("Guardian (female)");
     expect(genderOf(old)).toBe("F");
+  });
+});
+
+describe("the child's gender, in Ed-admin's two values", () => {
+  const withStudent = (over: Partial<StudentRecordSnapshot["student"]>): FamilyExport => ({
+    ...family,
+    record: { ...record, student: { ...record.student, ...over } },
+  });
+  const genderOf = (f: FamilyExport) => studentRow(f)[STUDENT_COLUMNS.indexOf("Gender*")];
+
+  it("sends F and M", () => {
+    expect(genderOf(withStudent({ gender: "female" }))).toBe("F");
+    expect(genderOf(withStudent({ gender: "male" }))).toBe("M");
+    for (const value of ["F", "M"]) expect(ED_ADMIN.genders).toContain(value);
+  });
+
+  it("sends nothing for the two answers their list has no word for", () => {
+    // Taking the first letter put O and U in a required column, and Ed-admin
+    // refused the row. Our list has four answers; theirs has two.
+    expect(genderOf(withStudent({ gender: "other" }))).toBe("");
+    expect(genderOf(withStudent({ gender: "undisclosed" }))).toBe("");
+    expect(genderOf(withStudent({ gender: null }))).toBe("");
+  });
+
+  it("names the child rather than quietly sending a blank", () => {
+    const report = droppedValues([withStudent({ gender: "undisclosed" })]);
+    expect(report.genders).toEqual(["Abigail Coetzer (undisclosed)"]);
+    expect(droppedValues([withStudent({ gender: "female" })]).genders).toEqual([]);
+  });
+
+  it("reports a guardian Ed-admin has no relation for alongside them", () => {
+    const doctor: FamilyExport = {
+      ...family,
+      record: { ...record, guardians: [{ ...record.guardians[0], title: "Dr", relationship: "guardian", gender: null }] },
+    };
+    expect(droppedValues([doctor]).relationships.length).toBe(1);
   });
 });
