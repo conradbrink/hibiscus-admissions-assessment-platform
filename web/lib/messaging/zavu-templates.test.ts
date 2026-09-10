@@ -32,6 +32,17 @@ describe("zavu template content", () => {
     if (t.button) expect(t.button.length).toBeLessThanOrEqual(25);
   });
 
+  it.each(all.map((t) => [t.key, t] as const))("%s carries its variables in enough words", (_key, t) => {
+    // "This template has too many variables for its length" — Meta's words,
+    // for a template with four variables and 49 characters of wording, which
+    // works out at 12.3 characters each. The threshold itself is unpublished,
+    // so this guards the level we know is refused rather than pretending to
+    // know the real one: when a template is rejected for its length, the fix
+    // is more words, not a nudge past this number.
+    const words = t.body.replace(/\{\{\d+\}\}/g, "").trim().length;
+    expect(words / t.parameters.length).toBeGreaterThan(13);
+  });
+
   it("gives the dynamic button an example, which is what Meta rejected without", () => {
     expect(templates.buttonUrl).toContain("{{1}}");
     // The example fills {{1}}; it is not the whole address. Zavu appends it
