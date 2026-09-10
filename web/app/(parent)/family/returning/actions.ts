@@ -10,7 +10,7 @@ import { requireFamilySession } from "@/lib/tokens/server";
 export type FamilyActionState = { error?: string; ok?: boolean };
 
 const answerSchema = z.object({
-  responseId: z.uuid(),
+  responseId: z.guid(),
   intent: z.enum(["returning", "not_returning", "undecided"]),
   reason: z.string().trim().max(500).optional(),
 });
@@ -44,7 +44,7 @@ export async function answerReturning(
 }
 
 const confirmSchema = z.object({
-  responseId: z.uuid(),
+  responseId: z.guid(),
   changed: z.string().trim().max(500).optional(),
 });
 

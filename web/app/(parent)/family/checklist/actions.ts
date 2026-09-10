@@ -8,7 +8,7 @@ import { requireFamilySession } from "@/lib/tokens/server";
 import type { FamilyActionState } from "@/app/(parent)/family/returning/actions";
 
 const schema = z.object({
-  itemId: z.uuid(),
+  itemId: z.guid(),
   /** The answer a `choice` step asks for; empty for an acknowledgement. */
   choice: z.string().trim().max(200).optional(),
 });

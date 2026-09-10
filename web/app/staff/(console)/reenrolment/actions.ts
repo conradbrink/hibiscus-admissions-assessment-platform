@@ -13,8 +13,8 @@ function done() {
 }
 
 const openSchema = z.object({
-  intakeId: z.uuid(),
-  campusId: z.union([z.uuid(), z.literal("")]),
+  intakeId: z.guid(),
+  campusId: z.union([z.guid(), z.literal("")]),
   name: z.string().trim().min(1).max(120),
   opensOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   closesOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -60,7 +60,7 @@ export async function openCycle(_prev: StaffActionState, formData: FormData): Pr
 }
 
 const answerSchema = z.object({
-  responseId: z.uuid(),
+  responseId: z.guid(),
   intent: z.enum(["returning", "not_returning", "undecided"]),
   reason: z.string().trim().max(500).optional(),
 });
@@ -92,7 +92,7 @@ export async function recordAnswer(_prev: StaffActionState, formData: FormData):
   });
 }
 
-const closeSchema = z.object({ cycleId: z.uuid() });
+const closeSchema = z.object({ cycleId: z.guid() });
 
 /**
  * Closes a round. The unanswered stay unanswered: a family that was asked
