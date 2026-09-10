@@ -23,8 +23,21 @@ const papers = readdirSync(dir)
   .sort()
   .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")));
 
-/** Which entry grades sit which paper stage, on grades.sort_order. */
-const ENTRY = { 4: { min: 90, max: 90, label: "Stage 4" }, 5: { min: 100, max: 100, label: "Stage 5" }, 6: { min: 110, max: 120, label: "Stage 6 and Stage 7" } };
+/**
+ * Which entry grades sit which paper stage, on grades.sort_order.
+ *
+ * A Progression Test is an end-of-stage paper, so the child sitting it has
+ * just finished that stage: the Stage 5 paper belongs to a child entering
+ * Stage 6. Pairing a paper with the stage of the same number asks a child
+ * about a year nobody has taught them yet, and the bands the decision rules
+ * read would call that a weak child rather than an untaught one.
+ */
+const ENTRY = {
+  3: { min: 90, max: 90, label: "Stage 4" },
+  4: { min: 100, max: 100, label: "Stage 5" },
+  5: { min: 110, max: 110, label: "Stage 6" },
+  6: { min: 120, max: 120, label: "Stage 7" },
+};
 const SUBJECT_ORDER = ["english", "mathematics", "science"];
 /** Minutes per part; the whole sitting is 40. */
 const BUDGET = { english: 15, mathematics: 13, science: 12 };

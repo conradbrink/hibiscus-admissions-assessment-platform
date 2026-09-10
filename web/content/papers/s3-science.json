@@ -1,0 +1,332 @@
+{
+  "code": "s3-science",
+  "name": "Cambridge Progression · Stage 3 · Science",
+  "subject": "science",
+  "stage": 3,
+  "time_limit_minutes": 40,
+  "source": "0097 Science 2025 Stage 3 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions.",
+      "items": [
+        {
+          "code": "S3-SC-Q1a",
+          "competency": "science_biology",
+          "type": "matching",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Match each part of the plant to its function.",
+          "pairs": [
+            [
+              "flower",
+              "reproduction"
+            ],
+            [
+              "stem",
+              "transports water"
+            ],
+            [
+              "leaf",
+              "makes food"
+            ]
+          ],
+          "note": "Mark scheme: all three correct = 1 mark."
+        },
+        {
+          "code": "S3-SC-Q1b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "marks": 2,
+          "difficulty": 2,
+          "stem": "Water is one condition a plant needs to be healthy.\n\nWrite down two other conditions the plant needs to be healthy.",
+          "key": {
+            "accepted": [
+              "light and temperature",
+              "light and warmth",
+              "light, correct temperature",
+              "light and minerals"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: light; (correct) temperature. Each correct answer = 1 mark. Accept warmth or cold, and higher-level answers such as minerals or named minerals. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-SC-Q2a",
+          "competency": "science_enquiry",
+          "type": "single_choice",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Mia pulls a block across different surfaces. She measures the force she uses to pull the block across each surface.\n\nWhat equipment does Mia use to measure the force?",
+          "options": [
+            "thermometer",
+            "forcemeter",
+            "ruler",
+            "balance"
+          ],
+          "key": {
+            "correct": "forcemeter"
+          },
+          "note": "Mark scheme: forcemeter."
+        },
+        {
+          "code": "S3-SC-Q2c",
+          "competency": "science_enquiry",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Here are Mia’s results.\n\npaper 7 newtons\nconcrete 9 newtons\nglass 5 newtons\nwood 8 newtons\n\nMia concludes that glass is the smoothest surface. Is Mia correct? Use the results in the table to explain your answer.",
+          "key": {
+            "accepted": [
+              "Yes — glass needed the lowest force to pull the block",
+              "yes, the lowest force was needed for glass",
+              "yes, 5 newtons is the smallest force"
+            ]
+          },
+          "note": "Mark scheme: yes, with the idea that the lowest force was needed to pull the block. If ‘no’ is chosen, 0 marks. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-SC-Q2d",
+          "competency": "science_physics",
+          "type": "single_choice",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "What is the name of the force that Mia is investigating?",
+          "options": [
+            "friction",
+            "gravity",
+            "magnetism",
+            "mass"
+          ],
+          "key": {
+            "correct": "friction"
+          },
+          "note": "Mark scheme: friction."
+        },
+        {
+          "code": "S3-SC-Q3",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "marks": 2,
+          "difficulty": 2,
+          "stem": "A bottle of lemonade has a plastic lid, air above the drink and the lemonade itself.\n\nMaterials are solids, liquids or gases. Complete the sentences, choosing from: solid, liquid, gas.\n\nThe plastic lid is a ____.\nThe air is a ____.\nThe lemonade is a ____.",
+          "key": {
+            "accepted": [
+              "solid, gas, liquid",
+              "solid gas liquid"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: solid; gas; liquid. All three correct = 2 marks, two correct = 1 mark, one correct = 0 marks. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-SC-Q4",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "marks": 2,
+          "difficulty": 2,
+          "stem": "Useful materials are found in rocks. One useful material found in rocks is oil.\n\nName two other useful materials found in rocks.",
+          "key": {
+            "accepted": [
+              "natural gas and metals",
+              "gas and metal",
+              "natural gas, iron",
+              "metals and stone"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: natural gas; metals. Each correct answer = 1 mark. Accept named metals and suitable alternatives such as stone. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-SC-Q5a",
+          "competency": "science_enquiry",
+          "type": "single_choice",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Oliver uses the internet to find out about the organs in the human body.\n\nWhich type of scientific enquiry is he using?",
+          "options": [
+            "fair testing",
+            "observing over time",
+            "pattern seeking",
+            "researching"
+          ],
+          "key": {
+            "correct": "researching"
+          },
+          "note": "Mark scheme: researching."
+        },
+        {
+          "code": "S3-SC-Q5b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Oliver writes down some information in his notebook: the organ pumps blood around the body.\n\nWhich organ pumps blood around the body?",
+          "key": {
+            "accepted": [
+              "heart",
+              "the heart"
+            ]
+          },
+          "note": "Mark scheme: heart."
+        },
+        {
+          "code": "S3-SC-Q6a",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Blessy wants to separate a mixture of sand and water.\n\nComplete the sentence about this separation method.\n\nThis method separates the sand and water because sand is ____ in water.",
+          "key": {
+            "accepted": [
+              "insoluble",
+              "not soluble",
+              "does not dissolve"
+            ]
+          },
+          "note": "Mark scheme: insoluble."
+        },
+        {
+          "code": "S3-SC-Q6c",
+          "competency": "science_chemistry",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Blessy mixes salt and water. She cannot see the salt in the water.\n\nExplain why she cannot see the salt in the water.",
+          "key": {
+            "accepted": [
+              "the salt has dissolved in the water",
+              "it dissolved",
+              "salt dissolves in water"
+            ]
+          },
+          "note": "Mark scheme: the idea that the salt has dissolved in the water."
+        },
+        {
+          "code": "S3-SC-Q7a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Chen has a horseshoe magnet, with one end marked N and the other marked S.\n\nComplete the sentences.\n\nThe letter N is the ____ pole of the magnet.\nThe letter S is the ____ pole of the magnet.",
+          "key": {
+            "accepted": [
+              "north and south",
+              "north, south",
+              "north south"
+            ]
+          },
+          "note": "Mark scheme: north; south. Both answers correct for the mark."
+        },
+        {
+          "code": "S3-SC-Q8a",
+          "competency": "science_biology",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "What is a fossil?",
+          "key": {
+            "accepted": [
+              "the remains of a dead plant or animal",
+              "the remains of a dead animal",
+              "the remains of a dead plant",
+              "an impression of something that was once alive"
+            ]
+          },
+          "note": "Mark scheme: the remains of a dead plant or animal. Accept an impression of something that was once alive."
+        },
+        {
+          "code": "S3-SC-Q9a",
+          "competency": "science_biology",
+          "type": "single_choice",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Look at the food chain.\n\ngrass → snail → bird → fox\n\nWhat is the producer in this food chain?",
+          "options": [
+            "grass",
+            "snail",
+            "bird",
+            "fox"
+          ],
+          "key": {
+            "correct": "grass"
+          },
+          "note": "Mark scheme: grass."
+        },
+        {
+          "code": "S3-SC-Q9b",
+          "competency": "science_biology",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Look at the food chain.\n\ngrass → snail → bird → fox\n\nWrite down the names of all the consumers in this food chain.",
+          "key": {
+            "accepted": [
+              "snail and bird and fox",
+              "snail, bird, fox",
+              "snail bird fox"
+            ]
+          },
+          "note": "Mark scheme: snail and bird and fox. All three correct = 1 mark."
+        },
+        {
+          "code": "S3-SC-Q10a",
+          "competency": "science_physics",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Yuri sorts objects into three groups.\n\nopaque: shirt, chair\ntransparent: glass, clean water\nthird group: tissue paper\n\nComplete the table by adding the heading to the last column.",
+          "key": {
+            "accepted": [
+              "translucent"
+            ]
+          },
+          "note": "Mark scheme: translucent."
+        },
+        {
+          "code": "S3-SC-Q10b",
+          "competency": "science_physics",
+          "type": "short_text",
+          "marks": 2,
+          "difficulty": 3,
+          "stem": "Yuri wants to make a shadow using one of these objects.\n\nWrite down the name of one object Yuri uses to make a shadow, and explain your choice.",
+          "key": {
+            "accepted": [
+              "shirt — it blocks the light",
+              "chair — it blocks the light",
+              "shirt, it blocks light"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: shirt or chair; the idea that it blocks the light. Each correct answer = 1 mark. Accept examples of opaque objects not in the table. A person should check this answer against the mark scheme."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "2(b)",
+      "why": "label the y-axis and plot the bars of a printed bar chart [2]"
+    },
+    {
+      "q": "5(c)",
+      "why": "name organ X on a drawing of the body and describe its function [2]"
+    },
+    {
+      "q": "6(b)",
+      "why": "name the separation method from a picture of the equipment [1]"
+    },
+    {
+      "q": "7(b)",
+      "why": "describe and explain what two pictured magnets do, from their drawn orientation [2]"
+    },
+    {
+      "q": "7(c)",
+      "why": "the same magnets drawn in a second orientation [1]"
+    },
+    {
+      "q": "8(b)",
+      "why": "identify the organism from the pictured fossil [1]"
+    }
+  ]
+}

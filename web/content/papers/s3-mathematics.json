@@ -1,0 +1,333 @@
+{
+  "code": "s3-mathematics",
+  "name": "Cambridge Progression · Stage 3 · Mathematics",
+  "subject": "mathematics",
+  "stage": 3,
+  "time_limit_minutes": 40,
+  "source": "0096 Mathematics 2025 Stage 3 Paper 1",
+  "sections": [
+    {
+      "title": "Paper 1",
+      "instructions": "Answer all questions. You are not allowed to use a calculator.",
+      "items": [
+        {
+          "code": "S3-MA-Q2",
+          "competency": "number_sense",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Write the correct word to complete the sentence.\n\nThe value of 5 in the number 543 is 5 ____.",
+          "key": {
+            "accepted": [
+              "hundreds",
+              "hundred"
+            ]
+          },
+          "note": "Mark scheme: hundred(s). Accept recognisable misspellings. Do not accept a numerical answer, and do not accept hundredths."
+        },
+        {
+          "code": "S3-MA-Q3",
+          "competency": "number_sense",
+          "type": "numeric",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Write eight hundred and nineteen as a number.",
+          "key": {
+            "value": 819
+          },
+          "note": "Mark scheme: 819. Numerical answers only."
+        },
+        {
+          "code": "S3-MA-Q5",
+          "competency": "measures_data",
+          "type": "numeric",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Mike has a water bottle with a capacity of 2000 ml.\n\nWrite the capacity of his water bottle in litres.",
+          "key": {
+            "value": 2
+          },
+          "note": "Mark scheme: 2 (litres). Do not accept 2000 ml."
+        },
+        {
+          "code": "S3-MA-Q6",
+          "competency": "number_sense",
+          "type": "numeric",
+          "marks": 1,
+          "difficulty": 1,
+          "stem": "Round 162 to the nearest hundred.",
+          "key": {
+            "value": 200
+          },
+          "note": "Mark scheme: 200."
+        },
+        {
+          "code": "S3-MA-Q8",
+          "competency": "geometry",
+          "type": "numeric",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Here is a rectangle. Its longer sides are 7 centimetres and its shorter sides are 3 centimetres. It is not drawn to scale.\n\nCalculate the perimeter of the rectangle.",
+          "key": {
+            "value": 20
+          },
+          "note": "Mark scheme: 20 (centimetres). The printed paper labels the sides on a diagram; the lengths are given in the wording here."
+        },
+        {
+          "code": "S3-MA-Q9",
+          "competency": "arithmetic",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Gabriella calculates that the total mass of five bags of sugar, each 2 kg, is 10 kg. Here is her working.\n\n2 + 2 + 2 + 2 + 2 = 10\n\nLily says, ‘You can calculate the total more quickly using multiplication’.\n\nWrite down a multiplication calculation Gabriella could use.",
+          "key": {
+            "accepted": [
+              "5 × 2",
+              "2 × 5",
+              "5 x 2",
+              "2 x 5",
+              "5*2",
+              "2*5"
+            ]
+          },
+          "note": "Mark scheme: 5 × 2 or 2 × 5."
+        },
+        {
+          "code": "S3-MA-Q11",
+          "competency": "arithmetic",
+          "type": "numeric",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Work out.\n\n745 − 338",
+          "key": {
+            "value": 407
+          },
+          "note": "Mark scheme: 407."
+        },
+        {
+          "code": "S3-MA-Q12",
+          "competency": "patterns",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Here is part of a sequence. The sequence continues in the same way.\n\n545    535    525    515\n\nWrite down the next two terms in the sequence.",
+          "key": {
+            "accepted": [
+              "505 and 495",
+              "505, 495",
+              "505 495"
+            ]
+          },
+          "note": "Mark scheme: 505 and 495. Both answers correct for the mark."
+        },
+        {
+          "code": "S3-MA-Q13",
+          "competency": "measures_data",
+          "type": "single_choice",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Jamila buys a box of eggs for $1.20 She uses the exact amount of money to buy the eggs.\n\nWhich money does she use?",
+          "options": [
+            "a 100 dollar note and a 20 dollar note",
+            "a 1 dollar note and two 10 dollar notes",
+            "a 1 dollar note and two 10 cents coins",
+            "a 1 cent coin and a 20 dollar note"
+          ],
+          "key": {
+            "correct": "a 1 dollar note and two 10 cents coins"
+          },
+          "note": "Mark scheme: a 1 dollar note and two 10 cents coins."
+        },
+        {
+          "code": "S3-MA-Q14",
+          "competency": "problem_solving",
+          "type": "multi_select",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Angelique has 42 sweets. She eats 5 sweets each day, starting on Monday. She counts the number of sweets that are left each day.\n\nMonday has been done for you. Choose the other days she has an odd number of sweets left.",
+          "options": [
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday"
+          ],
+          "key": {
+            "correct": [
+              "Wednesday",
+              "Friday",
+              "Sunday"
+            ]
+          },
+          "note": "Mark scheme: all three ticks correct for the mark (Monday is given). No partial credit."
+        },
+        {
+          "code": "S3-MA-Q15",
+          "competency": "number_sense",
+          "type": "multi_select",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Choose all the numbers that are multiples of 2\n\n112    121    398    500    889    945",
+          "options": [
+            "112",
+            "121",
+            "398",
+            "500",
+            "889",
+            "945"
+          ],
+          "key": {
+            "correct": [
+              "112",
+              "398",
+              "500"
+            ]
+          },
+          "note": "Mark scheme: 112 and 398 and 500. All three correct for the mark."
+        },
+        {
+          "code": "S3-MA-Q16",
+          "competency": "arithmetic",
+          "type": "multi_select",
+          "marks": 1,
+          "difficulty": 4,
+          "stem": "Here is a number fact.\n\n23 × 4 = 92\n\nChoose the number sentences you can complete using this number fact. You do not need to find the missing numbers.",
+          "options": [
+            "92 ÷ ▢ = 4",
+            "92 × 4 = ▢",
+            "4 × ▢ = 92",
+            "23 + 92 = ▢"
+          ],
+          "key": {
+            "correct": [
+              "92 ÷ ▢ = 4",
+              "4 × ▢ = 92"
+            ]
+          },
+          "note": "Mark scheme: both correct for the mark. No partial credit."
+        },
+        {
+          "code": "S3-MA-Q18",
+          "competency": "measures_data",
+          "type": "short_text",
+          "marks": 2,
+          "difficulty": 3,
+          "stem": "Here is a list of units of time.\n\nseconds    minutes    hours    days    weeks    years\n\nChoose the most appropriate unit to make each sentence correct.\n\nIt takes about 8 ____ to fly from London to New York.\nIt takes about 2 ____ to brush your teeth.\nIt takes about 2 ____ for hair to grow half a metre.",
+          "key": {
+            "accepted": [
+              "hours, minutes, years",
+              "hours minutes years"
+            ]
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: hours; minutes; years. Award 1 mark for two correct answers. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-MA-Q19",
+          "competency": "number_sense",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 2,
+          "stem": "Here are some mathematical symbols.\n\n<    >    =\n\nWrite a symbol in each box to make each statement correct.\n\n110 ▢ 101\n135 ▢ 351",
+          "key": {
+            "accepted": [
+              "> and <",
+              ">, <",
+              "> <",
+              ">  <"
+            ]
+          },
+          "note": "Mark scheme: 110 > 101 and 135 < 351. Both answers correct for the mark."
+        },
+        {
+          "code": "S3-MA-Q22",
+          "competency": "measures_data",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Here is part of a morning train timetable.\n\nDeparture 8.00 — Warsaw — arrives 9.30\nDeparture 8.30 — Katowice — arrives 11.15\nDeparture 9.00 — Warsaw — arrives 10.30\nDeparture 9.30 — Warsaw — arrives 11.00\n\nPierre arrives at the station at 8.15 in the morning. He catches the next train to Warsaw.\n\nWrite down the time he arrives in Warsaw.",
+          "key": {
+            "accepted": [
+              "10.30",
+              "10:30",
+              "half past ten"
+            ]
+          },
+          "note": "Mark scheme: 10.30."
+        },
+        {
+          "code": "S3-MA-Q24",
+          "competency": "problem_solving",
+          "type": "numeric",
+          "marks": 2,
+          "difficulty": 4,
+          "stem": "Yuri sells three quarters of his stamp collection. He has 4 stamps left. He receives 2 dollars for each stamp he sells.\n\nCalculate the total amount of money he receives.",
+          "key": {
+            "value": 24
+          },
+          "partial_credit": true,
+          "note": "Mark scheme: 24 (dollars). Award 1 mark for correct method, e.g. 4 × 3 × 2, or for sight of 12 where it refers to the number of stamps sold. Do not accept 12 on the answer line for the method mark. A person should check this answer against the mark scheme."
+        },
+        {
+          "code": "S3-MA-Q26",
+          "competency": "arithmetic",
+          "type": "short_text",
+          "marks": 1,
+          "difficulty": 3,
+          "stem": "Rajiv has more than 5 counters. He shares the counters into equal groups. Here is a division calculation that represents Rajiv sharing the counters.\n\n▢ ÷ ▢ = 5\n\nWrite a number in each box to make the calculation correct.",
+          "key": {
+            "accepted": [
+              "10 ÷ 2",
+              "15 ÷ 3",
+              "20 ÷ 4",
+              "25 ÷ 5",
+              "30 ÷ 6",
+              "10/2",
+              "15/3"
+            ]
+          },
+          "note": "Mark scheme: any correct calculation, e.g. 10 ÷ 2 or 15 ÷ 3. Do not accept 5 ÷ 1. A person should check this answer against the mark scheme."
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "q": "1",
+      "why": "complete the frequency column of a tally chart — the chart is an image"
+    },
+    {
+      "q": "4",
+      "why": "three identical boxes summing to 12 metres, shown as a diagram of symbols"
+    },
+    {
+      "q": "7",
+      "why": "count the vertices of the 2D shapes on a pictured tile"
+    },
+    {
+      "q": "10",
+      "why": "ring the shapes with one quarter shaded — the shapes are images"
+    },
+    {
+      "q": "17",
+      "why": "show an estimate of 27 × 5 with an arrow on a printed number line"
+    },
+    {
+      "q": "20",
+      "why": "complete the directions of a route drawn on a grid"
+    },
+    {
+      "q": "21",
+      "why": "ring the two pictured angles that make a straight line"
+    },
+    {
+      "q": "23",
+      "why": "calculate the area of a square from a drawing of half of it"
+    },
+    {
+      "q": "25",
+      "why": "length of a rectangle containing three drawn circles"
+    }
+  ]
+}
