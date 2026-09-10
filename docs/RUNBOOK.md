@@ -19,14 +19,47 @@ engineering detail is in `PROJECT-CONTEXT.md`.
 ## A parent says they never got the email
 
 1. Applicant → **Emails**. Every send is listed with its status.
-2. `queued` for more than ten minutes: the job drain is not running. Check
-   `/staff/admin/jobs`; press **Run pending now**. If jobs stay `pending`,
-   the Vercel cron is not firing — check `CRON_SECRET` is set.
+2. `queued` for more than ten minutes: the job drain is not running. Open
+   `/staff/admin/jobs` — the strip at the top says when the scheduled drain
+   last ran. Press **Run pending now** to clear the backlog either way. If
+   that strip is amber or red, see *The queue has stopped draining* below.
 3. `failed`: open the message; the error is shown. A bad address is the
    parent's to fix; a provider error is ours.
 4. `sent` but not received: ask them to check spam. If this is common, the
    sending domain's SPF/DKIM/DMARC records are wrong.
 5. `bounced`: the address does not exist. Phone them.
+
+## The queue has stopped draining
+
+`/staff/admin/jobs` shows when the scheduled drain last ran and how many
+scheduled runs arrived in the last 24 hours, against the 288 a five-minute
+schedule asks for. Anything a parent or a member of staff does drains the
+queue by itself, so the symptom is never a stuck enquiry — it is timed work
+running late: a reminder, the weekday sittings, the nightly sweeps.
+
+Three things call the drain, at three cadences:
+
+| | Cadence | Where |
+|---|---|---|
+| Supabase `pg_cron` | every 5 minutes | the real schedule |
+| GitHub Actions | hourly | `.github/workflows/drain.yml`, a backstop |
+| Vercel cron | nightly 03:00 | `web/vercel.json`, a last resort |
+
+If the strip is red, work down that list:
+
+1. **Are the Vault secrets set?** `pg_cron` calls the site using
+   `drain_url` and `drain_cron_secret` from the Supabase Vault (Project
+   Settings → Vault). If either is missing the tick is a deliberate no-op
+   and nothing is logged. `drain_cron_secret` must equal Vercel's
+   `CRON_SECRET`; if that was ever rotated, rotate this with it.
+2. **Is the job scheduled?** In the SQL editor:
+   `select jobname, schedule, active from cron.job;`
+3. **What did the calls come back with?**
+   `select status_code, error_msg, created from net._http_response order by created desc limit 10;`
+   A 401 means the two secrets have drifted apart.
+4. **Run the backstop by hand** while you fix it: the *Drain job queue*
+   workflow in GitHub Actions has a **Run workflow** button, and
+   **Run pending now** on `/staff/admin/jobs` does the same from the console.
 
 ## Nobody can book
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { ApplicationStatus, JobRow } from "@/lib/supabase/types";
+import type { ApplicationStatus, JobRow, Json } from "@/lib/supabase/types";
 import type { JobPrecondition } from "@/lib/workflow/engine";
 import { HANDLERS } from "@/lib/workflow/handlers";
 
@@ -11,7 +11,7 @@ import { HANDLERS } from "@/lib/workflow/handlers";
  * Claims a batch (the database hands each job to exactly one worker), checks
  * each job's precondition against the world *now*, runs it, and records the
  * outcome. Runs from `after()` at the end of any request that queued work,
- * and from the five-minute cron as the durability guarantee.
+ * and from the five-minute schedule as the durability guarantee.
  *
  * Claims again until a claim comes back empty (bounded), because Phase 2
  * jobs queue jobs: marking queues the evaluation, the evaluation queues the
@@ -191,11 +191,51 @@ async function runOne(admin: AdminClient, job: JobRow, summary: DrainSummary): P
   }
 }
 
+/**
+ * Where a drain came from.
+ *
+ * Only `schedule` answers "is the queue being drained?". A busy afternoon of
+ * `request` rows says traffic is healthy, which is a different question and
+ * was for months the thing hiding that the schedule had stopped.
+ */
+export type DrainSource = "schedule" | "request" | "manual";
+
+/**
+ * Leaves a row saying the drain happened.
+ *
+ * Never throws. A drain that did its work and then could not write it down
+ * has still done its work, and turning that into a failed request would make
+ * the bookkeeping more dangerous than the thing it is keeping books on.
+ */
+async function recordDrainRun(
+  admin: AdminClient,
+  source: DrainSource,
+  summary: DrainSummary,
+  durationMs: number,
+  detail?: Record<string, Json>
+): Promise<void> {
+  try {
+    const { error } = await admin.from("drain_runs").insert({
+      source,
+      claimed: summary.claimed,
+      done: summary.done,
+      skipped: summary.skipped,
+      failed: summary.failed,
+      duration_ms: Math.round(durationMs),
+      detail: detail ?? null,
+    });
+    if (error) throw new Error(error.message);
+  } catch (e) {
+    console.error("[jobs] could not record the drain", (e as Error).message);
+  }
+}
+
 export async function drainJobs(
   admin: AdminClient,
   limit = 25,
-  opts: { maxBatches?: number } = {}
+  opts: { maxBatches?: number; source?: DrainSource; detail?: Record<string, Json> } = {}
 ): Promise<DrainSummary> {
+  const startedAt = Date.now();
   const worker = `worker-${randomUUID().slice(0, 8)}`;
   const summary: DrainSummary = { worker, claimed: 0, done: 0, skipped: 0, failed: 0, errors: [] };
   const maxBatches = opts.maxBatches ?? 6;
@@ -208,5 +248,6 @@ export async function drainJobs(
     for (const job of jobs) await runOne(admin, job, summary);
   }
 
+  await recordDrainRun(admin, opts.source ?? "request", summary, Date.now() - startedAt, opts.detail);
   return summary;
 }
