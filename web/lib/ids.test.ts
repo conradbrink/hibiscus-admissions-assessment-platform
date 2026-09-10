@@ -59,7 +59,14 @@ describe("id validation", () => {
       .split("\n")
       .filter(Boolean);
 
-    const offenders = files.filter((f) => readFileSync(join(root, f), "utf8").includes("z.uuid("));
+    // This file names z.uuid deliberately, in the two cases above that pin the
+    // difference, so it cannot be held to its own rule. Do not remove the
+    // exclusion: without it the guard fails on itself the moment it is
+    // committed, which is exactly how it first reached CI red.
+    const SELF = "lib/ids.test.ts";
+    const offenders = files
+      .filter((f) => f !== SELF)
+      .filter((f) => readFileSync(join(root, f), "utf8").includes("z.uuid("));
     expect(offenders, `use z.guid() instead of z.uuid() in:\n${offenders.join("\n")}`).toEqual([]);
   });
 });
