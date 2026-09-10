@@ -32,6 +32,18 @@ export const RELATIONSHIPS = ["mother", "father", "parent", "guardian", "grandpa
  */
 export const TITLES = ["Mr", "Mrs", "Miss", "Ms", "Dr", "Professor", "Reverend", "Pastor", "Other"] as const;
 
+/**
+ * Ed-admin's Gender column, in its own values, and a required one.
+ *
+ * It used to be worked out from the title, which answers for Mr and Mrs and
+ * for nobody else: a guardian who is Dr or Reverend, with a relationship that
+ * does not settle it either, exported blank and Ed-admin refused the row. It
+ * is asked for rather than inferred — from the title, and certainly not from
+ * a first name.
+ */
+export const GUARDIAN_GENDERS = ["F", "M"] as const;
+export const GUARDIAN_GENDER_LABELS: Record<(typeof GUARDIAN_GENDERS)[number], string> = { F: "Female", M: "Male" };
+
 export const RELATIONSHIP_LABELS: Record<(typeof RELATIONSHIPS)[number], string> = {
   mother: "Mother",
   father: "Father",
@@ -103,6 +115,7 @@ const guardian = z.object({
   firstName: required(80, "Enter a first name."),
   lastName: required(80, "Enter a surname."),
   relationship: z.enum(RELATIONSHIPS, { error: "Choose the relationship." }),
+  gender: z.enum(GUARDIAN_GENDERS, { error: "Choose female or male." }),
   email: z.string().trim().max(160).optional().transform((v) => (v ? v : null)),
   // A mobile is the number the school messages, so it is checked against the
   // country it claims to be from; "other phone" is a landline nobody messages
@@ -122,6 +135,7 @@ export const familySchema = z
     secondaryFirstName: optional(80),
     secondaryLastName: optional(80),
     secondaryRelationship: z.enum(RELATIONSHIPS).optional(),
+    secondaryGender: z.enum(GUARDIAN_GENDERS).optional(),
     secondaryEmail: optional(160),
     secondaryMobile: optionalMobileNumber,
     secondaryPhone: optional(40),
@@ -135,7 +149,10 @@ export const familySchema = z
     if (!v.secondaryLastName) ctx.addIssue({ code: "custom", path: ["secondaryLastName"], message: "Enter the second guardian's surname." });
     if (!v.secondaryRelationship) ctx.addIssue({ code: "custom", path: ["secondaryRelationship"], message: "Choose the relationship." });
     if (!v.secondaryTitle) ctx.addIssue({ code: "custom", path: ["secondaryTitle"], message: "Choose a title." });
-    if (!v.secondaryMobile && !v.secondaryEmail) ctx.addIssue({ code: "custom", path: ["secondaryMobile"], message: "Enter a mobile number or an email address." });
+    if (!v.secondaryGender) ctx.addIssue({ code: "custom", path: ["secondaryGender"], message: "Choose female or male." });
+    // Ed-admin wants a number on every guardian it is given, so an email on
+    // its own no longer stands in for one.
+    if (!v.secondaryMobile) ctx.addIssue({ code: "custom", path: ["secondaryMobile"], message: "Enter a mobile number." });
   });
 
 export const emergencySchema = z.object({

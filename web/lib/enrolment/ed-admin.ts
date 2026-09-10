@@ -121,6 +121,21 @@ function fromGuardian(g: Guardian | undefined): { title: string; relation: strin
   const r = (g.relationship ?? "").toLowerCase();
   const title = g.title && ED_ADMIN.titles.includes(g.title) ? g.title : "";
 
+  // Registration asks for the gender now, so use the answer. The derivation
+  // below is what older records fall back on: it reads the sex off the title,
+  // which only some titles carry.
+  const asked = g.gender === "F" || g.gender === "M" ? g.gender : null;
+  if (asked) {
+    const suffix = asked === "F" ? "(female)" : "(male)";
+    if (r === "mother" || r === "stepmother" || r === "step-mother") return { title: title || "Mrs", relation: "Mother", gender: asked };
+    if (r === "father" || r === "stepfather" || r === "step-father") return { title: title || "Mr", relation: "Father", gender: asked };
+    if (r === "grandparent" || r === "grandmother" || r === "grandfather") {
+      return { title, relation: asked === "F" ? "Grandmother" : "Grandfather", gender: asked };
+    }
+    if (r === "guardian" || r === "parent") return { title, relation: `Guardian ${suffix}`, gender: asked };
+    return { title, relation: `Family ${suffix}`, gender: asked };
+  }
+
   // What the relationship settles on its own, whatever the title says.
   if (r === "mother" || r === "stepmother" || r === "step-mother") return { title: title || "Mrs", relation: "Mother", gender: "F" };
   if (r === "father" || r === "stepfather" || r === "step-father") return { title: title || "Mr", relation: "Father", gender: "M" };

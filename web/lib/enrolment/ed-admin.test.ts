@@ -62,6 +62,9 @@ const record: StudentRecordSnapshot = {
     {
       kind: "guardian",
       title: "Mrs",
+      // Null on purpose: these two are the records written before the form
+      // asked, and they prove the title-based fallback still exports.
+      gender: null,
       first_name: "Sanet",
       last_name: "Coetzer",
       relationship: "mother",
@@ -74,6 +77,7 @@ const record: StudentRecordSnapshot = {
     {
       kind: "guardian",
       title: "Mr",
+      gender: null,
       first_name: "Pieter",
       last_name: "Coetzer",
       relationship: "father",
@@ -353,5 +357,38 @@ describe("only Ed-admin's own words", () => {
     expect(row[BASIC_COLUMNS.indexOf("G1 Relation*")]).toBe("Mother");
     expect(row[BASIC_COLUMNS.indexOf("G1 Title*")]).toBe("Mrs");
     expect(unmappedRelationships([untitled])).toEqual([]);
+  });
+});
+
+describe("guardian gender, asked rather than inferred", () => {
+  const withGuardian = (over: Partial<StudentRecordSnapshot["guardians"][number]>): FamilyExport => ({
+    ...family,
+    record: { ...record, guardians: [{ ...record.guardians[0], ...over }] },
+  });
+  const relationOf = (f: FamilyExport) => basicRow(f)[BASIC_COLUMNS.indexOf("G1 Relation*")];
+  const genderOf = (f: FamilyExport) => basicRow(f)[BASIC_COLUMNS.indexOf("G1 Gender*")];
+
+  it("fills Relation and Gender for a doctor, which no title could", () => {
+    // The case that broke the import: every field on the form filled in, and
+    // Ed-admin refusing the row because two required columns came out empty.
+    const inferred = withGuardian({ title: "Dr", relationship: "guardian", gender: null });
+    expect(relationOf(inferred)).toBe("");
+    expect(genderOf(inferred)).toBe("");
+
+    const asked = withGuardian({ title: "Dr", relationship: "guardian", gender: "F" });
+    expect(relationOf(asked)).toBe("Guardian (female)");
+    expect(genderOf(asked)).toBe("F");
+    expect(ED_ADMIN.relations).toContain(relationOf(asked));
+  });
+
+  it("keeps the relationship's own word when it has one", () => {
+    expect(relationOf(withGuardian({ title: "Dr", relationship: "mother", gender: "F" }))).toBe("Mother");
+    expect(relationOf(withGuardian({ title: "Dr", relationship: "grandparent", gender: "M" }))).toBe("Grandfather");
+  });
+
+  it("still exports records written before the field existed", () => {
+    const old = withGuardian({ title: "Mrs", relationship: "guardian", gender: null });
+    expect(relationOf(old)).toBe("Guardian (female)");
+    expect(genderOf(old)).toBe("F");
   });
 });
