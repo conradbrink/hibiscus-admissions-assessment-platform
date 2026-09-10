@@ -513,3 +513,45 @@ export async function updateParentMobile(_: StaffActionState, formData: FormData
     done(app.id);
   });
 }
+
+/**
+ * Half day or full day, for a pre-school child.
+ *
+ * The school offers both and charges differently for each, so until somebody
+ * says which, the offer letter shows both rates and asks the family to
+ * confirm. Setting it here is what turns that choice into a single figure.
+ *
+ * Deliberately reversible to "not decided": a family that changes its mind
+ * before accepting should not need a database edit, and an offer already sent
+ * keeps the fees it froze either way.
+ */
+export async function setDayPattern(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({ dayPattern: z.enum(["half", "full", ""]) })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const to = parsed.dayPattern === "" ? null : parsed.dayPattern;
+    if (app.day_pattern === to) return;
+
+    const { error } = await admin.from("applications").update({ day_pattern: to }).eq("id", app.id);
+    if (error) throw new Error(error.message);
+
+    const say = (v: "half" | "full" | null) => (v === null ? "not decided" : v === "half" ? "half day" : "full day");
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "application.day_pattern_set",
+        summary: `Day pattern ${say(app.day_pattern)} → ${say(to)}`,
+        payload: { from: app.day_pattern, to },
+      },
+      audit: { action: "application.day_pattern_set", entityType: "application", entityId: app.id },
+      actor: ctx.actor,
+    });
+    revalidatePath(`/staff/applications/${app.id}`);
+  });
+}

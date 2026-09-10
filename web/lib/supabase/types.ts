@@ -338,6 +338,8 @@ export type ApplicationRow = {
   recommended_grade_id: string | null;
   intake_id: string;
   requires_assessment: boolean;
+  /** Pre-school only, and only once the school has decided. Null is normal. */
+  day_pattern: DayPattern | null;
   current_school: string | null;
   current_grade: string | null;
   status: ApplicationStatus;
@@ -871,8 +873,17 @@ export type FeeCode =
   | "admission"
   | "tuition_annual"
   | "tuition_term"
+  | "tuition_term_half"
+  | "tuition_term_full"
   | "tuition_month"
   | "stationery_annual";
+
+/**
+ * How long a pre-school child's day is, which decides which term rate the
+ * offer letter quotes. Null means nobody has said yet, which is the ordinary
+ * state when a place is offered — the letter then shows both rates.
+ */
+export type DayPattern = "half" | "full";
 export type FeeScheduleStatus = "draft" | "active";
 
 export type AdmissionRulesetRow = {
@@ -1565,6 +1576,7 @@ export type Database = {
         | "recommended_grade_id"
         | "current_school"
         | "current_grade"
+        | "day_pattern"
         | "status"
         | "status_changed_at"
         | "source"
