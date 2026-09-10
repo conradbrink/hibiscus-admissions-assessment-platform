@@ -1709,6 +1709,82 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 48. A magic link names exactly one subject, and the purpose decides which
+  -- -------------------------------------------------------------------------
+  begin
+    -- A family link reaches every child in the family, so a token that named
+    -- both — or a `payment` purpose pointed at a family — would be a way to
+    -- widen one link into another. The database refuses the shapes rather
+    -- than trusting whichever route minted it.
+    perform pg_temp.service();
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select app_broadhurst, s.family_id, 'family', 'sec-both', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      v_fail := v_fail || E'\n  - ' || '48: a token named an application and a family at once';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the both-subjects insert failed with "' || sqlerrm || '"');
+    end;
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      values (null, null, 'family', 'sec-neither', now() + interval '1 day');
+      v_fail := v_fail || E'\n  - ' || '48: a token named no subject at all';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the no-subject insert failed with "' || sqlerrm || '"');
+    end;
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select null, s.family_id, 'payment', 'sec-wrong-purpose', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      v_fail := v_fail || E'\n  - ' || '48: a funnel purpose was pointed at a family';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the wrong-purpose insert failed with "' || sqlerrm || '"');
+    end;
+
+    -- Control: the two shapes that are meant to work.
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select null, s.family_id, 'reenrolment', 'sec-family-ok', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      values (app_broadhurst, null, 'payment', 'sec-app-ok', now() + interval '1 day');
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48 control: a valid token was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- And a family link is visible to staff who may see one of its children,
+    -- but not to a manager at another campus.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.access_tokens where token_hash = 'sec-family-ok';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '48: a Broadhurst manager cannot see their own family''s link';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48: reading the family link failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_author);
+      select count(*) into v_count from public.access_tokens where token_hash = 'sec-family-ok';
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '48: a content author read a family link';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48: the author read failed unexpectedly: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

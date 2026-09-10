@@ -67,6 +67,31 @@ is in the pull request that introduced this repository. The short version:
 - **Declined applicants receive the learning profile** (setting
   `profile_shared_on_decline`, default on).
 
+### A family-scoped magic link (10 September 2026)
+
+The rule was: a parent session is scoped to exactly one application. It still
+is for the funnel. Alongside it there is now a second cookie scoped to a
+**family**, because the CRM asks its questions of a family and not of an
+application that closed years ago — finish the checklist, confirm your
+details, is she coming back next term.
+
+Agreed with the school on 10 September 2026, with the trade stated plainly:
+one link now reaches every child in the family. Still no parent accounts —
+passwords, resets and lockout are a new threat model and a real support burden
+for parents on feature phones, and with no money in these pages they buy
+little. Revisit if the CRM ever holds fee statements.
+
+Two things hold the line where RLS cannot. The two cookies are signed under
+different HMAC domains, so neither decoder can ever accept the other's value;
+and every read under `app/(parent)/family` goes through `lib/family/scope.ts`,
+with a test that fails the build if a family route queries a table itself.
+
+**Open, and the owner's to answer:** separated parents, and a guardian not
+entitled to the other child's medical data. `application_guardians` already
+records who guards whom, so the eventual shape is a link scoped to the
+children that contact guards. Shipped as "all children in the family", and
+recorded here as a known limitation rather than an oversight.
+
 ### Plain English for parents (7 September 2026)
 
 Everything written to a parent (letters, emails, WhatsApp, the assessment

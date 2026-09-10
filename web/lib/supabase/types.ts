@@ -103,13 +103,31 @@ export type BookingStatus =
   | "rescheduled";
 export type TaskPriority = "low" | "normal" | "high" | "urgent";
 export type TaskStatus = "open" | "done" | "cancelled";
+/**
+ * What a magic link is for, and — since the family CRM — which subject it
+ * names. The first six belong to one application; the last five belong to a
+ * family and reach every child in it.
+ */
 export type TokenPurpose =
   | "next_step"
   | "booking"
   | "results"
   | "offer"
   | "payment"
-  | "registration";
+  | "registration"
+  | "family"
+  | "onboarding"
+  | "reenrolment"
+  | "checkin"
+  | "event";
+
+/** The purposes whose subject is a family rather than an application. */
+export const FAMILY_TOKEN_PURPOSES = ["family", "onboarding", "reenrolment", "checkin", "event"] as const;
+export type FamilyTokenPurpose = (typeof FAMILY_TOKEN_PURPOSES)[number];
+
+export function isFamilyPurpose(purpose: TokenPurpose): purpose is FamilyTokenPurpose {
+  return (FAMILY_TOKEN_PURPOSES as readonly string[]).includes(purpose);
+}
 export type EmailStatus =
   | "queued"
   | "sent"
@@ -460,7 +478,9 @@ export type NoteRow = {
 
 export type AccessTokenRow = {
   id: string;
-  application_id: string;
+  /** Exactly one of these two is set, and `purpose` says which. */
+  application_id: string | null;
+  family_id: string | null;
   purpose: TokenPurpose;
   token_hash: string;
   expires_at: string;
@@ -1620,8 +1640,11 @@ export type Database = {
       >;
       access_tokens: TableOf<
         AccessTokenRow,
-        "max_uses" | "use_count" | "revoked_at" | "created_reason",
-        [Rel<"access_tokens_application_id_fkey", "application_id", "applications">]
+        "application_id" | "family_id" | "max_uses" | "use_count" | "revoked_at" | "created_reason",
+        [
+          Rel<"access_tokens_application_id_fkey", "application_id", "applications">,
+          Rel<"access_tokens_family_id_fkey", "family_id", "families">,
+        ]
       >;
       token_uses: TableOf<
         TokenUseRow,
@@ -2273,6 +2296,16 @@ export type Database = {
         Returns: {
           outcome: "ok" | "expired" | "revoked" | "exhausted" | "unknown";
           application_id: string | null;
+          purpose: TokenPurpose | null;
+          token_id: string | null;
+        }[];
+      };
+      consume_token_v2: {
+        Args: { p_token_hash: string; p_ip_hash: string | null; p_user_agent: string | null };
+        Returns: {
+          outcome: "ok" | "expired" | "revoked" | "exhausted" | "unknown";
+          application_id: string | null;
+          family_id: string | null;
           purpose: TokenPurpose | null;
           token_id: string | null;
         }[];

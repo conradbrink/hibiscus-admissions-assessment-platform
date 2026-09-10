@@ -11,21 +11,43 @@ cannot be inferred from the code.
 
 ## Parents are never database principals
 
-There are no parent accounts and no parent JWTs. A parent reaches their
-application through a magic link (`/a/<token>`), which is exchanged once for a
-short-lived signed cookie scoped to exactly one application. Every parent-facing
-read and write then runs through the **service-role client** in
-`lib/supabase/admin.ts`, inside a route handler or server action, after
-`lib/tokens` has verified the cookie.
+There are no parent accounts and no parent JWTs. A parent reaches us through a
+magic link (`/a/<token>`), which is exchanged once for a short-lived signed
+cookie. Every parent-facing read and write then runs through the
+**service-role client** in `lib/supabase/admin.ts`, inside a route handler or
+server action, after `lib/tokens` has verified the cookie.
+
+There are two such cookies, and they are deliberately separate:
+
+- `hbs_parent`, scoped to **one application**, path `/`. The funnel: booking,
+  results, the offer, payment, registration.
+- `hbs_family`, scoped to **one family**, path `/family`. The CRM: every child
+  at once, for as long as the family is with the school.
+
+The family cookie is an amendment, agreed with the school on 10 September
+2026. The rule used to say a parent session named exactly one application,
+which was right for a two-month funnel about one child and wrong for a family
+of eight years and three children: everything the CRM asks — finish the
+checklist, confirm your details, is she coming back — is asked of the family,
+not of an application that closed years ago.
 
 That means:
 
 - `lib/supabase/admin.ts` is `server-only`. Importing it from a client component
   is a build error, and it must stay that way.
-- Parent-facing code **must** scope every query by the `application_id` from the
-  verified session. There is no RLS backstop for parents. A missing `.eq()` is a
-  data leak across families.
-- Never put an application id, a reference, or a token in a query string.
+- Parent-facing code **must** scope every query by the id from the verified
+  session. There is no RLS backstop for parents. A missing `.eq()` is a data
+  leak across families — and under a family session it leaks somebody else's
+  children, so **every read under `app/(parent)/family` goes through
+  `lib/family/scope.ts`**, which takes the session and never a raw id.
+  `scope.test.ts` fails the build if a family route queries a table itself.
+- The two cookies are signed under **different HMAC domains**, so a bug in one
+  decoder cannot promote a funnel cookie into a family one, or the reverse.
+  Do not collapse them into a single cookie carrying a subject field.
+- A token names exactly one subject, and its purpose decides which: the
+  database enforces it in `access_tokens_subject_check`.
+- Never put an application id, a family id, a reference, or a token in a query
+  string.
 
 ## Only the workflow engine writes `applications.status`
 

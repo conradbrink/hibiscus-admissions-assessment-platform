@@ -29,8 +29,14 @@ export function linkFor(token: string): string {
   return `${siteUrl()}/a/${token}`;
 }
 
-export type MintOptions = {
-  applicationId: string;
+/**
+ * Exactly one subject, and the purpose has to agree with it — the database
+ * says so too, in `access_tokens_subject_check`. A union rather than two
+ * optional ids so a caller cannot forget to name one.
+ */
+export type MintSubject = { applicationId: string } | { familyId: string };
+
+export type MintOptions = MintSubject & {
   purpose: TokenPurpose;
   ttlDays: number;
   /** Null: unlimited uses inside the expiry. */
@@ -48,7 +54,8 @@ export async function mintToken(
   const { data, error } = await admin
     .from("access_tokens")
     .insert({
-      application_id: opts.applicationId,
+      application_id: "applicationId" in opts ? opts.applicationId : null,
+      family_id: "familyId" in opts ? opts.familyId : null,
       purpose: opts.purpose,
       token_hash: hashToken(token),
       expires_at: expiresAt.toISOString(),
@@ -62,7 +69,8 @@ export async function mintToken(
 }
 
 export type ConsumeOutcome =
-  | { outcome: "ok"; applicationId: string; purpose: TokenPurpose; tokenId: string }
+  | { outcome: "ok"; applicationId: string; familyId: null; purpose: TokenPurpose; tokenId: string }
+  | { outcome: "ok"; applicationId: null; familyId: string; purpose: TokenPurpose; tokenId: string }
   | { outcome: "expired" | "revoked" | "exhausted" | "unknown" };
 
 /** Verifies and consumes a raw token. Atomic in the database. */
@@ -75,14 +83,14 @@ export async function consumeToken(
   // trip. Also bounds the hash input.
   if (!/^[A-Za-z0-9_-]{40,48}$/.test(token)) return { outcome: "unknown" };
 
-  const { data, error } = await admin.rpc("consume_token", {
+  const { data, error } = await admin.rpc("consume_token_v2", {
     p_token_hash: hashToken(token),
     p_ip_hash: ctx.ipHash,
     p_user_agent: ctx.userAgent,
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];
-  if (!row || row.outcome !== "ok" || !row.application_id || !row.purpose || !row.token_id) {
+  const refused = (): ConsumeOutcome => {
     const outcome = row?.outcome;
     return {
       outcome:
@@ -90,13 +98,47 @@ export async function consumeToken(
           ? outcome
           : "unknown",
     };
-  }
-  return {
-    outcome: "ok",
-    applicationId: row.application_id,
-    purpose: row.purpose,
-    tokenId: row.token_id,
   };
+  if (!row || row.outcome !== "ok" || !row.purpose || !row.token_id) return refused();
+
+  // The database guarantees exactly one subject, but a token that somehow
+  // names neither is refused rather than trusted.
+  if (row.family_id) {
+    return {
+      outcome: "ok",
+      applicationId: null,
+      familyId: row.family_id,
+      purpose: row.purpose,
+      tokenId: row.token_id,
+    };
+  }
+  if (row.application_id) {
+    return {
+      outcome: "ok",
+      applicationId: row.application_id,
+      familyId: null,
+      purpose: row.purpose,
+      tokenId: row.token_id,
+    };
+  }
+  return refused();
+}
+
+/** Revokes every live token for a family, or only those of one purpose. */
+export async function revokeFamilyTokens(
+  admin: AdminClient,
+  familyId: string,
+  purpose?: TokenPurpose
+): Promise<number> {
+  let q = admin
+    .from("access_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("family_id", familyId)
+    .is("revoked_at", null);
+  if (purpose) q = q.eq("purpose", purpose);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
 }
 
 /** Revokes every live token for an application, or only those of one purpose. */
