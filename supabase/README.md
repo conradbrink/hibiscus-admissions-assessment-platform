@@ -1,6 +1,6 @@
 # Database schema
 
-Forty-six migrations, replayable from an empty database. That last property is not
+Fifty-nine migrations, replayable from an empty database. That last property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema

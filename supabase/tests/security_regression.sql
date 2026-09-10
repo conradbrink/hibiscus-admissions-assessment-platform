@@ -79,6 +79,9 @@ declare
   i_intake uuid;
   app_block7 uuid;
   app_broadhurst uuid;
+  -- Family CRM fixtures: a child enrolled at each campus.
+  crm_student_block7 uuid;
+  crm_student_broadhurst uuid;
   s_session uuid;
   s_empty uuid;
   v_count int;
@@ -163,7 +166,34 @@ begin
   select id into p2_competency from public.competencies where code = 'reading';
   select id into p2_offer_template from public.offer_templates where key = 'standard' and is_active;
   select ay.id into p2_year from public.intakes i join public.academic_years ay on ay.id = i.academic_year_id where i.id = i_intake;
-  if p2_competency is null or p2_offer_template is null or p2_year is null then
+  -- Two enrolled children, one per campus, built the way the engine builds
+  -- them: under the service role, from a family the contact trigger minted.
+  insert into public.students (
+    family_id, student_code, legal_first_name, legal_last_name,
+    date_of_birth, current_campus_id, current_grade_id
+  )
+  select c.family_id, public.next_student_code(), 'Sec', 'Block7',
+         date '2017-04-15', c_block7, g_stage4
+    from public.applications a join public.contacts c on c.id = a.contact_id
+   where a.id = app_block7
+  returning id into crm_student_block7;
+
+  insert into public.students (
+    family_id, student_code, legal_first_name, legal_last_name,
+    date_of_birth, current_campus_id, current_grade_id
+  )
+  select c.family_id, public.next_student_code(), 'Sec', 'Broadhurst',
+         date '2017-04-15', c_broadhurst, g_stage4
+    from public.applications a join public.contacts c on c.id = a.contact_id
+   where a.id = app_broadhurst
+  returning id into crm_student_broadhurst;
+
+  insert into public.enrolments (student_id, academic_year_id, campus_id, grade_id, status)
+  values (crm_student_block7, p2_year, c_block7, g_stage4, 'active'),
+         (crm_student_broadhurst, p2_year, c_broadhurst, g_stage4, 'active');
+
+  if p2_competency is null or p2_offer_template is null or p2_year is null
+     or crm_student_block7 is null or crm_student_broadhurst is null then
     raise exception 'SUITE BROKEN: Phase 2 seed data missing (competencies/offer_templates/academic_years)';
   end if;
   insert into public.question_banks (name, status, created_by) values ('Sec bank', 'active', u_author) returning id into p2_bank;
@@ -1558,6 +1588,122 @@ begin
       end if;
     exception when others then
       v_fail := v_fail || E'\n  - ' || ('44: reading the stage names failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 45. A student is campus-scoped on their own row, not through a funnel
+  -- -------------------------------------------------------------------------
+  begin
+    -- Attack: a manager limited to Broadhurst reads the register. A student
+    -- outlives their application, so this policy asks the student's own
+    -- campus rather than reaching through `applications`. If that column and
+    -- `can_access_campus` ever disagree, every campus sees every child.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.students where id = crm_student_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '45: a Broadhurst manager read a Block 7 student';
+      end if;
+      select count(*) into v_count from public.enrolments where campus_id = c_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '45: a Broadhurst manager read a Block 7 enrolment';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('45: reading the register failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Control: their own campus's child is there, or the policy says nothing.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.students where id = crm_student_broadhurst;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '45 control: a Broadhurst manager cannot read their own student';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('45 control: reading their own student failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Attack: a content author has no business in the register at all.
+    begin
+      perform pg_temp.impersonate(u_author);
+      select count(*) into v_count from public.students;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '45: a content author read the student register';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('45: the author read failed unexpectedly: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 46. Nobody types a child straight into the register
+  -- -------------------------------------------------------------------------
+  begin
+    -- Attack: an admissions officer inserts a student by hand, skipping the
+    -- registration, the documents and the person who checked them. There is
+    -- no insert policy on `students`; the engine writes them at enrolment.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.students (
+        family_id, student_code, legal_first_name, legal_last_name,
+        date_of_birth, current_campus_id
+      )
+      select family_id, 'HBS-S-99999', 'Forged', 'Child', date '2017-01-01', c_block7
+        from public.students where id = crm_student_block7;
+      v_fail := v_fail || E'\n  - ' || '46: an admissions officer inserted a student';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('46: the insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 47. Retention does not erase an enrolled child
+  -- -------------------------------------------------------------------------
+  begin
+    -- Attack: the retention sweep reaches an application a child was enrolled
+    -- from. Anonymising it would delete the registration, the documents and
+    -- the agreements the family's record is still made of.
+    --
+    -- Two fresh applications, because check 43 deletes app_block7 and the
+    -- earlier ones carry a journey these two do not need.
+    perform pg_temp.service();
+    select application_id into v_id from public.create_application(
+      'Sec','Retention','sec-retention-a@test.invalid','sec-retention-a@test.invalid',null,null,
+      'Child','R','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    update public.students set origin_application_id = v_id where id = crm_student_block7;
+    begin
+      perform public.anonymise_application(v_id);
+      v_fail := v_fail || E'\n  - ' || '47: an enrolled child''s application was anonymised';
+    exception when others then
+      if sqlerrm <> 'application_enrolled' then
+        v_fail := v_fail || E'\n  - ' || ('47: refused by "' || sqlerrm || '" rather than application_enrolled');
+      end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an application nobody was enrolled from still anonymises.
+    begin
+      select application_id into v_id from public.create_application(
+        'Sec','Retention','sec-retention-b@test.invalid','sec-retention-b@test.invalid',null,null,
+        'Child','S','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+      perform public.anonymise_application(v_id);
+      select count(*) into v_count from public.applications
+       where id = v_id and anonymised_at is not null;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '47 control: the application was not anonymised';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('47 control: anonymising an ordinary application failed: ' || sqlerrm);
     end;
     perform pg_temp.service();
   end;

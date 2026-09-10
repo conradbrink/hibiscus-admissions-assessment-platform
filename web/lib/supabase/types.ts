@@ -314,6 +314,8 @@ export type ContactRow = {
    * is always set.
    */
   family_code: string | null;
+  /** The family row that code names. `family_code` stays the external value. */
+  family_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1243,6 +1245,95 @@ export type StudentRecordRow = {
   created_at: string;
 };
 
+// ---------------------------------------------------------------------------
+// The family CRM: rows that outlive an application
+// ---------------------------------------------------------------------------
+
+export type FamilyRow = {
+  id: string;
+  family_code: string;
+  display_name: string | null;
+  home_address: string | null;
+  external_ref: string | null;
+  /** Set when two halves of one family were merged; this row is the loser. */
+  merged_into_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudentStatus = "onboarding" | "active" | "on_leave" | "left" | "graduated";
+
+export type StudentRow = {
+  id: string;
+  family_id: string;
+  student_code: string;
+  origin_application_id: string | null;
+  external_ref: string | null;
+  legal_first_name: string;
+  legal_middle_names: string | null;
+  legal_last_name: string;
+  preferred_name: string | null;
+  gender: string | null;
+  date_of_birth: string;
+  nationality: string | null;
+  country_of_birth: string | null;
+  place_of_birth: string | null;
+  home_language: string | null;
+  identity_type: "omang" | "passport" | "birth_certificate" | "other" | null;
+  identity_number: string | null;
+  medical_aid_name: string | null;
+  medical_aid_number: string | null;
+  medical_aid_principal_member: string | null;
+  emergency_treatment_consent: boolean | null;
+  allergies: string | null;
+  medical_conditions: string | null;
+  medication: string | null;
+  medical_notes: string | null;
+  vaccination_notes: string | null;
+  /** Kept in step with the newest live enrolment by trigger; the read policy asks it. */
+  current_campus_id: string;
+  current_grade_id: string | null;
+  status: StudentStatus;
+  left_on: string | null;
+  leave_reason: string | null;
+  details_confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EnrolmentStatus = "pending" | "active" | "not_returning" | "left" | "completed" | "transferred";
+
+export type EnrolmentRow = {
+  id: string;
+  student_id: string;
+  academic_year_id: string;
+  intake_id: string | null;
+  campus_id: string;
+  grade_id: string;
+  class_group_id: string | null;
+  origin_application_id: string | null;
+  status: EnrolmentStatus;
+  starts_on: string | null;
+  ends_on: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClassGroupRow = {
+  id: string;
+  campus_id: string;
+  grade_id: string;
+  academic_year_id: string;
+  name: string;
+  teacher_name: string | null;
+  room: string | null;
+  capacity: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -1965,6 +2056,47 @@ export type Database = {
           Rel<"student_records_export_batch_id_fkey", "export_batch_id", "student_exports">,
         ]
       >;
+      families: TableOf<
+        FamilyRow,
+        "display_name" | "home_address" | "external_ref" | "merged_into_id" | "notes",
+        [Rel<"families_merged_into_id_fkey", "merged_into_id", "families">]
+      >;
+      students: TableOf<
+        StudentRow,
+        | "student_code" | "origin_application_id" | "external_ref" | "legal_middle_names" | "preferred_name"
+        | "gender" | "nationality" | "country_of_birth" | "place_of_birth" | "home_language"
+        | "identity_type" | "identity_number" | "medical_aid_name" | "medical_aid_number"
+        | "medical_aid_principal_member" | "emergency_treatment_consent" | "allergies"
+        | "medical_conditions" | "medication" | "medical_notes" | "vaccination_notes"
+        | "current_grade_id" | "status" | "left_on" | "leave_reason" | "details_confirmed_at",
+        [
+          Rel<"students_family_id_fkey", "family_id", "families">,
+          Rel<"students_origin_application_id_fkey", "origin_application_id", "applications", true>,
+          Rel<"students_current_campus_id_fkey", "current_campus_id", "campuses">,
+          Rel<"students_current_grade_id_fkey", "current_grade_id", "grades">,
+        ]
+      >;
+      enrolments: TableOf<
+        EnrolmentRow,
+        "intake_id" | "class_group_id" | "origin_application_id" | "status" | "starts_on" | "ends_on",
+        [
+          Rel<"enrolments_student_id_fkey", "student_id", "students">,
+          Rel<"enrolments_academic_year_id_fkey", "academic_year_id", "academic_years">,
+          Rel<"enrolments_intake_id_fkey", "intake_id", "intakes">,
+          Rel<"enrolments_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"enrolments_grade_id_fkey", "grade_id", "grades">,
+          Rel<"enrolments_class_group_id_fkey", "class_group_id", "class_groups">,
+        ]
+      >;
+      class_groups: TableOf<
+        ClassGroupRow,
+        "teacher_name" | "room" | "capacity" | "is_active",
+        [
+          Rel<"class_groups_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"class_groups_grade_id_fkey", "grade_id", "grades">,
+          Rel<"class_groups_academic_year_id_fkey", "academic_year_id", "academic_years">,
+        ]
+      >;
       funnel_events: TableOf<
         FunnelEventRow,
         "application_id" | "campus_id" | "grade_id" | "elapsed_ms" | "occurred_at",
@@ -2133,6 +2265,9 @@ export type Database = {
       my_permissions: { Args: Record<string, never>; Returns: string[] };
       can_access_campus: { Args: { p_campus_id: string }; Returns: boolean };
       next_application_reference: { Args: Record<string, never>; Returns: string };
+      next_student_code: { Args: Record<string, never>; Returns: string };
+      family_id_for_code: { Args: { p_code: string }; Returns: string | null };
+      can_access_student: { Args: { p_student_id: string }; Returns: boolean };
       consume_token: {
         Args: { p_token_hash: string; p_ip_hash: string | null; p_user_agent: string | null };
         Returns: {

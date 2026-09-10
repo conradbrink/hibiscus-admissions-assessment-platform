@@ -3,6 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
 import { getStudentSystem } from "@/lib/enrolment/integration";
 import { buildStudentRecord } from "@/lib/enrolment/student-record";
+import { promoteToStudent } from "@/lib/enrolment/promote";
 import { loadRegistrationBundle } from "@/lib/registration/load";
 import type { Json } from "@/lib/supabase/types";
 import { commit, WorkflowError, type Actor } from "@/lib/workflow/engine";
@@ -38,6 +39,12 @@ export async function onEnrolmentConfirmed(admin: AdminClient, graph: Applicatio
     .single();
   if (error || !record) throw new WorkflowError(error?.message ?? "student record failed", "database");
 
+  // The record above is what the other system is told, frozen. This is the
+  // child as a row that outlives the application — the register the school
+  // works from afterwards. Before the transition, so a failure here refuses
+  // the enrolment rather than half-enrolling a family.
+  const promoted = await promoteToStudent(admin, graph, bundle);
+
   const system = getStudentSystem();
   const exported = await system.exportStudent(snapshot);
   await admin
@@ -50,7 +57,7 @@ export async function onEnrolmentConfirmed(admin: AdminClient, graph: Applicatio
     expectedStatus: "registration_complete",
     newStatus: "enrolled",
     nextAction: "none",
-    event: { type: "enrolment.completed", summary: "Enrolment confirmed", payload: { student_record_id: record.id, student_system: system.name, exported: exported.ok } },
+    event: { type: "enrolment.completed", summary: "Enrolment confirmed", payload: { student_record_id: record.id, student_id: promoted.studentId, student_system: system.name, exported: exported.ok } },
     resolveTaskTypes: ["confirm_enrolment", "review_registration_change"],
     tasks: [
       {
@@ -61,7 +68,7 @@ export async function onEnrolmentConfirmed(admin: AdminClient, graph: Applicatio
       },
     ],
     jobs: [{ type: "send_email", payload: { template_key: "welcome_enrolled" }, idempotencyKey: `email:${app.id}:welcome_enrolled` }],
-    audit: { action: "enrolment.confirmed", entityType: "student_record", entityId: record.id, after: { student_system: system.name, exported: exported.ok } },
+    audit: { action: "enrolment.confirmed", entityType: "student_record", entityId: record.id, after: { student_system: system.name, exported: exported.ok, student_id: promoted.studentId } },
     actor,
   });
 }

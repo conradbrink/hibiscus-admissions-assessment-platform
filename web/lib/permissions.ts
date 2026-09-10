@@ -37,6 +37,9 @@ export const PERMISSION_CODES = [
   "analytics.read",
   "data.export",
   "audit.read",
+  /** The register: children, families and the school year, after enrolment. */
+  "students.read",
+  "students.write",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -63,6 +66,8 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "analytics.read": "View admissions analytics",
   "data.export": "Export applicant data",
   "audit.read": "Read the audit trail",
+  "students.read": "View students, families and the school year",
+  "students.write": "Edit a student, a family and an enrolment",
 };
 
 export type PermissionSet = ReadonlySet<string>;
@@ -116,6 +121,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/analytics/export", "data.export"],
   ["/staff/analytics", "analytics.read"],
   ["/staff/enrolment", "data.export"],
+  ["/staff/students", "students.read"],
   ["/staff/payments", "finance.read"],
   ["/staff/registrations", "applications.read"],
   ["/staff/offers", "offers.read"],
@@ -159,6 +165,7 @@ export function homeFor(permissions: PermissionSet): string {
     "/staff",
     "/staff/assessments/today",
     "/staff/payments",
+    "/staff/students",
     "/staff/analytics",
     "/staff/admin/question-banks",
   ];

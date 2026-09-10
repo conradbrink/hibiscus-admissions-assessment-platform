@@ -8,12 +8,12 @@ import { canAccessPath } from "@/lib/permissions";
  * imported, because the sidebar (a client component) resolves them and the
  * layout (a server component) hands the groups across.
  *
- * Eleven destinations and one Settings hub: the day's work on the left,
+ * Twelve destinations and one Settings hub: the day's work on the left,
  * everything the process is configured from behind one door.
  */
 export type NavIcon =
   | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
-  | "payments" | "registrations" | "export" | "analytics" | "forecast" | "settings"
+  | "payments" | "registrations" | "export" | "students" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
@@ -55,6 +55,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/payments", label: "Payments", icon: "payments", permission: "finance.read" },
       { href: "/staff/registrations", label: "Registrations", icon: "registrations", permission: "applications.read" },
       { href: "/staff/enrolment/exports", label: "Student export", icon: "export", permission: "data.export" },
+    ],
+  },
+  {
+    label: "The school",
+    items: [
+      { href: "/staff/students", label: "Students", icon: "students", permission: "students.read" },
     ],
   },
   {
