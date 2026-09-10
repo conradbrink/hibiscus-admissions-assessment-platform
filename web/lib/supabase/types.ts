@@ -864,7 +864,15 @@ export type OfferStatus =
   | "withdrawn"
   | "accepted"
   | "declined";
-export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term" | "tuition_month";
+// Kept in step with the check constraint on fee_lines.code. The one list
+// staff-facing code should read is FEE_CODES in lib/fees/codes.ts.
+export type FeeCode =
+  | "registration"
+  | "admission"
+  | "tuition_annual"
+  | "tuition_term"
+  | "tuition_month"
+  | "stationery_annual";
 export type FeeScheduleStatus = "draft" | "active";
 
 export type AdmissionRulesetRow = {

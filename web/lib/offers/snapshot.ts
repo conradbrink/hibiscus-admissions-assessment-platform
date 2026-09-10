@@ -76,6 +76,7 @@ export function buildOfferVariables(
     tuition_annual: line("tuition_annual"),
     tuition_term: line("tuition_term"),
     tuition_month: line("tuition_month"),
+    stationery_annual: line("stationery_annual"),
     amount_due: fees ? formatMoney(fees.payable_at_acceptance_minor, fees.currency) : null,
     currency: fees?.currency ?? campus.currency,
     conditions: opts.conditions,

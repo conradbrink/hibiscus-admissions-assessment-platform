@@ -69,7 +69,15 @@ export async function onOfferDrafted(
     gradeSort: graph.grade.sort_order,
   });
   const promotion = await resolvePromotion(admin, graph);
-  const base: FeeSnapshot | null = resolved ? snapshotFees(resolved.schedule, resolved.lines) : null;
+  // A schedule with no fee lines is not a fee schedule, whatever the row says.
+  // `snapshotFees([])` returns a perfectly valid snapshot of nothing, which is
+  // truthy, so an empty schedule used to sail past the check below and send a
+  // parent a letter reading "Payable to accept the offer - P 0.00". The
+  // migration that created Bana Tlokweng's Nursery rows said it kept "a
+  // schedule with no lines rather than an invented one", expecting exactly the
+  // blocked-offer path an empty one is now given.
+  const priced = resolved && resolved.lines.length > 0 ? resolved : null;
+  const base: FeeSnapshot | null = priced ? snapshotFees(priced.schedule, priced.lines) : null;
   const fees: FeeSnapshot | null = base && promotion ? applyPromotion(base, promotion.promo) : base;
   const conditions = opts.conditions ?? existing?.conditions ?? null;
   // Provisional expiry for the preview; the real one is stamped at approval.
@@ -82,7 +90,7 @@ export async function onOfferDrafted(
     application_id: app.id,
     template_id: template.id,
     template_version: template.version,
-    fee_schedule_id: resolved?.schedule.id ?? null,
+    fee_schedule_id: priced?.schedule.id ?? null,
     currency: fees?.currency ?? graph.campus.currency,
     variables: vars as unknown as Json,
     rendered_html: rendered.html,

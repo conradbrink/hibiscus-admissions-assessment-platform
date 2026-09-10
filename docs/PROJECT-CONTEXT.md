@@ -500,6 +500,43 @@ rows that outlive the application.
   cancellation email, one `rebook_nudge` with a `booking_none` precondition,
   the online cutoff, and the missed session named on the page.
 
+### One list, or it will drift (10 September 2026)
+
+The fee vocabulary lived in five places: the check constraint on `fee_lines.code`,
+a `FEE_CODES` constant in the fees admin, the `FeeCode` union in `types.ts`, the
+variable map in `buildOfferVariables`, and the sample values in the offer
+template editor. Two migrations widened the constraint; neither touched the
+other four. The drift was not cosmetic:
+
+- The admin's save loop iterated the *constant*, not the lines the schedule
+  actually had, so saving a schedule with one fee wrote five, four of them zero.
+  Every line prints on the parent's offer page and in the PDF, so a pre-school
+  offer was one press of Save away from quoting "Tuition per term P 0.00".
+- `stationery_annual` reached the database and nothing else, so Bana Tlokweng's
+  stationery fees rendered as an editable field whose edits were discarded.
+
+`web/lib/fees/codes.ts` is the list now, and the parsing that reads a submitted
+schedule lives beside it — in `lib/`, because that is where anything with a test
+has to live. Adding a fee code means the constraint, that file, and a new offer
+template version that both references the variable and adds it to
+`allowed_variables` (`20260909210000_tuition_per_month.sql` is the recipe;
+`20260910160000_bana_tlokweng.sql` is what skipping the template step looks
+like — Tlokweng's stationery line reaches the PDF and the parent's offer page,
+which loop over every line, but not the letter body, which names variables one
+by one).
+
+### An empty fee schedule is not a fee schedule (10 September 2026)
+
+`resolveFeeSchedule` returns `lines: []` rather than null for a schedule with no
+fee lines, and `snapshotFees([])` returns a perfectly valid snapshot of nothing,
+which is truthy. So an active schedule with no lines used to sail past the
+`if (!fees)` guard in `onOfferDrafted` — no `offer.blocked` event, no
+`configure_fees` task — and send a parent a letter reading "Payable to accept
+the offer — P 0.00", which then throws at acceptance. `onOfferDrafted` now treats
+an empty schedule as no schedule, which is what the migration author assumed
+when they gave Bana Tlokweng's Nursery "a schedule with no lines rather than an
+invented one". The admin refuses to make an empty schedule active as well.
+
 ### Learned on the live walkthrough (7 September 2026)
 
 - **Name the foreign key when embedding `contacts` from `applications`.**
