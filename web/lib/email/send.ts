@@ -1,5 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/types";
 import { loadApplicationGraph, type ApplicationGraph } from "@/lib/applications";
 import { buildIcs } from "@/lib/email/ics";
 import { wrapHtml } from "@/lib/email/layout";
@@ -246,21 +247,139 @@ type ReceiptAttachment = {
   paidOn: string;
 };
 
+// ---------------------------------------------------------------------------
+// The half of a send that does not care whose email it is
+// ---------------------------------------------------------------------------
+
+/**
+ * Finding the template, rendering it, handing it to the provider and
+ * recording the row are the same work whether the email is about an
+ * application or a member of staff. Only who it is *about* differs, so that
+ * is the parameter and the rest is shared.
+ *
+ * Deliberately two functions rather than one: the caller still decides what
+ * happens between finding the template and rendering it. The parent path
+ * mints magic links there, and minting them for a template that does not
+ * exist would leave live tokens behind for an email that was never sent.
+ */
+
+type EmailTemplateRow = Database["public"]["Tables"]["email_templates"]["Row"];
+
+type TemplateLookup =
+  | { ok: true; template: EmailTemplateRow }
+  | { ok: false; result: SendTemplatedResult };
+
+async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff"): Promise<TemplateLookup> {
+  const { data: template, error } = await admin
+    .from("email_templates")
+    .select("*")
+    .eq("key", key)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) return { ok: false, result: { status: "failed", error: error.message, retryable: true } };
+  // A missing template is a configuration error, not a transient one.
+  if (!template) return { ok: false, result: { status: "failed", error: `No active template for "${key}"`, retryable: false } };
+  if (audience && template.audience !== audience) {
+    return { ok: false, result: { status: "failed", error: `Template "${key}" is not a ${audience} template`, retryable: false } };
+  }
+  return { ok: true, template };
+}
+
+/** Where the email goes, and which row of ours the address belongs to. */
+type EmailRecipient = { email: string; contactId?: string | null; staffId?: string | null };
+
+/** What the email is about, for the record. */
+type EmailSubject = { applicationId?: string | null };
+
+type EmailAttachment = { filename: string; content: string | Uint8Array; contentType: string };
+
+type RenderAndSendOptions = {
+  template: EmailTemplateRow;
+  variables: TemplateVariables;
+  recipient: EmailRecipient;
+  subject?: EmailSubject;
+  idempotencyKey: string;
+  attachments?: EmailAttachment[];
+};
+
+/**
+ * The rendered subject comes back beside the result because the caller
+ * writes it into the timeline, and rendering it twice could disagree.
+ */
+type RenderAndSendOutcome = { result: SendTemplatedResult; renderedSubject: string | null };
+
+async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Promise<RenderAndSendOutcome> {
+  const { template } = opts;
+  let subject: string;
+  let html: string;
+  let text: string;
+  try {
+    subject = renderSubject(template.subject, opts.variables, template.allowed_variables);
+    html = wrapHtml(renderHtml(template.body_html, opts.variables, template.allowed_variables));
+    text = renderText(template.body_text, opts.variables, template.allowed_variables);
+  } catch (e) {
+    return { result: { status: "failed", error: (e as Error).message, retryable: false }, renderedSubject: null };
+  }
+
+  const provider = await getEmailProvider();
+
+  const { data: message, error: mErr } = await admin
+    .from("email_messages")
+    .insert({
+      application_id: opts.subject?.applicationId ?? null,
+      contact_id: opts.recipient.contactId ?? null,
+      recipient_staff_id: opts.recipient.staffId ?? null,
+      template_key: template.key,
+      template_version: template.version,
+      to_email: opts.recipient.email,
+      subject,
+      body_html: html,
+      body_text: text,
+      provider: provider.name,
+      status: "queued",
+    })
+    .select("id")
+    .single();
+  if (mErr || !message) {
+    return { result: { status: "failed", error: mErr?.message ?? "insert failed", retryable: true }, renderedSubject: subject };
+  }
+
+  const result = await provider.send({
+    to: opts.recipient.email,
+    subject,
+    html,
+    text,
+    idempotencyKey: opts.idempotencyKey,
+    attachments: opts.attachments,
+  });
+
+  if (!result.ok) {
+    await admin
+      .from("email_messages")
+      .update({ status: "failed", error: result.error })
+      .eq("id", message.id);
+    return { result: { status: "failed", error: result.error, retryable: result.retryable }, renderedSubject: subject };
+  }
+
+  await admin
+    .from("email_messages")
+    .update({
+      status: "sent",
+      provider_message_id: result.providerMessageId,
+      sent_at: new Date().toISOString(),
+    })
+    .eq("id", message.id);
+
+  return { result: { status: "sent", messageId: message.id }, renderedSubject: subject };
+}
+
 export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplatedOptions): Promise<SendTemplatedResult> {
   const graph = await loadApplicationGraph(admin, opts.applicationId);
   if (!graph) return { status: "skipped", reason: "application missing" };
 
-  const { data: template, error: tErr } = await admin
-    .from("email_templates")
-    .select("*")
-    .eq("key", opts.templateKey)
-    .eq("is_active", true)
-    .maybeSingle();
-  if (tErr) return { status: "failed", error: tErr.message, retryable: true };
-  if (!template) {
-    // A missing template is a configuration error, not a transient one.
-    return { status: "failed", error: `No active template for "${opts.templateKey}"`, retryable: false };
-  }
+  const lookup = await loadActiveTemplate(admin, opts.templateKey);
+  if (!lookup.ok) return lookup.result;
+  const template = lookup.template;
 
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
@@ -287,18 +406,8 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   }
 
   const vars = buildVariables(graph, links, extras);
-  let subject: string;
-  let html: string;
-  let text: string;
-  try {
-    subject = renderSubject(template.subject, vars, template.allowed_variables);
-    html = wrapHtml(renderHtml(template.body_html, vars, template.allowed_variables));
-    text = renderText(template.body_text, vars, template.allowed_variables);
-  } catch (e) {
-    return { status: "failed", error: (e as Error).message, retryable: false };
-  }
 
-  const attachments: Array<{ filename: string; content: string | Uint8Array; contentType: string }> = [];
+  const attachments: EmailAttachment[] = [];
   if (opts.templateKey === "payment_received" && pay.receipt) {
     const element = createElement(ReceiptDocument, {
       logoUrl: logoUrlFor(siteUrl()),
@@ -335,61 +444,25 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
     });
   }
 
-  const provider = await getEmailProvider();
-
-  const { data: message, error: mErr } = await admin
-    .from("email_messages")
-    .insert({
-      application_id: graph.application.id,
-      contact_id: graph.contact.id,
-      template_key: template.key,
-      template_version: template.version,
-      to_email: graph.contact.email,
-      subject,
-      body_html: html,
-      body_text: text,
-      provider: provider.name,
-      status: "queued",
-    })
-    .select("id")
-    .single();
-  if (mErr || !message) return { status: "failed", error: mErr?.message ?? "insert failed", retryable: true };
-
-  const result = await provider.send({
-    to: graph.contact.email,
-    subject,
-    html,
-    text,
+  const { result, renderedSubject } = await renderAndSend(admin, {
+    template,
+    variables: vars,
+    recipient: { email: graph.contact.email, contactId: graph.contact.id },
+    subject: { applicationId: graph.application.id },
     idempotencyKey: opts.idempotencyKey,
     attachments,
   });
-
-  if (!result.ok) {
-    await admin
-      .from("email_messages")
-      .update({ status: "failed", error: result.error })
-      .eq("id", message.id);
-    return { status: "failed", error: result.error, retryable: result.retryable };
-  }
-
-  await admin
-    .from("email_messages")
-    .update({
-      status: "sent",
-      provider_message_id: result.providerMessageId,
-      sent_at: new Date().toISOString(),
-    })
-    .eq("id", message.id);
+  if (result.status !== "sent") return result;
 
   await admin.from("application_events").insert({
     application_id: graph.application.id,
     type: "email.sent",
     actor_type: "system",
     summary: `Email sent: ${template.name}`,
-    payload: { email_message_id: message.id, template_key: template.key, subject },
+    payload: { email_message_id: result.messageId, template_key: template.key, subject: renderedSubject },
   });
 
-  return { status: "sent", messageId: message.id };
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,51 +482,18 @@ export type SendStaffOptions = {
  * parent emails; no magic links, because staff sign in.
  */
 export async function sendStaffEmail(admin: AdminClient, opts: SendStaffOptions): Promise<SendTemplatedResult> {
-  const [{ data: staff }, { data: template, error: tErr }] = await Promise.all([
+  const [{ data: staff }, lookup] = await Promise.all([
     admin.from("staff_profiles").select("id, full_name, email, is_active").eq("id", opts.staffId).maybeSingle(),
-    admin.from("email_templates").select("*").eq("key", opts.templateKey).eq("is_active", true).maybeSingle(),
+    loadActiveTemplate(admin, opts.templateKey, "staff"),
   ]);
-  if (tErr) return { status: "failed", error: tErr.message, retryable: true };
-  if (!template) return { status: "failed", error: `No active template for "${opts.templateKey}"`, retryable: false };
-  if (template.audience !== "staff") return { status: "failed", error: `Template "${opts.templateKey}" is not a staff template`, retryable: false };
+  if (!lookup.ok) return lookup.result;
   if (!staff || !staff.is_active) return { status: "skipped", reason: "staff member missing or inactive" };
 
-  let subject: string;
-  let html: string;
-  let text: string;
-  try {
-    subject = renderSubject(template.subject, opts.variables, template.allowed_variables);
-    html = wrapHtml(renderHtml(template.body_html, opts.variables, template.allowed_variables));
-    text = renderText(template.body_text, opts.variables, template.allowed_variables);
-  } catch (e) {
-    return { status: "failed", error: (e as Error).message, retryable: false };
-  }
-
-  const provider = await getEmailProvider();
-  const { data: message, error: mErr } = await admin
-    .from("email_messages")
-    .insert({
-      application_id: null,
-      contact_id: null,
-      recipient_staff_id: staff.id,
-      template_key: template.key,
-      template_version: template.version,
-      to_email: staff.email,
-      subject,
-      body_html: html,
-      body_text: text,
-      provider: provider.name,
-      status: "queued",
-    })
-    .select("id")
-    .single();
-  if (mErr || !message) return { status: "failed", error: mErr?.message ?? "insert failed", retryable: true };
-
-  const result = await provider.send({ to: staff.email, subject, html, text, idempotencyKey: opts.idempotencyKey });
-  if (!result.ok) {
-    await admin.from("email_messages").update({ status: "failed", error: result.error }).eq("id", message.id);
-    return { status: "failed", error: result.error, retryable: result.retryable };
-  }
-  await admin.from("email_messages").update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() }).eq("id", message.id);
-  return { status: "sent", messageId: message.id };
+  const { result } = await renderAndSend(admin, {
+    template: lookup.template,
+    variables: opts.variables,
+    recipient: { email: staff.email, staffId: staff.id },
+    idempotencyKey: opts.idempotencyKey,
+  });
+  return result;
 }
