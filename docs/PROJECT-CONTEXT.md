@@ -305,6 +305,40 @@ served by `/api/sit/media`, which answers only an open sitting or a
 signed-in staff member, so the licensed material never sits on a public
 address.
 
+### The family CRM, stage A (PR #60) — a child after the funnel
+
+The pipeline ends at `enrolled` and always will: `states.ts` lists no move
+out of it, and `commit_transition()` is still the only writer of
+`applications.status`. What changes is that enrolment now also produces
+rows that outlive the application.
+
+- **`families`** promotes `contacts.family_code` from an indexed, deliberately
+  non-unique string to a row. The code itself is untouched and still
+  immutable — it is what the school's other system bills — and
+  `merge_family_code()` keeps its signature while now moving contacts and
+  students onto the surviving family. The unique index is partial
+  (`where merged_into_id is null`) so a merged family keeps the code it was
+  exported under.
+- **`students`** is the child, for as long as the school has them: the same
+  fields `registrations` collects, but living rather than frozen, plus
+  `origin_application_id` as provenance. Its read policy asks the student's
+  own `current_campus_id` rather than reaching through an application,
+  because a child outlives the one that admitted them; a trigger keeps that
+  column in step with their newest live enrolment.
+- **`enrolments`**, one per student per academic year, with the full status
+  set listed now so a later stage adds code rather than a constraint.
+- `onEnrolmentConfirmed` calls `promoteToStudent` before the transition, so a
+  failure refuses the enrolment rather than half-enrolling a family, and the
+  migration backfills every child already enrolled from their frozen
+  snapshot.
+- **Retention is guarded**: a trigger refuses to stamp `anonymised_at` on an
+  application a student was enrolled from. An enrolled child is not an
+  abandoned enquiry, and erasing their registration would gut the record the
+  register now shows. Security checks 45 to 47 cover the campus scoping, the
+  absent insert policy on `students`, and that guard.
+- `/staff/students` and `/staff/students/[id]` are the register, read-only for
+  now, behind the new `students.read` and `students.write`.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until

@@ -142,6 +142,26 @@ that calls it, after deleting the stored files. Do not add a delete of an
 applicant row anywhere else; if a new table holds personal data, add it to
 the function and to the security suite's check 37.
 
+## A student outlives their application
+
+`applications` is how a child arrived; `students` is who they are. The
+pipeline still ends at `enrolled` and `commit_transition()` is still the only
+writer of `applications.status` — the CRM starts where the funnel stops
+rather than extending its graph.
+
+That means two things when you touch these tables. A student's read policy
+asks their own `current_campus_id`, not an application's, because the
+application may be anonymised, deleted or a decade old; the column is
+maintained by `enrolments_sync_student_placement` and nothing else should
+write it. And `students` has no insert policy: a child is created by
+`promoteToStudent` at enrolment, under the service role, from a registration
+a person already checked. Typing one straight into the register would skip
+every one of those checks.
+
+`anonymise_application()` refuses an application a student was enrolled from
+(`applications_refuse_anonymise_enrolled`). If a new CRM table holds personal
+data, it belongs in the retention story before it ships, not after.
+
 ## Snapshots, not references
 
 An attempt sits a frozen form (`form_questions`), an offer is the HTML and
