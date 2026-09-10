@@ -1356,6 +1356,48 @@ export type ClassGroupRow = {
   updated_at: string;
 };
 
+export type OnboardingStepRow = {
+  code: string;
+  label: string;
+  description: string | null;
+  owner: "parent" | "staff" | "either";
+  kind: "acknowledge" | "choice" | "upload" | "link" | "action";
+  options: Json;
+  document_requirement_code: string | null;
+  required: boolean;
+  campus_id: string | null;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  reminder_offsets_days: number[];
+  due_offset_days: number | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OnboardingItemStatus = "pending" | "in_progress" | "done" | "not_applicable" | "blocked";
+
+export type StudentOnboardingItemRow = {
+  id: string;
+  student_id: string;
+  enrolment_id: string | null;
+  campus_id: string;
+  step_code: string;
+  status: OnboardingItemStatus;
+  value: Json;
+  document_id: string | null;
+  note: string | null;
+  due_on: string | null;
+  completed_at: string | null;
+  completed_by: "parent" | "staff" | "system" | null;
+  completed_by_staff_id: string | null;
+  reminders_sent: number;
+  last_reminder_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ReenrolmentCycleStatus = "draft" | "open" | "closed";
 
 export type ReenrolmentCycleRow = {
@@ -2176,6 +2218,28 @@ export type Database = {
           Rel<"class_groups_academic_year_id_fkey", "academic_year_id", "academic_years">,
         ]
       >;
+      onboarding_steps: TableOf<
+        OnboardingStepRow,
+        | "description" | "owner" | "kind" | "options" | "document_requirement_code" | "required"
+        | "campus_id" | "grade_sort_min" | "grade_sort_max" | "reminder_offsets_days"
+        | "due_offset_days" | "sort_order" | "is_active",
+        [
+          Rel<"onboarding_steps_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"onboarding_steps_document_requirement_code_fkey", "document_requirement_code", "document_requirements">,
+        ]
+      >;
+      student_onboarding_items: TableOf<
+        StudentOnboardingItemRow,
+        | "enrolment_id" | "status" | "value" | "document_id" | "note" | "due_on"
+        | "completed_at" | "completed_by" | "completed_by_staff_id" | "reminders_sent" | "last_reminder_at",
+        [
+          Rel<"student_onboarding_items_student_id_fkey", "student_id", "students">,
+          Rel<"student_onboarding_items_enrolment_id_fkey", "enrolment_id", "enrolments">,
+          Rel<"student_onboarding_items_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"student_onboarding_items_step_code_fkey", "step_code", "onboarding_steps">,
+          Rel<"student_onboarding_items_document_id_fkey", "document_id", "documents">,
+        ]
+      >;
       reenrolment_cycles: TableOf<
         ReenrolmentCycleRow,
         | "campus_id" | "status" | "reminder_offsets_days" | "ask_details_refresh"
@@ -2373,6 +2437,7 @@ export type Database = {
       next_application_reference: { Args: Record<string, never>; Returns: string };
       next_student_code: { Args: Record<string, never>; Returns: string };
       open_reenrolment_cycle: { Args: { p_cycle_id: string }; Returns: number };
+      open_student_onboarding: { Args: { p_student_id: string }; Returns: number };
       family_id_for_code: { Args: { p_code: string }; Returns: string | null };
       can_access_student: { Args: { p_student_id: string }; Returns: boolean };
       consume_token: {

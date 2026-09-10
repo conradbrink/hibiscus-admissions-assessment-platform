@@ -111,5 +111,10 @@ export async function promoteToStudent(
     .single();
   if (eErr || !enrolment) throw new Error(eErr?.message ?? "enrolment upsert failed");
 
+  // The checklist, from the active list. Idempotent, so a step the school
+  // adds next month reaches the children who are already onboarding.
+  const opened = await admin.rpc("open_student_onboarding", { p_student_id: studentId });
+  if (opened.error) throw new Error(opened.error.message);
+
   return { studentId, enrolmentId: enrolment.id, created: !existing.data };
 }

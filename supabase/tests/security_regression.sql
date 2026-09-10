@@ -1865,6 +1865,87 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 50. A checklist is campus-scoped, and the list itself is a settings change
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.student_onboarding_items (student_id, campus_id, step_code)
+    values (crm_student_block7, c_block7, 'welcome_read');
+
+    -- Attack: a manager limited to Broadhurst reads Block 7's checklists.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.student_onboarding_items
+       where student_id = crm_student_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '50: a Broadhurst manager read a Block 7 checklist';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50: reading the checklist failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer adds an item to one child's checklist by hand. The
+    -- checklist is the active list or it is not the same list as everyone
+    -- else's, and a board built from hand-picked rows counts nothing.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.student_onboarding_items (student_id, campus_id, step_code)
+      values (crm_student_broadhurst, c_broadhurst, 'uniform');
+      v_fail := v_fail || E'\n  - ' || '50: an admissions officer added a checklist item';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('50: the insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer rewrites what every family is asked for. Editing the
+    -- list is a settings change, like the document requirements beside it.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.onboarding_steps set label = 'Forged' where code = 'uniform';
+      if found then
+        v_fail := v_fail || E'\n  - ' || '50: an admissions officer rewrote the checklist';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('50: the edit was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an officer may tick an item off on a family's behalf, and an
+    -- administrator may change the list.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.student_onboarding_items set status = 'done'
+       where student_id = crm_student_block7;
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '50 control: an officer cannot tick an item off';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50 control: ticking an item off failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_admin);
+      update public.onboarding_steps set label = 'Uniform sizes' where code = 'uniform';
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '50 control: an administrator cannot change the list';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50 control: changing the list failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

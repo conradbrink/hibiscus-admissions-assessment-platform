@@ -410,6 +410,48 @@ every family at a campus at once. The two WhatsApp companions ship inactive
 and need a provider template id pasted in before they can send, like every
 other message template.
 
+### The onboarding checklist (PR #63 onward)
+
+What a newly enrolled family still owes the school, and what the school still
+owes them, as a list per child.
+
+It is **not a second state machine.** These are parallel errands — confirm the
+details, update the medical form, choose a uniform size, say yes or no to
+transport, join the class group, read the first-day note — and a family does
+them in whatever order they get to them. A linear flow would strand the parent
+who did the fourth thing on Tuesday and the second thing on Saturday. So each
+item stands alone with its own status, and the only coarse lifecycle is
+`students.status`.
+
+The list itself is data. `onboarding_steps` is edited at
+`/staff/admin/onboarding-steps`, which is where the wording a parent reads
+lives, for the same reason every email does. Three fields are deliberately not
+editable there: the **code**, because changing it would orphan every checklist
+already carrying it; the **kind**, because an answer of one shape would be left
+sitting in a step that now asks another; and the **owner**, because moving a
+step between the family and the school changes who is chased for it. All three
+are migrations, not settings. Turning a step off stops it being asked for and
+leaves finished ones alone — what a family was asked, and what they said, is a
+record.
+
+Steps are opened by `open_student_onboarding(student_id)` at the moment an
+enrolment is confirmed, filtered to the campus and grade band, with `due_on`
+computed from the first day (`due_offset_days` is negative for the things
+wanted beforehand). The RPC is idempotent, so confirming twice is safe, and
+there is no insert policy on `student_onboarding_items` at all: a checklist is
+opened by the school's own function or not at all.
+
+Parents see one list per child at `/family/checklist`, with the school's own
+steps left off it — "allocate the class" is a promise, not a chore to hand a
+parent who cannot do it. Finished items stay on the list rather than
+disappearing; a list that shortens as you work it hides what you have achieved,
+and a parent who wants to change an answer has to be able to find it. Staff get
+`/staff/onboarding`, one row per child, overdue first, because the question on a
+Monday morning is which families to ring today.
+
+Progress is counted over **required** steps only, so an optional aftercare
+choice can never keep a family at 90 per cent forever.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
