@@ -1,4 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { droppedValues, parentWorkbook, studentWorkbook, type FamilyExport } from "@/lib/enrolment/ed-admin";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
@@ -7,8 +9,20 @@ import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
  * Writes the two Ed-admin workbooks with sample families, for a real import
  * run. Not a test of the code so much as a generator that refuses to write a
  * file the importer would reject: the assertions at the end are the check.
+ *
+ * Set `EDADMIN_SAMPLE_OUT` to say where the files should land; otherwise it
+ * makes its own temporary directory and prints the path. It used to name a
+ * fixed one, which existed on the machine that wrote it and nowhere else —
+ * so CI failed on a directory that had never been there.
  */
-const OUT = "/tmp/claude-0/-home-user-Gold-Fortune-Merch-App/4967b0fc-1cf2-510e-b6eb-e7eec3959942/scratchpad";
+function outDir(): string {
+  const named = process.env.EDADMIN_SAMPLE_OUT;
+  if (named) {
+    mkdirSync(named, { recursive: true });
+    return named;
+  }
+  return mkdtempSync(join(tmpdir(), "edadmin-sample-"));
+}
 
 type G = StudentRecordSnapshot["guardians"][number];
 const guardian = (o: Partial<G> & Pick<G, "first_name" | "last_name" | "relationship">): G => ({
@@ -111,8 +125,11 @@ describe("sample workbooks for a real Ed-admin import", () => {
     const dropped = droppedValues(families);
     expect(dropped).toEqual({ nationalities: [], languages: [], genders: [], relationships: [] });
 
-    writeFileSync(`${OUT}/edadmin-students-sample.xlsx`, studentWorkbook(families));
-    writeFileSync(`${OUT}/edadmin-parents-sample.xlsx`, parentWorkbook(families));
+    const out = outDir();
+    writeFileSync(join(out, "edadmin-students-sample.xlsx"), studentWorkbook(families));
+    writeFileSync(join(out, "edadmin-parents-sample.xlsx"), parentWorkbook(families));
+    // The path is the point: this run produced files someone has to fetch.
+    console.log(`Ed-admin sample workbooks written to ${out}`);
     expect(families.length).toBe(5);
   });
 });
