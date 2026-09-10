@@ -1,7 +1,7 @@
 import {
   ChartColumn, Blocks, BookOpen, Building2, CalendarDays, CalendarOff, SquareCheck, ClipboardCheck, Columns3, CreditCard,
   Download, FilePenLine, FileText, FolderCheck, GraduationCap, Inbox, LayoutDashboard, ListChecks, Mail, MessageCircle,
-  PenLine, Scale, BadgePercent, ScrollText, School, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog, type LucideIcon,
+  PenLine, RefreshCw, Scale, BadgePercent, ScrollText, School, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog, type LucideIcon,
 } from "lucide-react";
 import type { NavIcon } from "@/components/staff/nav-items";
 
@@ -17,6 +17,7 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   registrations: FolderCheck,
   export: Download,
   students: School,
+  reenrolment: RefreshCw,
   analytics: ChartColumn,
   forecast: TrendingUp,
   settings: Settings,

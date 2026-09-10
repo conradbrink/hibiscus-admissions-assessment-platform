@@ -1354,6 +1354,54 @@ export type ClassGroupRow = {
   updated_at: string;
 };
 
+export type ReenrolmentCycleStatus = "draft" | "open" | "closed";
+
+export type ReenrolmentCycleRow = {
+  id: string;
+  intake_id: string;
+  /** Null asks every campus at once. */
+  campus_id: string | null;
+  name: string;
+  opens_on: string;
+  closes_on: string;
+  status: ReenrolmentCycleStatus;
+  reminder_offsets_days: number[];
+  ask_details_refresh: boolean;
+  opened_by: string | null;
+  opened_at: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReenrolmentIntent = "returning" | "not_returning" | "undecided";
+
+export type ReenrolmentResponseRow = {
+  id: string;
+  cycle_id: string;
+  student_id: string;
+  enrolment_id: string | null;
+  campus_id: string;
+  /** Null means not yet answered — which is what the board chases. */
+  intent: ReenrolmentIntent | null;
+  reason: string | null;
+  leaving_destination: string | null;
+  next_grade_id: string | null;
+  next_campus_id: string | null;
+  answered_at: string | null;
+  answered_by: "parent" | "staff" | null;
+  answered_by_staff_id: string | null;
+  details_confirmed_at: string | null;
+  details_changed: Json;
+  asked_at: string | null;
+  reminders_sent: number;
+  last_reminder_at: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -2120,6 +2168,32 @@ export type Database = {
           Rel<"class_groups_academic_year_id_fkey", "academic_year_id", "academic_years">,
         ]
       >;
+      reenrolment_cycles: TableOf<
+        ReenrolmentCycleRow,
+        | "campus_id" | "status" | "reminder_offsets_days" | "ask_details_refresh"
+        | "opened_by" | "opened_at" | "closed_by" | "closed_at",
+        [
+          Rel<"reenrolment_cycles_intake_id_fkey", "intake_id", "intakes">,
+          Rel<"reenrolment_cycles_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"reenrolment_cycles_opened_by_fkey", "opened_by", "staff_profiles">,
+          Rel<"reenrolment_cycles_closed_by_fkey", "closed_by", "staff_profiles">,
+        ]
+      >;
+      reenrolment_responses: TableOf<
+        ReenrolmentResponseRow,
+        | "enrolment_id" | "intent" | "reason" | "leaving_destination" | "next_grade_id"
+        | "next_campus_id" | "answered_at" | "answered_by" | "answered_by_staff_id"
+        | "details_confirmed_at" | "details_changed" | "asked_at" | "reminders_sent"
+        | "last_reminder_at" | "note",
+        [
+          Rel<"reenrolment_responses_cycle_id_fkey", "cycle_id", "reenrolment_cycles">,
+          Rel<"reenrolment_responses_student_id_fkey", "student_id", "students">,
+          Rel<"reenrolment_responses_enrolment_id_fkey", "enrolment_id", "enrolments">,
+          Rel<"reenrolment_responses_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"reenrolment_responses_next_grade_id_fkey", "next_grade_id", "grades">,
+          Rel<"reenrolment_responses_next_campus_id_fkey", "next_campus_id", "campuses">,
+        ]
+      >;
       funnel_events: TableOf<
         FunnelEventRow,
         "application_id" | "campus_id" | "grade_id" | "elapsed_ms" | "occurred_at",
@@ -2289,6 +2363,7 @@ export type Database = {
       can_access_campus: { Args: { p_campus_id: string }; Returns: boolean };
       next_application_reference: { Args: Record<string, never>; Returns: string };
       next_student_code: { Args: Record<string, never>; Returns: string };
+      open_reenrolment_cycle: { Args: { p_cycle_id: string }; Returns: number };
       family_id_for_code: { Args: { p_code: string }; Returns: string | null };
       can_access_student: { Args: { p_student_id: string }; Returns: boolean };
       consume_token: {

@@ -8,12 +8,12 @@ import { canAccessPath } from "@/lib/permissions";
  * imported, because the sidebar (a client component) resolves them and the
  * layout (a server component) hands the groups across.
  *
- * Twelve destinations and one Settings hub: the day's work on the left,
+ * Thirteen destinations and one Settings hub: the day's work on the left,
  * everything the process is configured from behind one door.
  */
 export type NavIcon =
   | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
-  | "payments" | "registrations" | "export" | "students" | "analytics" | "forecast" | "settings"
+  | "payments" | "registrations" | "export" | "students" | "reenrolment" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "The school",
     items: [
       { href: "/staff/students", label: "Students", icon: "students", permission: "students.read" },
+      { href: "/staff/reenrolment", label: "Re-enrolment", icon: "reenrolment", permission: "reenrolment.write" },
     ],
   },
   {

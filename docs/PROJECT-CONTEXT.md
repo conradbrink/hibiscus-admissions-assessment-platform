@@ -364,6 +364,33 @@ rows that outlive the application.
 - `/staff/students` and `/staff/students/[id]` are the register, read-only for
   now, behind the new `students.read` and `students.write`.
 
+### The termly re-enrolment round (PR #63 onward)
+
+The school's own answer to what the CRM is for: knowing, before a term
+starts, which children it still has — and taking the chance, while the family
+is answering anyway, to check what we hold is still true.
+
+- `reenrolment_cycles` is one asking: a term, a scope of campuses, a window,
+  and whether it also asks for a details refresh. `reenrolment_responses` is
+  one child inside it, written by `open_reenrolment_cycle()` for every
+  enrolled child in scope, so the board is a call list that only shrinks.
+  Re-opening a round picks up newcomers and touches no answer already given.
+- **The answer is three-valued.** "Not sure yet" in September is real
+  information, and forcing a yes or a no turns it into silence — which reads
+  the same as never having asked. `summarise()` counts only a yes toward
+  places to plan for; an undecided or a silence is not a place, and counting
+  it as one is how a term starts with classrooms that do not add up.
+- A returning child's next class is **the next active grade by `sort_order`**,
+  never `sort_order + 1`: the ladder has gaps and the Botswana ladders differ
+  from the South African one. At the top of the school there is no answer —
+  that is a conversation, not a placement.
+- `reenrolment.write` is its own permission because opening a round reaches
+  every family at a campus at once. Recording an answer given on the phone is
+  ordinary register work and needs only `students.write`.
+- Staff work it at `/staff/reenrolment`; families answer at
+  `/family/returning`. Most first-round answers will arrive by telephone, so
+  recording one by hand is a first-class action rather than an afterthought.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until

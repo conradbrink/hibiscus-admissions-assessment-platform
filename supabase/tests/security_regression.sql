@@ -1785,6 +1785,86 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 49. A re-enrolment round is campus-scoped, and nobody hand-picks the board
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.reenrolment_cycles (intake_id, campus_id, name, opens_on, closes_on, status)
+    values (i_intake, c_block7, 'Sec round', current_date, current_date + 30, 'open')
+    returning id into v_id;
+    insert into public.reenrolment_responses (cycle_id, student_id, campus_id)
+    values (v_id, crm_student_block7, c_block7);
+
+    -- Attack: a manager limited to Broadhurst reads Block 7's board. Who is
+    -- leaving is exactly the kind of thing a campus does not share.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.reenrolment_responses where cycle_id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '49: a Broadhurst manager read a Block 7 re-enrolment board';
+      end if;
+      select count(*) into v_count from public.reenrolment_cycles where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '49: a Broadhurst manager read a Block 7 round';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('49: reading the board failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an admissions officer adds a line to the board by hand. The
+    -- board is every child in scope, written by `open_reenrolment_cycle`, or
+    -- it is not a count anyone can plan around.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.reenrolment_responses (cycle_id, student_id, campus_id)
+      values (v_id, crm_student_broadhurst, c_broadhurst);
+      v_fail := v_fail || E'\n  - ' || '49: an admissions officer added a line to a board';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('49: the insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer without `reenrolment.write` opens a round, which
+    -- would mail every family at a campus at once.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.reenrolment_cycles (intake_id, campus_id, name, opens_on, closes_on)
+      values (i_intake, c_block7, 'Forged round', current_date, current_date + 30);
+      v_fail := v_fail || E'\n  - ' || '49: an admissions officer opened a re-enrolment round';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('49: the round insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an administrator sees the board and can record an answer.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      select count(*) into v_count from public.reenrolment_responses where cycle_id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '49 control: an administrator cannot read the board';
+      end if;
+      update public.reenrolment_responses
+         set intent = 'returning', answered_at = now(), answered_by = 'staff'
+       where cycle_id = v_id;
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '49 control: an administrator cannot record an answer';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('49 control: working the board failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

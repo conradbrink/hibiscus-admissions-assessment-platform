@@ -26,6 +26,8 @@ const FORBIDDEN = [
   '.from("documents"',
   '.from("registrations"',
   '.from("applications"',
+  '.from("reenrolment_responses"',
+  '.from("reenrolment_cycles"',
   // The service-role client is minted by the loaders, so a page that builds
   // its own is a page that could query anything.
   "createAdminClient",
