@@ -67,7 +67,15 @@ export function PaymentPanel({
             <li key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <Badge variant={PAYMENT_BADGE[p.status]}>{p.status}</Badge>
               <span className="tabular-nums">{formatMoney(Number(p.amount_minor), p.currency)}</span>
-              <span className="text-muted-foreground">{p.method === "eft" ? `bank transfer · ref ${p.bank_reference ?? "—"}${p.received_on ? ` · received ${formatDate(p.received_on)}` : ""}` : `online · ${p.provider} · ${p.company_ref}`}</span>
+              <span className="text-muted-foreground">
+                {p.method === "eft"
+                  ? `bank transfer · ref ${p.bank_reference ?? "—"}${p.received_on ? ` · received ${formatDate(p.received_on)}` : ""}`
+                  : p.method === "waived"
+                    ? "waived by the school"
+                    : p.method === "none"
+                      ? "nothing was payable"
+                      : `online · ${p.provider} · ${p.company_ref}`}
+              </span>
               <span className="ml-auto text-xs text-muted-foreground">{formatDateTime(p.updated_at)}</span>
               {p.failure_reason ? <span className="w-full text-xs text-destructive">{p.failure_reason}</span> : null}
               {p.note ? <span className="w-full text-xs text-muted-foreground">{p.note}</span> : null}

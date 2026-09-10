@@ -38,6 +38,14 @@ createdb "$DB"
 echo "Applying Supabase environment stub"
 "${PSQL[@]}" -d "$DB" -f "$ROOT/tests/local_supabase_stub.sql"
 
+# Two files sharing a version number both apply here, in whatever order the
+# glob returns, so the replay passes and CI fails. Same check, same message.
+dupes="$(cd "$ROOT/migrations" && ls ./*.sql | sed 's|.*/||' | cut -c1-14 | sort | uniq -d)"
+if [ -n "$dupes" ]; then
+  echo "Duplicate migration versions: $dupes" >&2
+  exit 1
+fi
+
 count=0
 for f in "$ROOT"/migrations/*.sql; do
   name="$(basename "$f")"

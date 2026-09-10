@@ -5,7 +5,8 @@ import type { ApplicationRow, Json, OfferRow } from "@/lib/supabase/types";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildOfferVariables, feeSnapshotFrom, loadActiveOfferTemplate, renderOffer, resolveFeeSchedule, snapshotFees, type FeeSnapshot } from "@/lib/offers/render";
 import { createPaymentRequest, loadBankInstructions } from "@/lib/payments/requests";
-import { applyPromotion, fullyWaived } from "@/lib/promotions/apply";
+import { applyPromotion } from "@/lib/promotions/apply";
+import { chargeAtAcceptance, securedWithoutPaying } from "@/lib/payments/due";
 import { resolvePromotion } from "@/lib/promotions/load";
 import { onPaymentVerified } from "@/lib/workflow/payment-actions";
 import { getSettings } from "@/lib/settings";
@@ -69,7 +70,15 @@ export async function onOfferDrafted(
     gradeSort: graph.grade.sort_order,
   });
   const promotion = await resolvePromotion(admin, graph);
-  const base: FeeSnapshot | null = resolved ? snapshotFees(resolved.schedule, resolved.lines) : null;
+  // A schedule with no fee lines is not a fee schedule, whatever the row says.
+  // `snapshotFees([])` returns a perfectly valid snapshot of nothing, which is
+  // truthy, so an empty schedule used to sail past the check below and send a
+  // parent a letter reading "Payable to accept the offer - P 0.00". The
+  // migration that created Bana Tlokweng's Nursery rows said it kept "a
+  // schedule with no lines rather than an invented one", expecting exactly the
+  // blocked-offer path an empty one is now given.
+  const priced = resolved && resolved.lines.length > 0 ? resolved : null;
+  const base: FeeSnapshot | null = priced ? snapshotFees(priced.schedule, priced.lines) : null;
   const fees: FeeSnapshot | null = base && promotion ? applyPromotion(base, promotion.promo) : base;
   const conditions = opts.conditions ?? existing?.conditions ?? null;
   // Provisional expiry for the preview; the real one is stamped at approval.
@@ -82,7 +91,7 @@ export async function onOfferDrafted(
     application_id: app.id,
     template_id: template.id,
     template_version: template.version,
-    fee_schedule_id: resolved?.schedule.id ?? null,
+    fee_schedule_id: priced?.schedule.id ?? null,
     currency: fees?.currency ?? graph.campus.currency,
     variables: vars as unknown as Json,
     rendered_html: rendered.html,
@@ -428,37 +437,46 @@ export async function onOfferAccepted(
     actor,
   });
 
-  if (fullyWaived(feeSnapshotFrom(offer.fees))) {
-    // Nothing to pay: a "waived" payment record says why nothing was
-    // collected, and the paid path runs as it would after a gateway
-    // confirmation, so registration opens at once.
-    const snapshot = feeSnapshotFrom(offer.fees);
-    const promoName = (snapshot as { promotion?: { name?: string } | null } | null)?.promotion?.name ?? "a promotion";
-    const { data: waived, error: wErr } = await admin
+  const charge = chargeAtAcceptance(feeSnapshotFrom(offer.fees));
+  if (securedWithoutPaying(charge)) {
+    // Nothing to collect, for one of two different reasons. A zero-amount
+    // payment record says which, and the paid path then runs as it would
+    // after a gateway confirmation, so registration opens at once.
+    //
+    // The two are kept apart all the way to the parent's inbox: "we waived
+    // your fee" is a kindness to someone who expected to pay, and a small lie
+    // to a Tlokweng family who never owed anything.
+    const waivedByDeal = charge.kind === "waived";
+    const reason = charge.kind === "waived" ? `Fees waived under ${charge.reason}` : charge.reason;
+    const { data: settled, error: sErr } = await admin
       .from("payments")
       .insert({
         payment_request_id: request.id,
         application_id: app.id,
-        method: "waived",
+        method: waivedByDeal ? "waived" : "none",
         provider: "none",
-        company_ref: `${offer.id.slice(0, 8).toUpperCase()}-WAIVED`,
+        company_ref: `${offer.id.slice(0, 8).toUpperCase()}-${waivedByDeal ? "WAIVED" : "NOFEE"}`,
         amount_minor: 0,
         currency: request.currency,
         status: "pending",
-        note: `Fees waived under ${promoName}`,
+        note: reason,
       })
       .select("*")
       .single();
-    if (wErr || !waived) throw new WorkflowError(wErr?.message ?? "waived payment insert failed", "database");
+    if (sErr || !settled) throw new WorkflowError(sErr?.message ?? "zero-amount payment insert failed", "database");
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: "offer_accepted",
       newStatus: "payment_required",
       nextAction: "pay_fees",
-      event: { type: "payment.waived", summary: `Fees waived under ${promoName}; nothing to pay`, payload: { payment_request_id: request.id, promotion: promoName } },
+      event: {
+        type: waivedByDeal ? "payment.waived" : "payment.not_required",
+        summary: `${reason}; nothing to pay`,
+        payload: { payment_request_id: request.id, ...(waivedByDeal ? { promotion: charge.reason } : {}) },
+      },
       actor: { type: "system", label: "System" },
     });
-    await onPaymentVerified(admin, { ...app, status: "payment_required" }, request, waived, { approvalCode: null }, { type: "system", label: "System" });
+    await onPaymentVerified(admin, { ...app, status: "payment_required" }, request, settled, { approvalCode: null }, { type: "system", label: "System" });
     return { acceptanceId: acceptance.id, paymentRequestId: request.id };
   }
 

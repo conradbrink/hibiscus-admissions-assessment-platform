@@ -886,7 +886,15 @@ export type OfferStatus =
   | "withdrawn"
   | "accepted"
   | "declined";
-export type FeeCode = "registration" | "admission" | "tuition_annual" | "tuition_term" | "tuition_month";
+// Kept in step with the check constraint on fee_lines.code. The one list
+// staff-facing code should read is FEE_CODES in lib/fees/codes.ts.
+export type FeeCode =
+  | "registration"
+  | "admission"
+  | "tuition_annual"
+  | "tuition_term"
+  | "tuition_month"
+  | "stationery_annual";
 export type FeeScheduleStatus = "draft" | "active";
 
 export type AdmissionRulesetRow = {
@@ -1019,7 +1027,8 @@ export type OfferRow = {
 export type OfferDecision = "accepted" | "declined";
 export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
 export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
-export type PaymentMethod = "online" | "eft" | "waived";
+// waived: a promotion removed a fee that was owed. none: nothing was owed.
+export type PaymentMethod = "online" | "eft" | "waived" | "none";
 export type PaymentProviderName = "dev" | "dpo" | "paygate" | "bank" | "none";
 
 export type OfferAcceptanceRow = {

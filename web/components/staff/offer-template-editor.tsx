@@ -24,6 +24,7 @@ const SAMPLE: TemplateVariables = {
   tuition_annual: "P 48,000.00",
   tuition_month: "R 2,980.00",
   tuition_term: null,
+  stationery_annual: "P 2,500.00",
   amount_due: "P 7,500.00",
   currency: "BWP",
   conditions: null,
