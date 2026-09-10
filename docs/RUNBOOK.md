@@ -328,19 +328,63 @@ rejection emails the parent with your reason and asks for it again.
 
 ## Setting up WhatsApp
 
-1. The school needs a WhatsApp Business Account and a verified number in
-   Meta Business Manager. The engineer sets `MESSAGING_PROVIDER=meta` and the
-   credentials, and registers `<site>/api/webhooks/whatsapp` in Meta.
-2. Every message is a **template** Meta has approved: submit the wording for
-   each moment (booking confirmed, reminder, offer, fees due…) in Meta
-   Business Manager. **Set up → WhatsApp templates** lists the moments, shows
-   the suggested wording, and says which variables fill which placeholder.
-3. When Meta approves a template, enter its name on that row and tick
-   **Active**. Then switch **Workflow settings → whatsapp_enabled** on.
-4. Parents only get messages if they ticked the box on the enquiry form, the
-   registration, or their application page. Replying STOP turns it off;
-   START turns it back on. Staff can turn it on for a parent who asked by
-   phone, from the applicant page — that is audited.
+There are two ways in, and the school picks one: **Meta's own Cloud API**, or
+**Twilio** in front of it. Either way the wording is a template WhatsApp has
+approved — free text is never sent, because WhatsApp only allows it inside a
+24-hour reply window and it would put the school's words in code.
+
+**Through Twilio** (`MESSAGING_PROVIDER=twilio`)
+
+1. In the Twilio console: a WhatsApp sender (the school's number, through
+   Twilio's WhatsApp onboarding), then the account SID and auth token from the
+   dashboard. The engineer puts those in as `TWILIO_ACCOUNT_SID` and
+   `TWILIO_AUTH_TOKEN`, with `TWILIO_WHATSAPP_FROM` set to the sending number
+   in full international form.
+2. Each message is a **Content Template** in Twilio, which submits it to
+   WhatsApp for approval. Its variables are numbered `{{1}}`, `{{2}}` in one
+   flat list; where a message carries a link, the token is the variable
+   **after** the body's, because Twilio has no separate button component.
+3. When it is approved, copy its **content SID** (`HX…`) onto the row in
+   **Set up → WhatsApp templates** and tick **Active**.
+4. Point Twilio at `<site>/api/webhooks/whatsapp` twice: as the sender's
+   inbound webhook, and as `TWILIO_STATUS_CALLBACK_URL` so delivery is
+   reported. One route serves both.
+
+**Through Meta** (`MESSAGING_PROVIDER=meta`)
+
+1. The school needs a WhatsApp Business Account and a verified number in Meta
+   Business Manager. The engineer sets the credentials and registers
+   `<site>/api/webhooks/whatsapp` in Meta.
+2. Templates are submitted and approved in Meta Business Manager. When one is
+   approved, enter its **name** on the row and tick **Active**.
+
+**Either way**
+
+* **Set up → WhatsApp templates** lists every moment, shows the suggested
+  wording, and says which variables fill which placeholder. A row can carry
+  both identifiers at once, which is what makes moving between providers a
+  settings change rather than a deployment.
+* Switch **Workflow settings → whatsapp_enabled** on last.
+* Parents only get messages if they ticked the box on the enquiry form, the
+  registration, or their application page. Replying STOP turns it off; START
+  turns it back on. Staff can turn it on for a parent who asked by phone,
+  from the applicant page — that is audited.
+
+## Every WhatsApp message says "no template id set"
+
+The row is active but has nothing in the column the live provider reads:
+Twilio needs the content SID, Meta the template name. Open **Set up →
+WhatsApp templates**, and the row will show a dash against whichever is
+missing. Nothing was sent and nothing was lost — each attempt is recorded as
+skipped with that reason, and the moment will send once the id is in.
+
+## Twilio rejects every webhook as unsigned
+
+Twilio signs the **URL it called** together with every form field, so the
+address the app sees has to match Twilio's exactly. Behind a proxy that
+terminates TLS the app can see `http` where Twilio used `https`, and then
+every signature fails and every reply is answered 401. Set
+`TWILIO_WEBHOOK_URL` to the exact address configured in the Twilio console.
 
 ## Changing a session (time, place, assessor, places)
 

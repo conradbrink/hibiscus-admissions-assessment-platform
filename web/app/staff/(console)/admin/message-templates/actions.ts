@@ -11,6 +11,7 @@ const schema = z.object({
   key: z.string().regex(/^[a-z0-9_]+$/),
   name: z.string().trim().min(1).max(120),
   metaTemplateName: z.string().trim().max(120).optional(),
+  twilioContentSid: z.string().trim().max(40).optional(),
   language: z.string().trim().regex(/^[a-z]{2}(_[A-Z]{2})?$/),
   bodyPreview: z.string().min(1).max(2000),
   parameters: z.string().max(2000).optional(),
@@ -37,6 +38,7 @@ export async function saveMessageTemplate(_: StaffActionState, formData: FormDat
       bodyPreview: p.bodyPreview,
       allowed: email.allowed_variables.filter((v) => !v.endsWith("_link")),
       metaName: p.metaTemplateName ?? "",
+      twilioContentSid: p.twilioContentSid ?? "",
       active: p.isActive === "1",
     });
     if (problems.length) throw new Error(problems.join(" · "));
@@ -46,6 +48,7 @@ export async function saveMessageTemplate(_: StaffActionState, formData: FormDat
       .update({
         name: p.name,
         meta_template_name: p.metaTemplateName || null,
+        twilio_content_sid: p.twilioContentSid || null,
         language: p.language,
         body_preview: p.bodyPreview,
         parameters,

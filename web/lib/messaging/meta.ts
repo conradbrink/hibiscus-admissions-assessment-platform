@@ -19,6 +19,7 @@ function required(name: string): string {
 
 export class MetaWhatsAppProvider implements MessagingProvider {
   readonly name = "meta";
+  readonly templateIdField = "meta_template_name" as const;
   private readonly apiUrl: string;
   private readonly phoneNumberId: string;
   private readonly accessToken: string;
@@ -63,6 +64,7 @@ export class MetaWhatsAppProvider implements MessagingProvider {
     return { ok: true, providerMessageId: id };
   }
 
+  // `url` is unused: Meta signs the body alone.
   async verifyWebhook(rawBody: string, headers: Headers): Promise<InboundEvent[] | null> {
     if (!verifySignature(rawBody, headers.get("x-hub-signature-256"), this.appSecret)) return null;
     return parseWebhook(rawBody);

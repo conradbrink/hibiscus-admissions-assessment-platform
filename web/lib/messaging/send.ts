@@ -3,6 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildVariables, linkTtlDays, offerExtras, paymentExtras, type EmailExtras, type EmailLinks, type LinkPurpose } from "@/lib/email/send";
 import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
+import type { TemplateIdField } from "@/lib/messaging/provider";
 import { getMessagingProvider } from "@/lib/messaging/provider";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
@@ -71,7 +72,17 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
   };
 
   if (!settings.whatsappEnabled && opts.trigger === "companion") return skip("WhatsApp is switched off");
-  if (!template || !template.is_active || !template.meta_template_name) return skip(`no active message template for "${opts.templateKey}"`);
+
+  // Which handle the template needs depends on who is delivering: Meta takes
+  // the approved template's name, Twilio the SID of the content it wraps it
+  // in. A template that has not been given the live provider's one is skipped
+  // with that on the record, never sent half-configured.
+  const provider = await getMessagingProvider();
+  if (!template || !template.is_active) return skip(`no active message template for "${opts.templateKey}"`);
+  const templateId = template[provider.templateIdField];
+  if (!templateId) {
+    return skip(`the "${opts.templateKey}" template has no ${provider.name} template id set`);
+  }
   if (!graph.contact.whatsapp_opt_in) return skip("the parent has not opted in to WhatsApp");
   if (!graph.contact.mobile_normalised) return skip("the parent's mobile number could not be normalised");
 
@@ -102,7 +113,6 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
   });
   const rendered = renderPreview(template.body_preview, params) + (buttonSuffix ? ` [${template.link_purpose} link]` : "");
 
-  const provider = await getMessagingProvider();
   const { data: message, error: mErr } = await admin
     .from("messages")
     .upsert(
@@ -130,7 +140,8 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
 
   const result = await provider.sendTemplate({
     to: graph.contact.mobile_normalised,
-    templateName: template.meta_template_name,
+    templateName: template.meta_template_name ?? template.key,
+    providerTemplateId: templateId,
     language: template.language,
     bodyParams: params,
     buttonUrlSuffix: buttonSuffix,
@@ -156,7 +167,13 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
   return { status: "sent", messageId: message.id };
 }
 
-/** The message template rows staff may choose from when sending by hand. */
-export function activeTemplates(rows: MessageTemplateRow[]): MessageTemplateRow[] {
-  return rows.filter((r) => r.is_active && r.meta_template_name);
+/**
+ * The message template rows staff may choose from when sending by hand.
+ *
+ * Pure, so the page passes in which handle matters: offering a template the
+ * live provider cannot address would put a "no template id set" line in the
+ * outbox instead of a message.
+ */
+export function activeTemplates(rows: MessageTemplateRow[], field: TemplateIdField = "meta_template_name"): MessageTemplateRow[] {
+  return rows.filter((r) => r.is_active && r[field]);
 }

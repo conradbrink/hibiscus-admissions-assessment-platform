@@ -6,10 +6,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Meta's webhook. GET is the one-time verification handshake when the URL
- * is registered: echo the challenge only for our verify token. POST carries
- * delivery statuses and parents' replies, verified by signature before a
- * byte of the body is read as data.
+ * The WhatsApp webhook, whichever provider is in front of it.
+ *
+ * GET is Meta's one-time verification handshake when the URL is registered:
+ * echo the challenge only for our verify token. Twilio does not use it.
+ *
+ * POST carries delivery statuses and parents' replies, verified by signature
+ * before a byte of the body is read as data. The adapter is handed the URL as
+ * well as the body because Twilio signs both — the same route serves as its
+ * inbound webhook and its status callback.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -26,7 +31,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const raw = await request.text();
   const provider = await getMessagingProvider();
-  const events = await provider.verifyWebhook(raw, request.headers);
+  const events = await provider.verifyWebhook(raw, request.headers, request.url);
   if (events === null) return Response.json({ error: "Invalid signature" }, { status: 401 });
 
   const summary = await handleInboundEvents(createAdminClient(), events);

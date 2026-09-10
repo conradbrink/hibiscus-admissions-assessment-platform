@@ -76,6 +76,24 @@ idioms, international formats. The AI prompts carry the same rules
 (`PLAIN_ENGLISH_RULES`). Migration `…180000_plain_english` republished the
 offer letter and eleven emails to that standard; the rest already met it.
 
+### WhatsApp through Twilio (10 September 2026)
+
+- The school uses **Twilio**, so `lib/messaging` has a third adapter beside
+  `dev` and `meta`. Meta was not removed: a row can carry both identifiers and
+  the switch is `MESSAGING_PROVIDER`, so moving between them is configuration.
+- Twilio does not send a template by name. It wraps the approved template in a
+  **Content Template** with a SID (`HX…`) and takes the variables as one JSON
+  object keyed `"1"`, `"2"`. There is no separate button component, so a
+  message with a link carries its token as the variable after the body's — the
+  template has to be authored that way, and the runbook says so.
+- Twilio's webhook signature covers the **URL and every form field**, sorted by
+  name and concatenated with no separator, under HMAC-SHA1. The adapter is
+  handed the request URL for that reason, and `TWILIO_WEBHOOK_URL` overrides it
+  where a proxy makes the app see a different address than Twilio called.
+- Untested against Twilio itself until the account exists: the payload, the
+  signature and the webhook parsing are unit tested against Twilio's documented
+  shapes, but no real message has been sent.
+
 ### Deleting an applicant (9 September 2026)
 
 - Three ways to end an application, and they are not interchangeable.

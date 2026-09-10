@@ -1249,6 +1249,8 @@ export type MessageTemplateRow = {
   key: string;
   name: string;
   meta_template_name: string | null;
+  /** Twilio's Content Template SID (HX…), used instead of the name when Twilio is the provider. */
+  twilio_content_sid: string | null;
   language: string;
   body_preview: string;
   parameters: string[];
@@ -1959,7 +1961,7 @@ export type Database = {
       >;
       message_templates: TableOf<
         MessageTemplateRow,
-        "meta_template_name" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        "meta_template_name" | "twilio_content_sid" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
         [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
       messages: TableOf<

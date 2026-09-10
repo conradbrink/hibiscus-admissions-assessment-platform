@@ -38,7 +38,7 @@ export default async function MessageTemplatesPage() {
             <div className="min-w-0 flex-1">
               <Link href={`/staff/admin/message-templates/${t.key}`} className="font-medium hover:underline">{t.name}</Link>
               <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key}</span>
-              <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Meta: {t.meta_template_name ?? "not named yet"} · updated {formatDate(t.updated_at)}</p>
+              <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Meta: {t.meta_template_name ?? "—"} · Twilio: {t.twilio_content_sid ? "set" : "—"} · updated {formatDate(t.updated_at)}</p>
             </div>
             <Badge variant={t.is_active ? "success" : "muted"}>{t.is_active ? "Active" : "Inactive"}</Badge>
           </li>

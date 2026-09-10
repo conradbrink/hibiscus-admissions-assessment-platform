@@ -11,6 +11,9 @@ import type { MessagingProvider } from "@/lib/messaging/provider";
  */
 export const devMessagingProvider: MessagingProvider = {
   name: "dev",
+  // Whichever provider a deploy is heading for, the outbox should show what
+  // it would send; the Meta name is the one every template already carries.
+  templateIdField: "meta_template_name",
   async sendTemplate(message) {
     console.info(`[whatsapp:dev] to=${message.to} template=${message.templateName}`);
     return { ok: true, providerMessageId: `dev-wa-${randomUUID()}` };
