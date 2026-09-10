@@ -67,6 +67,30 @@ export function canTransition(from: ApplicationStatus, to: ApplicationStatus): b
   return TRANSITIONS[from].includes(to);
 }
 
+/**
+ * Where a booking leaves the application, or null to leave it alone.
+ *
+ * Booking is a stage of the funnel only at the beginning of it. A family
+ * whose offer is already out may still want to walk round the campus before
+ * they accept, and a pre-school enquiry goes straight to a decision and can
+ * be visiting while the offer is being approved.
+ *
+ * Until now the booking was created by `book_session` and the status moved by
+ * a second call, so a visit booked from `offer_sent` inserted the booking and
+ * *then* refused the move: the parent was told in red that the booking had
+ * failed, the booking existed anyway, and the confirmation email was never
+ * queued — leaving the enquiry email, which invites them to book, as the last
+ * word. Recording the booking and leaving the application where it is says
+ * what actually happened.
+ */
+export function statusAfterBooking(
+  from: ApplicationStatus,
+  kind: "assessment" | "visit"
+): ApplicationStatus | null {
+  const to: ApplicationStatus = kind === "visit" ? "visit_booked" : "assessment_booked";
+  return canTransition(from, to) ? to : null;
+}
+
 export class IllegalTransitionError extends Error {
   constructor(
     public readonly from: ApplicationStatus,

@@ -9,6 +9,7 @@ import {
   PIPELINE_GROUPS,
   STATUS_LABELS,
   STATUS_TONE,
+  statusAfterBooking,
   TERMINAL_STATUSES,
   TRANSITIONS,
 } from "@/lib/workflow/states";
@@ -129,5 +130,40 @@ describe("state machine", () => {
     expect(NEXT_ACTIONS.pay_fees.parentCta?.href).toBe("/pay");
     expect(NEXT_ACTIONS.complete_registration.parentCta?.href).toBe("/register");
     expect(NEXT_ACTIONS.review_offer.parentCta?.href).toBe("/offer");
+  });
+
+  describe("statusAfterBooking", () => {
+    it("moves an enquiry to the booked status", () => {
+      expect(statusAfterBooking("new_enquiry", "visit")).toBe("visit_booked");
+      expect(statusAfterBooking("new_enquiry", "assessment")).toBe("assessment_booked");
+      expect(statusAfterBooking("callback_requested", "visit")).toBe("visit_booked");
+      expect(statusAfterBooking("no_show", "assessment")).toBe("assessment_booked");
+    });
+
+    it("leaves an application alone once it is past the booking stage", () => {
+      // These four are the statuses real families were in when they booked a
+      // visit and were told, in red, that it had failed — while the booking
+      // was created anyway. Nothing here may move backwards.
+      for (const from of ["offer_sent", "offer_pending_approval", "payment_required", "payment_processing"] as ApplicationStatus[]) {
+        expect(statusAfterBooking(from, "visit")).toBeNull();
+        expect(statusAfterBooking(from, "assessment")).toBeNull();
+      }
+    });
+
+    it("never moves a terminal application", () => {
+      for (const from of [...TERMINAL_STATUSES] as ApplicationStatus[]) {
+        expect(statusAfterBooking(from, "visit")).toBeNull();
+        expect(statusAfterBooking(from, "assessment")).toBeNull();
+      }
+    });
+
+    it("agrees with the graph for every status", () => {
+      for (const from of ALL) {
+        expect(statusAfterBooking(from, "visit")).toBe(canTransition(from, "visit_booked") ? "visit_booked" : null);
+        expect(statusAfterBooking(from, "assessment")).toBe(
+          canTransition(from, "assessment_booked") ? "assessment_booked" : null
+        );
+      }
+    });
   });
 });
