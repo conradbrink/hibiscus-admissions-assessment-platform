@@ -98,7 +98,11 @@ export async function onPaymentVerified(
   if (error) throw new WorkflowError(error.message, "database");
 
   const amount = formatMoney(Number(payment.amount_minor), payment.currency);
-  const method = payment.method === "eft" ? "bank transfer" : payment.method === "waived" ? "waived" : "online";
+  const method =
+    payment.method === "eft" ? "bank transfer"
+    : payment.method === "waived" ? "waived"
+    : payment.method === "none" ? "nothing payable"
+    : "online";
 
   if (!settledInFull) {
     await commit(admin, {
@@ -173,7 +177,10 @@ export async function onPaymentVerified(
   const jobs: JobSpec[] = [
     {
       type: "send_email",
-      payload: { template_key: payment.method === "waived" ? "fees_waived" : "payment_received", links: ["registration"], payment_id: payment.id, payment_request_id: request.id },
+      payload: { template_key:
+          payment.method === "waived" ? "fees_waived"
+          : payment.method === "none" ? "fees_none"
+          : "payment_received", links: ["registration"], payment_id: payment.id, payment_request_id: request.id },
       idempotencyKey: `email:${app.id}:payment_received:${payment.id}`,
     },
   ];

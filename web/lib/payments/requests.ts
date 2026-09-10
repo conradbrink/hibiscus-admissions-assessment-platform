@@ -1,7 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
-import { fullyWaived } from "@/lib/promotions/apply";
+import { chargeAtAcceptance } from "@/lib/payments/due";
 import type { ApplicationRow, BankInstructionRow, Json, OfferRow, PaymentRequestRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
 
@@ -27,9 +27,11 @@ export async function createPaymentRequest(
   opts: { app: Pick<ApplicationRow, "id">; offer: Pick<OfferRow, "id" | "fees" | "currency">; acceptanceId: string; dueAt: Date }
 ): Promise<PaymentRequestRow> {
   const payable = payableLines(opts.offer);
-  const waived = fullyWaived(feeSnapshotFrom(opts.offer.fees));
-  if (!payable || (payable.amountMinor <= 0 && !waived)) {
-    throw new WorkflowError("This offer has no fees payable on acceptance; finance must set a fee schedule before it can be accepted.", "status_conflict");
+  // Zero is a legitimate amount: a campus may charge nothing to secure a
+  // place, and a deal may waive everything. The only error is an offer that
+  // was never priced at all, which `onOfferDrafted` no longer produces.
+  if (!payable || chargeAtAcceptance(feeSnapshotFrom(opts.offer.fees)).kind === "unpriced") {
+    throw new WorkflowError("This offer has no fee schedule, so it cannot be accepted; finance must set one first.", "status_conflict");
   }
   const { data, error } = await admin
     .from("payment_requests")
