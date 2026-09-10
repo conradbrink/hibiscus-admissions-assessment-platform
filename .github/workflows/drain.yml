@@ -1,16 +1,24 @@
-# Drains the job queue every five minutes by calling the deployed site.
+# An hourly backstop for the job queue. Not the schedule.
 #
-# Vercel's Hobby plan allows one cron run a day, which is far too slow for
-# reminders, payment checks and the automations, so the five-minute cadence
-# runs from here instead. web/vercel.json keeps a daily Vercel cron as a
-# safety net. Two repository secrets are needed:
+# This asked GitHub for `*/5 * * * *` and did not get it: between 7 and 10
+# September 2026 that schedule produced 22 runs in 74 hours — one every three
+# and a half hours, 2.5% of the cadence it claimed. GitHub throttles scheduled
+# workflows hard, and a workflow that says five minutes while delivering three
+# hours is worse than one that admits to an hour, because the first hides the
+# gap. The real five-minute schedule is Supabase `pg_cron` calling the same
+# endpoint (supabase/migrations/20260911220000_drain_schedule.sql); this is
+# what catches it if the database's scheduler stops, and web/vercel.json's
+# nightly cron is the last resort under that.
+#
+# Two repository secrets are needed:
 #   DRAIN_URL    https://<site>/api/jobs/drain
 #   CRON_SECRET  the same value as the Vercel CRON_SECRET environment variable
-# GitHub schedules can run a few minutes late under load; that is fine here.
+# The minute is arbitrary and deliberately not :00, to sit away from whatever
+# else the world runs on the hour.
 name: Drain job queue
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 concurrency:
   group: drain

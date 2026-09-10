@@ -487,6 +487,21 @@ export type RateLimitRow = {
   count: number;
 };
 
+/** Where a drain came from. Only `schedule` says the scheduler is alive. */
+export type DrainRunSource = "schedule" | "request" | "manual";
+
+export type DrainRunRow = {
+  id: string;
+  ran_at: string;
+  source: DrainRunSource;
+  claimed: number;
+  done: number;
+  skipped: number;
+  failed: number;
+  duration_ms: number;
+  detail: Json | null;
+};
+
 export type SessionRow = {
   id: string;
   kind: SessionKind;
@@ -1638,6 +1653,10 @@ export type Database = {
         [Rel<"token_uses_token_id_fkey", "token_id", "access_tokens">]
       >;
       rate_limits: TableOf<RateLimitRow, "count">;
+      drain_runs: TableOf<
+        DrainRunRow,
+        "id" | "ran_at" | "claimed" | "done" | "skipped" | "failed" | "duration_ms" | "detail"
+      >;
       sessions: TableOf<
         SessionRow,
         | "capacity"
@@ -2297,6 +2316,7 @@ export type Database = {
         Returns: Json;
       };
       prune_rate_limits: { Args: Record<string, never>; Returns: number };
+      prune_drain_runs: { Args: Record<string, never>; Returns: number };
       session_places_taken: { Args: { p_session_id: string }; Returns: number };
       book_session: {
         Args: { p_application_id: string; p_session_id: string };

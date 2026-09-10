@@ -603,9 +603,19 @@ visible fields are fine, suspect a hidden id.
   assessment day, the registration page and the fresh-link action all
   threw. Every embed is now `contacts!applications_contact_id_fkey(...)`.
   Any table with two routes to another needs the same hint.
-- **Vercel's Hobby plan allows only daily crons.** The five-minute drain
-  runs from `.github/workflows/drain.yml` (repository secrets `DRAIN_URL`
-  and `CRON_SECRET`); `web/vercel.json` keeps a daily call as a fallback.
+- **A GitHub Actions `*/5` schedule is not a five-minute schedule.** It ran
+  22 times in the 74 hours to 10 September 2026 — one every three and a half
+  hours, 2.5% of what it asked for — and the Job queue page told staff it was
+  running every five minutes the whole time. It was not an outage only because
+  every parent and staff action drains the queue on its way out; what was late
+  was the work with no request behind it. The five-minute schedule is now
+  Supabase `pg_cron` calling `/api/jobs/drain` through `pg_net`
+  (`public.drain_tick()`, reading `drain_url` and `drain_cron_secret` from the
+  Vault so no secret is in the repository). The GitHub workflow stays as an
+  **hourly** backstop and `web/vercel.json` as a nightly last resort — Vercel's
+  Hobby plan allows only daily crons. Every run leaves a row in `drain_runs`,
+  and `/staff/admin/jobs` reads it: the lesson was less about cron than about
+  a claim nothing checked.
 - **Vercel needs Root Directory `web` and Framework Preset Next.js.** With
   the defaults it builds the repository root as a static site and serves
   `NOT_FOUND` on every path.

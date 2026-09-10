@@ -27,7 +27,7 @@ export async function retryJob(_: StaffActionState, formData: FormData): Promise
 export async function drainNow(): Promise<StaffActionState> {
   return guarded(async () => {
     await requireStaffAction("admin");
-    await drainJobs(createAdminClient(), 50);
+    await drainJobs(createAdminClient(), 50, { source: "manual" });
     revalidatePath("/staff/admin/jobs");
   });
 }
