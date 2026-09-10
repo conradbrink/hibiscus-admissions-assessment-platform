@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isClosed, planSessions, schoolDate, schoolInstant, weekdaysAhead } from "@/lib/workflow/automation/schedule";
+import { isClosed, planSessions, schoolDate, schoolInstant, schoolMinutes, weekdaysAhead } from "@/lib/workflow/automation/schedule";
 
 describe("schoolDate", () => {
   it("is the Gaborone calendar date, two hours ahead of UTC", () => {
@@ -42,10 +42,28 @@ describe("schoolInstant", () => {
   });
 });
 
+describe("schoolMinutes", () => {
+  it("is the inverse of schoolInstant", () => {
+    for (const m of [0, 480, 570, 660, 1439]) {
+      expect(schoolMinutes(schoolInstant("2026-09-08", m))).toBe(m);
+    }
+  });
+  it("reads an instant late enough to be tomorrow in Gaborone off the Gaborone clock", () => {
+    // 22:30 UTC is 00:30 the next day at school; the date rolls over and so
+    // does the reading, which is what keys a slot correctly.
+    const at = new Date("2026-09-07T22:30:00Z");
+    expect(schoolDate(at)).toBe("2026-09-08");
+    expect(schoolMinutes(at)).toBe(30);
+  });
+});
+
 describe("planSessions", () => {
+  // The school's day: an assessment sitting and a school visit at each of
+  // 08:00, 09:30 and 11:00.
+  const STARTS = [480, 570, 660];
   const rules = [
-    { kind: "assessment" as const, startMinutes: 540, durationMinutes: 90 },
-    { kind: "visit" as const, startMinutes: 600, durationMinutes: 60 },
+    ...STARTS.map((startMinutes) => ({ kind: "assessment" as const, startMinutes, durationMinutes: 90 })),
+    ...STARTS.map((startMinutes) => ({ kind: "visit" as const, startMinutes, durationMinutes: 60 })),
   ];
   it("plans one session per rule per open weekday per campus", () => {
     const plan = planSessions({
@@ -56,24 +74,75 @@ describe("planSessions", () => {
       rules,
       existing: [],
     });
-    // 5 weekdays, one closed, two campuses, two rules.
-    expect(plan).toHaveLength(4 * 2 * 2);
+    // 5 weekdays, one closed, two campuses, six rules.
+    expect(plan).toHaveLength(4 * 2 * 6);
     expect(plan.some((p) => p.date === "2026-09-10")).toBe(false);
     const first = plan.find((p) => p.campus_id === "a" && p.kind === "assessment" && p.date === "2026-09-08");
-    expect(first?.starts_at).toBe("2026-09-08T07:00:00.000Z");
-    expect(first?.ends_at).toBe("2026-09-08T08:30:00.000Z");
+    expect(first?.starts_at).toBe("2026-09-08T06:00:00.000Z");
+    expect(first?.ends_at).toBe("2026-09-08T07:30:00.000Z");
   });
-  it("leaves a day alone when a session of that kind already exists there, whoever made it", () => {
+  it("plans every time of a kind on the same day", () => {
+    // The bug this replaced: the first rule of a kind claimed the whole day
+    // and the other two were dropped without a word.
     const plan = planSessions({
       today: "2026-09-07",
       weeksAhead: 1,
       campusIds: ["a"],
       closures: [],
       rules,
-      existing: [{ campus_id: "a", kind: "assessment", starts_at: "2026-09-08T12:00:00Z" }],
+      existing: [],
     });
-    expect(plan.filter((p) => p.date === "2026-09-08").map((p) => p.kind)).toEqual(["visit"]);
-    expect(plan.filter((p) => p.date === "2026-09-09")).toHaveLength(2);
+    const day = plan.filter((p) => p.date === "2026-09-08");
+    expect(day.filter((p) => p.kind === "assessment").map((p) => p.starts_at)).toEqual([
+      "2026-09-08T06:00:00.000Z",
+      "2026-09-08T07:30:00.000Z",
+      "2026-09-08T09:00:00.000Z",
+    ]);
+    expect(day.filter((p) => p.kind === "visit")).toHaveLength(3);
+  });
+  it("leaves a time alone when a session of that kind already sits there, whoever made it", () => {
+    const plan = planSessions({
+      today: "2026-09-07",
+      weeksAhead: 1,
+      campusIds: ["a"],
+      closures: [],
+      rules,
+      // 09:30 school time on the 8th.
+      existing: [{ campus_id: "a", kind: "assessment", starts_at: "2026-09-08T07:30:00Z" }],
+    });
+    const day = plan.filter((p) => p.date === "2026-09-08");
+    expect(day.filter((p) => p.kind === "assessment").map((p) => p.starts_at)).toEqual([
+      "2026-09-08T06:00:00.000Z",
+      "2026-09-08T09:00:00.000Z",
+    ]);
+    // The visit at that time is a different kind, so it is untouched.
+    expect(day.filter((p) => p.kind === "visit")).toHaveLength(3);
+    expect(plan.filter((p) => p.date === "2026-09-09")).toHaveLength(6);
+  });
+  it("is not suppressed by a session at an unrelated time", () => {
+    // A one-off sitting at 13:10 is an extra, not a replacement — which is
+    // what used to happen when the key was the day rather than the time.
+    const plan = planSessions({
+      today: "2026-09-07",
+      weeksAhead: 1,
+      campusIds: ["a"],
+      closures: [],
+      rules,
+      existing: [{ campus_id: "a", kind: "assessment", starts_at: "2026-09-08T11:10:00Z" }],
+    });
+    expect(plan.filter((p) => p.date === "2026-09-08")).toHaveLength(6);
+  });
+  it("keeps campuses apart", () => {
+    const plan = planSessions({
+      today: "2026-09-07",
+      weeksAhead: 1,
+      campusIds: ["a", "b"],
+      closures: [],
+      rules,
+      existing: [{ campus_id: "a", kind: "assessment", starts_at: "2026-09-08T06:00:00Z" }],
+    });
+    expect(plan.filter((p) => p.campus_id === "a" && p.date === "2026-09-08")).toHaveLength(5);
+    expect(plan.filter((p) => p.campus_id === "b" && p.date === "2026-09-08")).toHaveLength(6);
   });
   it("plans nothing with no campuses or no rules", () => {
     expect(planSessions({ today: "2026-09-07", weeksAhead: 2, campusIds: [], closures: [], rules, existing: [] })).toEqual([]);

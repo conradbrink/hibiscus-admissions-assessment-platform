@@ -74,7 +74,7 @@ export default async function FeesPage({
       <form className="mb-4 flex flex-wrap items-end gap-3 surface p-3">
         <div className="space-y-1">
           <Label htmlFor="campus" className="text-xs">Campus</Label>
-          <NativeSelect id="campus" name="campus" defaultValue={sp.campus ?? ""} className="h-9 w-48">
+          <NativeSelect id="campus" name="campus" defaultValue={sp.campus ?? ""} className="w-48">
             <option value="">Every campus</option>
             {(campuses ?? []).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -83,7 +83,7 @@ export default async function FeesPage({
         </div>
         <div className="space-y-1">
           <Label htmlFor="year" className="text-xs">Academic year</Label>
-          <NativeSelect id="year" name="year" defaultValue={sp.year ?? yearFilter?.id ?? "all"} className="h-9 w-44">
+          <NativeSelect id="year" name="year" defaultValue={sp.year ?? yearFilter?.id ?? "all"} className="w-44">
             {(years ?? []).map((y) => (
               <option key={y.id} value={y.id}>{y.label}{y.is_current ? " (current)" : ""}</option>
             ))}
@@ -109,8 +109,8 @@ export default async function FeesPage({
           {(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
         </NativeSelect>
         <div className="grid grid-cols-2 gap-2">
-          <NativeSelect name="gradeSortMin" defaultValue=""><option value="">Any grade</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>From {g.name}</option>)}</NativeSelect>
-          <NativeSelect name="gradeSortMax" defaultValue=""><option value="">to any</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>To {g.name}</option>)}</NativeSelect>
+          <NativeSelect name="gradeSortMin" defaultValue=""><option value="">Any grade</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={String(g.sort_order)}>From {g.name}</option>)}</NativeSelect>
+          <NativeSelect name="gradeSortMax" defaultValue=""><option value="">to any</option>{(grades ?? []).map((g) => <option key={g.sort_order} value={String(g.sort_order)}>To {g.name}</option>)}</NativeSelect>
         </div>
       </ActionForm>
 
@@ -123,15 +123,24 @@ export default async function FeesPage({
             const totals = scheduleTotals(lines);
             const currency = s.currency as "BWP" | "ZAR";
             return (
-              <div key={s.id} className="surface p-4">
+              // Keyed by the row's identity *and* when it last changed. React 19
+              // resets an uncontrolled form once its action completes, and the
+              // values it resets to are whatever defaults the current DOM holds
+              // — so with a key that never changed, a save restored the fields
+              // to what was on screen before rather than to what was written,
+              // and the next save posted those stale values straight back. The
+              // updated_at trigger fires on every save, so a save remounts the
+              // card and every field is rebuilt from the row that was just
+              // read. Do not simplify this back to `key={s.id}`.
+              <div key={`${s.id}:${s.updated_at}`} className="surface p-4">
                 <ActionForm action={saveSchedule} label="Save" size="sm" variant="outline">
                   <input type="hidden" name="scheduleId" value={s.id} />
                   <div className="mb-3 flex flex-wrap items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <Input name="name" defaultValue={s.name} required maxLength={120} className="h-9 font-semibold md:h-9" />
+                      <Input name="name" defaultValue={s.name} required maxLength={120} className="font-semibold" />
                     </div>
                     <Badge variant={s.status === "active" ? "success" : "outline"}>{s.status}</Badge>
-                    <NativeSelect name="status" defaultValue={s.status} className="h-8 w-28 md:h-8">
+                    <NativeSelect name="status" defaultValue={s.status} className="w-28">
                       <option value="draft">Draft</option>
                       <option value="active">Active</option>
                     </NativeSelect>
@@ -142,7 +151,7 @@ export default async function FeesPage({
                   <div className="mb-3 grid gap-2 md:grid-cols-4">
                     <label className="text-xs">
                       <span className="mb-1 block text-muted-foreground">Campus</span>
-                      <NativeSelect name="campusId" defaultValue={s.campus_id} required className="h-8 md:h-8">
+                      <NativeSelect name="campusId" defaultValue={s.campus_id} required>
                         {(campuses ?? []).map((c) => (
                           <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>
                         ))}
@@ -150,22 +159,22 @@ export default async function FeesPage({
                     </label>
                     <label className="text-xs">
                       <span className="mb-1 block text-muted-foreground">Academic year</span>
-                      <NativeSelect name="academicYearId" defaultValue={s.academic_year_id} required className="h-8 md:h-8">
+                      <NativeSelect name="academicYearId" defaultValue={s.academic_year_id} required>
                         {(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
                       </NativeSelect>
                     </label>
                     <label className="text-xs">
                       <span className="mb-1 block text-muted-foreground">From grade</span>
-                      <NativeSelect name="gradeSortMin" defaultValue={s.grade_sort_min ?? ""} className="h-8 md:h-8">
+                      <NativeSelect name="gradeSortMin" defaultValue={s.grade_sort_min === null ? "" : String(s.grade_sort_min)} >
                         <option value="">Any grade</option>
-                        {(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>{g.name}</option>)}
+                        {(grades ?? []).map((g) => <option key={g.sort_order} value={String(g.sort_order)}>{g.name}</option>)}
                       </NativeSelect>
                     </label>
                     <label className="text-xs">
                       <span className="mb-1 block text-muted-foreground">To grade</span>
-                      <NativeSelect name="gradeSortMax" defaultValue={s.grade_sort_max ?? ""} className="h-8 md:h-8">
+                      <NativeSelect name="gradeSortMax" defaultValue={s.grade_sort_max === null ? "" : String(s.grade_sort_max)} >
                         <option value="">to any</option>
-                        {(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>{g.name}</option>)}
+                        {(grades ?? []).map((g) => <option key={g.sort_order} value={String(g.sort_order)}>{g.name}</option>)}
                       </NativeSelect>
                     </label>
                   </div>
@@ -192,8 +201,8 @@ export default async function FeesPage({
                     {lines.map((l) => (
                       <div key={l.code} className="grid grid-cols-[1fr_140px_150px_80px] items-center gap-2">
                         <input type="hidden" name="lineCode" value={l.code} />
-                        <Input name={`label_${l.code}`} defaultValue={l.label} maxLength={120} className="h-8 md:h-8" />
-                        <Input name={`amount_${l.code}`} defaultValue={(Number(l.amount_minor) / 100).toFixed(2)} inputMode="decimal" className="h-8 text-right tabular-nums md:h-8" />
+                        <Input name={`label_${l.code}`} defaultValue={l.label} maxLength={120}  />
+                        <Input name={`amount_${l.code}`} defaultValue={(Number(l.amount_minor) / 100).toFixed(2)} inputMode="decimal" className="text-right tabular-nums" />
                         <label className="text-xs"><input type="checkbox" name={`payable_${l.code}`} value="1" defaultChecked={l.payable_at_acceptance} /> yes</label>
                         <label className="text-xs"><input type="checkbox" name={`remove_${l.code}`} value="1" /> remove</label>
                       </div>
@@ -206,13 +215,13 @@ export default async function FeesPage({
                       <p className="mb-2 text-xs text-muted-foreground">Add a fee. One per save, and each kind can appear once.</p>
                       <div className="grid grid-cols-[1fr_140px_150px_80px] items-center gap-2">
                         <div className="grid grid-cols-2 gap-2">
-                          <NativeSelect name="newCode" defaultValue="" className="h-8 md:h-8">
+                          <NativeSelect name="newCode" defaultValue="" >
                             <option value="">Add nothing</option>
                             {canAdd.map((c) => <option key={c} value={c}>{feeDefaults(c).label}</option>)}
                           </NativeSelect>
-                          <Input name="newLabel" placeholder="Or call it something else" maxLength={120} className="h-8 md:h-8" />
+                          <Input name="newLabel" placeholder="Or call it something else" maxLength={120}  />
                         </div>
-                        <Input name="newAmount" placeholder="0.00" inputMode="decimal" className="h-8 text-right tabular-nums md:h-8" />
+                        <Input name="newAmount" placeholder="0.00" inputMode="decimal" className="text-right tabular-nums" />
                         <label className="text-xs"><input type="checkbox" name="newPayable" value="1" /> yes</label>
                         <span />
                       </div>

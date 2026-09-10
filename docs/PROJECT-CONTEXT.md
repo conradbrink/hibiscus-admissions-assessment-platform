@@ -480,13 +480,17 @@ choice can never keep a family at 90 per cent forever.
   were corrected on the school's instruction (listed in the seed's header).
   Primary (Stage 1 to 7) papers have not been supplied yet.
 - **Sessions.** The school asked (7 September) for a sitting and a visit to
-  be bookable every weekday at every campus except on school holidays. The
+  be bookable every weekday at every campus except on school holidays, and
+  (10 September) for three of each a day, at 08:00, 09:30 and 11:00. The
   drain keeps them created six weeks ahead from the `auto_sessions_*`
   settings (`lib/workflow/automation/sessions.ts`), skipping the dates in
   `school_closures`, which is seeded with the 2026 term calendar and edited
-  at `/staff/admin/closures`. A day that already has a session of that kind
-  at that campus is left alone, so hand-made sessions replace rather than
-  duplicate the automatic one.
+  at `/staff/admin/closures`. `auto_assessment_starts` and
+  `auto_visit_starts` hold the times as lists of minutes after midnight in
+  school time. A *time* that already has a session of that kind at that
+  campus is left alone, so a hand-made session replaces the automatic one at
+  that time and nothing else; `sessions_slot_idx` makes the same rule the
+  database's, so two overlapping drains cannot duplicate a slot.
 - **Fee amounts.** With no active fee schedule an approved applicant rests
   at `offer_draft` with a task for finance, and approval is blocked.
 
