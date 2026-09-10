@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { BookingCard } from "@/components/parent/booking-card";
+import { EmailAddress } from "@/components/parent/email-address";
 import { PageHeader } from "@/components/parent/page-header";
 import { Button } from "@/components/ui/button";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,7 +11,7 @@ import { loadApplicationGraph } from "@/lib/applications";
 import { hasStarted, withinCutoff } from "@/lib/format-date";
 import { getSettings } from "@/lib/settings";
 import { requireParentSession } from "@/lib/tokens/server";
-import { cancelBooking } from "../actions";
+import { cancelBooking, changeEmail } from "../actions";
 
 export const metadata: Metadata = { title: "Your booking" };
 
@@ -21,7 +22,7 @@ export default async function BookingPage() {
   if (!graph) redirect("/link?reason=unknown");
   if (!graph.booking) redirect("/next");
 
-  const { application: app, campus, booking } = graph;
+  const { application: app, campus, booking, contact } = graph;
   const settings = await getSettings(admin);
   const qr = await QRCode.toDataURL(app.reference, { margin: 1, width: 192 });
   const past = hasStarted(booking.session.starts_at);
@@ -59,6 +60,7 @@ export default async function BookingPage() {
           </p>
         </div>
       ) : null}
+      <EmailAddress key={contact.email} email={contact.email} action={changeEmail} />
       <p className="mt-6 text-sm">
         <Link href="/next" className="font-medium text-primary underline underline-offset-2">
           Back to your application

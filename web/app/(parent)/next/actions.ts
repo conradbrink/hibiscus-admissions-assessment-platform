@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
+import { normaliseEmail } from "@/lib/contacts";
 import { loadCatalogue } from "@/lib/enquiry";
 import { funnelSessionKey } from "@/lib/funnel-session";
 import { recordFunnelStep } from "@/lib/funnel";
@@ -269,5 +270,96 @@ export async function setWhatsAppPreference(_prev: ActionState, formData: FormDa
     actor: { ...PARENT_ACTOR, ipHash: ctx.ipHash },
   });
   revalidatePath("/next");
+  return {};
+}
+
+/**
+ * The address the school writes to, changed by the parent who holds the link.
+ *
+ * A typo at enquiry used to be unfixable from the parent's side: every
+ * confirmation, reminder, offer and payment instruction went to the wrong
+ * address, and the only way back in was the link already in their hand. This
+ * is the fix for that, and the reason it lives on the booking page — that is
+ * the page they are on when the confirmation does not arrive.
+ *
+ * The address belongs to the contact, not to this one application, so it
+ * changes for every child that contact has applied for. That is right: it is
+ * the same person, and a half-moved address would send siblings' letters to
+ * different inboxes.
+ *
+ * Two addresses cannot share a contact — `contacts.email_normalised` is
+ * unique, which is what keeps a family's applications together. So an address
+ * already in use by *somebody else* is refused rather than merged: merging
+ * would hand one household's applications to another, and there is no way
+ * from here to know the two are the same person. Staff can join them.
+ */
+export async function changeEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await requireParentSession();
+  const admin = createAdminClient();
+  const ctx = await requestContext();
+  const graph = await loadApplicationGraph(admin, session.applicationId);
+  if (!graph) redirect("/link?reason=unknown");
+
+  const parsed = z.object({ email: z.email().max(254) }).safeParse({
+    email: String(formData.get("email") ?? "").trim(),
+  });
+  if (!parsed.success) return { error: "That does not look like an email address. Please check it." };
+
+  const previous = graph.contact.email;
+  const normalised = normaliseEmail(parsed.data.email);
+  if (normalised === graph.contact.email_normalised) {
+    // Same address, possibly retyped in different case. Nothing to do, and
+    // saying "saved" for a change that did not happen would be a lie.
+    return {};
+  }
+
+  // Counted per application, as the booking limit is: a family behind one
+  // office connection is not one another's rate limit, and the thing worth
+  // slowing is one session walking a list of addresses to learn which are
+  // already on file.
+  const limit = await enforceRateLimit(admin, LIMITS.parentEmailChange, session.applicationId);
+  if (!limit.ok) return { error: "Too many changes just now. Please try again in a few minutes." };
+
+  const { data: clash, error: clashErr } = await admin
+    .from("contacts")
+    .select("id")
+    .eq("email_normalised", normalised)
+    .maybeSingle();
+  if (clashErr) return { error: "Could not save that. Please try again." };
+  if (clash) {
+    return {
+      error: `${parsed.data.email} is already on another enquiry with us. Please call the school and they will join them up.`,
+    };
+  }
+
+  const { error } = await admin
+    .from("contacts")
+    .update({ email: parsed.data.email.trim(), email_normalised: normalised })
+    .eq("id", graph.contact.id);
+  // A second enquiry could have claimed the address between the check above
+  // and here; the unique index is what actually decides, and it says no.
+  if (error) {
+    return error.message.includes("contacts_email_normalised_key")
+      ? { error: `${parsed.data.email} is already on another enquiry with us. Please call the school and they will join them up.` }
+      : { error: "Could not save that. Please try again." };
+  }
+
+  await commit(admin, {
+    applicationId: graph.application.id,
+    expectedStatus: null,
+    newStatus: null,
+    nextAction: null,
+    // The old address is on the record: it is the one every letter before
+    // now went to, and staff chasing an unanswered offer need to see it.
+    event: {
+      type: "contact.email_changed",
+      summary: `Parent changed their email address from ${previous} to ${parsed.data.email}`,
+      payload: { from: previous, to: parsed.data.email },
+    },
+    audit: { action: "contact.email_changed", entityType: "contact", entityId: graph.contact.id },
+    actor: { ...PARENT_ACTOR, ipHash: ctx.ipHash },
+  });
+  revalidatePath("/next");
+  revalidatePath("/next/booking");
   return {};
 }

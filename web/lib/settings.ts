@@ -46,9 +46,10 @@ export type Settings = {
   rebookNudgeDays: number;
   autoSessionsEnabled: boolean;
   autoSessionsWeeksAhead: number;
-  autoAssessmentStartMinutes: number;
+  /** Clock readings, minutes after midnight in school time, sorted and distinct. */
+  autoAssessmentStarts: number[];
   autoAssessmentDurationMinutes: number;
-  autoVisitStartMinutes: number;
+  autoVisitStarts: number[];
   autoVisitDurationMinutes: number;
   autoSessionCapacity: number;
   aiAutoMarkEnabled: boolean;
@@ -87,9 +88,9 @@ export const DEFAULT_SETTINGS: Settings = {
   rebookNudgeDays: 3,
   autoSessionsEnabled: true,
   autoSessionsWeeksAhead: 6,
-  autoAssessmentStartMinutes: 540,
+  autoAssessmentStarts: [480, 570, 660],
   autoAssessmentDurationMinutes: 90,
-  autoVisitStartMinutes: 600,
+  autoVisitStarts: [480, 570, 660],
   autoVisitDurationMinutes: 60,
   autoSessionCapacity: 6,
   aiAutoMarkEnabled: true,
@@ -128,9 +129,9 @@ const KEYS: Record<keyof Settings, string> = {
   rebookNudgeDays: "rebook_nudge_days",
   autoSessionsEnabled: "auto_sessions_enabled",
   autoSessionsWeeksAhead: "auto_sessions_weeks_ahead",
-  autoAssessmentStartMinutes: "auto_assessment_start_minutes",
+  autoAssessmentStarts: "auto_assessment_starts",
   autoAssessmentDurationMinutes: "auto_assessment_duration_minutes",
-  autoVisitStartMinutes: "auto_visit_start_minutes",
+  autoVisitStarts: "auto_visit_starts",
   autoVisitDurationMinutes: "auto_visit_duration_minutes",
   autoSessionCapacity: "auto_session_capacity",
   aiAutoMarkEnabled: "ai_auto_mark_enabled",
@@ -146,9 +147,22 @@ function asPositiveIntArray(v: Json | undefined, fallback: number[]): number[] {
   return nums.length ? nums : fallback;
 }
 
-/** A clock reading in minutes after midnight. */
-function asMinutes(v: Json | undefined, fallback: number): number {
-  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1440 ? v : fallback;
+/**
+ * A list of clock readings in minutes after midnight, sorted and distinct.
+ *
+ * Anything else is the fallback, whole. A partial list would be worse than
+ * none: these times are typed into the raw settings editor, and half of a
+ * mistyped list is a day that quietly gets fewer sittings than the school
+ * thinks it has. Out of order or repeated is a mistake too — repeated means
+ * two sittings at the same instant, which the unique index on `sessions`
+ * refuses anyway, and the generator should not be the one to find out.
+ */
+function asMinutesList(v: Json | undefined, fallback: number[]): number[] {
+  if (!Array.isArray(v) || v.length === 0) return fallback;
+  const ok = v.every((x, i) =>
+    typeof x === "number" && Number.isInteger(x) && x >= 0 && x < 1440 && (i === 0 || (typeof v[i - 1] === "number" && x > (v[i - 1] as number)))
+  );
+  return ok ? (v as number[]) : fallback;
 }
 
 function asHour(v: Json | undefined, fallback: number): number {
@@ -206,9 +220,9 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     rebookNudgeDays: asPositiveInt(map.get(KEYS.rebookNudgeDays), d.rebookNudgeDays),
     autoSessionsEnabled: asBoolean(map.get(KEYS.autoSessionsEnabled), d.autoSessionsEnabled),
     autoSessionsWeeksAhead: asPositiveInt(map.get(KEYS.autoSessionsWeeksAhead), d.autoSessionsWeeksAhead),
-    autoAssessmentStartMinutes: asMinutes(map.get(KEYS.autoAssessmentStartMinutes), d.autoAssessmentStartMinutes),
+    autoAssessmentStarts: asMinutesList(map.get(KEYS.autoAssessmentStarts), d.autoAssessmentStarts),
     autoAssessmentDurationMinutes: asPositiveInt(map.get(KEYS.autoAssessmentDurationMinutes), d.autoAssessmentDurationMinutes),
-    autoVisitStartMinutes: asMinutes(map.get(KEYS.autoVisitStartMinutes), d.autoVisitStartMinutes),
+    autoVisitStarts: asMinutesList(map.get(KEYS.autoVisitStarts), d.autoVisitStarts),
     autoVisitDurationMinutes: asPositiveInt(map.get(KEYS.autoVisitDurationMinutes), d.autoVisitDurationMinutes),
     autoSessionCapacity: asPositiveInt(map.get(KEYS.autoSessionCapacity), d.autoSessionCapacity),
     aiAutoMarkEnabled: asBoolean(map.get(KEYS.aiAutoMarkEnabled), d.aiAutoMarkEnabled),

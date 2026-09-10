@@ -31,6 +31,13 @@ export const LIMITS = {
   funnelEvent: { bucket: "funnel_event", limit: 300, windowSeconds: 3600 },
   /** Booking or changing a slot from a parent session. */
   parentBooking: { bucket: "parent_booking", limit: 20, windowSeconds: 3600 },
+  /**
+   * Changing the address on a contact from a parent session. A parent
+   * correcting a typo needs two or three goes; a script probing which
+   * addresses are already on file needs many more, and the refusal is the
+   * same either way.
+   */
+  parentEmailChange: { bucket: "parent_email_change", limit: 5, windowSeconds: 3600 },
   /** Setting a password from an invitation, per address. */
   staffInvite: { bucket: "staff_invite", limit: 20, windowSeconds: 3600 },
   /** Typing a launch code on a lab computer, per address. Codes are single use; this stops guessing. */

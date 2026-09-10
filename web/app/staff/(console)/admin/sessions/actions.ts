@@ -50,7 +50,17 @@ export async function createSessions(_: StaffActionState, formData: FormData): P
       };
     });
     const { error } = await ctx.supabase.from("sessions").insert(rows);
-    if (error) throw new Error(error.message);
+    if (error) {
+      // One kind, one campus, one instant: the schedule already puts sittings
+      // at the school's set times, so this is nearly always someone adding a
+      // session the generator has already made.
+      if (error.message.includes("sessions_slot_idx")) {
+        throw new Error(
+          "There is already a session of that kind at that campus, on that date and at that time. Change the time, or edit the one that exists."
+        );
+      }
+      throw new Error(error.message);
+    }
     revalidatePath("/staff/admin/sessions");
   });
 }
