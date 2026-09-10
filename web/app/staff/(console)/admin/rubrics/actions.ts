@@ -25,9 +25,9 @@ function bandsFrom(formData: FormData) {
 }
 
 const meta = z.object({
-  rubricId: z.uuid().optional().or(z.literal("")),
+  rubricId: z.guid().optional().or(z.literal("")),
   name: z.string().trim().min(1).max(120),
-  competencyId: z.uuid(),
+  competencyId: z.guid(),
   maxMarks: z.coerce.number().positive().max(100),
 });
 

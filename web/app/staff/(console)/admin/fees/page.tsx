@@ -11,8 +11,6 @@ import { requireStaff } from "@/lib/staff/session";
 import { Textarea } from "@/components/ui/textarea";
 import { createSchedule, deleteSchedule, saveBankInstructions, saveSchedule } from "./actions";
 
-const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
-
 /**
  * What an offer shows and what a parent pays to secure a place.
  *
@@ -51,7 +49,7 @@ export default async function FeesPage({
 
   let query = supabase
     .from("fee_schedules")
-    .select("*, campuses(name), academic_years(label), fee_lines(*)")
+    .select("*, fee_lines(*)")
     .order("status", { ascending: false })
     .order("created_at", { ascending: false });
   if (sp.campus) query = query.eq("campus_id", sp.campus);
@@ -60,7 +58,6 @@ export default async function FeesPage({
 
   const bankFor = (currency: "BWP" | "ZAR", campusId: string | null) =>
     (bank ?? []).find((b) => b.currency === currency && b.campus_id === campusId && b.is_active) ?? null;
-  const gradeName = (sort: number | null) => (sort === null ? "any" : grades?.find((g) => g.sort_order === sort)?.name ?? String(sort));
 
   const rows = schedules ?? [];
   const emptyActive = rows.filter((s) => s.status === "active" && (s.fee_lines ?? []).length === 0).length;
@@ -132,9 +129,6 @@ export default async function FeesPage({
                   <div className="mb-3 flex flex-wrap items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <Input name="name" defaultValue={s.name} required maxLength={120} className="h-9 font-semibold md:h-9" />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {one(s.campuses)?.name} · {one(s.academic_years)?.label} · grades {gradeName(s.grade_sort_min)} – {gradeName(s.grade_sort_max)} · {currency}
-                      </p>
                     </div>
                     <Badge variant={s.status === "active" ? "success" : "outline"}>{s.status}</Badge>
                     <NativeSelect name="status" defaultValue={s.status} className="h-8 w-28 md:h-8">
@@ -142,6 +136,47 @@ export default async function FeesPage({
                       <option value="active">Active</option>
                     </NativeSelect>
                   </div>
+
+                  {/* Who this schedule covers. Changing it decides which schedule wins
+                      the next offer; one already sent keeps the fees it was sent with. */}
+                  <div className="mb-3 grid gap-2 md:grid-cols-4">
+                    <label className="text-xs">
+                      <span className="mb-1 block text-muted-foreground">Campus</span>
+                      <NativeSelect name="campusId" defaultValue={s.campus_id} required className="h-8 md:h-8">
+                        {(campuses ?? []).map((c) => (
+                          <option key={c.id} value={c.id}>{c.name} ({c.currency})</option>
+                        ))}
+                      </NativeSelect>
+                    </label>
+                    <label className="text-xs">
+                      <span className="mb-1 block text-muted-foreground">Academic year</span>
+                      <NativeSelect name="academicYearId" defaultValue={s.academic_year_id} required className="h-8 md:h-8">
+                        {(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label}</option>)}
+                      </NativeSelect>
+                    </label>
+                    <label className="text-xs">
+                      <span className="mb-1 block text-muted-foreground">From grade</span>
+                      <NativeSelect name="gradeSortMin" defaultValue={s.grade_sort_min ?? ""} className="h-8 md:h-8">
+                        <option value="">Any grade</option>
+                        {(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>{g.name}</option>)}
+                      </NativeSelect>
+                    </label>
+                    <label className="text-xs">
+                      <span className="mb-1 block text-muted-foreground">To grade</span>
+                      <NativeSelect name="gradeSortMax" defaultValue={s.grade_sort_max ?? ""} className="h-8 md:h-8">
+                        <option value="">to any</option>
+                        {(grades ?? []).map((g) => <option key={g.sort_order} value={g.sort_order}>{g.name}</option>)}
+                      </NativeSelect>
+                    </label>
+                  </div>
+                  <label className="mb-3 flex items-start gap-2 text-xs text-muted-foreground">
+                    <input type="checkbox" name="allowCurrencyChange" value="1" className="mt-0.5 size-3.5" />
+                    <span>
+                      Let this change the currency. Only needed to move the schedule to a campus that
+                      bills in the other currency — the amounts stay as typed, so {formatMoney(30000, currency)}{" "}
+                      would become the same number in the new one. Ignored otherwise.
+                    </span>
+                  </label>
 
                   {s.status === "active" && lines.length === 0 ? (
                     <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">

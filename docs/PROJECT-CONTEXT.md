@@ -562,6 +562,33 @@ fee" is a kindness to someone who expected to pay and a small lie to a family
 who never owed anything, and finance should be able to tell the two apart in
 the record.
 
+### An id from the database is not an RFC document (10 September 2026)
+
+Six fee schedules at Potch carry hand-made ids — `aedc3cbe-c165-60b5-35a7-…`,
+whose version and variant nibbles are not what RFC 4122 reserves. Postgres does
+not mind: its `uuid` type stores any 128 bits of hex, and a foreign key compares
+bytes. **Zod v4's `z.uuid()` does mind**, and rejects them.
+
+So every one of those six schedules refused to save, before any work happened,
+with "Some of what was entered is not valid. Check the form and try again." —
+the sentence `guarded()` produces for any `ZodError`. It names no field, so the
+screen blamed the form for a row that was fine. The Botswana schedules saved
+normally, which made it look like a Potch data problem rather than a validation
+one.
+
+Every id these schemas parse came out of the database. `z.guid()` is the shape
+check without the RFC arithmetic, and that is all these fields ever wanted: the
+column type and the foreign key do the real work. `lib/ids.test.ts` pins the
+distinction and greps `app/`, `lib/` and `components/` so `z.uuid()` cannot come
+back — it caught three call sites the first sweep missed, because they were
+spelled `z.uuid("Choose a campus")` rather than `z.uuid()`.
+
+Worth knowing when a generic validation message appears next: `guarded()`
+deliberately shows an action's own `Error` message and hides a `ZodError`'s. That
+is right for a parent-facing typo, and unhelpful when the invalid thing is a
+hidden field the person cannot see. If a form insists it is invalid and the
+visible fields are fine, suspect a hidden id.
+
 ### Learned on the live walkthrough (7 September 2026)
 
 - **Name the foreign key when embedding `contacts` from `applications`.**

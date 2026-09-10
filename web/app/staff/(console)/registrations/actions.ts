@@ -28,7 +28,7 @@ function done(applicationId: string) {
 export async function reviewDocument(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ applicationId: z.uuid(), documentId: z.uuid(), status: z.enum(["accepted", "rejected"]), note: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), documentId: z.guid(), status: z.enum(["accepted", "rejected"]), note: z.string().trim().max(300).optional() }).parse(Object.fromEntries(formData));
     if (p.status === "rejected" && !p.note) throw new WorkflowError("Tell the parent why the document was not accepted.", "database");
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: document } = await admin.from("documents").select("*").eq("id", p.documentId).eq("application_id", app.id).maybeSingle();
@@ -42,7 +42,7 @@ export async function reviewDocument(_: StaffActionState, formData: FormData): P
 export async function confirmEnrolment(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ applicationId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const graph = await loadApplicationGraph(admin, app.id);
     if (!graph) throw new WorkflowError("Application not found.", "application_not_found");
@@ -55,7 +55,7 @@ export async function confirmEnrolment(_: StaffActionState, formData: FormData):
 export async function sendRegistrationReminder(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ applicationId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     if (app.status !== "registration_incomplete") throw new WorkflowError("Registration is not open on this application.", "status_conflict");
     const graph = await loadApplicationGraph(admin, app.id);
@@ -85,7 +85,7 @@ export async function sendRegistrationReminder(_: StaffActionState, formData: Fo
 export async function extractDocument(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ applicationId: z.uuid(), documentId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid(), documentId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     if (getDocumentExtractor().name === "none") throw new WorkflowError("No document extractor is configured (DOCUMENT_EXTRACTOR).", "database");
     const { data: document } = await admin.from("documents").select("id, requirement_code").eq("id", p.documentId).eq("application_id", app.id).is("superseded_by", null).maybeSingle();
@@ -103,7 +103,7 @@ export async function extractDocument(_: StaffActionState, formData: FormData): 
 export async function askParentToConfirm(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const p = z.object({ applicationId: z.uuid() }).parse(Object.fromEntries(formData));
+    const p = z.object({ applicationId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
     const { data: registration } = await admin.from("registrations").select("mismatch_flags").eq("application_id", app.id).maybeSingle();
     await onMismatchConfirmationRequested(admin, app, parseMismatchFlags(registration?.mismatch_flags), ctx.actor);
@@ -126,7 +126,7 @@ export async function uploadDocumentForParent(_: StaffActionState, formData: For
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = z
-      .object({ applicationId: z.uuid(), requirement: z.string().trim().min(1).max(64) })
+      .object({ applicationId: z.guid(), requirement: z.string().trim().min(1).max(64) })
       .parse({ applicationId: formData.get("applicationId"), requirement: formData.get("requirement") });
     const { admin } = await loadApplicationForStaff(ctx, parsed.applicationId);
 

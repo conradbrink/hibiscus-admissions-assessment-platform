@@ -9,7 +9,7 @@ import { requireStaffAction } from "@/lib/staff/session";
 import { anonymiseExpired } from "@/lib/workflow/automation/retention";
 import { commit } from "@/lib/workflow/engine";
 
-const idSchema = z.object({ applicationId: z.uuid() });
+const idSchema = z.object({ applicationId: z.guid() });
 
 function done() {
   revalidatePath("/staff/admin/retention");

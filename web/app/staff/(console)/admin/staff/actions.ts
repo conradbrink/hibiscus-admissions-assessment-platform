@@ -177,7 +177,7 @@ async function ensureAuthUser(admin: ReturnType<typeof createAdminClient>, email
 export async function resendInvite(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.write");
-    const { staffId } = z.object({ staffId: z.uuid() }).parse({ staffId: formData.get("staffId") });
+    const { staffId } = z.object({ staffId: z.guid() }).parse({ staffId: formData.get("staffId") });
 
     const admin = createAdminClient();
     const { data: profile } = await admin.from("staff_profiles").select("id, email, is_active").eq("id", staffId).single();
@@ -259,7 +259,7 @@ const STAFF_ASSIGNMENTS: ReadonlyArray<{ table: string; column: string; label: s
 export async function deleteStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.delete");
-    const { staffId } = z.object({ staffId: z.uuid() }).parse({ staffId: formData.get("staffId") });
+    const { staffId } = z.object({ staffId: z.guid() }).parse({ staffId: formData.get("staffId") });
     if (staffId === ctx.userId) throw new Error("You cannot delete your own account.");
 
     const admin = createAdminClient();
@@ -320,7 +320,7 @@ export async function deleteStaff(_: StaffActionState, formData: FormData): Prom
 export async function updateStaffAccess(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.write");
-    const staffId = z.uuid().parse(formData.get("staffId"));
+    const staffId = z.guid().parse(formData.get("staffId"));
     const active = formData.get("isActive") === "1";
     const roleIds = ids(formData, "roleIds");
     const campusIds = ids(formData, "campusIds");
@@ -400,7 +400,7 @@ export async function updateStaffAccess(_: StaffActionState, formData: FormData)
 export async function updateRolePermissions(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("roles.write");
-    const roleId = z.uuid().parse(formData.get("roleId"));
+    const roleId = z.guid().parse(formData.get("roleId"));
     const codes = ids(formData, "codes").filter((c) => (PERMISSION_CODES as readonly string[]).includes(c));
     const { data: role } = await ctx.supabase.from("roles").select("code").eq("id", roleId).single();
     if (role?.code === "super_admin" && !codes.includes("admin")) {

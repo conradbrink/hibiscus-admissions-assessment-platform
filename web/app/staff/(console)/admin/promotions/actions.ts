@@ -17,12 +17,12 @@ import type { PromotionEffectRow } from "@/lib/supabase/types";
  * Each choice becomes an effect row with the wording the parent reads.
  */
 
-const optionalUuid = z.union([z.literal(""), z.uuid()]).optional();
+const optionalUuid = z.union([z.literal(""), z.guid()]).optional();
 const optionalInt = z.union([z.literal(""), z.coerce.number().int()]).optional();
 const optionalDate = z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]).optional();
 
 const schema = z.object({
-  promotionId: z.uuid().optional(),
+  promotionId: z.guid().optional(),
   name: z.string().trim().min(2, "Give the promotion a name").max(80),
   code: z.string().trim().max(24).optional(),
   letterText: z.string().trim().max(400).optional(),
@@ -131,7 +131,7 @@ export async function savePromotion(_: StaffActionState, formData: FormData): Pr
 export async function deletePromotion(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
-    const promotionId = z.uuid().parse(formData.get("promotionId"));
+    const promotionId = z.guid().parse(formData.get("promotionId"));
     const { count } = await ctx.supabase.from("application_promotions").select("application_id", { count: "exact", head: true }).eq("promotion_id", promotionId);
     if ((count ?? 0) > 0) throw new Error("This promotion is on an application already. Switch it off instead of deleting it.");
     const { error } = await ctx.supabase.from("promotions").delete().eq("id", promotionId);

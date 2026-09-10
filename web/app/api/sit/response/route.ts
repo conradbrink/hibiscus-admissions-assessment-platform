@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const body = z.object({
-  formQuestionId: z.uuid(),
+  formQuestionId: z.guid(),
   response: z.record(z.string(), z.unknown()),
 });
 
