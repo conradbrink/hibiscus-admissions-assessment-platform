@@ -240,7 +240,7 @@ type ReceiptAttachment = {
   currency: string;
   lines: Array<{ label: string; amount_minor: number }>;
   amountMinor: number;
-  method: "online" | "eft" | "waived";
+  method: "online" | "eft" | "waived" | "none";
   providerLabel: string;
   paymentReference: string;
   approvalCode: string | null;

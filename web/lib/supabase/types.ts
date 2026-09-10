@@ -1005,7 +1005,8 @@ export type OfferRow = {
 export type OfferDecision = "accepted" | "declined";
 export type PaymentRequestStatus = "required" | "processing" | "paid" | "failed" | "refunded" | "partially_paid" | "cancelled";
 export type PaymentStatus = "pending" | "processing" | "succeeded" | "failed" | "expired" | "refunded";
-export type PaymentMethod = "online" | "eft" | "waived";
+// waived: a promotion removed a fee that was owed. none: nothing was owed.
+export type PaymentMethod = "online" | "eft" | "waived" | "none";
 export type PaymentProviderName = "dev" | "dpo" | "paygate" | "bank" | "none";
 
 export type OfferAcceptanceRow = {

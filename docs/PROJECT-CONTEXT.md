@@ -537,6 +537,31 @@ an empty schedule as no schedule, which is what the migration author assumed
 when they gave Bana Tlokweng's Nursery "a schedule with no lines rather than an
 invented one". The admin refuses to make an empty schedule active as well.
 
+### Zero is a real amount (10 September 2026)
+
+Accepting an offer created a payment request, and creating a payment request
+refused a zero amount unless a promotion had waived it. That refusal was raised
+*after* the acceptance row and the offer's `accepted` status had been written,
+and the closing `commit()` never ran — so the parent saw an error, the
+application sat in a state no screen could advance, and pressing Accept again
+hit the unique index and said the offer had already been answered.
+
+Bana Tlokweng charges nothing to secure a place: their sheet says "Registration
+Fees: None", and all ten of their active schedules are built that way. Every
+one of their families would have hit it. Nobody had reached the offer stage
+there yet, so nothing needed repairing.
+
+There are three honest answers to "what is due now", and the code had collapsed
+two of them into an error. `lib/payments/due.ts` names them: **payable**,
+**waived** (a deal removed a fee that was owed), **none** (nothing was ever
+owed) — and only an offer carrying no fee snapshot at all is a mistake.
+
+`waived` and `none` are kept apart all the way to the parent's inbox, through a
+new `payments.method` value and a `fees_none` email template. "We waived your
+fee" is a kindness to someone who expected to pay and a small lie to a family
+who never owed anything, and finance should be able to tell the two apart in
+the record.
+
 ### Learned on the live walkthrough (7 September 2026)
 
 - **Name the foreign key when embedding `contacts` from `applications`.**
