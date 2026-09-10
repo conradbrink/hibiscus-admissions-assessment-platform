@@ -72,7 +72,7 @@ export default async function BookPage() {
       ) : null}
       {locked ? (
         <div className="surface p-5">
-          <p className="font-semibold">Your assessment is less than {settings.rescheduleCutoffHours} hours away.</p>
+          <p className="font-semibold">Your {graph.booking?.kind === "assessment" ? "assessment" : "visit"} is less than {settings.rescheduleCutoffHours} hours away.</p>
           <p className="mt-1 text-sm text-muted-foreground">Bookings this close cannot be changed online. Please call {campus.name} and they will help.</p>
           <Link href="/next/booking" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">Back to your booking</Link>
         </div>

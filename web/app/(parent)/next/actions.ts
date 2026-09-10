@@ -74,9 +74,15 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
   const unrouted = app.status === "new_enquiry" && app.next_action === null;
   if (!unrouted) redirect("/next");
 
+  // Whether an assessment applies follows the class *at this campus*, and the
+  // parent may have moved either since the enquiry. Recomputing it here is
+  // what keeps a child who switched from Nursery to Stage 1 from skipping the
+  // assessment, and a Reception child at a pre-school from being sent to one.
+  const requiresAssessment = catalogue.assessed[campusId]?.[gradeId] ?? app.requires_assessment;
+
   const { error } = await admin
     .from("applications")
-    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId })
+    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId, requires_assessment: requiresAssessment })
     .eq("id", app.id)
     .eq("status", "new_enquiry");
   if (error) return { error: "Could not save your choice. Please try again." };
@@ -145,7 +151,8 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
   if (graph.booking && graph.booking.kind === target.kind) {
     const settings = await getSettings(admin);
     if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) {
-      return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the assessment. Please call ${graph.campus.name}.` };
+      const noun = graph.booking.kind === "assessment" ? "assessment" : "visit";
+      return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the ${noun}. Please call ${graph.campus.name}.` };
     }
   }
 

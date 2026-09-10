@@ -16,6 +16,12 @@ export type FunnelCatalogue = {
   grades: GradeRow[];
   /** campus id → grade ids it offers */
   offered: Record<string, string[]>;
+  /**
+   * campus id → grade id → whether that class is assessed *there*. Reception
+   * is assessed at Block 7 and is an ordinary pre-school class at Bana
+   * Tlokweng, so the question cannot be answered by the grade alone.
+   */
+  assessed: Record<string, Record<string, boolean>>;
   intakes: Array<IntakeRow & { age_cutoff_on: string }>;
 };
 
@@ -24,7 +30,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
   const [campusesRes, gradesRes, offeredRes, intakesRes] = await Promise.all([
     admin.from("campuses").select("*").eq("is_active", true).order("sort_order"),
     admin.from("grades").select("*").eq("is_active", true).order("sort_order"),
-    admin.from("campus_grades").select("campus_id, grade_id").eq("is_active", true),
+    admin.from("campus_grades").select("campus_id, grade_id, requires_assessment").eq("is_active", true),
     admin
       .from("intakes")
       .select("*, academic_years(age_cutoff_on)")
@@ -36,8 +42,12 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     if (r.error) throw new Error(r.error.message);
   }
   const offered: Record<string, string[]> = {};
+  const gradeAssessed = new Map((gradesRes.data ?? []).map((g) => [g.id, g.requires_assessment]));
+  const assessed: Record<string, Record<string, boolean>> = {};
   for (const row of offeredRes.data ?? []) {
     (offered[row.campus_id] ??= []).push(row.grade_id);
+    (assessed[row.campus_id] ??= {})[row.grade_id] =
+      row.requires_assessment ?? gradeAssessed.get(row.grade_id) ?? false;
   }
   const intakes = (intakesRes.data ?? []).map((row) => {
     const ay = Array.isArray(row.academic_years) ? row.academic_years[0] : row.academic_years;
@@ -61,6 +71,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
     campuses: campusesRes.data ?? [],
     grades: gradesRes.data ?? [],
     offered,
+    assessed,
     intakes,
   };
 }

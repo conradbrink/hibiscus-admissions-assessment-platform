@@ -233,6 +233,12 @@ export type CampusGradeRow = {
    * refuses to send an unmapped pair rather than importing a blank grade.
    */
   external_grade_code: string | null;
+  /**
+   * Whether this class is assessed *here*. Reception at Block 7 sits an
+   * assessment; Reception at a pre-school is a pre-school class and does not.
+   * Null defers to `grades.requires_assessment`.
+   */
+  requires_assessment: boolean | null;
 };
 
 export type SubjectRow = {
@@ -1421,7 +1427,7 @@ export type Database = {
       grades: TableOf<GradeRow, "age_turning" | "requires_assessment" | "is_active">;
       campus_grades: TableOf<
         CampusGradeRow,
-        "is_active" | "capacity" | "external_grade_code",
+        "is_active" | "capacity" | "external_grade_code" | "requires_assessment",
         [
           Rel<"campus_grades_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campus_grades_grade_id_fkey", "grade_id", "grades">,

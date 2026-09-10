@@ -90,6 +90,19 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     campus_address: campus.address ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
+    // What to call the appointment. A parent who booked a look around the
+    // campus should not be told their assessment is confirmed, and the two
+    // moments share one template, so the noun is a variable rather than a
+    // second template (and a second Meta approval) per moment.
+    // Never null: the nudge to rebook is sent precisely when there is no
+    // booking left, and an empty noun would read "choose a new  time".
+    booking_kind: booking
+      ? booking.kind === "assessment"
+        ? "assessment"
+        : "visit"
+      : application.requires_assessment
+        ? "assessment"
+        : "visit",
     // Null renders as empty and satisfies an {{#if}}, so a template that
     // references a link its send did not mint simply omits it.
     results_link: links.results ?? null,
