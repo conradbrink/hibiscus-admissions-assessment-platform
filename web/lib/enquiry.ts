@@ -134,8 +134,19 @@ export async function createEnquiry(
     catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0];
   if (!intake) throw new Error("no_open_intake");
 
-  const rec = recommendGrade(input.childDateOfBirth, intake.age_cutoff_on, catalogue.grades);
+  // Recommend from the ladder this campus actually teaches. The two ladders
+  // share ages — a child turning four is Grade RR in Potchefstroom and
+  // Pre-Reception in Gaborone — and the South African grades sort first, so
+  // recommending across the whole catalogue answered every Botswana enquiry
+  // with a South African class. Which ruleset a campus follows is not a rule
+  // in code: it is whichever grades the campus offers.
   const offeredHere = catalogue.offered[campus.id] ?? [];
+  const gradesHere = catalogue.grades.filter((g) => offeredHere.includes(g.id));
+  const rec = recommendGrade(
+    input.childDateOfBirth,
+    intake.age_cutoff_on,
+    gradesHere.length > 0 ? gradesHere : catalogue.grades
+  );
   let gradeId: string;
   let recommendedGradeId: string | null = null;
   if (rec.kind === "grade") recommendedGradeId = rec.grade.id;
