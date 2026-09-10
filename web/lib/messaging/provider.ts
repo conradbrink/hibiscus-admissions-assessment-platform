@@ -4,8 +4,8 @@ import "server-only";
  * The seam between this system and whoever delivers its WhatsApp messages.
  *
  * Nothing outside lib/messaging imports a vendor SDK or knows a provider's
- * name. The production adapter is chosen by MESSAGING_PROVIDER — `meta` for
- * WhatsApp's own Cloud API, `twilio` for Twilio in front of it; unset means
+ * name. The production adapter is chosen by MESSAGING_PROVIDER — `zavu` for
+ * Zavu, `meta` for WhatsApp's own Cloud API, `twilio` for Twilio; unset means
  * `dev`, which delivers nothing and records everything, so a misconfigured
  * deploy cannot message real parents.
  *
@@ -45,7 +45,7 @@ export type InboundEvent =
  * template. A template with nothing in it cannot be sent, and the send path
  * skips it with a reason rather than failing at the provider.
  */
-export type TemplateIdField = "meta_template_name" | "twilio_content_sid";
+export type TemplateIdField = "meta_template_name" | "twilio_content_sid" | "zavu_template_id";
 
 export interface MessagingProvider {
   readonly name: string;
@@ -73,9 +73,13 @@ export async function getMessagingProvider(): Promise<MessagingProvider> {
       const { TwilioWhatsAppProvider } = await import("@/lib/messaging/twilio");
       return new TwilioWhatsAppProvider();
     }
+    case "zavu": {
+      const { ZavuProvider } = await import("@/lib/messaging/zavu");
+      return new ZavuProvider();
+    }
     case "dev":
       return (await import("@/lib/messaging/dev")).devMessagingProvider;
     default:
-      throw new Error(`Unknown MESSAGING_PROVIDER "${which}". Use "dev", "meta" or "twilio".`);
+      throw new Error(`Unknown MESSAGING_PROVIDER "${which}". Use "dev", "meta", "twilio" or "zavu".`);
   }
 }

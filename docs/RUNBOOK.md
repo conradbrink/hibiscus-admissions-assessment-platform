@@ -328,10 +328,31 @@ rejection emails the parent with your reason and asks for it again.
 
 ## Setting up WhatsApp
 
-There are two ways in, and the school picks one: **Meta's own Cloud API**, or
-**Twilio** in front of it. Either way the wording is a template WhatsApp has
-approved — free text is never sent, because WhatsApp only allows it inside a
+The school sends through **Zavu**. Two other ways in are built and kept —
+**Meta's own Cloud API** and **Twilio** — and which one is live is the
+`MESSAGING_PROVIDER` setting, so moving between them is configuration rather
+than a deployment. Whichever it is, the wording is a template WhatsApp has
+approved: free text is never sent, because WhatsApp only allows it inside a
 24-hour reply window and it would put the school's words in code.
+
+**Through Zavu** (`MESSAGING_PROVIDER=zavu`)
+
+1. In the Zavu dashboard: connect the WhatsApp account, then mint an API key
+   under **API keys**. A key beginning `zv_test_` sends against Zavu's
+   WhatsApp sandbox instead of a real number — start there. `zv_live_`
+   reaches real people. The engineer sets it as `ZAVU_API_KEY`.
+2. Create a template per moment in Zavu and let it submit each for WhatsApp's
+   approval. Variables are numbered, so the order of the variables listed on
+   the row in **Set up → WhatsApp templates** is the order they fill the
+   wording; a message with a link fills the button's own first variable.
+3. When a template is approved, copy its **id** onto the row and tick
+   **Active**.
+4. Point the sender's webhook at `<site>/api/webhooks/whatsapp`. Zavu shows
+   the signing secret **once**, when it registers the webhook — put it in as
+   `ZAVU_WEBHOOK_SECRET` there and then. Without it every delivery is refused,
+   which is the safe direction but means no reply ever arrives.
+5. If the account has more than one sender, set `ZAVU_SENDER_ID` to the one
+   the school sends as.
 
 **Through Twilio** (`MESSAGING_PROVIDER=twilio`)
 
@@ -377,6 +398,16 @@ Twilio needs the content SID, Meta the template name. Open **Set up →
 WhatsApp templates**, and the row will show a dash against whichever is
 missing. Nothing was sent and nothing was lost — each attempt is recorded as
 skipped with that reason, and the moment will send once the id is in.
+
+## Zavu rejects every webhook
+
+The reason is logged each time, and there are only three. **"no webhook
+secret configured"**: `ZAVU_WEBHOOK_SECRET` is unset — Zavu reveals it only
+when it first registers a sender's webhook, so re-register the webhook to
+mint a new one. **"signature mismatch"**: the secret belongs to a different
+sender. **"delivery is …s old"**: the delivery is more than five minutes old,
+which is a replay or a clock that has drifted — check the server's time
+before anything else.
 
 ## Twilio rejects every webhook as unsigned
 
