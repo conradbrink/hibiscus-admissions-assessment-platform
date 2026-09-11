@@ -1105,6 +1105,47 @@ begin
   perform pg_temp.service();
 
   -- -------------------------------------------------------------------------
+  -- 32b. The delivery trail inherits the message's campus, and nobody may
+  --      rewrite it
+  -- -------------------------------------------------------------------------
+  -- `message_events_select` delegates to `messages` rather than repeating the
+  -- campus check, which is the right way round — one rule instead of two that
+  -- drift apart. That is only safe if the subquery really is subject to the
+  -- messages policy, so this checks it in both directions.
+  insert into public.message_events (message_id, status, source, detail)
+  values (p4_message, 'delivered', 'webhook', 'sec trail');
+  begin
+    perform pg_temp.impersonate(u_campus_admin);
+    select count(*) into v_count from public.message_events where message_id = p4_message;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('32b: campus admin can see another campus''s delivery trail'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('32b: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+  begin
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_count from public.message_events where message_id = p4_message;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('32b control: admissions staff cannot read the trail on their campus'); end if;
+    -- Append-only: a trail staff can edit is not a trail.
+    update public.message_events set detail = 'rewritten' where message_id = p4_message;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('32b: staff rewrote the delivery trail'); end if;
+    delete from public.message_events where message_id = p4_message;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('32b: staff deleted from the delivery trail'); end if;
+    insert into public.message_events (message_id, status, source)
+    values (p4_message, 'read', 'webhook');
+    v_fail := v_fail || E'\n  - ' || ('32b: staff forged a delivery receipt');
+  exception
+    when insufficient_privilege then null;
+    when others then
+      if sqlerrm not like '%row-level security%' then
+        v_fail := v_fail || E'\n  - ' || ('32b: refused by "' || sqlerrm || '" rather than RLS');
+      end if;
+  end;
+  perform pg_temp.service();
+
+  -- -------------------------------------------------------------------------
   -- 33. Message templates: anyone reads, templates.write edits
   -- -------------------------------------------------------------------------
   begin

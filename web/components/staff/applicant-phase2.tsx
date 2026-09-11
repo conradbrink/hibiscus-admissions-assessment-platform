@@ -82,6 +82,16 @@ export async function ApplicantPhase2({
     supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
     supabase.from("message_templates").select("key, name, is_active, meta_template_name, twilio_content_sid, zavu_template_id").eq("is_active", true).order("name"),
   ]);
+  // The trail behind those messages. Read separately rather than embedded so
+  // a message with a long delivery history cannot push another message out of
+  // the fifty above.
+  const { data: messageEvents } = (messages ?? []).length
+    ? await supabase
+        .from("message_events")
+        .select("*")
+        .in("message_id", (messages ?? []).map((m) => m.id))
+        .order("id")
+    : { data: [] };
   const { data: gradeRows } = await supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order");
   const grades = gradeRows ?? [];
   const scopeName = (scope: string, id: string | null) =>
@@ -372,6 +382,7 @@ export async function ApplicantPhase2({
           <MessagesPanel
             applicationId={app.id}
             messages={messages ?? []}
+            events={messageEvents ?? []}
             // Either identifier will do here: which one is needed depends on
             // the provider the deploy is using, and the send records the exact
             // reason if the wrong one is the only one set.

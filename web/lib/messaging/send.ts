@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildVariables, linkTtlDays, offerExtras, paymentExtras, type EmailExtras, type EmailLinks, type LinkPurpose } from "@/lib/email/send";
+import { recordMessageEvent } from "@/lib/messaging/audit";
 import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
 import type { TemplateIdField } from "@/lib/messaging/provider";
 import { getMessagingProvider } from "@/lib/messaging/provider";
@@ -35,6 +36,9 @@ export type SendCompanionOptions = {
   missingDocuments?: string | null;
   /** Who asked: the job drain after an email, or a member of staff by hand. */
   trigger: "companion" | "manual";
+  /** The member of staff who pressed Send, when one did. For the audit trail. */
+  actorId?: string | null;
+  actorLabel?: string | null;
 };
 
 export type SendCompanionResult =
@@ -52,22 +56,40 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
 
   const skip = async (reason: string): Promise<SendCompanionResult> => {
     // Recorded, not silent: staff can see the moment passed and why.
-    await admin.from("messages").upsert(
-      {
-        application_id: graph.application.id,
-        contact_id: graph.contact.id,
-        direction: "out",
-        template_key: opts.templateKey,
-        to_normalised: graph.contact.mobile_normalised,
-        provider: "none",
+    const { data: row } = await admin
+      .from("messages")
+      .upsert(
+        {
+          application_id: graph.application.id,
+          contact_id: graph.contact.id,
+          direction: "out",
+          template_key: opts.templateKey,
+          to_normalised: graph.contact.mobile_normalised,
+          provider: "none",
+          status: "skipped",
+          rendered_text: "",
+          error: reason,
+          idempotency_key: opts.idempotencyKey,
+          email_message_id: opts.emailMessageId ?? null,
+          trigger_source: opts.trigger,
+          sent_by: opts.actorId ?? null,
+        },
+        { onConflict: "idempotency_key", ignoreDuplicates: true }
+      )
+      .select("id")
+      .maybeSingle();
+    // No row means the key already existed, so the skip is already on the
+    // trail. Recording it again would show the same moment failing twice.
+    if (row) {
+      await recordMessageEvent(admin, {
+        messageId: row.id,
         status: "skipped",
-        rendered_text: "",
-        error: reason,
-        idempotency_key: opts.idempotencyKey,
-        email_message_id: opts.emailMessageId ?? null,
-      },
-      { onConflict: "idempotency_key", ignoreDuplicates: true }
-    );
+        source: opts.trigger === "manual" ? "staff" : "system",
+        actorId: opts.actorId ?? null,
+        actorLabel: opts.actorLabel ?? null,
+        detail: reason,
+      });
+    }
     return { status: "skipped", reason };
   };
 
@@ -127,6 +149,8 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
         rendered_text: rendered,
         idempotency_key: opts.idempotencyKey,
         email_message_id: opts.emailMessageId ?? null,
+        trigger_source: opts.trigger,
+        sent_by: opts.actorId ?? null,
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true }
     )
@@ -137,6 +161,14 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
     // The key already existed: an earlier attempt got this far. Never send twice.
     return { status: "skipped", reason: "already sent" };
   }
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "queued",
+    source: opts.trigger === "manual" ? "staff" : "system",
+    actorId: opts.actorId ?? null,
+    actorLabel: opts.actorLabel ?? null,
+    detail: opts.trigger === "manual" ? "Sent by hand from the console" : "Queued beside the email",
+  });
 
   const result = await provider.sendTemplate({
     to: graph.contact.mobile_normalised,
@@ -150,6 +182,16 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
 
   if (!result.ok) {
     await admin.from("messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    // The provider's own words, kept verbatim. This is the line that would
+    // have named the malformed button on every template at once, instead of
+    // thirteen messages quietly not arriving.
+    await recordMessageEvent(admin, {
+      messageId: message.id,
+      status: "failed",
+      source: "send",
+      detail: result.error,
+      providerStatus: provider.name,
+    });
     return { status: "failed", error: result.error, retryable: result.retryable };
   }
 
@@ -157,6 +199,13 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
     .from("messages")
     .update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() })
     .eq("id", message.id);
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "sent",
+    source: "send",
+    providerStatus: provider.name,
+    detail: result.providerMessageId ? `Accepted by ${provider.name} as ${result.providerMessageId}` : `Accepted by ${provider.name}`,
+  });
   await admin.from("application_events").insert({
     application_id: graph.application.id,
     type: "message.sent",
@@ -223,23 +272,29 @@ export async function sendFamilyMessage(
   if (cErr) return { status: "failed", error: cErr.message, retryable: true };
 
   const skip = async (reason: string): Promise<SendCompanionResult> => {
-    await admin.from("messages").upsert(
-      {
-        family_id: opts.familyId,
-        student_id: opts.studentId ?? null,
-        contact_id: contact?.id ?? null,
-        direction: "out",
-        template_key: opts.templateKey,
-        to_normalised: contact?.mobile_normalised ?? null,
-        provider: "none",
-        status: "skipped",
-        rendered_text: "",
-        error: reason,
-        idempotency_key: opts.idempotencyKey,
-        email_message_id: opts.emailMessageId ?? null,
-      },
-      { onConflict: "idempotency_key", ignoreDuplicates: true }
-    );
+    const { data: row } = await admin
+      .from("messages")
+      .upsert(
+        {
+          family_id: opts.familyId,
+          student_id: opts.studentId ?? null,
+          contact_id: contact?.id ?? null,
+          direction: "out",
+          template_key: opts.templateKey,
+          to_normalised: contact?.mobile_normalised ?? null,
+          provider: "none",
+          status: "skipped",
+          rendered_text: "",
+          error: reason,
+          idempotency_key: opts.idempotencyKey,
+          email_message_id: opts.emailMessageId ?? null,
+          trigger_source: "family",
+        },
+        { onConflict: "idempotency_key", ignoreDuplicates: true }
+      )
+      .select("id")
+      .maybeSingle();
+    if (row) await recordMessageEvent(admin, { messageId: row.id, status: "skipped", source: "system", detail: reason });
     return { status: "skipped", reason };
   };
 
@@ -283,6 +338,7 @@ export async function sendFamilyMessage(
         rendered_text: rendered,
         idempotency_key: opts.idempotencyKey,
         email_message_id: opts.emailMessageId ?? null,
+        trigger_source: "family",
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true }
     )
@@ -291,6 +347,7 @@ export async function sendFamilyMessage(
   if (mErr) return { status: "failed", error: mErr.message, retryable: true };
   // The key already existed: an earlier attempt got this far. Never twice.
   if (!message) return { status: "skipped", reason: "already sent" };
+  await recordMessageEvent(admin, { messageId: message.id, status: "queued", source: "system", detail: "Queued beside the family email" });
 
   const result = await provider.sendTemplate({
     to: contact.mobile_normalised,
@@ -304,12 +361,20 @@ export async function sendFamilyMessage(
 
   if (!result.ok) {
     await admin.from("messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    await recordMessageEvent(admin, { messageId: message.id, status: "failed", source: "send", detail: result.error, providerStatus: provider.name });
     return { status: "failed", error: result.error, retryable: result.retryable };
   }
   await admin
     .from("messages")
     .update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() })
     .eq("id", message.id);
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "sent",
+    source: "send",
+    providerStatus: provider.name,
+    detail: result.providerMessageId ? `Accepted by ${provider.name} as ${result.providerMessageId}` : `Accepted by ${provider.name}`,
+  });
   return { status: "sent", messageId: message.id };
 }
 

@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
-import { normaliseEmail } from "@/lib/contacts";
+import { normaliseEmail, tidyName } from "@/lib/contacts";
+import { toSchoolDateString } from "@/lib/format-date";
+import { isPlausibleDateOfBirth } from "@/lib/grades";
 import { removeDocumentObjects } from "@/lib/documents/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
@@ -295,6 +297,11 @@ export async function sendWhatsAppTemplate(_: StaffActionState, formData: FormDa
       // One manual send of a template per applicant per minute, however many clicks.
       idempotencyKey: `whatsapp:manual:${app.id}:${parsed.templateKey}:${Math.floor(Date.now() / 60_000)}`,
       trigger: "manual",
+      // Named on the message's own trail, not just in `audit_log`: when the
+      // office is looking at why a parent got something, the question is
+      // always about that message.
+      actorId: ctx.userId,
+      actorLabel: ctx.actor.label ?? null,
     });
     if (result.status === "failed") throw new Error(`Not sent: ${result.error}`);
     if (result.status === "skipped") throw new Error(`Not sent: ${result.reason}.`);
@@ -611,6 +618,87 @@ export async function updateParentIdentity(_: StaffActionState, formData: FormDa
           email: before?.email ?? null,
         },
         after: { first_name: parsed.firstName, last_name: parsed.lastName, email: parsed.email },
+      },
+      actor: ctx.actor,
+    });
+    done(app.id);
+  });
+}
+
+/**
+ * The child's name and date of birth, corrected by staff.
+ *
+ * Enquiry forms are filled in on phones, in a hurry, often by somebody who
+ * has typed their child's name into a dozen other forms that afternoon. The
+ * surname lands in the first-name box; a name arrives in capitals; the year
+ * of birth is last year's. Until now none of it could be put right: every
+ * `Correct the…` control on this page edits the parent, and the child's name
+ * was fixed at the moment of enquiry — while appearing at the top of every
+ * letter, message and offer the school sends.
+ *
+ * The date of birth is the consequential half. The entry stage was worked out
+ * from it when the enquiry came in, and is *not* recalculated here: by this
+ * point the family may have been offered a place in a named stage, and
+ * silently moving a child between stages because somebody fixed a typo is a
+ * far worse failure than the typo. The form says so, and the stage is changed
+ * deliberately or not at all.
+ */
+export async function updateChildDetails(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({
+        childFirstName: z.string().trim().min(1).max(80),
+        childLastName: z.string().trim().min(1).max(80),
+        childDateOfBirth: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date")
+          .refine((v) => isPlausibleDateOfBirth(v, toSchoolDateString(new Date())), {
+            message: "Check the date of birth",
+          }),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+
+    const firstName = tidyName(parsed.childFirstName);
+    const lastName = tidyName(parsed.childLastName);
+    const nameChanged = app.child_first_name !== firstName || app.child_last_name !== lastName;
+    const dobChanged = app.child_date_of_birth !== parsed.childDateOfBirth;
+    // A form somebody opened and closed again is not a correction.
+    if (!nameChanged && !dobChanged) return;
+
+    const { error } = await admin
+      .from("applications")
+      .update({
+        child_first_name: firstName,
+        child_last_name: lastName,
+        child_date_of_birth: parsed.childDateOfBirth,
+      })
+      .eq("id", app.id);
+    if (error) throw new Error(error.message);
+
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "application.child_changed",
+        // What it was goes on the timeline: a letter already sent carries the
+        // old name, and somebody will have to reconcile the two.
+        summary: dobChanged
+          ? `The child's details were corrected by staff — was ${app.child_first_name} ${app.child_last_name}, born ${app.child_date_of_birth}`
+          : `The child's name was corrected by staff — was ${app.child_first_name} ${app.child_last_name}`,
+        payload: {},
+      },
+      audit: {
+        action: "application.child_changed",
+        before: {
+          child_first_name: app.child_first_name,
+          child_last_name: app.child_last_name,
+          child_date_of_birth: app.child_date_of_birth,
+        },
+        after: { child_first_name: firstName, child_last_name: lastName, child_date_of_birth: parsed.childDateOfBirth },
       },
       actor: ctx.actor,
     });

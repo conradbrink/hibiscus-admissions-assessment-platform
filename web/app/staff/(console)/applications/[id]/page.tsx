@@ -37,6 +37,7 @@ import {
   resendLink,
   sendWhatsAppTemplate,
   setWhatsAppOptInByStaff,
+  updateChildDetails,
   updateParentIdentity,
   updateParentMobile,
   withdraw,
@@ -307,34 +308,52 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                     <input type="hidden" name="optIn" value={contact.whatsapp_opt_in ? "0" : "1"} />
                   </ActionForm>
                 ) : null}
-                {/* Numbers taken before the country was asked for separately
-                    can be anything; a message to one of those fails quietly.
-                    Read it back to the family and put it right here. */}
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground">Correct the mobile number</summary>
-                  <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
-                    {idField}
-                    <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
-                  </ActionForm>
-                </details>
-                {/* A parent can change their own email from the booking page,
-                    but only while they hold a working link — and a wrong
-                    address is precisely why they would not. */}
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground">Correct the name or email</summary>
-                  <ActionForm action={updateParentIdentity} label="Save details" variant="outline" size="sm" className="mt-2 space-y-2">
-                    {idField}
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input name="firstName" defaultValue={contact?.first_name ?? ""} placeholder="First name" required autoComplete="off" aria-label="Parent's first name" />
-                      <Input name="lastName" defaultValue={contact?.last_name ?? ""} placeholder="Last name" required autoComplete="off" aria-label="Parent's last name" />
-                    </div>
-                    <Input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="Email address" required autoComplete="off" aria-label="Parent's email address" />
-                    <p className="text-muted-foreground">
-                      Changing the email sends nothing by itself. Use <em>Email a fresh link</em> afterwards so the
-                      parent gets one at the new address.
-                    </p>
-                  </ActionForm>
-                </details>
+                {/* Enquiry forms are filled in on phones, in a hurry. A name
+                    lands in the wrong box, a number was typed before the
+                    country was asked for separately, an address has a typo in
+                    it — and each of those is silent until a family says they
+                    never heard from the school. Grouped and labelled plainly,
+                    because the office has to be able to find them. */}
+                <div className="mt-3 space-y-1 border-t border-border pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Correct a mistake</p>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline">The child&rsquo;s name or date of birth</summary>
+                    <ActionForm action={updateChildDetails} label="Save the child's details" variant="outline" size="sm" className="mt-2 space-y-2">
+                      {idField}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input name="childFirstName" defaultValue={app.child_first_name} placeholder="First name" required autoComplete="off" aria-label="Child's first name" />
+                        <Input name="childLastName" defaultValue={app.child_last_name} placeholder="Surname" required autoComplete="off" aria-label="Child's surname" />
+                      </div>
+                      <Input name="childDateOfBirth" type="date" defaultValue={app.child_date_of_birth} required aria-label="Child's date of birth" />
+                      <p className="text-muted-foreground">
+                        This is the name on every letter, message and offer. Changing the date of birth does
+                        <strong> not</strong> move the child to a different stage — set that deliberately if it needs to change.
+                      </p>
+                    </ActionForm>
+                  </details>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline">The parent&rsquo;s name or email</summary>
+                    <ActionForm action={updateParentIdentity} label="Save details" variant="outline" size="sm" className="mt-2 space-y-2">
+                      {idField}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input name="firstName" defaultValue={contact?.first_name ?? ""} placeholder="First name" required autoComplete="off" aria-label="Parent's first name" />
+                        <Input name="lastName" defaultValue={contact?.last_name ?? ""} placeholder="Last name" required autoComplete="off" aria-label="Parent's last name" />
+                      </div>
+                      <Input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="Email address" required autoComplete="off" aria-label="Parent's email address" />
+                      <p className="text-muted-foreground">
+                        Changing the email sends nothing by itself. Use <em>Email a fresh link</em> afterwards so the
+                        parent gets one at the new address.
+                      </p>
+                    </ActionForm>
+                  </details>
+                  <details className="text-xs">
+                    <summary className="cursor-pointer font-medium text-primary underline-offset-2 hover:underline">The mobile number</summary>
+                    <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
+                      {idField}
+                      <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
+                    </ActionForm>
+                  </details>
+                </div>
               </div>
             ) : null}
             {tokens && tokens.length > 0 ? (
