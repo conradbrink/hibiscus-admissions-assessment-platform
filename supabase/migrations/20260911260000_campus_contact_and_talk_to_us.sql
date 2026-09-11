@@ -52,6 +52,18 @@ update public.campuses
 update public.campuses set phone = trim(phone) where phone is not null;
 update public.campuses set whatsapp = trim(whatsapp) where whatsapp is not null;
 
+-- Potch is in South Africa and answers on a South African number. The blob it
+-- was typed into carried the Botswana main-office line instead, so the pattern
+-- above would have handed it a number nobody in Potchefstroom picks up — and
+-- that same wrong number was already printing on its letters. Its street
+-- address was a city rather than an address, which is no use to a parent
+-- trying to find the place. Both corrected here, from the school.
+update public.campuses
+   set phone = '+27 61 097 5213',
+       whatsapp = '+27 61 097 5213',
+       address = '23 Maury Avenue, Potchefstroom, North West, South Africa' || chr(10) || '+27 61 097 5213'
+ where code = 'potch';
+
 -- ---------------------------------------------------------------------------
 -- "Talk to us"
 -- ---------------------------------------------------------------------------
