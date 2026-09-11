@@ -122,3 +122,25 @@ export function parentChecklist<T extends ItemLike>(
       return (byCode.get(a.step_code)?.sort_order ?? 0) - (byCode.get(b.step_code)?.sort_order ?? 0);
     });
 }
+
+/**
+ * What to chase a family about: their own steps, required, not yet settled.
+ *
+ * Optional extras are deliberately excluded. A family who has not ordered a
+ * stationery pack has not failed to do anything, and a reminder that says they
+ * have is the fastest way to teach them to ignore the next one.
+ */
+export function outstandingRequired<T extends ItemLike>(
+  steps: readonly StepLike[],
+  items: readonly T[]
+): T[] {
+  const byCode = new Map(steps.map((s) => [s.code, s]));
+  return items
+    .filter((i) => {
+      const step = byCode.get(i.step_code);
+      if (!step || !step.required) return false;
+      if (step.owner !== "parent" && step.owner !== "either") return false;
+      return !isSettled(i);
+    })
+    .sort((a, b) => (byCode.get(a.step_code)?.sort_order ?? 0) - (byCode.get(b.step_code)?.sort_order ?? 0));
+}

@@ -24,6 +24,8 @@ export type Settings = {
   familySessionMinutes: number;
   /** Send the re-enrolment ask and its reminders. Off until a round has been watched by hand. */
   reenrolmentAsksEnabled: boolean;
+  onboardingJourneyEnabled: boolean;
+  parentGuideUrl: string;
   kioskCodeMinutes: number;
   attemptGraceSeconds: number;
   autoSendOutcomes: boolean;
@@ -69,6 +71,8 @@ export const DEFAULT_SETTINGS: Settings = {
   parentSessionMinutes: 60,
   familySessionMinutes: 120,
   reenrolmentAsksEnabled: false,
+  onboardingJourneyEnabled: false,
+  parentGuideUrl: "",
   kioskCodeMinutes: 15,
   attemptGraceSeconds: 30,
   autoSendOutcomes: false,
@@ -112,6 +116,8 @@ const KEYS: Record<keyof Settings, string> = {
   parentSessionMinutes: "parent_session_minutes",
   familySessionMinutes: "family_session_minutes",
   reenrolmentAsksEnabled: "reenrolment_asks_enabled",
+  onboardingJourneyEnabled: "onboarding_journey_enabled",
+  parentGuideUrl: "parent_guide_url",
   kioskCodeMinutes: "kiosk_code_minutes",
   attemptGraceSeconds: "attempt_grace_seconds",
   autoSendOutcomes: "auto_send_outcomes",
@@ -183,6 +189,11 @@ function asBoolean(v: Json | undefined, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
+/** Trimmed, because an empty setting and a setting of spaces mean the same thing. */
+function asString(v: Json | undefined, fallback: string): string {
+  return typeof v === "string" ? v.trim() : fallback;
+}
+
 export async function getSettings(supabase: SupabaseClient<Database>): Promise<Settings> {
   const { data, error } = await supabase.from("settings").select("key, value");
   if (error) throw new Error(error.message);
@@ -204,6 +215,8 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     parentSessionMinutes: asPositiveInt(map.get(KEYS.parentSessionMinutes), d.parentSessionMinutes),
     familySessionMinutes: asPositiveInt(map.get(KEYS.familySessionMinutes), d.familySessionMinutes),
     reenrolmentAsksEnabled: asBoolean(map.get(KEYS.reenrolmentAsksEnabled), d.reenrolmentAsksEnabled),
+    onboardingJourneyEnabled: asBoolean(map.get(KEYS.onboardingJourneyEnabled), d.onboardingJourneyEnabled),
+    parentGuideUrl: asString(map.get(KEYS.parentGuideUrl), d.parentGuideUrl),
     kioskCodeMinutes: asPositiveInt(map.get(KEYS.kioskCodeMinutes), d.kioskCodeMinutes),
     attemptGraceSeconds: asPositiveInt(map.get(KEYS.attemptGraceSeconds), d.attemptGraceSeconds),
     autoSendOutcomes: asBoolean(map.get(KEYS.autoSendOutcomes), d.autoSendOutcomes),

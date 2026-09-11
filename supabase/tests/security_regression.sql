@@ -1987,6 +1987,116 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 51. A task about a child is campus-scoped, and staff cannot forge one
+  -- -------------------------------------------------------------------------
+  begin
+    -- Onboarding work happens after the application is terminal, so these
+    -- tasks carry `student_id` and no application at all. `tasks_select`
+    -- scopes on `tasks.campus_id` rather than joining through the
+    -- application, which is what makes that safe — this is the check that it
+    -- really is.
+    perform pg_temp.service();
+    insert into public.tasks (student_id, campus_id, type, title, details)
+    values (crm_student_block7, c_block7, 'onboarding_first_day', 'Sec starter', 'sec');
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.tasks
+       where student_id = crm_student_block7 and type = 'onboarding_first_day';
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '51: a Broadhurst manager read a Block 7 child''s task';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('51: reading the task failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.tasks
+       where student_id = crm_student_block7 and type = 'onboarding_first_day';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '51 control: Block 7 staff cannot read their own child''s task';
+      end if;
+      -- The insert policy pins the author; a task the system is supposed to
+      -- have raised must not be forgeable as one.
+      insert into public.tasks (student_id, campus_id, type, title, created_by_type)
+      values (crm_student_block7, c_block7, 'onboarding_first_day', 'Forged', 'system');
+      v_fail := v_fail || E'\n  - ' || '51: staff inserted a system task';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('51: refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- A task about nothing is a task nobody can act on.
+    begin
+      insert into public.tasks (type, title) values ('orphan', 'No subject');
+      v_fail := v_fail || E'\n  - ' || '51: a task was created with neither an application nor a child';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('51: the no-subject insert failed with "' || sqlerrm || '"');
+    end;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 52. The onboarding journey's record follows the child
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.student_journey_messages (student_id, step)
+    values (crm_student_block7, 'welcome');
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.student_journey_messages
+       where student_id = crm_student_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '52: a Broadhurst manager saw what a Block 7 family was sent';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('52: reading the journey failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.student_journey_messages
+       where student_id = crm_student_block7;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '52 control: Block 7 staff cannot see what their own family was sent';
+      end if;
+      -- Written by the sweep alone. Staff marking a family as welcomed would
+      -- silently stop the welcome ever being sent.
+      insert into public.student_journey_messages (student_id, step)
+      values (crm_student_block7, 'first_day');
+      v_fail := v_fail || E'\n  - ' || '52: staff wrote to the journey record';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('52: refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- One row per moment: the unique key is what stops a redelivered sweep
+    -- welcoming the same family twice.
+    begin
+      insert into public.student_journey_messages (student_id, step)
+      values (crm_student_block7, 'welcome');
+      v_fail := v_fail || E'\n  - ' || '52: the same moment was recorded twice for one child';
+    exception when unique_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('52: the duplicate insert failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then
