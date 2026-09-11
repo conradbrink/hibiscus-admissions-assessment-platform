@@ -46,7 +46,7 @@ export default async function MessageTemplatesPage() {
               <div className="min-w-0 flex-1">
                 <span className="font-medium">{t.name}</span>
                 <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key}</span>
-                <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Zavu: {t.zavu_template_id ? "set" : "—"} · Twilio: {t.twilio_content_sid ? "set" : "—"} · Meta: {t.meta_template_name ?? "—"} · updated {formatDate(t.updated_at)}</p>
+                <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Zavu id: {t.zavu_template_id ? "set" : "not set"} · updated {formatDate(t.updated_at)}</p>
               </div>
               <Badge variant={t.is_active ? "success" : "muted"}>{t.is_active ? "Active" : "Inactive"}</Badge>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />

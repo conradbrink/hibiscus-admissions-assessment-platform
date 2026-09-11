@@ -13,7 +13,6 @@ const base = {
   parameters: ["parent_first_name"],
   bodyPreview: "Hi {{1}}.",
   allowed: ["parent_first_name", "student_first_name"],
-  metaName: "",
   active: false,
 };
 
@@ -38,24 +37,29 @@ describe("templateProblems", () => {
     expect(problems.some((p) => p.includes("Links go on the button"))).toBe(true);
   });
 
-  it("wants an id from some provider before a template goes active", () => {
-    const problems = templateProblems({ ...base, active: true });
-    expect(problems).toEqual(["An active template needs an id from whichever provider is sending: Zavu, Twilio or Meta"]);
+  it("wants the Zavu id before a template goes active", () => {
+    expect(templateProblems({ ...base, active: true })).toEqual(["An active template needs its Zavu template id"]);
   });
 
-  it("accepts a Zavu id alone as that identifier", () => {
+  it("is satisfied by a Zavu id", () => {
     expect(templateProblems({ ...base, active: true, zavuTemplateId: "tpl_abc123" })).toEqual([]);
   });
 
-  it("checks the shape of a Twilio SID but not of a Zavu id", () => {
-    expect(templateProblems({ ...base, active: true, twilioContentSid: "nonsense" })).toEqual([
-      "A Twilio content SID starts HX and has thirty-two more characters",
-    ]);
-    expect(templateProblems({ ...base, active: true, twilioContentSid: `HX${"a".repeat(32)}` })).toEqual([]);
+  it("takes the Zavu id in whatever shape Zavu issues it", () => {
+    // Zavu does not document a fixed format the way Twilio's HX SIDs are, so
+    // guessing one here would refuse ids that work.
+    for (const id of ["tpl_abc123", "01JAV7Q0X9", "booking-confirmed/v2"]) {
+      expect(templateProblems({ ...base, active: true, zavuTemplateId: id })).toEqual([]);
+    }
   });
 
-  it("checks the shape of a Meta template name", () => {
-    const problems = templateProblems({ ...base, active: true, metaName: "Booking Confirmed" });
-    expect(problems[0]).toContain("lower-case letters, digits and underscores");
+  it("ignores whitespace passed as an id", () => {
+    expect(templateProblems({ ...base, active: true, zavuTemplateId: "   " })).toEqual([
+      "An active template needs its Zavu template id",
+    ]);
+  });
+
+  it("lets an inactive template rest without an id", () => {
+    expect(templateProblems({ ...base, active: false })).toEqual([]);
   });
 });

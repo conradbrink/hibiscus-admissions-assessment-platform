@@ -58,8 +58,6 @@ export function MessageTemplateEditor({
   action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
-  const [metaName, setMetaName] = useState(template.meta_template_name ?? "");
-  const [twilioContentSid, setTwilioContentSid] = useState(template.twilio_content_sid ?? "");
   const [zavuTemplateId, setZavuTemplateId] = useState(template.zavu_template_id ?? "");
   const [body, setBody] = useState(template.body_preview);
   const [params, setParams] = useState(template.parameters.join("\n"));
@@ -69,8 +67,8 @@ export function MessageTemplateEditor({
   const parameters = useMemo(() => params.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean), [params]);
   const allowed = useMemo(() => allowedVariables.filter((v) => !v.endsWith("_link")), [allowedVariables]);
   const problems = useMemo(
-    () => templateProblems({ parameters, bodyPreview: body, allowed, metaName, twilioContentSid, zavuTemplateId, active }),
-    [parameters, body, allowed, metaName, twilioContentSid, zavuTemplateId, active]
+    () => templateProblems({ parameters, bodyPreview: body, allowed, zavuTemplateId, active }),
+    [parameters, body, allowed, zavuTemplateId, active]
   );
   const preview = useMemo(() => renderPreview(body, parameters.map((p) => sanitiseParam(SAMPLE[p] ?? `[${p}]`))), [body, parameters]);
 
@@ -81,11 +79,6 @@ export function MessageTemplateEditor({
         <input type="hidden" name="parameters" value={parameters.join(",")} />
         <div className="space-y-1"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={template.name} required /></div>
         <div className="space-y-1">
-          <Label htmlFor="metaTemplateName">Meta template name</Label>
-          <Input id="metaTemplateName" name="metaTemplateName" value={metaName} onChange={(e) => setMetaName(e.target.value)} placeholder="booking_confirmed_v1" />
-          <p className="text-xs text-muted-foreground">Exactly as approved in Meta Business Manager. The approved template must have the same number of body parameters{button ? " and one dynamic-URL button" : ""}.</p>
-        </div>
-        <div className="space-y-1">
           <Label htmlFor="zavuTemplateId">Zavu template id</Label>
           <Input
             id="zavuTemplateId"
@@ -95,30 +88,16 @@ export function MessageTemplateEditor({
             placeholder="From the Zavu console"
           />
           <p className="text-xs text-muted-foreground">
-            The template&rsquo;s id in Zavu, if Zavu is delivering. Its variables are numbered, so the order of the
+            From the Zavu console, once Zavu has approved the template. Its variables are numbered, so the order of the
             variables below is the order they fill&nbsp;
             {button ? "— and the link token fills the button's own first variable" : "the wording"}.
-          </p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="twilioContentSid">Twilio content SID</Label>
-          <Input
-            id="twilioContentSid"
-            name="twilioContentSid"
-            value={twilioContentSid}
-            onChange={(e) => setTwilioContentSid(e.target.value)}
-            placeholder="HX0123456789abcdef0123456789abcdef"
-          />
-          <p className="text-xs text-muted-foreground">
-            From the Twilio console, if Twilio is delivering. Twilio addresses a template by this SID rather than by name, and
-            its variables are numbered in one flat list{button ? " — the link token is the one after the body's" : ""}.
           </p>
         </div>
         <div className="space-y-1"><Label htmlFor="language">Language code</Label><Input id="language" name="language" defaultValue={template.language} pattern="[a-z]{2}(_[A-Z]{2})?" required className="w-32" /></div>
         <div className="space-y-1">
           <Label htmlFor="bodyPreview">Approved wording</Label>
           <Textarea id="bodyPreview" name="bodyPreview" rows={5} value={body} onChange={(e) => setBody(e.target.value)} className="font-mono text-xs" required />
-          <p className="text-xs text-muted-foreground">Paste the wording Meta approved, with <code className="rounded bg-muted px-1">{"{{1}}"}</code>, <code className="rounded bg-muted px-1">{"{{2}}"}</code>… where the values go. Used for the preview and the record; the message itself is Meta&rsquo;s copy.</p>
+          <p className="text-xs text-muted-foreground">Paste the wording your provider approved, with <code className="rounded bg-muted px-1">{"{{1}}"}</code>, <code className="rounded bg-muted px-1">{"{{2}}"}</code>… where the values go. Used for the preview and the record; what the parent receives is the provider&rsquo;s own copy of it.</p>
         </div>
         <div className="space-y-1">
           <Label htmlFor="params">Variables, one per line, in order</Label>
@@ -135,7 +114,7 @@ export function MessageTemplateEditor({
             <NativeSelect id="linkPurpose" name="linkPurpose" defaultValue={template.link_purpose} className="w-56">
               {LINK_PURPOSES.map((p) => <option key={p} value={p}>{p.replace("_", " ")}</option>)}
             </NativeSelect>
-            <p className="text-xs text-muted-foreground">In Meta, the button&rsquo;s URL must be <code className="rounded bg-muted px-1">{"<site>/a/{{1}}"}</code>; the token fills the variable.</p>
+            <p className="text-xs text-muted-foreground">Where the provider asks for the button&rsquo;s URL, it is <code className="rounded bg-muted px-1">{"<site>/a/{{1}}"}</code>; the token fills the variable.</p>
           </div>
         ) : null}
         <label className="flex items-center gap-2 text-sm">
