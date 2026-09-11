@@ -44,16 +44,13 @@ begin
     ('outcome_declined',   'not news to deliver by notification'),
     ('outcome_waitlisted', 'not news to deliver by notification');
 
+  -- Eight of the nine were filled the same day this check was written: the
+  -- school submitted them to Zavu and the rows followed. `offer_expired` is
+  -- the one left, and is a genuine decision rather than an oversight — an
+  -- offer lapsing is bad news arriving unprompted, which is the same question
+  -- as the two outcomes in `email_only` above.
   insert into known_gap(key, why) values
-    ('assessment_completed',  'the assessment is done, results to follow'),
-    ('callback_received',     'we have your callback request'),
-    ('document_mismatch',     'a detail on the registration needs checking'),
-    ('enquiry_nudge',         'enquired but never booked'),
-    ('fees_none',             'place secured, nothing to pay'),
-    ('fees_waived',           'place secured, fees waived'),
-    ('offer_expired',         'the offer lapsed'),
-    ('payment_received',      'payment in, registration next'),
-    ('registration_received', 'registration received');
+    ('offer_expired', 'the offer lapsed — bad news, same question as the outcomes above');
 
   -- 1. Undecided keys fail.
   select string_agg(format('  - %s (%s)', t.key, t.name), E'\n' order by t.key), count(*)
