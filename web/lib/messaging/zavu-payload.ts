@@ -47,13 +47,34 @@ export function numberedVariables(values: string[]): Record<string, string> {
   return out;
 }
 
+/**
+ * The button's variables are numbered from **zero**, where the body's are
+ * numbered from one. Both are "the template's variables", and assuming one
+ * scheme for both is the obvious reading; Zavu uses two, and says so only by
+ * refusing the send:
+ *
+ *     400 invalid_request Missing URL button parameter at index 0.
+ *     Provide content.templateButtonVariables["0"].
+ *
+ * Twelve of the thirteen live templates carry a button, so this failed every
+ * one of them the first time a parent should have received a message. The
+ * body's numbering is untouched: `{{1}}` really is its first variable.
+ */
+export function buttonVariables(values: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  values.forEach((value, i) => {
+    out[String(i)] = value;
+  });
+  return out;
+}
+
 export function buildSendBody(message: OutboundTemplateMessage): Record<string, unknown> {
   if (!message.providerTemplateId) {
     throw new Error("Zavu needs the template's id; set it on the message template.");
   }
   const content: Record<string, unknown> = { templateId: message.providerTemplateId };
   if (message.bodyParams.length) content.templateVariables = numberedVariables(message.bodyParams);
-  if (message.buttonUrlSuffix) content.templateButtonVariables = numberedVariables([message.buttonUrlSuffix]);
+  if (message.buttonUrlSuffix) content.templateButtonVariables = buttonVariables([message.buttonUrlSuffix]);
   return {
     to: message.to,
     channel: "whatsapp",

@@ -43,7 +43,17 @@ describe("buildSendBody", () => {
     const body = buildSendBody({ ...message, buttonUrlSuffix: "tok123" });
     const content = body.content as Record<string, unknown>;
     expect(content.templateVariables).toEqual({ "1": "Abigail", "2": "12 January 2027" });
-    expect(content.templateButtonVariables).toEqual({ "1": "tok123" });
+    // Zero, not one. This test asserted "1" and passed, because it was
+    // written from the same assumption the adapter was: that one numbering
+    // scheme covers both. Zavu refuses that with `Missing URL button
+    // parameter at index 0`, which is how it was found — on a real send.
+    expect(content.templateButtonVariables).toEqual({ "0": "tok123" });
+  });
+
+  it("numbers the button from zero and the body from one, in the same send", () => {
+    const content = buildSendBody({ ...message, buttonUrlSuffix: "tok123" }).content as Record<string, unknown>;
+    expect(Object.keys(content.templateVariables as object)).toEqual(["1", "2"]);
+    expect(Object.keys(content.templateButtonVariables as object)).toEqual(["0"]);
   });
 
   it("omits the variables when the template takes none", () => {
