@@ -55,14 +55,27 @@ deploy token lives in GitHub.
 ⚠️ **Never prefix a secret with `NEXT_PUBLIC_`.** Anything with that prefix is
 compiled into the JavaScript every visitor downloads.
 
-3. The job queue is drained every five minutes by the GitHub Actions
-   workflow `.github/workflows/drain.yml`, which calls `/api/jobs/drain`
-   with the secret. Set two repository secrets in GitHub (Settings →
-   Secrets and variables → Actions): `DRAIN_URL`
-   (`https://<domain>/api/jobs/drain`) and `CRON_SECRET` (the same value as
-   in Vercel). `web/vercel.json` also registers a daily Vercel cron as a
-   safety net; Vercel's Hobby plan allows nothing more frequent, and on a
-   Pro plan the schedule there can be returned to `*/5 * * * *`.
+3. The job queue is drained every five minutes by Supabase `pg_cron`, which
+   calls `/api/jobs/drain` with the secret. It reads both from the Supabase
+   Vault (Project Settings → Vault): `drain_url`
+   (`https://<domain>/api/jobs/drain`) and `drain_cron_secret` (the same
+   value as `CRON_SECRET` in Vercel). Until both exist the tick is a
+   deliberate no-op and nothing is logged.
+
+   Two backstops stand behind it, neither of them the real schedule. The
+   GitHub Actions workflow `.github/workflows/drain.yml` runs hourly — it
+   asked for every five minutes for months and GitHub delivered one run
+   every 3.4 hours, so it now claims only what it can keep. Set two
+   repository secrets for it (Settings → Secrets and variables → Actions):
+   `DRAIN_URL` and `CRON_SECRET`, the same two values. `web/vercel.json`
+   registers a nightly Vercel cron as a last resort; Vercel's Hobby plan
+   allows nothing more frequent.
+
+   Rotating `CRON_SECRET` means changing it in all three places at once —
+   Vercel (then **redeploy**, since environment variables are only picked
+   up by a new deployment), the GitHub repository secret, and the Vault.
+   A `401` in `net._http_response` means they have drifted apart.
+
    The drain is also what runs the delayed jobs — a timed-out sitting's
    auto-submit, offer reminders and offer expiry — and, from Phase 4, the
    payment sweep, waitlist promotion, the daily retention run, the morning

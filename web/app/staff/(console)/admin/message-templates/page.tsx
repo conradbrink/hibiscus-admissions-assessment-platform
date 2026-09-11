@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { PageTitle } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
@@ -30,17 +31,26 @@ export default async function MessageTemplatesPage() {
         }
       />
       <p className="mb-4 text-sm text-muted-foreground">
-        A WhatsApp message is always one of Meta&rsquo;s approved templates: submit the wording in Meta Business Manager, wait for approval, then enter its name here and activate it. Free text is never sent.
+        A WhatsApp message is always a template the provider has approved in advance; free text is never sent. Open a
+        row to enter the id that approval gave it and to activate it.
       </p>
       <ul className="divide-y divide-border surface">
         {(templates ?? []).map((t) => (
-          <li key={t.key} className="flex items-center gap-3 px-4 py-3 text-sm">
-            <div className="min-w-0 flex-1">
-              <Link href={`/staff/admin/message-templates/${t.key}`} className="font-medium hover:underline">{t.name}</Link>
-              <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key}</span>
-              <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Zavu: {t.zavu_template_id ? "set" : "—"} · Twilio: {t.twilio_content_sid ? "set" : "—"} · Meta: {t.meta_template_name ?? "—"} · updated {formatDate(t.updated_at)}</p>
-            </div>
-            <Badge variant={t.is_active ? "success" : "muted"}>{t.is_active ? "Active" : "Inactive"}</Badge>
+          // The whole row is the link. It was the name alone, which looked like
+          // plain text on a page whose entire purpose is opening these.
+          <li key={t.key}>
+            <Link
+              href={`/staff/admin/message-templates/${t.key}`}
+              className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">{t.name}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key}</span>
+                <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Zavu id: {t.zavu_template_id ? "set" : "not set"} · updated {formatDate(t.updated_at)}</p>
+              </div>
+              <Badge variant={t.is_active ? "success" : "muted"}>{t.is_active ? "Active" : "Inactive"}</Badge>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           </li>
         ))}
       </ul>
