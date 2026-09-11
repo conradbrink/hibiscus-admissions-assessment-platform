@@ -10,6 +10,7 @@ import { formatDateLong, formatTime } from "@/lib/format-date";
 import { requireParentSession } from "@/lib/tokens/server";
 import { isNextAction, NEXT_ACTIONS, STATUS_LABELS } from "@/lib/workflow/states";
 import { MessagePreferences } from "@/components/parent/message-preferences";
+import { TalkToUs } from "@/components/parent/talk-to-us";
 import { setWhatsAppPreference } from "./actions";
 
 export const metadata: Metadata = { title: "Your application" };
@@ -97,6 +98,14 @@ export default async function NextPage() {
       {contact.mobile_normalised ? (
         <MessagePreferences optedIn={contact.whatsapp_opt_in} mobile={contact.mobile ?? contact.mobile_normalised} action={setWhatsAppPreference} />
       ) : null}
+
+      <TalkToUs
+        campusName={campus.name}
+        address={campus.address}
+        phone={campus.phone}
+        whatsapp={campus.whatsapp}
+        studentFirstName={app.child_first_name}
+      />
 
       {siblings.length > 1 ? (
         <section className="mt-8">

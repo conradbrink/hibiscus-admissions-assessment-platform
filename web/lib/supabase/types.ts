@@ -216,6 +216,13 @@ export type CampusRow = {
   country: "BW" | "ZA";
   currency: "BWP" | "ZAR";
   address: string | null;
+  /**
+   * The two numbers a parent can reach this campus on, separately from the
+   * `address` blob that prints on letters: `phone` becomes a tel: link and
+   * `whatsapp` a wa.me one, neither of which can be cut out of free text.
+   */
+  phone: string | null;
+  whatsapp: string | null;
   /** Who signs this campus's offer letters, and their signature as a small PNG or JPEG data URL. */
   head_name: string | null;
   head_title: string | null;
@@ -1657,7 +1664,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "address" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
       promotions: TableOf<
         PromotionRow,

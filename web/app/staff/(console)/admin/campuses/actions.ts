@@ -13,6 +13,11 @@ const schema = z.object({
   country: z.enum(["BW", "ZA"]),
   currency: z.enum(["BWP", "ZAR"]),
   address: z.string().trim().max(300).optional(),
+  // Stored as typed. Botswana, South Africa and whoever comes next all write
+  // a number differently, and a format this file invented would reject one
+  // somebody has on a sign outside the building.
+  phone: z.string().trim().max(40).optional(),
+  whatsapp: z.string().trim().max(40).optional(),
   headName: z.string().trim().max(80).optional(),
   headTitle: z.string().trim().max(80).optional(),
   removeSignature: z.string().optional(),
@@ -44,6 +49,8 @@ export async function saveCampus(_: StaffActionState, formData: FormData): Promi
         country: p.country,
         currency: p.currency,
         address: p.address || null,
+        phone: p.phone || null,
+        whatsapp: p.whatsapp || null,
         head_name: p.headName || null,
         head_title: p.headTitle || null,
         ...(p.removeSignature === "1" ? { signature_data_url: null } : uploaded ? { signature_data_url: uploaded } : {}),
