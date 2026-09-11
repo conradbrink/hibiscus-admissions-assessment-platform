@@ -25,6 +25,13 @@ export default async function CampusesPage() {
               <NativeSelect name="currency" defaultValue={c.currency}><option value="BWP">BWP</option><option value="ZAR">ZAR</option></NativeSelect></div>
             <div><span className="text-xs text-muted-foreground">Address and phone (one per line; printed on letters)</span><Textarea name="address" rows={3} defaultValue={c.address ?? ""} /></div>
             <label className="flex h-9 items-center gap-1.5 text-sm"><input type="checkbox" name="isActive" value="1" defaultChecked={c.is_active} /> Active</label>
+            {/* The same two numbers on their own, because a link needs them
+                that way: the address above prints, these two are tapped. */}
+            <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr] sm:items-end">
+              <div><span className="text-xs text-muted-foreground">Office number (parents tap to call)</span><Input name="phone" type="tel" defaultValue={c.phone ?? ""} placeholder="+267 392 4299" /></div>
+              <div><span className="text-xs text-muted-foreground">WhatsApp number (parents tap to chat)</span><Input name="whatsapp" type="tel" defaultValue={c.whatsapp ?? ""} placeholder="+267 72 320 145" /></div>
+              <p className="text-xs text-muted-foreground">Shown on the parent&rsquo;s pages and in the &ldquo;Talk to our admissions team&rdquo; message. Leave one empty and that way of reaching you is simply not offered.</p>
+            </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <div><span className="text-xs text-muted-foreground">Head of campus (signs the offer letter)</span><Input name="headName" defaultValue={c.head_name ?? ""} placeholder="Full name" /></div>
               <div><span className="text-xs text-muted-foreground">Title</span><Input name="headTitle" defaultValue={c.head_title ?? ""} placeholder="Head of School" /></div>

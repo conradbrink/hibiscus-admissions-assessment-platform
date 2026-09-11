@@ -89,6 +89,11 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     // The campus's own lines: street address, then its phone numbers. Where
     // the child sits, for a parent who has only the link.
     campus_address: campus.address ?? null,
+    // The same two numbers on their own. `campus_address` reads them out in
+    // prose; these are what a phone can dial and what WhatsApp can open, which
+    // is not something a template can cut out of the blob.
+    campus_phone: campus.phone ?? null,
+    campus_whatsapp: campus.whatsapp ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
     // What to call the appointment. A parent who booked a look around the

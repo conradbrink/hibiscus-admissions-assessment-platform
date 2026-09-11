@@ -81,6 +81,11 @@ export function buildOfferVariables(
     student_first_name: application.child_first_name,
     student_last_name: application.child_last_name,
     campus: campus.name,
+    // The letterhead. A printed offer named the class and the campus but gave
+    // a parent no way to reach either; `campus_address` already carries the
+    // street address and both numbers, on the lines they should print on.
+    campus_address: campus.address ?? null,
+    campus_phone: campus.phone ?? null,
     grade: grade.name,
     intake: intake.label,
     start_date: formatDateLong(intake.starts_on),
