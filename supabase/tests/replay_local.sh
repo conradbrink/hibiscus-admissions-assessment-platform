@@ -6,8 +6,13 @@
 # unreplayable at the exact moment it mattered — rebuilding production after
 # the project was deleted in error. A history that has never been replayed
 # from empty is a hope, not a disaster-recovery mechanism. This script is the
-# rehearsal, and CI-shaped enough to become a CI job the day a Postgres
-# service is added to the workflow.
+# rehearsal.
+#
+# It now runs in CI too, as the "Schema replay, RLS and template coverage"
+# job, against a Postgres service container — it honours PGHOST/PGUSER/
+# PGPASSWORD, so the same script serves both. Before that it only ever ran on
+# somebody's laptop when they remembered, which meant the security regression
+# suite was being trusted without being run.
 #
 # Usage:
 #   supabase/tests/replay_local.sh            # database "hibiscus_local"
@@ -70,6 +75,20 @@ if [ -f "$ROOT/tests/security_regression.sql" ]; then
   else
     echo "$out"
     echo "Security regression suite: FAILED" >&2
+    exit 1
+  fi
+fi
+
+if [ -f "$ROOT/tests/template_coverage.sql" ]; then
+  echo "== template_coverage.sql"
+  # Same convention as the security suite: it always raises, and the message
+  # says which.
+  out="$(psql -X -d "$DB" -f "$ROOT/tests/template_coverage.sql" 2>&1 || true)"
+  if echo "$out" | grep -q "ALL TEMPLATE COVERAGE CHECKS PASSED"; then
+    echo "Template coverage: PASSED"
+  else
+    echo "$out"
+    echo "Template coverage: FAILED" >&2
     exit 1
   fi
 fi

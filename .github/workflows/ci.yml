@@ -164,3 +164,41 @@ jobs:
             exit 1
           fi
           echo "No credential-shaped strings found."
+
+  schema:
+    name: Schema replay, RLS and template coverage
+    runs-on: ubuntu-latest
+    # The migrations job above checks that migration *files* are well formed
+    # and unedited. It never runs them. So until now the security regression
+    # suite and the schema itself were only ever exercised on somebody's
+    # laptop, by hand — a suite that does not run is a suite you are trusting
+    # for no reason.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Postgres client
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Replay every migration, then the suites
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: supabase/tests/replay_local.sh ci_replay
