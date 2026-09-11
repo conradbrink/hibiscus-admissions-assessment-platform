@@ -103,13 +103,31 @@ export type BookingStatus =
   | "rescheduled";
 export type TaskPriority = "low" | "normal" | "high" | "urgent";
 export type TaskStatus = "open" | "done" | "cancelled";
+/**
+ * What a magic link is for, and — since the family CRM — which subject it
+ * names. The first six belong to one application; the last five belong to a
+ * family and reach every child in it.
+ */
 export type TokenPurpose =
   | "next_step"
   | "booking"
   | "results"
   | "offer"
   | "payment"
-  | "registration";
+  | "registration"
+  | "family"
+  | "onboarding"
+  | "reenrolment"
+  | "checkin"
+  | "event";
+
+/** The purposes whose subject is a family rather than an application. */
+export const FAMILY_TOKEN_PURPOSES = ["family", "onboarding", "reenrolment", "checkin", "event"] as const;
+export type FamilyTokenPurpose = (typeof FAMILY_TOKEN_PURPOSES)[number];
+
+export function isFamilyPurpose(purpose: TokenPurpose): purpose is FamilyTokenPurpose {
+  return (FAMILY_TOKEN_PURPOSES as readonly string[]).includes(purpose);
+}
 export type EmailStatus =
   | "queued"
   | "sent"
@@ -460,7 +478,9 @@ export type NoteRow = {
 
 export type AccessTokenRow = {
   id: string;
-  application_id: string;
+  /** Exactly one of these two is set, and `purpose` says which. */
+  application_id: string | null;
+  family_id: string | null;
   purpose: TokenPurpose;
   token_hash: string;
   expires_at: string;
@@ -556,7 +576,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
-  audience: "parent" | "staff";
+  audience: "parent" | "staff" | "family";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -565,6 +585,8 @@ export type EmailTemplateRow = {
 export type EmailMessageRow = {
   id: string;
   application_id: string | null;
+  family_id: string | null;
+  student_id: string | null;
   contact_id: string | null;
   template_key: string | null;
   template_version: number | null;
@@ -1358,6 +1380,96 @@ export type ClassGroupRow = {
   updated_at: string;
 };
 
+export type OnboardingStepRow = {
+  code: string;
+  label: string;
+  description: string | null;
+  owner: "parent" | "staff" | "either";
+  kind: "acknowledge" | "choice" | "upload" | "link" | "action";
+  options: Json;
+  document_requirement_code: string | null;
+  required: boolean;
+  campus_id: string | null;
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  reminder_offsets_days: number[];
+  due_offset_days: number | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OnboardingItemStatus = "pending" | "in_progress" | "done" | "not_applicable" | "blocked";
+
+export type StudentOnboardingItemRow = {
+  id: string;
+  student_id: string;
+  enrolment_id: string | null;
+  campus_id: string;
+  step_code: string;
+  status: OnboardingItemStatus;
+  value: Json;
+  document_id: string | null;
+  note: string | null;
+  due_on: string | null;
+  completed_at: string | null;
+  completed_by: "parent" | "staff" | "system" | null;
+  completed_by_staff_id: string | null;
+  reminders_sent: number;
+  last_reminder_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReenrolmentCycleStatus = "draft" | "open" | "closed";
+
+export type ReenrolmentCycleRow = {
+  id: string;
+  intake_id: string;
+  /** Null asks every campus at once. */
+  campus_id: string | null;
+  name: string;
+  opens_on: string;
+  closes_on: string;
+  status: ReenrolmentCycleStatus;
+  reminder_offsets_days: number[];
+  ask_details_refresh: boolean;
+  opened_by: string | null;
+  opened_at: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReenrolmentIntent = "returning" | "not_returning" | "undecided";
+
+export type ReenrolmentResponseRow = {
+  id: string;
+  cycle_id: string;
+  student_id: string;
+  enrolment_id: string | null;
+  campus_id: string;
+  /** Null means not yet answered — which is what the board chases. */
+  intent: ReenrolmentIntent | null;
+  reason: string | null;
+  leaving_destination: string | null;
+  next_grade_id: string | null;
+  next_campus_id: string | null;
+  answered_at: string | null;
+  answered_by: "parent" | "staff" | null;
+  answered_by_staff_id: string | null;
+  details_confirmed_at: string | null;
+  details_changed: Json;
+  asked_at: string | null;
+  reminders_sent: number;
+  last_reminder_at: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type FunnelEventRow = {
   id: number;
   session_key: string;
@@ -1376,6 +1488,7 @@ export type MessageLinkPurpose = "next_step" | "results" | "offer" | "payment" |
 export type MessageTemplateRow = {
   key: string;
   name: string;
+  audience: "applicant" | "family";
   meta_template_name: string | null;
   /** Twilio's Content Template SID (HX…), used instead of the name when Twilio is the provider. */
   twilio_content_sid: string | null;
@@ -1456,7 +1569,10 @@ export type MessageStatus = "queued" | "sent" | "delivered" | "read" | "failed" 
 
 export type MessageRow = {
   id: string;
-  application_id: string;
+  /** Exactly one of these two names what the message is about. */
+  application_id: string | null;
+  family_id: string | null;
+  student_id: string | null;
   contact_id: string | null;
   direction: "out" | "in";
   channel: "whatsapp";
@@ -1644,8 +1760,11 @@ export type Database = {
       >;
       access_tokens: TableOf<
         AccessTokenRow,
-        "max_uses" | "use_count" | "revoked_at" | "created_reason",
-        [Rel<"access_tokens_application_id_fkey", "application_id", "applications">]
+        "application_id" | "family_id" | "max_uses" | "use_count" | "revoked_at" | "created_reason",
+        [
+          Rel<"access_tokens_application_id_fkey", "application_id", "applications">,
+          Rel<"access_tokens_family_id_fkey", "family_id", "families">,
+        ]
       >;
       token_uses: TableOf<
         TokenUseRow,
@@ -1703,6 +1822,8 @@ export type Database = {
       email_messages: TableOf<
         EmailMessageRow,
         | "application_id"
+        | "family_id"
+        | "student_id"
         | "contact_id"
         | "template_key"
         | "template_version"
@@ -2125,6 +2246,54 @@ export type Database = {
           Rel<"class_groups_academic_year_id_fkey", "academic_year_id", "academic_years">,
         ]
       >;
+      onboarding_steps: TableOf<
+        OnboardingStepRow,
+        | "description" | "owner" | "kind" | "options" | "document_requirement_code" | "required"
+        | "campus_id" | "grade_sort_min" | "grade_sort_max" | "reminder_offsets_days"
+        | "due_offset_days" | "sort_order" | "is_active",
+        [
+          Rel<"onboarding_steps_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"onboarding_steps_document_requirement_code_fkey", "document_requirement_code", "document_requirements">,
+        ]
+      >;
+      student_onboarding_items: TableOf<
+        StudentOnboardingItemRow,
+        | "enrolment_id" | "status" | "value" | "document_id" | "note" | "due_on"
+        | "completed_at" | "completed_by" | "completed_by_staff_id" | "reminders_sent" | "last_reminder_at",
+        [
+          Rel<"student_onboarding_items_student_id_fkey", "student_id", "students">,
+          Rel<"student_onboarding_items_enrolment_id_fkey", "enrolment_id", "enrolments">,
+          Rel<"student_onboarding_items_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"student_onboarding_items_step_code_fkey", "step_code", "onboarding_steps">,
+          Rel<"student_onboarding_items_document_id_fkey", "document_id", "documents">,
+        ]
+      >;
+      reenrolment_cycles: TableOf<
+        ReenrolmentCycleRow,
+        | "campus_id" | "status" | "reminder_offsets_days" | "ask_details_refresh"
+        | "opened_by" | "opened_at" | "closed_by" | "closed_at",
+        [
+          Rel<"reenrolment_cycles_intake_id_fkey", "intake_id", "intakes">,
+          Rel<"reenrolment_cycles_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"reenrolment_cycles_opened_by_fkey", "opened_by", "staff_profiles">,
+          Rel<"reenrolment_cycles_closed_by_fkey", "closed_by", "staff_profiles">,
+        ]
+      >;
+      reenrolment_responses: TableOf<
+        ReenrolmentResponseRow,
+        | "enrolment_id" | "intent" | "reason" | "leaving_destination" | "next_grade_id"
+        | "next_campus_id" | "answered_at" | "answered_by" | "answered_by_staff_id"
+        | "details_confirmed_at" | "details_changed" | "asked_at" | "reminders_sent"
+        | "last_reminder_at" | "note",
+        [
+          Rel<"reenrolment_responses_cycle_id_fkey", "cycle_id", "reenrolment_cycles">,
+          Rel<"reenrolment_responses_student_id_fkey", "student_id", "students">,
+          Rel<"reenrolment_responses_enrolment_id_fkey", "enrolment_id", "enrolments">,
+          Rel<"reenrolment_responses_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"reenrolment_responses_next_grade_id_fkey", "next_grade_id", "grades">,
+          Rel<"reenrolment_responses_next_campus_id_fkey", "next_campus_id", "campuses">,
+        ]
+      >;
       funnel_events: TableOf<
         FunnelEventRow,
         "application_id" | "campus_id" | "grade_id" | "elapsed_ms" | "occurred_at",
@@ -2136,11 +2305,12 @@ export type Database = {
       >;
       message_templates: TableOf<
         MessageTemplateRow,
-        "meta_template_name" | "twilio_content_sid" | "zavu_template_id" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
+        "audience" | "meta_template_name" | "twilio_content_sid" | "zavu_template_id" | "language" | "body_preview" | "parameters" | "button_link" | "link_purpose" | "is_active" | "updated_by",
         [Rel<"message_templates_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
       messages: TableOf<
         MessageRow,
+        | "application_id" | "family_id" | "student_id"
         | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
         | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at",
         [
@@ -2294,6 +2464,8 @@ export type Database = {
       can_access_campus: { Args: { p_campus_id: string }; Returns: boolean };
       next_application_reference: { Args: Record<string, never>; Returns: string };
       next_student_code: { Args: Record<string, never>; Returns: string };
+      open_reenrolment_cycle: { Args: { p_cycle_id: string }; Returns: number };
+      open_student_onboarding: { Args: { p_student_id: string }; Returns: number };
       family_id_for_code: { Args: { p_code: string }; Returns: string | null };
       can_access_student: { Args: { p_student_id: string }; Returns: boolean };
       consume_token: {
@@ -2301,6 +2473,16 @@ export type Database = {
         Returns: {
           outcome: "ok" | "expired" | "revoked" | "exhausted" | "unknown";
           application_id: string | null;
+          purpose: TokenPurpose | null;
+          token_id: string | null;
+        }[];
+      };
+      consume_token_v2: {
+        Args: { p_token_hash: string; p_ip_hash: string | null; p_user_agent: string | null };
+        Returns: {
+          outcome: "ok" | "expired" | "revoked" | "exhausted" | "unknown";
+          application_id: string | null;
+          family_id: string | null;
           purpose: TokenPurpose | null;
           token_id: string | null;
         }[];

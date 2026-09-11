@@ -20,6 +20,10 @@ export type Settings = {
   offerExpiryDays: number;
   offerReminderDaysBefore: number[];
   parentSessionMinutes: number;
+  /** Longer than the funnel's: the details-refresh form is a dozen questions on a phone. */
+  familySessionMinutes: number;
+  /** Send the re-enrolment ask and its reminders. Off until a round has been watched by hand. */
+  reenrolmentAsksEnabled: boolean;
   kioskCodeMinutes: number;
   attemptGraceSeconds: number;
   autoSendOutcomes: boolean;
@@ -63,6 +67,8 @@ export const DEFAULT_SETTINGS: Settings = {
   offerExpiryDays: 14,
   offerReminderDaysBefore: [7, 2],
   parentSessionMinutes: 60,
+  familySessionMinutes: 120,
+  reenrolmentAsksEnabled: false,
   kioskCodeMinutes: 15,
   attemptGraceSeconds: 30,
   autoSendOutcomes: false,
@@ -104,6 +110,8 @@ const KEYS: Record<keyof Settings, string> = {
   offerExpiryDays: "offer_expiry_days",
   offerReminderDaysBefore: "offer_reminder_days_before",
   parentSessionMinutes: "parent_session_minutes",
+  familySessionMinutes: "family_session_minutes",
+  reenrolmentAsksEnabled: "reenrolment_asks_enabled",
   kioskCodeMinutes: "kiosk_code_minutes",
   attemptGraceSeconds: "attempt_grace_seconds",
   autoSendOutcomes: "auto_send_outcomes",
@@ -194,6 +202,8 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
       d.offerReminderDaysBefore
     ),
     parentSessionMinutes: asPositiveInt(map.get(KEYS.parentSessionMinutes), d.parentSessionMinutes),
+    familySessionMinutes: asPositiveInt(map.get(KEYS.familySessionMinutes), d.familySessionMinutes),
+    reenrolmentAsksEnabled: asBoolean(map.get(KEYS.reenrolmentAsksEnabled), d.reenrolmentAsksEnabled),
     kioskCodeMinutes: asPositiveInt(map.get(KEYS.kioskCodeMinutes), d.kioskCodeMinutes),
     attemptGraceSeconds: asPositiveInt(map.get(KEYS.attemptGraceSeconds), d.attemptGraceSeconds),
     autoSendOutcomes: asBoolean(map.get(KEYS.autoSendOutcomes), d.autoSendOutcomes),

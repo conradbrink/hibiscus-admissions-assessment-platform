@@ -1709,6 +1709,243 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 48. A magic link names exactly one subject, and the purpose decides which
+  -- -------------------------------------------------------------------------
+  begin
+    -- A family link reaches every child in the family, so a token that named
+    -- both — or a `payment` purpose pointed at a family — would be a way to
+    -- widen one link into another. The database refuses the shapes rather
+    -- than trusting whichever route minted it.
+    perform pg_temp.service();
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select app_broadhurst, s.family_id, 'family', 'sec-both', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      v_fail := v_fail || E'\n  - ' || '48: a token named an application and a family at once';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the both-subjects insert failed with "' || sqlerrm || '"');
+    end;
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      values (null, null, 'family', 'sec-neither', now() + interval '1 day');
+      v_fail := v_fail || E'\n  - ' || '48: a token named no subject at all';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the no-subject insert failed with "' || sqlerrm || '"');
+    end;
+
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select null, s.family_id, 'payment', 'sec-wrong-purpose', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      v_fail := v_fail || E'\n  - ' || '48: a funnel purpose was pointed at a family';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('48: the wrong-purpose insert failed with "' || sqlerrm || '"');
+    end;
+
+    -- Control: the two shapes that are meant to work.
+    begin
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      select null, s.family_id, 'reenrolment', 'sec-family-ok', now() + interval '1 day'
+        from public.students s where s.id = crm_student_broadhurst;
+      insert into public.access_tokens (application_id, family_id, purpose, token_hash, expires_at)
+      values (app_broadhurst, null, 'payment', 'sec-app-ok', now() + interval '1 day');
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48 control: a valid token was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- And a family link is visible to staff who may see one of its children,
+    -- but not to a manager at another campus.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.access_tokens where token_hash = 'sec-family-ok';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '48: a Broadhurst manager cannot see their own family''s link';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48: reading the family link failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_author);
+      select count(*) into v_count from public.access_tokens where token_hash = 'sec-family-ok';
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '48: a content author read a family link';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('48: the author read failed unexpectedly: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 49. A re-enrolment round is campus-scoped, and nobody hand-picks the board
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.reenrolment_cycles (intake_id, campus_id, name, opens_on, closes_on, status)
+    values (i_intake, c_block7, 'Sec round', current_date, current_date + 30, 'open')
+    returning id into v_id;
+    insert into public.reenrolment_responses (cycle_id, student_id, campus_id)
+    values (v_id, crm_student_block7, c_block7);
+
+    -- Attack: a manager limited to Broadhurst reads Block 7's board. Who is
+    -- leaving is exactly the kind of thing a campus does not share.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.reenrolment_responses where cycle_id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '49: a Broadhurst manager read a Block 7 re-enrolment board';
+      end if;
+      select count(*) into v_count from public.reenrolment_cycles where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '49: a Broadhurst manager read a Block 7 round';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('49: reading the board failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an admissions officer adds a line to the board by hand. The
+    -- board is every child in scope, written by `open_reenrolment_cycle`, or
+    -- it is not a count anyone can plan around.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.reenrolment_responses (cycle_id, student_id, campus_id)
+      values (v_id, crm_student_broadhurst, c_broadhurst);
+      v_fail := v_fail || E'\n  - ' || '49: an admissions officer added a line to a board';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('49: the insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer without `reenrolment.write` opens a round, which
+    -- would mail every family at a campus at once.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.reenrolment_cycles (intake_id, campus_id, name, opens_on, closes_on)
+      values (i_intake, c_block7, 'Forged round', current_date, current_date + 30);
+      v_fail := v_fail || E'\n  - ' || '49: an admissions officer opened a re-enrolment round';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('49: the round insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an administrator sees the board and can record an answer.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      select count(*) into v_count from public.reenrolment_responses where cycle_id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '49 control: an administrator cannot read the board';
+      end if;
+      update public.reenrolment_responses
+         set intent = 'returning', answered_at = now(), answered_by = 'staff'
+       where cycle_id = v_id;
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '49 control: an administrator cannot record an answer';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('49 control: working the board failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 50. A checklist is campus-scoped, and the list itself is a settings change
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.student_onboarding_items (student_id, campus_id, step_code)
+    values (crm_student_block7, c_block7, 'welcome_read');
+
+    -- Attack: a manager limited to Broadhurst reads Block 7's checklists.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.student_onboarding_items
+       where student_id = crm_student_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '50: a Broadhurst manager read a Block 7 checklist';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50: reading the checklist failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer adds an item to one child's checklist by hand. The
+    -- checklist is the active list or it is not the same list as everyone
+    -- else's, and a board built from hand-picked rows counts nothing.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.student_onboarding_items (student_id, campus_id, step_code)
+      values (crm_student_broadhurst, c_broadhurst, 'uniform');
+      v_fail := v_fail || E'\n  - ' || '50: an admissions officer added a checklist item';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('50: the insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Attack: an officer rewrites what every family is asked for. Editing the
+    -- list is a settings change, like the document requirements beside it.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.onboarding_steps set label = 'Forged' where code = 'uniform';
+      if found then
+        v_fail := v_fail || E'\n  - ' || '50: an admissions officer rewrote the checklist';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('50: the edit was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Control: an officer may tick an item off on a family's behalf, and an
+    -- administrator may change the list.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.student_onboarding_items set status = 'done'
+       where student_id = crm_student_block7;
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '50 control: an officer cannot tick an item off';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50 control: ticking an item off failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_admin);
+      update public.onboarding_steps set label = 'Uniform sizes' where code = 'uniform';
+      if not found then
+        v_fail := v_fail || E'\n  - ' || '50 control: an administrator cannot change the list';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('50 control: changing the list failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

@@ -2,12 +2,25 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { TokenPurpose } from "@/lib/supabase/types";
 
 /**
- * The parent session cookie.
+ * The parent session cookies.
  *
- * A magic link is exchanged for this: a short-lived, HMAC-signed value naming
- * exactly one application. Every parent page reads it and scopes every query
- * to that application id. It carries no personal data — an id, a purpose, two
- * timestamps.
+ * A magic link is exchanged for one of these: a short-lived, HMAC-signed
+ * value naming exactly one subject. It carries no personal data — an id, a
+ * purpose, two timestamps.
+ *
+ * There are two, and they are deliberately separate:
+ *
+ *   hbs_parent  one application, path `/`. The funnel: booking, results, the
+ *               offer, payment, registration.
+ *   hbs_family  one family, path `/family`. The CRM: every child at once, for
+ *               as long as the family is with the school.
+ *
+ * A family cookie is strictly more powerful than an application cookie — it
+ * reaches every child — so it is signed under its own HMAC domain. A bug in
+ * one decoder therefore cannot promote a funnel cookie into a family one, or
+ * the reverse. Two cookies also let a parent hold a funnel session for a new
+ * child and a family session for the enrolled ones at the same time, which
+ * will be the ordinary case once siblings exist.
  *
  * Pure functions, no Next imports, so the signing and verification are unit
  * tested in isolation. The cookie plumbing is in ./server.ts.
@@ -19,13 +32,30 @@ import type { TokenPurpose } from "@/lib/supabase/types";
  */
 
 export const PARENT_COOKIE = "hbs_parent";
+export const FAMILY_COOKIE = "hbs_family";
 
-export type ParentSession = {
+export type ApplicationSession = {
   applicationId: string;
   purpose: TokenPurpose;
   issuedAt: number;
   expiresAt: number;
 };
+
+export type FamilySession = {
+  familyId: string;
+  purpose: TokenPurpose;
+  issuedAt: number;
+  expiresAt: number;
+};
+
+/**
+ * Kept as the name of the application session so every existing caller reads
+ * the same. The family session is its own type rather than a member of a
+ * union with it: nothing that scopes by application should ever compile
+ * against a value that might not have one, and `"familyId" in session`
+ * separates them where anything genuinely handles both.
+ */
+export type ParentSession = ApplicationSession;
 
 export function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
@@ -52,8 +82,11 @@ export function splitSigned(value: string): { payload: string; signature: string
 }
 
 const PARENT_DOMAIN = "parent";
+const FAMILY_DOMAIN = "family";
 
 export function encodeParentSession(session: ParentSession, secret: string): string {
+  // The keys stay exactly as they were, so every cookie already in a parent's
+  // browser still decodes after this deploy.
   const payload = b64url(
     JSON.stringify({
       a: session.applicationId,
@@ -63,6 +96,18 @@ export function encodeParentSession(session: ParentSession, secret: string): str
     })
   );
   return `${payload}.${signPayload(payload, secret, PARENT_DOMAIN)}`;
+}
+
+export function encodeFamilySession(session: FamilySession, secret: string): string {
+  const payload = b64url(
+    JSON.stringify({
+      f: session.familyId,
+      p: session.purpose,
+      i: session.issuedAt,
+      e: session.expiresAt,
+    })
+  );
+  return `${payload}.${signPayload(payload, secret, FAMILY_DOMAIN)}`;
 }
 
 /**
@@ -96,6 +141,43 @@ export function decodeParentSession(
   if (parsed.e <= now) return null;
   return {
     applicationId: parsed.a,
+    purpose: parsed.p as TokenPurpose,
+    issuedAt: parsed.i,
+    expiresAt: parsed.e,
+  };
+}
+
+/**
+ * The family twin. Same shape of checks, different domain and different key,
+ * so neither cookie can be read as the other however it was obtained.
+ */
+export function decodeFamilySession(
+  value: string | undefined | null,
+  secret: string,
+  now: number = Date.now()
+): FamilySession | null {
+  if (!value) return null;
+  const parts = splitSigned(value);
+  if (!parts) return null;
+  if (!verifyPayload(parts.payload, parts.signature, secret, FAMILY_DOMAIN)) return null;
+
+  let parsed: { f?: unknown; p?: unknown; i?: unknown; e?: unknown };
+  try {
+    parsed = JSON.parse(Buffer.from(parts.payload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (
+    typeof parsed.f !== "string" ||
+    typeof parsed.p !== "string" ||
+    typeof parsed.i !== "number" ||
+    typeof parsed.e !== "number"
+  ) {
+    return null;
+  }
+  if (parsed.e <= now) return null;
+  return {
+    familyId: parsed.f,
     purpose: parsed.p as TokenPurpose,
     issuedAt: parsed.i,
     expiresAt: parsed.e,

@@ -1,6 +1,6 @@
 # Database schema
 
-Sixty-two migrations, replayable from an empty database. That last property is not
+Every migration here replays from an empty database. That property is not
 decorative: the sibling project discovered its history was *not* replayable
 at the exact moment it was rebuilding production. `tests/replay_local.sh`
 rehearses the rebuild and runs the security suite; run it after every schema
@@ -68,7 +68,7 @@ change.
    applied anywhere its filename must equal the version the database recorded.
    Never invent the timestamp after the fact. CI checks the shape and refuses
    edits to files already on `main`.
-2. **Never edit an applied migration.** Add a new one. The twenty-four here are
+2. **Never edit an applied migration.** Add a new one. The ones here are
    editable only until the first project applies them.
 3. **`security invoker` on every RPC and `security_invoker = true` on every
    view.** A view defaults to definer rights and bypasses RLS. The

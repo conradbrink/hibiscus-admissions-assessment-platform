@@ -4,7 +4,7 @@ import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
 import { consumeToken } from "@/lib/tokens";
-import { startParentSession } from "@/lib/tokens/server";
+import { startFamilySession, startParentSession } from "@/lib/tokens/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +29,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   if (result.outcome !== "ok") redirect(`/link?reason=${result.outcome}`);
 
   const settings = await getSettings(admin);
+
+  // Which subject the token named decides which cookie is written and which
+  // half of the product the parent lands in. The two never mix: a family
+  // link cannot open a funnel page, and a funnel link cannot open the hub.
+  if (result.familyId !== null) {
+    await startFamilySession(result.familyId, result.purpose, settings.familySessionMinutes);
+    if (result.purpose === "onboarding") redirect("/family/checklist");
+    if (result.purpose === "reenrolment") redirect("/family/returning");
+    if (result.purpose === "checkin") redirect("/family/check-in");
+    if (result.purpose === "event") redirect("/family/dates");
+    redirect("/family");
+  }
+  // The database allows only the two, and `consumeToken` refuses a row that
+  // names neither; this is the belt to that pair of braces.
+  if (result.applicationId === null) redirect("/link?reason=unknown");
+
   await startParentSession(result.applicationId, result.purpose, settings.parentSessionMinutes);
 
   // The link says what it is for; the page it lands on checks the data is

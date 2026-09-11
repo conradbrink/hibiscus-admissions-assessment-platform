@@ -8,12 +8,12 @@ import { canAccessPath } from "@/lib/permissions";
  * imported, because the sidebar (a client component) resolves them and the
  * layout (a server component) hands the groups across.
  *
- * Twelve destinations and one Settings hub: the day's work on the left,
+ * Fourteen destinations and one Settings hub: the day's work on the left,
  * everything the process is configured from behind one door.
  */
 export type NavIcon =
   | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
-  | "payments" | "registrations" | "export" | "students" | "analytics" | "forecast" | "settings"
+  | "payments" | "registrations" | "export" | "students" | "onboarding" | "reenrolment" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
@@ -61,6 +61,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "The school",
     items: [
       { href: "/staff/students", label: "Students", icon: "students", permission: "students.read" },
+      { href: "/staff/onboarding", label: "Onboarding", icon: "onboarding", permission: "students.read" },
+      { href: "/staff/reenrolment", label: "Re-enrolment", icon: "reenrolment", permission: "reenrolment.write" },
     ],
   },
   {
@@ -104,6 +106,7 @@ export const SETTINGS_SECTIONS: NavGroup[] = [
       { href: "/staff/admin/message-templates", label: "WhatsApp templates", icon: "whatsapp", permission: "templates.write", blurb: "The WhatsApp companions to those emails" },
       { href: "/staff/admin/agreements", label: "Agreements", icon: "agreements", permission: "templates.write", blurb: "The policies a parent signs at registration" },
       { href: "/staff/admin/document-requirements", label: "Document requirements", icon: "documents", permission: "settings.write", blurb: "What a parent must upload" },
+      { href: "/staff/admin/onboarding-steps", label: "Onboarding checklist", icon: "onboarding", permission: "settings.write", blurb: "What a newly enrolled family is asked for" },
     ],
   },
   {

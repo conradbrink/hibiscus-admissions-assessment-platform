@@ -1,7 +1,8 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { JobRow } from "@/lib/supabase/types";
-import { sendTemplatedEmail, type LinkPurpose } from "@/lib/email/send";
+import { sendFamilyEmail, sendTemplatedEmail, type FamilyLinkPurpose, type LinkPurpose } from "@/lib/email/send";
+import { sendFamilyMessage } from "@/lib/messaging/send";
 import { getSettings } from "@/lib/settings";
 import { enqueueJobs } from "@/lib/workflow/engine";
 import type { HandlerResult } from "@/lib/workflow/handlers";
@@ -20,9 +21,52 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     mismatch_details?: string | null;
     outstanding_items?: string | null;
     all_received?: boolean | null;
+    /** A family moment names these instead of an application. */
+    family_id?: string | null;
+    student_id?: string | null;
+    family_link?: FamilyLinkPurpose | null;
+    variables?: Record<string, string | null>;
   };
-  if (!payload.template_key || !job.application_id) {
-    return { outcome: "failed", error: "send_email job missing template_key or application", retryable: false };
+  if (!payload.template_key) {
+    return { outcome: "failed", error: "send_email job missing template_key", retryable: false };
+  }
+
+  // A family moment: the re-enrolment ask and everything after it. One job
+  // type, so the drain's backoff, idempotency and the WhatsApp companion are
+  // the same machinery for both halves of the product.
+  if (payload.family_id) {
+    const result = await sendFamilyEmail(admin, {
+      familyId: payload.family_id,
+      studentId: payload.student_id ?? null,
+      templateKey: payload.template_key,
+      idempotencyKey: job.idempotency_key,
+      link: payload.family_link ?? null,
+      variables: payload.variables ?? {},
+    });
+    if (result.status === "skipped") return { outcome: "skipped", reason: result.reason };
+    if (result.status === "failed") return { outcome: "failed", error: result.error, retryable: result.retryable };
+
+    const settings = await getSettings(admin);
+    if (settings.whatsappEnabled) {
+      // Sent inline rather than queued as a second job: it has no application
+      // to hang one on, and `enqueueJobs` keys work by application. The
+      // idempotency key is still the email's, so a retried email cannot
+      // produce a second message.
+      await sendFamilyMessage(admin, {
+        familyId: payload.family_id,
+        studentId: payload.student_id ?? null,
+        templateKey: payload.template_key,
+        idempotencyKey: `whatsapp:${job.idempotency_key}`,
+        emailMessageId: result.messageId,
+        variables: payload.variables ?? {},
+        link: payload.family_link ?? null,
+      });
+    }
+    return { outcome: "done" };
+  }
+
+  if (!job.application_id) {
+    return { outcome: "failed", error: "send_email job missing application", retryable: false };
   }
   const links = (payload.links ?? []).filter((l): l is LinkPurpose => (LINK_PURPOSES as string[]).includes(l));
   const result = await sendTemplatedEmail(admin, {

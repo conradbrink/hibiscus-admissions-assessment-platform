@@ -67,6 +67,31 @@ is in the pull request that introduced this repository. The short version:
 - **Declined applicants receive the learning profile** (setting
   `profile_shared_on_decline`, default on).
 
+### A family-scoped magic link (10 September 2026)
+
+The rule was: a parent session is scoped to exactly one application. It still
+is for the funnel. Alongside it there is now a second cookie scoped to a
+**family**, because the CRM asks its questions of a family and not of an
+application that closed years ago — finish the checklist, confirm your
+details, is she coming back next term.
+
+Agreed with the school on 10 September 2026, with the trade stated plainly:
+one link now reaches every child in the family. Still no parent accounts —
+passwords, resets and lockout are a new threat model and a real support burden
+for parents on feature phones, and with no money in these pages they buy
+little. Revisit if the CRM ever holds fee statements.
+
+Two things hold the line where RLS cannot. The two cookies are signed under
+different HMAC domains, so neither decoder can ever accept the other's value;
+and every read under `app/(parent)/family` goes through `lib/family/scope.ts`,
+with a test that fails the build if a family route queries a table itself.
+
+**Open, and the owner's to answer:** separated parents, and a guardian not
+entitled to the other child's medical data. `application_guardians` already
+records who guards whom, so the eventual shape is a link scoped to the
+children that contact guards. Shipped as "all children in the family", and
+recorded here as a known limitation rather than an oversight.
+
 ### Plain English for parents (7 September 2026)
 
 Everything written to a parent (letters, emails, WhatsApp, the assessment
@@ -338,6 +363,94 @@ rows that outlive the application.
   absent insert policy on `students`, and that guard.
 - `/staff/students` and `/staff/students/[id]` are the register, read-only for
   now, behind the new `students.read` and `students.write`.
+
+### The termly re-enrolment round (PR #63 onward)
+
+The school's own answer to what the CRM is for: knowing, before a term
+starts, which children it still has — and taking the chance, while the family
+is answering anyway, to check what we hold is still true.
+
+- `reenrolment_cycles` is one asking: a term, a scope of campuses, a window,
+  and whether it also asks for a details refresh. `reenrolment_responses` is
+  one child inside it, written by `open_reenrolment_cycle()` for every
+  enrolled child in scope, so the board is a call list that only shrinks.
+  Re-opening a round picks up newcomers and touches no answer already given.
+- **The answer is three-valued.** "Not sure yet" in September is real
+  information, and forcing a yes or a no turns it into silence — which reads
+  the same as never having asked. `summarise()` counts only a yes toward
+  places to plan for; an undecided or a silence is not a place, and counting
+  it as one is how a term starts with classrooms that do not add up.
+- A returning child's next class is **the next active grade by `sort_order`**,
+  never `sort_order + 1`: the ladder has gaps and the Botswana ladders differ
+  from the South African one. At the top of the school there is no answer —
+  that is a conversation, not a placement.
+- `reenrolment.write` is its own permission because opening a round reaches
+  every family at a campus at once. Recording an answer given on the phone is
+  ordinary register work and needs only `students.write`.
+- Staff work it at `/staff/reenrolment`; families answer at
+  `/family/returning`. Most first-round answers will arrive by telephone, so
+  recording one by hand is a first-class action rather than an afterthought.
+
+### Messages that are about a family (PR #63 onward)
+
+Every message the product had ever sent was about an application. The
+re-enrolment ask is not: it asks a family about children who enrolled years
+ago, through applications that are terminal and may have been anonymised. So
+both logs learned a second subject, exactly as `access_tokens` did, and
+`sendFamilyEmail` sits beside `sendStaffEmail` on the same renderer.
+
+The rule that a WhatsApp message is an approved template, to an opted-in
+contact, as the companion of an email moment, is **unchanged** — only who the
+moment is about is new. `sendFamilyMessage` is a second sender rather than a
+mode of the first, because the first begins by loading an application graph.
+
+The ask and its reminders are `reenrolment_asks_enabled`, off by default:
+the school should watch one round work by hand before the product writes to
+every family at a campus at once. The two WhatsApp companions ship inactive
+and need a provider template id pasted in before they can send, like every
+other message template.
+
+### The onboarding checklist (PR #63 onward)
+
+What a newly enrolled family still owes the school, and what the school still
+owes them, as a list per child.
+
+It is **not a second state machine.** These are parallel errands — confirm the
+details, update the medical form, choose a uniform size, say yes or no to
+transport, join the class group, read the first-day note — and a family does
+them in whatever order they get to them. A linear flow would strand the parent
+who did the fourth thing on Tuesday and the second thing on Saturday. So each
+item stands alone with its own status, and the only coarse lifecycle is
+`students.status`.
+
+The list itself is data. `onboarding_steps` is edited at
+`/staff/admin/onboarding-steps`, which is where the wording a parent reads
+lives, for the same reason every email does. Three fields are deliberately not
+editable there: the **code**, because changing it would orphan every checklist
+already carrying it; the **kind**, because an answer of one shape would be left
+sitting in a step that now asks another; and the **owner**, because moving a
+step between the family and the school changes who is chased for it. All three
+are migrations, not settings. Turning a step off stops it being asked for and
+leaves finished ones alone — what a family was asked, and what they said, is a
+record.
+
+Steps are opened by `open_student_onboarding(student_id)` at the moment an
+enrolment is confirmed, filtered to the campus and grade band, with `due_on`
+computed from the first day (`due_offset_days` is negative for the things
+wanted beforehand). The RPC is idempotent, so confirming twice is safe, and
+there is no insert policy on `student_onboarding_items` at all: a checklist is
+opened by the school's own function or not at all.
+
+Parents see one list per child at `/family/checklist`, with the school's own
+steps left off it — "allocate the class" is a promise, not a chore to hand a
+parent who cannot do it. Finished items stay on the list rather than
+disappearing; a list that shortens as you work it hides what you have achieved,
+and a parent who wants to change an answer has to be able to find it. Staff get
+`/staff/onboarding`, one row per child, overdue first, because the question on a
+Monday morning is which families to ring today.
+
+Progress is counted over **required** steps only, so an optional aftercare
+choice can never keep a family at 90 per cent forever.
 
 ### Three more things the school owns
 

@@ -40,6 +40,8 @@ export const PERMISSION_CODES = [
   /** The register: children, families and the school year, after enrolment. */
   "students.read",
   "students.write",
+  /** Opening a round reaches every family at a campus at once. */
+  "reenrolment.write",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -68,6 +70,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "audit.read": "Read the audit trail",
   "students.read": "View students, families and the school year",
   "students.write": "Edit a student, a family and an enrolment",
+  "reenrolment.write": "Open and close a re-enrolment round",
 };
 
 export type PermissionSet = ReadonlySet<string>;
@@ -108,6 +111,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/offer-templates", "templates.write"],
   ["/staff/admin/agreements", "templates.write"],
   ["/staff/admin/document-requirements", "settings.write"],
+  ["/staff/admin/onboarding-steps", "settings.write"],
   ["/staff/admin/fees", "finance.write"],
   ["/staff/admin/promotions", "settings.write"],
   ["/staff/admin/staff", "staff.write"],
@@ -122,6 +126,8 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/analytics", "analytics.read"],
   ["/staff/enrolment", "data.export"],
   ["/staff/students", "students.read"],
+  ["/staff/reenrolment", "reenrolment.write"],
+  ["/staff/onboarding", "students.read"],
   ["/staff/payments", "finance.read"],
   ["/staff/registrations", "applications.read"],
   ["/staff/offers", "offers.read"],
