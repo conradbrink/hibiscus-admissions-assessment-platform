@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
-import { templateProblems } from "@/components/staff/message-template-editor";
+import { templateProblems } from "@/lib/messaging/template-checks";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { placeholderCount, renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
+import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
+import { templateProblems } from "@/lib/messaging/template-checks";
 
 /** Sample values so the preview reads like a real message. Same as the email editor's. */
 const SAMPLE: Record<string, string> = {
@@ -34,41 +35,6 @@ const SAMPLE: Record<string, string> = {
 };
 
 const LINK_PURPOSES = ["next_step", "results", "offer", "payment", "registration"] as const;
-
-/** Twilio's Content Template SIDs are `HX` and thirty-two hex characters. */
-export const TWILIO_CONTENT_SID = /^HX[0-9a-fA-F]{32}$/;
-
-/** Problems the server will also refuse; shown live so the save button is honest. */
-export function templateProblems(input: {
-  parameters: string[];
-  bodyPreview: string;
-  allowed: string[];
-  metaName: string;
-  twilioContentSid?: string;
-  zavuTemplateId?: string;
-  active: boolean;
-}): string[] {
-  const problems: string[] = [];
-  const unknown = input.parameters.filter((p) => !input.allowed.includes(p));
-  if (unknown.length) problems.push(`Not an allowed variable for this email: ${unknown.join(", ")}`);
-  const links = input.parameters.filter((p) => p.endsWith("_link"));
-  if (links.length) problems.push(`Links go on the button, not in the text: ${links.join(", ")}`);
-  const n = placeholderCount(input.bodyPreview);
-  if (n !== input.parameters.length) problems.push(`The wording has ${n} placeholder(s) but ${input.parameters.length} variable(s) are listed`);
-  const sid = (input.twilioContentSid ?? "").trim();
-  if (input.metaName && !/^[a-z0-9_]+$/.test(input.metaName)) {
-    problems.push("A Meta template name is lower-case letters, digits and underscores");
-  }
-  if (sid && !TWILIO_CONTENT_SID.test(sid)) {
-    problems.push("A Twilio content SID starts HX and has thirty-two more characters");
-  }
-  // Either identifier will do: whichever provider is delivering reads its
-  // own, and a school moving between them keeps both for a while.
-  if (input.active && !input.metaName && !sid && !(input.zavuTemplateId ?? "").trim()) {
-    problems.push("An active template needs an id from whichever provider is sending: Zavu, Twilio or Meta");
-  }
-  return problems;
-}
 
 export function MessageTemplateEditor({
   template,
