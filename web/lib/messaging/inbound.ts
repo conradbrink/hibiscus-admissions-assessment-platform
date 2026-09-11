@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { recordMessageEvent } from "@/lib/messaging/audit";
+import { ownerForStudent } from "@/lib/onboarding/owner";
 import { resolveStatus } from "@/lib/messaging/delivery";
 import { isOptIn, isOptOut } from "@/lib/messaging/meta-payload";
 import type { InboundEvent } from "@/lib/messaging/provider";
@@ -73,6 +74,36 @@ async function applyStatus(admin: AdminClient, ev: Extract<InboundEvent, { kind:
 export type ReplyOutcome = "unknown" | "opt_out" | "opt_in" | "task" | "duplicate";
 
 /**
+ * The child this contact still has at the school, if any.
+ *
+ * `onboarding` and `active` are the two states that mean a family is with us
+ * now. Anything else — left, withdrawn — is history, and a reply about it
+ * belongs on the admissions record after all.
+ */
+async function studentForContact(
+  admin: AdminClient,
+  contactId: string
+): Promise<{ id: string; family_id: string | null; campus_id: string | null; first: string } | null> {
+  const { data: contact } = await admin.from("contacts").select("family_id").eq("id", contactId).maybeSingle();
+  if (!contact?.family_id) return null;
+  const { data: student } = await admin
+    .from("students")
+    .select("id, family_id, current_campus_id, legal_first_name, preferred_name, status")
+    .eq("family_id", contact.family_id)
+    .in("status", ["onboarding", "active"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!student) return null;
+  return {
+    id: student.id,
+    family_id: student.family_id,
+    campus_id: student.current_campus_id,
+    first: student.preferred_name || student.legal_first_name,
+  };
+}
+
+/**
  * One reply. Exported so the development outbox can simulate a parent
  * replying without a webhook; the path is identical.
  */
@@ -90,6 +121,12 @@ export async function handleReply(admin: AdminClient, from: string, text: string
   const app = (apps ?? []).find((a) => !TERMINAL_STATUSES.has(a.status)) ?? apps?.[0];
   if (!app) return "unknown";
 
+  // A family whose application is finished has usually enrolled, and their
+  // reply is about the child at school — not about an admissions record that
+  // closed months ago. The onboarding messages invite a reply, so this is the
+  // path most of them come back on.
+  const liveStudent = TERMINAL_STATUSES.has(app.status) ? await studentForContact(admin, contact.id) : null;
+
   const body = text.trim().slice(0, INBOUND_TEXT_LIMIT);
   const { data: inserted } = await admin
     .from("messages")
@@ -105,6 +142,8 @@ export async function handleReply(admin: AdminClient, from: string, text: string
         rendered_text: body,
         received_at: occurredAt.toISOString(),
         trigger_source: "inbound",
+        family_id: liveStudent?.family_id ?? null,
+        student_id: liveStudent?.id ?? null,
       },
       { onConflict: "provider_message_id", ignoreDuplicates: true }
     )
@@ -147,20 +186,41 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     return "opt_in";
   }
 
+  const details = `“${body.slice(0, 300)}”\n\nReply by phone or email; a WhatsApp reply can only be one of the approved templates.`;
+
+  if (liveStudent) {
+    // The child is at the school, so the work belongs to whoever is looking
+    // after them — not on an admissions record that closed months ago. Named,
+    // so it reaches a person's badge rather than the shared campus list.
+    await admin.from("tasks").insert({
+      student_id: liveStudent.id,
+      campus_id: liveStudent.campus_id,
+      type: "parent_replied",
+      title: `${contact.first_name} ${contact.last_name} replied on WhatsApp (${liveStudent.first})`,
+      details,
+      assignee_staff_id: await ownerForStudent(admin, liveStudent.id),
+      priority: "normal",
+    });
+  }
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: null,
     newStatus: null,
     nextAction: null,
     event: { type: "message.received", summary: "Parent replied on WhatsApp", payload: { message_id: inserted.id } },
-    tasks: [
-      {
-        type: "parent_replied",
-        title: `${contact.first_name} ${contact.last_name} replied on WhatsApp (${app.child_first_name})`,
-        details: `“${body.slice(0, 300)}”\n\nReply by phone or email; a WhatsApp reply can only be one of the approved templates.`,
-        priority: "normal",
-      },
-    ],
+    // When the child is enrolled the task above already exists; a second one
+    // on the old application would be the same message, twice, in two places.
+    tasks: liveStudent
+      ? []
+      : [
+          {
+            type: "parent_replied",
+            title: `${contact.first_name} ${contact.last_name} replied on WhatsApp (${app.child_first_name})`,
+            details,
+            priority: "normal",
+          },
+        ],
     actor: SYSTEM_ACTOR,
   });
   return "task";

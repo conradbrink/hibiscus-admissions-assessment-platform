@@ -223,6 +223,8 @@ export type CampusRow = {
    */
   phone: string | null;
   whatsapp: string | null;
+  /** What time a new family should arrive on the first day. Null: the message omits the line. */
+  first_day_arrival_time: string | null;
   /** Who signs this campus's offer letters, and their signature as a small PNG or JPEG data URL. */
   head_name: string | null;
   head_title: string | null;
@@ -457,7 +459,9 @@ export type ApplicationEventRow = {
 
 export type TaskRow = {
   id: string;
+  /** Exactly one of these two names what the task is about. */
   application_id: string | null;
+  student_id: string | null;
   campus_id: string | null;
   type: string;
   title: string;
@@ -1635,6 +1639,53 @@ export type MessageEventRow = {
   recorded_at: string;
 };
 
+/** Something a family may buy alongside a place, priced per campus. */
+export type OptionalItemRow = {
+  id: string;
+  campus_id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  category: "stationery" | "transport" | "lunch" | "aftercare" | "uniform" | "other";
+  amount_minor: number;
+  currency: "BWP" | "ZAR";
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  /** What a parent picks when they order: a transport route, a lunch plan. */
+  options: Json;
+  allow_quantity: boolean;
+  order_by: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One line per extra a family has chosen, priced when they chose it. */
+export type StudentOptionalSelectionRow = {
+  id: string;
+  student_id: string;
+  item_id: string;
+  campus_id: string;
+  quantity: number;
+  choice: string | null;
+  unit_amount_minor: number;
+  currency: "BWP" | "ZAR";
+  status: "selected" | "paid" | "cancelled";
+  selected_at: string;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One row per onboarding moment a child's family has been sent. */
+export type StudentJourneyMessageRow = {
+  id: string;
+  student_id: string;
+  step: "welcome" | "outstanding" | "first_day" | "first_week";
+  sent_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -1687,7 +1738,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
       promotions: TableOf<
         PromotionRow,
@@ -1773,6 +1824,7 @@ export type Database = {
       tasks: TableOf<
         TaskRow,
         | "application_id"
+        | "student_id"
         | "campus_id"
         | "details"
         | "assignee_staff_id"
@@ -1786,11 +1838,32 @@ export type Database = {
         | "resolution_note",
         [
           Rel<"tasks_application_id_fkey", "application_id", "applications">,
+          Rel<"tasks_student_id_fkey", "student_id", "students">,
           Rel<"tasks_campus_id_fkey", "campus_id", "campuses">,
           Rel<"tasks_assignee_staff_id_fkey", "assignee_staff_id", "staff_profiles">,
           Rel<"tasks_created_by_fkey", "created_by", "staff_profiles">,
           Rel<"tasks_resolved_by_fkey", "resolved_by", "staff_profiles">,
         ]
+      >;
+      optional_items: TableOf<
+        OptionalItemRow,
+        | "description" | "category" | "currency" | "grade_sort_min" | "grade_sort_max"
+        | "options" | "allow_quantity" | "order_by" | "sort_order" | "is_active",
+        [Rel<"optional_items_campus_id_fkey", "campus_id", "campuses">]
+      >;
+      student_optional_selections: TableOf<
+        StudentOptionalSelectionRow,
+        "quantity" | "choice" | "status" | "selected_at" | "cancelled_at",
+        [
+          Rel<"student_optional_selections_student_id_fkey", "student_id", "students">,
+          Rel<"student_optional_selections_item_id_fkey", "item_id", "optional_items">,
+          Rel<"student_optional_selections_campus_id_fkey", "campus_id", "campuses">,
+        ]
+      >;
+      student_journey_messages: TableOf<
+        StudentJourneyMessageRow,
+        "sent_at",
+        [Rel<"student_journey_messages_student_id_fkey", "student_id", "students">]
       >;
       notes: TableOf<
         NoteRow,

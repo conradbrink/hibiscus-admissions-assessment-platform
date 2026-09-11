@@ -4,6 +4,7 @@ import {
   isOverdue,
   isSettled,
   onboardingProgress,
+  outstandingRequired,
   parentChecklist,
   type ItemLike,
   type StepLike,
@@ -172,5 +173,41 @@ describe("the parent's own list", () => {
       item({ step_code: "either" }),
     ]);
     expect(list.map((i) => i.step_code)).toEqual(["either", "theirs"]);
+  });
+});
+
+describe("outstandingRequired", () => {
+  const steps: StepLike[] = [
+    { code: "uniform", owner: "parent", required: true, is_active: true, campus_id: null, grade_sort_min: null, grade_sort_max: null, sort_order: 10 },
+    { code: "book_pack", owner: "parent", required: false, is_active: true, campus_id: null, grade_sort_min: null, grade_sort_max: null, sort_order: 20 },
+    { code: "medical", owner: "parent", required: true, is_active: true, campus_id: null, grade_sort_min: null, grade_sort_max: null, sort_order: 5 },
+    { code: "allocate", owner: "staff", required: true, is_active: true, campus_id: null, grade_sort_min: null, grade_sort_max: null, sort_order: 30 },
+  ];
+  const item = (step_code: string, status: ItemLike["status"]): ItemLike => ({ step_code, status, due_on: null });
+
+  it("returns required parent steps that are not settled, in the school's order", () => {
+    const out = outstandingRequired(steps, [item("uniform", "pending"), item("medical", "pending")]);
+    expect(out.map((i) => i.step_code)).toEqual(["medical", "uniform"]);
+  });
+
+  it("never chases an optional extra", () => {
+    // A family who has not ordered a book pack has not failed to do anything.
+    expect(outstandingRequired(steps, [item("book_pack", "pending")])).toEqual([]);
+  });
+
+  it("never chases a family about the school's own work", () => {
+    expect(outstandingRequired(steps, [item("allocate", "pending")])).toEqual([]);
+  });
+
+  it("treats done and not-applicable as finished", () => {
+    expect(outstandingRequired(steps, [item("uniform", "done"), item("medical", "not_applicable")])).toEqual([]);
+  });
+
+  it("still counts a blocked item, because it has not happened", () => {
+    expect(outstandingRequired(steps, [item("uniform", "blocked")]).map((i) => i.step_code)).toEqual(["uniform"]);
+  });
+
+  it("ignores an item whose step no longer exists", () => {
+    expect(outstandingRequired(steps, [item("deleted_step", "pending")])).toEqual([]);
   });
 });
