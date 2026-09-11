@@ -1,5 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { recordMessageEvent } from "@/lib/messaging/audit";
+import { resolveStatus } from "@/lib/messaging/delivery";
 import { isOptIn, isOptOut } from "@/lib/messaging/meta-payload";
 import type { InboundEvent } from "@/lib/messaging/provider";
 import { commit, SYSTEM_ACTOR } from "@/lib/workflow/engine";
@@ -14,8 +16,6 @@ import { TERMINAL_STATUSES } from "@/lib/workflow/states";
  */
 
 export const INBOUND_TEXT_LIMIT = 1000;
-
-const RANK: Record<string, number> = { queued: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
 
 export type InboundSummary = { statuses: number; replies: number; optOuts: number; optIns: number; unknown: number };
 
@@ -36,6 +36,15 @@ export async function handleInboundEvents(admin: AdminClient, events: InboundEve
   return summary;
 }
 
+/**
+ * One delivery receipt from the provider.
+ *
+ * The receipt is recorded on the trail whether or not it moves the message.
+ * A `sent` that arrives after a `delivered`, or a receipt the provider simply
+ * repeats, changes nothing about the message and is still worth having: when
+ * a family says they never got something, the question is what the provider
+ * claimed and when, not what our single status column happens to say now.
+ */
 async function applyStatus(admin: AdminClient, ev: Extract<InboundEvent, { kind: "status" }>): Promise<void> {
   const { data: msg } = await admin.from("messages").select("id, status").eq("provider_message_id", ev.providerMessageId).maybeSingle();
   if (!msg) return;
@@ -43,11 +52,22 @@ async function applyStatus(admin: AdminClient, ev: Extract<InboundEvent, { kind:
   const stamp: Record<string, string> = {};
   if (ev.status === "delivered") stamp.delivered_at = at;
   if (ev.status === "read") stamp.read_at = at;
-  const status = (RANK[ev.status] ?? 0) > (RANK[msg.status] ?? 0) ? ev.status : msg.status;
+  const { status, applied } = resolveStatus(msg.status, ev.status);
+  // The timestamps are stamped even when the status does not move: a
+  // `delivered` after a `read` still tells us when the handset got it.
   await admin
     .from("messages")
     .update({ ...stamp, status, ...(ev.status === "failed" ? { error: ev.error ?? "delivery failed" } : {}) })
     .eq("id", msg.id);
+  await recordMessageEvent(admin, {
+    messageId: msg.id,
+    status: ev.status,
+    source: "webhook",
+    providerStatus: ev.status,
+    detail: ev.error ?? (applied ? null : `Arrived after the message was already ${msg.status}`),
+    applied,
+    occurredAt: ev.occurredAt,
+  });
 }
 
 export type ReplyOutcome = "unknown" | "opt_out" | "opt_in" | "task" | "duplicate";
@@ -84,12 +104,20 @@ export async function handleReply(admin: AdminClient, from: string, text: string
         status: "received",
         rendered_text: body,
         received_at: occurredAt.toISOString(),
+        trigger_source: "inbound",
       },
       { onConflict: "provider_message_id", ignoreDuplicates: true }
     )
     .select("id")
     .maybeSingle();
   if (!inserted) return "duplicate";
+  await recordMessageEvent(admin, {
+    messageId: inserted.id,
+    status: "received",
+    source: "webhook",
+    providerStatus: "message.inbound",
+    occurredAt,
+  });
 
   if (isOptOut(body)) {
     await admin.from("contacts").update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }).eq("id", contact.id);

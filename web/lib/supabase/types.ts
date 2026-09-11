@@ -1608,8 +1608,31 @@ export type MessageRow = {
   delivered_at: string | null;
   read_at: string | null;
   received_at: string | null;
+  /** What caused this message: the drain, a person, a family moment, the parent. */
+  trigger_source: "companion" | "manual" | "family" | "inbound" | null;
+  /** The member of staff who sent it by hand. Null for anything automatic. */
+  sent_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+/**
+ * One assertion about a message. Append-only: rows are never updated or
+ * deleted, and an assertion that did not move the message is kept with
+ * `applied: false` rather than dropped.
+ */
+export type MessageEventRow = {
+  id: number;
+  message_id: string;
+  status: MessageStatus;
+  source: "send" | "webhook" | "staff" | "system" | "backfill";
+  actor_id: string | null;
+  actor_label: string | null;
+  provider_status: string | null;
+  detail: string | null;
+  applied: boolean;
+  occurred_at: string;
+  recorded_at: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -2331,11 +2354,21 @@ export type Database = {
         MessageRow,
         | "application_id" | "family_id" | "student_id"
         | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
-        | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at",
+        | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at"
+        | "trigger_source" | "sent_by",
         [
           Rel<"messages_application_id_fkey", "application_id", "applications">,
           Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
           Rel<"messages_email_message_id_fkey", "email_message_id", "email_messages">,
+          Rel<"messages_sent_by_fkey", "sent_by", "staff_profiles">,
+        ]
+      >;
+      message_events: TableOf<
+        MessageEventRow,
+        "actor_id" | "actor_label" | "provider_status" | "detail" | "applied" | "occurred_at" | "recorded_at",
+        [
+          Rel<"message_events_message_id_fkey", "message_id", "messages">,
+          Rel<"message_events_actor_id_fkey", "actor_id", "staff_profiles">,
         ]
       >;
       export_columns: TableOf<ExportColumnRow, "position" | "transform" | "is_active">;
