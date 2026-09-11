@@ -16,11 +16,27 @@ const form = (fields: Record<string, string>) => ({
 });
 
 describe("the vocabulary", () => {
-  it("is the six codes the database allows", () => {
+  it("is the eight codes the database allows", () => {
     // Kept in step with the check constraint on fee_lines.code, widened by
-    // 20260909210000_tuition_per_month.sql and 20260910160000_bana_tlokweng.sql.
+    // 20260909210000_tuition_per_month.sql, 20260910160000_bana_tlokweng.sql
+    // and 20260911240000_preschool_term_fees.sql.
+    //
+    // This assertion earns its keep: the pre-school rates were written and
+    // the constraint forgotten, and the migration replay could not catch it
+    // because the schedules those lines attach to are created at runtime and
+    // are absent from a database rebuilt from migrations. This test failed
+    // instead.
     expect([...FEE_CODES].sort()).toEqual(
-      ["admission", "registration", "stationery_annual", "tuition_annual", "tuition_month", "tuition_term"].sort()
+      [
+        "admission",
+        "registration",
+        "stationery_annual",
+        "tuition_annual",
+        "tuition_month",
+        "tuition_term",
+        "tuition_term_full",
+        "tuition_term_half",
+      ].sort()
     );
   });
 
@@ -47,6 +63,8 @@ describe("availableCodes", () => {
     expect(availableCodes(["registration", "admission"])).toEqual([
       "tuition_month",
       "tuition_term",
+      "tuition_term_half",
+      "tuition_term_full",
       "tuition_annual",
       "stationery_annual",
     ]);

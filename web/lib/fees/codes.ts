@@ -26,6 +26,12 @@ export const FEE_CODES = [
   "admission",
   "tuition_month",
   "tuition_term",
+  // Pre-school is priced per term at two rates and a child is placed on one
+  // of them. A schedule holds at most one line per code, so the two rates
+  // have to be two codes; `tuition_term` stays for every campus that charges
+  // one rate regardless of how long the day is.
+  "tuition_term_half",
+  "tuition_term_full",
   "tuition_annual",
   "stationery_annual",
 ] as const;
@@ -36,6 +42,8 @@ const DEFAULTS: Record<FeeCode, { label: string; payableAtAcceptance: boolean }>
   admission: { label: "Admission fee", payableAtAcceptance: true },
   tuition_month: { label: "Tuition per month", payableAtAcceptance: false },
   tuition_term: { label: "Tuition per term", payableAtAcceptance: false },
+  tuition_term_half: { label: "Tuition per term (half day)", payableAtAcceptance: false },
+  tuition_term_full: { label: "Tuition per term (full day)", payableAtAcceptance: false },
   tuition_annual: { label: "Tuition for the year", payableAtAcceptance: false },
   stationery_annual: { label: "Annual stationery", payableAtAcceptance: false },
 };

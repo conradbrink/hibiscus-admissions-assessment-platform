@@ -95,3 +95,101 @@ describe("money", () => {
     expect(parseMoneyToMinor("")).toBeNull();
   });
 });
+
+describe("the tense of a term that has already started", () => {
+  // The bug: "We will email you everything you need before Term 3, 2026
+  // starts" went to families joining a term that began on 7 September, while
+  // it was still being offered on the 10th.
+  const on = (today: string, startsOn: string) =>
+    buildOfferVariables(
+      { ...graph, intake: { label: "Term 3, 2026", starts_on: startsOn } } as typeof graph,
+      null,
+      { expiresAt: null, conditions: null, now: new Date(`${today}T09:00:00Z`) }
+    );
+
+  it("is future tense while the term is still ahead", () => {
+    const v = on("2026-09-01", "2026-09-07");
+    expect(v.intake_not_started).toBeTruthy();
+    expect(v.intake_started).toBeNull();
+  });
+
+  it("is past tense once the term has begun", () => {
+    const v = on("2026-09-10", "2026-09-07");
+    expect(v.intake_not_started).toBeNull();
+    expect(v.intake_started).toBeTruthy();
+  });
+
+  it("treats the first day of term as started, not as still to come", () => {
+    // A letter drafted on the morning of the 7th must not promise to write
+    // "before term starts" — term is starting as it is read.
+    const v = on("2026-09-07", "2026-09-07");
+    expect(v.intake_not_started).toBeNull();
+    expect(v.intake_started).toBeTruthy();
+  });
+
+  it("reads the date in Gaborone, not UTC", () => {
+    // 22:30 UTC on the 6th is already the 7th at school, so the term has
+    // started for a letter drafted then.
+    const v = buildOfferVariables(
+      { ...graph, intake: { label: "Term 3, 2026", starts_on: "2026-09-07" } } as typeof graph,
+      null,
+      { expiresAt: null, conditions: null, now: new Date("2026-09-06T22:30:00Z") }
+    );
+    expect(v.intake_started).toBeTruthy();
+  });
+
+  it("exactly one of the two is ever set", () => {
+    for (const [today, starts] of [["2026-01-01", "2026-09-07"], ["2026-09-07", "2026-09-07"], ["2027-01-01", "2026-09-07"]]) {
+      const v = on(today, starts);
+      expect(Boolean(v.intake_not_started) !== Boolean(v.intake_started)).toBe(true);
+    }
+  });
+});
+
+describe("half day and full day", () => {
+  const preschool: FeeLineRow[] = [
+    { id: "a", schedule_id: "s", code: "registration", label: "Application fee", amount_minor: 30_000, payable_at_acceptance: true, position: 1 },
+    { id: "b", schedule_id: "s", code: "tuition_term_half", label: "Tuition per term (half day)", amount_minor: 980_000, payable_at_acceptance: false, position: 4 },
+    { id: "c", schedule_id: "s", code: "tuition_term_full", label: "Tuition per term (full day)", amount_minor: 1_079_000, payable_at_acceptance: false, position: 5 },
+  ];
+  const withPattern = (day_pattern: "half" | "full" | null) =>
+    buildOfferVariables(
+      { ...graph, application: { ...graph.application, day_pattern } } as typeof graph,
+      snapshotFees({ currency: "BWP" }, preschool),
+      { expiresAt: null, conditions: null }
+    );
+
+  it("shows both rates while nobody has said which", () => {
+    const v = withPattern(null);
+    expect(v.tuition_term_half).toBe(formatMoney(980_000, "BWP"));
+    expect(v.tuition_term_full).toBe(formatMoney(1_079_000, "BWP"));
+    // And no single figure, so the letter cannot quote one by accident.
+    expect(v.tuition_term).toBeNull();
+  });
+
+  it("quotes the chosen rate as the term fee once the school has placed the child", () => {
+    const full = withPattern("full");
+    expect(full.tuition_term).toBe(formatMoney(1_079_000, "BWP"));
+    expect(full.tuition_term_half).toBeNull();
+    expect(full.tuition_term_full).toBeNull();
+
+    const half = withPattern("half");
+    expect(half.tuition_term).toBe(formatMoney(980_000, "BWP"));
+  });
+
+  it("never adds tuition to what is due at acceptance", () => {
+    // The school was explicit: these are invoiced, not a condition of the
+    // place. Only the P300 application fee is payable to accept.
+    const snap = snapshotFees({ currency: "BWP" }, preschool);
+    expect(snap.payable_at_acceptance_minor).toBe(30_000);
+  });
+
+  it("leaves a campus that charges one term rate alone", () => {
+    const single: FeeLineRow[] = [
+      { id: "d", schedule_id: "s", code: "tuition_term", label: "Tuition per term", amount_minor: 1_700_000, payable_at_acceptance: false, position: 3 },
+    ];
+    const v = buildOfferVariables(graph, snapshotFees({ currency: "BWP" }, single), { expiresAt: null, conditions: null });
+    expect(v.tuition_term).toBe(formatMoney(1_700_000, "BWP"));
+    expect(v.tuition_term_half).toBeNull();
+  });
+});
