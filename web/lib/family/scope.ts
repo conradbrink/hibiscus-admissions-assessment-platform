@@ -36,7 +36,9 @@ export function familyClient(): AdminClient {
 
 export type FamilyStudent = StudentRow & {
   campus: { name: string } | null;
-  grade: { name: string } | null;
+  /** `sort_order` comes along because the grade bands on the optional extras
+   *  and the checklist steps are expressed in it, not in the grade's name. */
+  grade: { name: string; sort_order: number } | null;
 };
 
 export async function loadFamily(admin: AdminClient, session: FamilySession): Promise<FamilyRow | null> {
@@ -56,7 +58,7 @@ export async function loadFamilyStudents(
 ): Promise<FamilyStudent[]> {
   const { data, error } = await admin
     .from("students")
-    .select("*, campuses!students_current_campus_id_fkey(name), grades!students_current_grade_id_fkey(name)")
+    .select("*, campuses!students_current_campus_id_fkey(name), grades!students_current_grade_id_fkey(name, sort_order)")
     .eq("family_id", session.familyId)
     .in("status", ["onboarding", "active", "on_leave"])
     .order("date_of_birth");

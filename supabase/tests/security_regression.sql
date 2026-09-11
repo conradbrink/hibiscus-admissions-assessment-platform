@@ -86,6 +86,7 @@ declare
   s_empty uuid;
   v_count int;
   v_id uuid;
+  v_id2 uuid;
   -- Phase 4 fixtures
   p4_message uuid;
   p4_export uuid;
@@ -2092,6 +2093,91 @@ begin
     exception when unique_violation then null;
       when others then
         v_fail := v_fail || E'\n  - ' || ('52: the duplicate insert failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 53. The extras catalogue, and what a family ordered
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+    insert into public.optional_items (campus_id, code, label, amount_minor, currency)
+    values (c_block7, 'sec_pack', 'Sec stationery pack', 25000, 'BWP')
+    returning id into v_id;
+    insert into public.student_optional_selections
+      (student_id, item_id, campus_id, unit_amount_minor, currency)
+    values (crm_student_block7, v_id, c_block7, 25000, 'BWP');
+
+    -- The catalogue is not secret — any signed-in member of staff may read it,
+    -- the same as the message templates. What a *family bought* is not.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.optional_items where id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '53 control: staff cannot read the catalogue';
+      end if;
+      select count(*) into v_count from public.student_optional_selections
+       where student_id = crm_student_block7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '53: a Broadhurst manager saw what a Block 7 family ordered';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('53: reading failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.student_optional_selections
+       where student_id = crm_student_block7;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '53 control: Block 7 staff cannot see their own family''s order';
+      end if;
+
+      -- An order nobody placed is an invoice nobody agreed to. Families order
+      -- for themselves, through the service role and `lib/family/`.
+      insert into public.student_optional_selections
+        (student_id, item_id, campus_id, unit_amount_minor, currency)
+      values (crm_student_broadhurst, v_id, c_broadhurst, 25000, 'BWP');
+      v_fail := v_fail || E'\n  - ' || '53: staff placed an order on a family''s behalf';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('53: the order insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Editing the catalogue is a settings change, like the fees beside it.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      update public.optional_items set amount_minor = 1 where id = v_id;
+      if found then
+        v_fail := v_fail || E'\n  - ' || '53: an admissions officer repriced the catalogue';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('53: the reprice was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- The currency is the campus's, set by trigger so a form cannot get it
+    -- wrong. Potchefstroom charges rand whatever the insert claims.
+    begin
+      insert into public.optional_items (campus_id, code, label, amount_minor, currency)
+      values (c_block7, 'sec_currency', 'Sec', 1000, 'ZAR') returning id into v_id2;
+      select count(*) into v_count from public.optional_items
+       where id = v_id2 and currency = 'BWP';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '53: an item kept a currency that was not its campus''s';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('53: the currency trigger failed: ' || sqlerrm);
     end;
     perform pg_temp.service();
   end;

@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+import {
+  applicableItems,
+  basketTotal,
+  isOrderable,
+  optionsOf,
+  outstandingTotal,
+  type ItemLike,
+  type SelectionLike,
+} from "@/lib/extras/catalogue";
+
+const item = (over: Partial<ItemLike> = {}): ItemLike => ({
+  id: "i1",
+  campus_id: "block7",
+  grade_sort_min: null,
+  grade_sort_max: null,
+  amount_minor: 25000,
+  currency: "BWP",
+  options: [],
+  allow_quantity: false,
+  order_by: null,
+  is_active: true,
+  sort_order: 0,
+  ...over,
+});
+
+const sel = (over: Partial<SelectionLike> = {}): SelectionLike => ({
+  item_id: "i1",
+  quantity: 1,
+  unit_amount_minor: 25000,
+  currency: "BWP",
+  status: "selected",
+  ...over,
+});
+
+describe("applicableItems", () => {
+  it("offers only this campus's items", () => {
+    const items = [item({ id: "a" }), item({ id: "b", campus_id: "potch" })];
+    expect(applicableItems(items, { campusId: "block7", gradeSort: 40 }).map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("respects a grade band at either end, and both", () => {
+    const items = [
+      item({ id: "lower", grade_sort_max: 30 }),
+      item({ id: "upper", grade_sort_min: 50 }),
+      item({ id: "middle", grade_sort_min: 30, grade_sort_max: 50 }),
+      item({ id: "all" }),
+    ];
+    expect(applicableItems(items, { campusId: "block7", gradeSort: 40 }).map((i) => i.id)).toEqual(["middle", "all"]);
+  });
+
+  it("shows a child with no grade only what applies to everyone", () => {
+    // A Stage 6 stationery pack offered for a three-year-old is worse than
+    // offering nothing.
+    const items = [item({ id: "banded", grade_sort_min: 50 }), item({ id: "all" })];
+    expect(applicableItems(items, { campusId: "block7", gradeSort: null }).map((i) => i.id)).toEqual(["all"]);
+  });
+
+  it("hides what the school switched off", () => {
+    expect(applicableItems([item({ is_active: false })], { campusId: "block7", gradeSort: 40 })).toEqual([]);
+  });
+
+  it("keeps the school's order", () => {
+    const items = [item({ id: "b", sort_order: 20 }), item({ id: "a", sort_order: 10 })];
+    expect(applicableItems(items, { campusId: "block7", gradeSort: 40 }).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("isOrderable", () => {
+  it("closes on the day after the order-by date", () => {
+    const i = item({ order_by: "2027-01-05" });
+    expect(isOrderable(i, "2027-01-05")).toBe(true);
+    expect(isOrderable(i, "2027-01-06")).toBe(false);
+  });
+
+  it("stays open forever without a date", () => {
+    expect(isOrderable(item({ order_by: null }), "2099-01-01")).toBe(true);
+  });
+});
+
+describe("optionsOf", () => {
+  it("reads a list of strings and ignores anything else", () => {
+    expect(optionsOf(["Phakalane AM", "Mogoditshane AM"])).toEqual(["Phakalane AM", "Mogoditshane AM"]);
+    expect(optionsOf(["ok", 3, null, "  "])).toEqual(["ok"]);
+    expect(optionsOf(null)).toEqual([]);
+    expect(optionsOf({ a: 1 })).toEqual([]);
+  });
+});
+
+describe("basketTotal", () => {
+  it("multiplies by quantity and adds the lines up", () => {
+    const b = basketTotal([sel({ quantity: 2 }), sel({ item_id: "i2", unit_amount_minor: 50000 })]);
+    expect(b.totalMinor).toBe(100000);
+    expect(b.currency).toBe("BWP");
+    expect(b.lines).toBe(2);
+  });
+
+  it("leaves a cancelled line out entirely", () => {
+    const b = basketTotal([sel(), sel({ item_id: "i2", status: "cancelled", unit_amount_minor: 99999 })]);
+    expect(b.totalMinor).toBe(25000);
+    expect(b.lines).toBe(1);
+  });
+
+  it("still counts a paid line, because the total is what the order came to", () => {
+    expect(basketTotal([sel({ status: "paid" })]).totalMinor).toBe(25000);
+  });
+
+  it("refuses to name a currency for a basket that mixes two", () => {
+    // Pula added to rand is a number that is wrong in both, and a page that
+    // showed it would be lying confidently.
+    const b = basketTotal([sel(), sel({ item_id: "i2", currency: "ZAR" })]);
+    expect(b.currency).toBeNull();
+  });
+
+  it("is empty, not broken, with nothing chosen", () => {
+    expect(basketTotal([])).toEqual({ totalMinor: 0, currency: null, lines: 0 });
+  });
+});
+
+describe("outstandingTotal", () => {
+  it("counts only what has not been paid for", () => {
+    const s = [sel(), sel({ item_id: "i2", status: "paid", unit_amount_minor: 90000 })];
+    expect(basketTotal(s).totalMinor).toBe(115000);
+    expect(outstandingTotal(s).totalMinor).toBe(25000);
+  });
+});

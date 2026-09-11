@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ChecklistItem } from "@/components/parent/checklist-item";
 import { PageHeader } from "@/components/parent/page-header";
 import { loadFamilyChecklists } from "@/lib/family/onboarding";
@@ -99,6 +100,13 @@ export default async function ChecklistPage() {
           );
         })}
       </div>
+
+      {/* The onboarding messages land here, so this is the only way a parent
+          finds the extras at all. */}
+      <p className="mt-8 text-sm text-muted-foreground">
+        There are also things you can <Link href="/family/extras" className="underline underline-offset-4">order for your child</Link> —
+        stationery, transport, lunch and aftercare. All optional.
+      </p>
     </>
   );
 }

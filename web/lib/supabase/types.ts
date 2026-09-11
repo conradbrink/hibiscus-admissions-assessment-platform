@@ -1639,6 +1639,45 @@ export type MessageEventRow = {
   recorded_at: string;
 };
 
+/** Something a family may buy alongside a place, priced per campus. */
+export type OptionalItemRow = {
+  id: string;
+  campus_id: string;
+  code: string;
+  label: string;
+  description: string | null;
+  category: "stationery" | "transport" | "lunch" | "aftercare" | "uniform" | "other";
+  amount_minor: number;
+  currency: "BWP" | "ZAR";
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  /** What a parent picks when they order: a transport route, a lunch plan. */
+  options: Json;
+  allow_quantity: boolean;
+  order_by: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One line per extra a family has chosen, priced when they chose it. */
+export type StudentOptionalSelectionRow = {
+  id: string;
+  student_id: string;
+  item_id: string;
+  campus_id: string;
+  quantity: number;
+  choice: string | null;
+  unit_amount_minor: number;
+  currency: "BWP" | "ZAR";
+  status: "selected" | "paid" | "cancelled";
+  selected_at: string;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** One row per onboarding moment a child's family has been sent. */
 export type StudentJourneyMessageRow = {
   id: string;
@@ -1804,6 +1843,21 @@ export type Database = {
           Rel<"tasks_assignee_staff_id_fkey", "assignee_staff_id", "staff_profiles">,
           Rel<"tasks_created_by_fkey", "created_by", "staff_profiles">,
           Rel<"tasks_resolved_by_fkey", "resolved_by", "staff_profiles">,
+        ]
+      >;
+      optional_items: TableOf<
+        OptionalItemRow,
+        | "description" | "category" | "currency" | "grade_sort_min" | "grade_sort_max"
+        | "options" | "allow_quantity" | "order_by" | "sort_order" | "is_active",
+        [Rel<"optional_items_campus_id_fkey", "campus_id", "campuses">]
+      >;
+      student_optional_selections: TableOf<
+        StudentOptionalSelectionRow,
+        "quantity" | "choice" | "status" | "selected_at" | "cancelled_at",
+        [
+          Rel<"student_optional_selections_student_id_fkey", "student_id", "students">,
+          Rel<"student_optional_selections_item_id_fkey", "item_id", "optional_items">,
+          Rel<"student_optional_selections_campus_id_fkey", "campus_id", "campuses">,
         ]
       >;
       student_journey_messages: TableOf<

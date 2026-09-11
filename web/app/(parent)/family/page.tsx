@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageHeader } from "@/components/parent/page-header";
 import {
   familyClient,
@@ -68,6 +69,15 @@ export default async function FamilyHubPage() {
           from us and we will put it right.
         </p>
       )}
+
+      <nav className="mt-6 flex flex-wrap gap-3 text-sm">
+        <Link href="/family/checklist" className="rounded-lg border border-border/60 px-3 py-2 hover:bg-muted">
+          What is still to do
+        </Link>
+        <Link href="/family/extras" className="rounded-lg border border-border/60 px-3 py-2 hover:bg-muted">
+          Extras you can order
+        </Link>
+      </nav>
 
       {contacts.length ? (
         <section className="mt-8">
