@@ -37,6 +37,7 @@ import {
   resendLink,
   sendWhatsAppTemplate,
   setWhatsAppOptInByStaff,
+  updateParentIdentity,
   updateParentMobile,
   withdraw,
 } from "./actions";
@@ -314,6 +315,24 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                   <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
                     {idField}
                     <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
+                  </ActionForm>
+                </details>
+                {/* A parent can change their own email from the booking page,
+                    but only while they hold a working link — and a wrong
+                    address is precisely why they would not. */}
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">Correct the name or email</summary>
+                  <ActionForm action={updateParentIdentity} label="Save details" variant="outline" size="sm" className="mt-2 space-y-2">
+                    {idField}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input name="firstName" defaultValue={contact?.first_name ?? ""} placeholder="First name" required autoComplete="off" aria-label="Parent's first name" />
+                      <Input name="lastName" defaultValue={contact?.last_name ?? ""} placeholder="Last name" required autoComplete="off" aria-label="Parent's last name" />
+                    </div>
+                    <Input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="Email address" required autoComplete="off" aria-label="Parent's email address" />
+                    <p className="text-muted-foreground">
+                      Changing the email sends nothing by itself. Use <em>Email a fresh link</em> afterwards so the
+                      parent gets one at the new address.
+                    </p>
                   </ActionForm>
                 </details>
               </div>

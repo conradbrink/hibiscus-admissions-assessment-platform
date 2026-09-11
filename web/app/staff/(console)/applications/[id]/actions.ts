@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
+import { normaliseEmail } from "@/lib/contacts";
 import { removeDocumentObjects } from "@/lib/documents/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
@@ -507,6 +508,109 @@ export async function updateParentMobile(_: StaffActionState, formData: FormData
         action: "contact.mobile_changed",
         before: { mobile: before?.mobile ?? null },
         after: { mobile: parsed.mobile },
+      },
+      actor: ctx.actor,
+    });
+    done(app.id);
+  });
+}
+
+/**
+ * The parent's name and email address, corrected by staff.
+ *
+ * A parent can change their own email from the booking page, but only while
+ * they still have a working link — and the commonest reason to need a change
+ * is that the address is wrong, so every link the school has sent has gone
+ * nowhere. Somebody rings the office; this is what the office does about it.
+ *
+ * The name is here for the same reason and is far less fraught: nothing keys
+ * off it, it just appears at the top of every letter and message.
+ *
+ * The address is the delicate half. `contacts.email_normalised` is unique, so
+ * moving one onto an address another enquiry already holds is refused rather
+ * than silently merging two families' records — the office joins those up by
+ * hand, knowing which is which.
+ */
+export async function updateParentIdentity(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({
+        firstName: z.string().trim().min(1).max(80),
+        lastName: z.string().trim().min(1).max(80),
+        email: z.email().max(254),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    if (!app.contact_id) throw new Error("This application has no parent record to change.");
+
+    const { data: before } = await admin
+      .from("contacts")
+      .select("first_name, last_name, email, email_normalised")
+      .eq("id", app.contact_id)
+      .maybeSingle();
+
+    const normalised = normaliseEmail(parsed.email);
+    const emailChanged = normalised !== before?.email_normalised;
+    const nameChanged = before?.first_name !== parsed.firstName || before?.last_name !== parsed.lastName;
+    // Saying "saved" for a form somebody opened and closed again would be a
+    // lie, and it would put a meaningless entry on the family's timeline.
+    if (!emailChanged && !nameChanged) return;
+
+    if (emailChanged) {
+      const { data: clash } = await admin
+        .from("contacts")
+        .select("id")
+        .eq("email_normalised", normalised)
+        .neq("id", app.contact_id)
+        .maybeSingle();
+      if (clash) {
+        throw new Error(
+          `${parsed.email} is already on another enquiry. Open that one and join the two by hand rather than pointing both at one address.`
+        );
+      }
+    }
+
+    const { error } = await admin
+      .from("contacts")
+      .update({
+        first_name: parsed.firstName,
+        last_name: parsed.lastName,
+        ...(emailChanged ? { email: parsed.email, email_normalised: normalised } : {}),
+      })
+      .eq("id", app.contact_id);
+    // Another enquiry could have claimed the address between that check and
+    // this write. The unique index is what actually decides.
+    if (error) {
+      throw new Error(
+        error.code === "23505"
+          ? `${parsed.email} was claimed by another enquiry a moment ago. Check that one first.`
+          : error.message
+      );
+    }
+
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "contact.identity_changed",
+        // The old address goes on the timeline: when a family says they never
+        // received anything, the thing worth seeing is where it was going.
+        summary: emailChanged
+          ? `The parent's details were corrected by staff — email was ${before?.email ?? "not set"}`
+          : "The parent's name was corrected by staff",
+        payload: {},
+      },
+      audit: {
+        action: "contact.identity_changed",
+        before: {
+          first_name: before?.first_name ?? null,
+          last_name: before?.last_name ?? null,
+          email: before?.email ?? null,
+        },
+        after: { first_name: parsed.firstName, last_name: parsed.lastName, email: parsed.email },
       },
       actor: ctx.actor,
     });
