@@ -1,4 +1,5 @@
 import type { ApplicationGraph } from "@/lib/applications";
+import { oneLineOrNull } from "@/lib/documents/reading-text";
 import type { Json, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 /**
@@ -18,7 +19,12 @@ export type RegistrationPrefill = {
 /** What the extractor read from the live birth certificate, when there is one. */
 export type CertificateReading = { fields: Record<string, Json> };
 
-const str = (v: Json | undefined): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+/**
+ * A value out of the certificate's reading. One line, always: these go
+ * straight into the form's inputs and, once the parent saves, into the
+ * registration and everything downstream of it. See reading-text.ts.
+ */
+const str = (v: Json | undefined): string | null => oneLineOrNull(v);
 
 /**
  * The birth certificate fills what the family has not told us yet, and

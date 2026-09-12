@@ -52,6 +52,20 @@ is in the pull request that introduced this repository. The short version:
   applies only when `AI_PROVIDER` is a real provider. Blank answers get the
   lowest band without a model call; an answer the model cannot mark hands
   the attempt to a person as before.
+- **Anything a model read off an uploaded file is a stranger's text.** A
+  parent can print whatever they like and photograph it, so a transcribed
+  field is attacker-chosen by definition. Three things hold, and each has a
+  test in `lib/documents/hostile-document.test.ts`: the reading is parsed
+  against its schema by us as well as by the SDK; every string is reduced to
+  one line with no control, direction-changing or zero-width characters and
+  a length (`lib/documents/reading-text.ts`), so a value cannot forge a
+  second line in the staff task or parent email it lands in, or display as
+  text other than what is stored; and the prompts are a function of the
+  document kind alone, naming nothing the family typed, so a reading cannot
+  be led into agreeing with the form. The cleaning is applied again when
+  flags are read back out of `registrations.mismatch_flags`, because rows
+  written before it existed are still there and still rendered.
+
 - **A human clicks before anything reaches a parent after a decision.**
   Offer approval and outcome emails are buttons in Phase 2. The switches
   `offer_auto_approve` and `auto_send_outcomes` exist, default off, and are
