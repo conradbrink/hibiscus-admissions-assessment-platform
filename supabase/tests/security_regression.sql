@@ -69,6 +69,10 @@ declare
   x_app2 uuid;
   -- Case 56 builds its own too, for the same reason.
   x_deferred uuid;
+  -- Case 60 builds its own pair, for the same reason, and needs them at two
+  -- different campuses.
+  x_other_campus uuid;
+  x_own_campus uuid;
   -- Phase 2 fixtures
   p2_competency uuid;
   p2_bank uuid;
@@ -2866,6 +2870,171 @@ begin
     loop
       v_fail := v_fail || E'\n  - ' || ('59: no search_path on ' || v_fn);
     end loop;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 60. Campus isolation, swept rather than listed
+  --
+  -- Every case above this one asserts campus scope for the feature it is
+  -- about: a task, a re-enrolment round, a checklist, a payment request. Each
+  -- is right, and together they have a gap that no amount of adding to them
+  -- closes — they only cover the tables somebody remembered to write a case
+  -- for. The next table with an `application_id` on it will not have one.
+  --
+  -- This is the same question asked of the schema instead of the feature
+  -- list: find every table carrying `application_id`, and for a manager
+  -- scoped to one campus, assert that an application at another campus
+  -- yields nothing from any of them. A new table arrives inside this check
+  -- the moment it is created, whether or not anybody thought about it.
+  --
+  -- Written after driving the same test against the live database with a real
+  -- staff account (a manager at one campus of nine, who could see three of
+  -- fourteen applications and nothing at all of another campus's). That was a
+  -- moment in time; this is every commit.
+  --
+  -- The positive control matters more here than anywhere else in this file: a
+  -- sweep that returns zero because the fixture is wrong, or because the
+  -- person cannot see anything at all, would pass while proving nothing.
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+
+    -- One application at a campus the manager cannot reach, one at the campus
+    -- they can. Built here: case 43 deletes app_block7.
+    select application_id into x_other_campus from public.create_application(
+      'Sec','Faraway','sec-faraway@test.invalid','sec-faraway@test.invalid',null,null,
+      'Child','Faraway','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    select application_id into x_own_campus from public.create_application(
+      'Sec','Nearby','sec-nearby@test.invalid','sec-nearby@test.invalid',null,null,
+      'Child','Nearby','2017-04-15', c_broadhurst, g_stage4, g_stage4, i_intake, 'assessment');
+
+    -- A fresh application names itself in only two tables, so a sweep over
+    -- the other twenty-six would return zero for the honest reason and prove
+    -- nothing. Both applications are therefore given a row in each table that
+    -- actually carries a family's private life: the magic link that opens
+    -- their pages, the registration, the uploaded certificate, a staff note,
+    -- a WhatsApp message, the summary, and a task about the child.
+    insert into public.access_tokens (application_id, purpose, token_hash, expires_at) values
+      (x_other_campus, 'next_step', 'sweep-far', now() + interval '1 day'),
+      (x_own_campus,   'next_step', 'sweep-near', now() + interval '1 day');
+    insert into public.registrations (application_id, legal_first_name, identity_number, allergies) values
+      (x_other_campus, 'Faraway', 'ID-SWEEP-F', 'penicillin'),
+      (x_own_campus,   'Nearby',  'ID-SWEEP-N', 'none');
+    insert into public.registration_contacts (application_id, kind, first_name, last_name, relationship, phone) values
+      (x_other_campus, 'emergency', 'Far', 'Aunt', 'other', '+26771000001'),
+      (x_own_campus,   'emergency', 'Near', 'Aunt', 'other', '+26771000002');
+    insert into public.documents (application_id, requirement_code, storage_path, original_filename, mime_type, size_bytes, sha256, uploaded_by) values
+      (x_other_campus, 'birth_certificate', 'applications/' || x_other_campus || '/sweep', 'far.pdf', 'application/pdf', 100, 'sha-f', 'parent'),
+      (x_own_campus,   'birth_certificate', 'applications/' || x_own_campus   || '/sweep', 'near.pdf', 'application/pdf', 100, 'sha-n', 'parent');
+    insert into public.notes (application_id, author_staff_id, body) values
+      (x_other_campus, u_admin, 'private note about the faraway child'),
+      (x_own_campus,   u_admin, 'private note about the nearby child');
+    insert into public.messages (application_id, direction, template_key, to_normalised, provider, status, rendered_text, idempotency_key) values
+      (x_other_campus, 'out', 'booking_confirmed', '+26771000001', 'dev', 'sent', 'Far', 'sweep-far'),
+      (x_own_campus,   'out', 'booking_confirmed', '+26771000002', 'dev', 'sent', 'Near', 'sweep-near');
+    insert into public.application_summaries (application_id, input_hash, headline, paragraph, source) values
+      (x_other_campus, 'hf', 'Far headline', 'Far paragraph', 'deterministic'),
+      (x_own_campus,   'hn', 'Near headline', 'Near paragraph', 'deterministic');
+    insert into public.tasks (application_id, campus_id, type, title, status) values
+      (x_other_campus, c_block7,     'parent_replied', 'Far reply', 'open'),
+      (x_own_campus,   c_broadhurst, 'parent_replied', 'Near reply', 'open');
+
+    declare
+      v_tbl text;
+      v_key text;
+      v_n bigint;
+      v_control bigint;
+      v_swept int := 0;
+    begin
+      -- Every table that names an application, plus `applications` itself,
+      -- which names one by `id` rather than `application_id` and would
+      -- otherwise be the one table this sweep missed.
+      for v_tbl, v_key in
+        select c.relname, a.attname
+          from pg_attribute a
+          join pg_class c on c.oid = a.attrelid
+          join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public'
+           and c.relkind = 'r'
+           and not a.attisdropped
+           and a.attnum > 0
+           and (
+             a.attname = 'application_id'
+             or (c.relname = 'applications' and a.attname = 'id')
+           )
+         order by c.relname
+      loop
+        perform pg_temp.impersonate(u_campus_mgr);
+
+        -- The control first: if the manager cannot see their OWN campus's
+        -- rows in this table either, the zero below means nothing. A table
+        -- that is legitimately empty for a brand new application (an offer,
+        -- a payment) has no control to offer, so only a table that answers
+        -- for the near application is swept.
+        execute format('select count(*) from public.%I where %I = $1', v_tbl, v_key)
+          into v_control using x_own_campus;
+
+        execute format('select count(*) from public.%I where %I = $1', v_tbl, v_key)
+          into v_n using x_other_campus;
+
+        perform pg_temp.service();
+
+        if v_n > 0 then
+          v_fail := v_fail || E'\n  - ' ||
+            format('60: %s leaks another campus: %s rows visible to a manager scoped elsewhere', v_tbl, v_n);
+        end if;
+        if v_control > 0 then
+          v_swept := v_swept + 1;
+        end if;
+      end loop;
+
+      -- The sweep has to have proved something. `applications`,
+      -- `application_events` and `funnel_events` all carry rows for a freshly
+      -- created application, so a healthy run has several controls; zero
+      -- means the fixtures or the impersonation broke, not that the database
+      -- is tight.
+      -- Ten tables are seeded above with rows on both sides, so a healthy run
+      -- proves isolation for at least that many. A number below the floor
+      -- means a fixture stopped inserting, or impersonation broke, and the
+      -- zeros above stopped meaning anything — which is the way a sweep like
+      -- this rots silently. The remaining tables are a tripwire: they prove
+      -- nothing today and will the day they hold a row.
+      if v_swept < 10 then
+        v_fail := v_fail || E'\n  - ' || format(
+          '60: the sweep only proved isolation for %s tables, expected at least 10 — its zeros no longer mean anything',
+          v_swept);
+      end if;
+    end;
+
+    -- And the write side of the same question: the manager may not change a
+    -- row they cannot see. `update ... returning` reports what RLS allowed.
+    declare
+      v_updated int;
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      with attempt as (
+        update public.applications set child_preferred_name = 'Pentest'
+        where id = x_other_campus returning 1
+      )
+      select count(*) into v_updated from attempt;
+      perform pg_temp.service();
+      if v_updated > 0 then
+        v_fail := v_fail || E'\n  - ' || '60: a manager scoped elsewhere could update another campus''s application';
+      end if;
+
+      -- Control: their own campus's application is theirs to edit, or the
+      -- zero above is just a console nobody can use.
+      perform pg_temp.impersonate(u_campus_mgr);
+      with allowed as (
+        update public.applications set child_preferred_name = 'Nearby'
+        where id = x_own_campus returning 1
+      )
+      select count(*) into v_updated from allowed;
+      perform pg_temp.service();
+      if v_updated = 0 then
+        v_fail := v_fail || E'\n  - ' || '60: the manager cannot edit their own campus either, so case 60 proves nothing';
+      end if;
+    end;
   end;
 
   -- -------------------------------------------------------------------------

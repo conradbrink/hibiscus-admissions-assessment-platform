@@ -38,6 +38,19 @@ is in the pull request that introduced this repository. The short version:
   allow-list of variables, validated at save time.
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
+- **Campus isolation is swept, not listed.** Case 60 of the security suite
+  asks the schema rather than the feature list: every table naming an
+  application, checked for a manager scoped to one campus, with a positive
+  control on each so a zero cannot pass for the wrong reason. Ten tables are
+  seeded on both sides and genuinely proved — the magic link, the
+  registration, the emergency contact, the certificate, the staff note, the
+  WhatsApp message, the summary, the task, the guardians, the application —
+  and the case fails if that number ever drops. The remaining eighteen are a
+  tripwire that starts proving the day it holds a row. The same test was run
+  against the live database first, with a real staff account scoped to one
+  campus of nine: three of fourteen applications visible, nothing of another
+  campus's, and no write.
+
 - **Security is watched, not remembered.** The September audit was a
   photograph; three things keep it a film. CodeQL (`.github/workflows/
   codeql.yml`, `security-extended`) follows data through the program and
