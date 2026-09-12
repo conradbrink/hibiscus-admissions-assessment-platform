@@ -19,13 +19,12 @@ import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
-import { WITHDRAWN_REASON_CODES, WITHDRAWN_REASON_LABELS } from "@/lib/workflow/withdrawal";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
+  addApplicantTask,
   addNote,
   assignOwner,
   assignTask,
-  defer,
   changeGrade,
   setDayPattern,
   cancelBookingByStaff,
@@ -35,9 +34,7 @@ import {
   deleteApplicant,
   generateLinkForStaff,
   markNoShow,
-  recordDecision,
   rescheduleByStaff,
-  resumeDeferred,
   refreshSummary,
   resendLink,
   sendWhatsAppTemplate,
@@ -45,7 +42,6 @@ import {
   updateChildDetails,
   updateParentIdentity,
   updateParentMobile,
-  withdraw,
 } from "./actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -129,10 +125,25 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null };
   const na = isNextAction(app.next_action) ? nextActionCopy(app.next_action, nounInput) : null;
   const canWrite = can(permissions, "applications.write");
+  const canAddTask = can(permissions, "tasks.write");
   const canDelete = can(permissions, "applications.delete");
   const canDeliver = can(permissions, "assessments.deliver");
   const canDecide = can(permissions, "decisions.override");
   const terminal = TERMINAL_STATUSES.has(app.status);
+  // Approve, waitlist, decline, defer, withdraw: one question, asked once, in
+  // the Decision tab. Deferring and withdrawing are not overrides of the rules
+  // engine, so they keep applications.write rather than decisions.override.
+  const decidableStatuses = ["awaiting_decision", "staff_review", "new_enquiry", "visit_booked", "callback_requested", "waitlisted"];
+  const decision = {
+    canRecordOutcome: canDecide && !terminal && decidableStatuses.includes(app.status),
+    canDefer: canWrite && !terminal && app.status !== "deferred",
+    canWithdraw: canWrite && !terminal,
+    bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
+    deferred:
+      app.status === "deferred"
+        ? { until: app.deferred_until, reason: app.deferred_reason, canResume: canWrite }
+        : null,
+  };
   const eligibleSessions = (upcoming ?? []).filter(
     (s) =>
       s.kind === (app.requires_assessment ? "assessment" : "visit") &&
@@ -220,6 +231,31 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             {closedTasks.length > 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">{closedTasks.length} completed</p>
             ) : null}
+
+            {/* Write one about this child. The campus is not asked for: a task
+                about this applicant belongs to the campus they applied to. */}
+            {canAddTask && !terminal ? (
+              <details className="mt-3 border-t border-border pt-3">
+                <summary className="cursor-pointer text-xs font-medium text-primary">Add a task</summary>
+                <ActionForm action={addApplicantTask} label="Add task" size="xs" className="mt-2 space-y-2">
+                  {idField}
+                  <Input name="title" placeholder="What needs doing" required minLength={3} maxLength={200} />
+                  <Input name="details" placeholder="Any detail (optional)" maxLength={2000} />
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
+                      <option value="">Nobody yet</option>
+                      {(staff ?? []).map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                    </NativeSelect>
+                    <Input type="date" name="dueOn" aria-label="Due on" />
+                    <NativeSelect name="priority" defaultValue="normal" aria-label="Priority">
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                    </NativeSelect>
+                  </div>
+                </ActionForm>
+              </details>
+            ) : null}
           </section>
 
           {/* Booking */}
@@ -274,7 +310,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} />
 
           {/* Timeline */}
           <section className="surface">
@@ -510,27 +546,6 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             </section>
           ) : null}
 
-          {/* Decision */}
-          {canDecide && !terminal && ["awaiting_decision", "staff_review", "new_enquiry", "visit_booked", "callback_requested", "waitlisted"].includes(app.status) ? (
-            <section className="surface p-4 text-sm">
-              <h2 className="text-sm font-semibold">Record a decision</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {app.requires_assessment
-                  ? "Overrides the rules engine. A reason is required and audited."
-                  : "Pre-school applicants are decided here. A reason is required and audited."}
-              </p>
-              <ActionForm action={recordDecision} label="Record decision" size="sm" className="mt-2" confirm="Record this decision? It is audited and the parent will be informed.">
-                {idField}
-                <NativeSelect name="outcome" defaultValue="approved">
-                  <option value="approved">Approve</option>
-                  <option value="waitlisted">Waitlist</option>
-                  <option value="declined">Decline</option>
-                </NativeSelect>
-                <Textarea name="reason" placeholder="Reason (required)" rows={2} required minLength={5} />
-              </ActionForm>
-            </section>
-          ) : null}
-
           {/* Notes */}
           <section className="surface p-4 text-sm">
             <h2 className="text-sm font-semibold">Notes</h2>
@@ -554,65 +569,6 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             ) : null}
           </section>
 
-          {/* Not now. The box says what will happen, because "deferred" on its
-              own sounds like a filing decision rather than a promise to ring
-              them. */}
-          {canWrite && !terminal && app.status !== "deferred" ? (
-            <section className="surface p-4 text-sm">
-              <h2 className="text-sm font-semibold">Defer</h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                For a family who wants a place later in the year. We message them around the date and put a call on
-                the owner&rsquo;s list for the day itself, and one click brings them back.
-                {booking && booking.status !== "cancelled"
-                  ? " Their booking is cancelled, so the seat goes back and the reminders stop."
-                  : ""}
-              </p>
-              <ActionForm
-                action={defer}
-                label="Defer"
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                confirm={booking && booking.status !== "cancelled" ? "Defer this family? Their booking is cancelled and the seat goes back." : undefined}
-              >
-                {idField}
-                <Input type="date" name="until" required aria-label="Come back to them on" />
-                <Input name="reason" placeholder="What they said (optional)" maxLength={500} />
-              </ActionForm>
-            </section>
-          ) : null}
-
-          {canWrite && app.status === "deferred" ? (
-            <section className="surface p-4 text-sm">
-              <h2 className="text-sm font-semibold">Deferred</h2>
-              <p className="mt-1">
-                Coming back to them {app.deferred_until ? <strong>{formatDate(app.deferred_until)}</strong> : "on no set date"}.
-              </p>
-              {app.deferred_reason ? <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">{app.deferred_reason}</p> : null}
-              <ActionForm action={resumeDeferred} label="They are ready — resume" variant="success" size="sm" className="mt-2">
-                {idField}
-              </ActionForm>
-            </section>
-          ) : null}
-
-          {/* Withdraw */}
-          {canWrite && !terminal ? (
-            <section className="surface p-4 text-sm">
-              <h2 className="text-sm font-semibold">Withdraw</h2>
-              <ActionForm action={withdraw} label="Withdraw application" variant="destructive" size="sm" className="mt-2" confirm="Withdraw this application? Bookings and open tasks are cancelled.">
-                {idField}
-                {/* The reason in their own words is often the useful half, but
-                    it is the code that can be counted — which is why the
-                    pick-list is the required one. */}
-                <NativeSelect name="reasonCode" defaultValue="" required aria-label="Why are they withdrawing?">
-                  <option value="" disabled>Why are they withdrawing?</option>
-                  {WITHDRAWN_REASON_CODES.map((c) => <option key={c} value={c}>{WITHDRAWN_REASON_LABELS[c]}</option>)}
-                </NativeSelect>
-                <Input name="reason" placeholder="In their words" required minLength={3} />
-              </ActionForm>
-            </section>
-          ) : null}
-
           {/* Delete. Deliberately last, deliberately its own box, and only for
               the permission the super administrator holds alone. Withdrawing
               is what staff want almost always; this is for a record that
@@ -622,7 +578,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               <h2 className="text-sm font-semibold text-destructive">Delete this applicant</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 Removes the child, the family, their documents, assessments, offers and payments. It cannot be undone,
-                and the school keeps only an audit line saying you did it. Use <strong>Withdraw</strong> for a family
+                and the school keeps only an audit line saying you did it. Use <strong>Withdraw</strong>, under Decision, for a family
                 who is no longer applying, and the retention run for a family asking to be forgotten — both keep the
                 figures honest.
               </p>
