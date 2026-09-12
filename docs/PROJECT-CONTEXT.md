@@ -38,6 +38,24 @@ is in the pull request that introduced this repository. The short version:
   allow-list of variables, validated at save time.
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
+- **A second factor, opt-in first.** Staff sign-in took a password and
+  nothing else, so a phished password was the whole console. An authenticator
+  app (TOTP) can now be set up under Set up → My security, and the decision
+  about who must present one is pure and tested in `web/lib/staff/mfa.ts`.
+  Two rules in it are load-bearing. Anybody who has enrolled is challenged
+  **whether or not the school requires it** — otherwise flipping the setting
+  off would quietly make their password sufficient again and nothing would
+  tell them. And a half-finished enrolment never triggers a challenge, because
+  no app ever received that secret: treating it as one is a locked door with
+  no key. `staff_mfa_required` ships **off**; the intended order is that people
+  enrol voluntarily, the school watches the number climb, then switches it on
+  to catch the rest. Enforced in three places for three reasons: the proxy so
+  pages do not render, `requireStaffAction` because a server action is a POST
+  the proxy's redirect never sees, and Supabase itself, which refuses to remove
+  a factor unless the session is already aal2. A lost phone is cleared by
+  somebody with `staff.write` under Set up → People, never on your own account,
+  and recorded as `staff.mfa_reset`.
+
 - **TRUNCATE is the write RLS does not govern.** Row-level security filters
   rows for select, insert, update and delete and says nothing about
   `truncate table`, which is checked against the table privilege alone.

@@ -256,6 +256,60 @@ const STAFF_ASSIGNMENTS: ReadonlyArray<{ table: string; column: string; label: s
  * decided, approved, marked or recorded anything is deactivated instead,
  * so the record of who did what stays intact.
  */
+/**
+ * Clear somebody's authenticator, because the phone it lived on is gone.
+ *
+ * This is the escape hatch the whole rollout rests on: without it, a lost
+ * phone is an account nobody can reach, and a school of thirty would rather
+ * turn the second factor off than live with that. It is also, for exactly the
+ * same reason, the most attractive action in the console to an attacker — it
+ * is the supported way to take a second lock off an account.
+ *
+ * So: `staff.write`, never on yourself (removing your own goes through Set up
+ * → My security, which needs your current code), and a line in the
+ * append-only log naming who did it and to whom.
+ *
+ * The person is left with a password only, and must set a new authenticator
+ * up the next time they sign in — immediately, if the school requires one.
+ */
+export async function resetStaffMfa(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("staff.write");
+    const { staffId } = z.object({ staffId: z.guid() }).parse({ staffId: formData.get("staffId") });
+    // Your own is not an administrative act, and letting it be one would mean
+    // a stolen session could strip its own second factor without a code.
+    if (staffId === ctx.userId) {
+      throw new Error("To change your own, go to Set up → My security. You will need your current code.");
+    }
+
+    const admin = createAdminClient();
+    const { data: profile } = await admin.from("staff_profiles").select("id, email, full_name").eq("id", staffId).single();
+    if (!profile) throw new Error("That member of staff no longer exists.");
+
+    const { data: factors, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: staffId });
+    if (listError) throw new Error(listError.message);
+    const all = factors?.factors ?? [];
+    if (!all.length) throw new Error(`${profile.full_name} has no authenticator set up.`);
+
+    for (const factor of all) {
+      const { error } = await admin.auth.admin.mfa.deleteFactor({ userId: staffId, id: factor.id });
+      if (error) throw new Error(error.message);
+    }
+
+    await admin.from("audit_log").insert({
+      actor_type: "staff",
+      actor_id: ctx.userId,
+      actor_label: ctx.profile.email,
+      action: "staff.mfa_reset",
+      entity_type: "staff_profile",
+      entity_id: staffId,
+      after: { email: profile.email, factors_removed: all.length },
+    });
+
+    revalidatePath("/staff/admin/staff");
+  });
+}
+
 export async function deleteStaff(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("staff.delete");

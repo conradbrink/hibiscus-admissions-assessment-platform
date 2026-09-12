@@ -42,6 +42,8 @@ export type Settings = {
   documentsReminderDays: number;
   autoEnrol: boolean;
   whatsappEnabled: boolean;
+  /** Require an authenticator app of every member of staff. Off: enrolling is each person's choice, and anybody who has enrolled is always asked. */
+  staffMfaRequired: boolean;
   aiExtractionEnabled: boolean;
   aiSummaryEnabled: boolean;
   waitlistAutoPromote: boolean;
@@ -89,6 +91,10 @@ export const DEFAULT_SETTINGS: Settings = {
   documentsReminderDays: 2,
   autoEnrol: false,
   whatsappEnabled: false,
+  // Off on purpose. Thirty people sign in daily; switching a second factor on
+  // for all of them at a distance is how a school loses a morning. See
+  // supabase/migrations/20260913010000_staff_mfa.sql.
+  staffMfaRequired: false,
   aiExtractionEnabled: false,
   aiSummaryEnabled: false,
   waitlistAutoPromote: false,
@@ -135,6 +141,7 @@ const KEYS: Record<keyof Settings, string> = {
   documentsReminderDays: "documents_reminder_days",
   autoEnrol: "auto_enrol",
   whatsappEnabled: "whatsapp_enabled",
+  staffMfaRequired: "staff_mfa_required",
   aiExtractionEnabled: "ai_extraction_enabled",
   aiSummaryEnabled: "ai_summary_enabled",
   waitlistAutoPromote: "waitlist_auto_promote",
@@ -251,6 +258,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     documentsReminderDays: asPositiveInt(map.get(KEYS.documentsReminderDays), d.documentsReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
+    staffMfaRequired: asBoolean(map.get(KEYS.staffMfaRequired), d.staffMfaRequired),
     aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),
     aiSummaryEnabled: asBoolean(map.get(KEYS.aiSummaryEnabled), d.aiSummaryEnabled),
     waitlistAutoPromote: asBoolean(map.get(KEYS.waitlistAutoPromote), d.waitlistAutoPromote),

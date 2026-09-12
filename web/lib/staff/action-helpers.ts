@@ -3,7 +3,7 @@ import { after } from "next/server";
 import { ZodError } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ForbiddenError, type StaffContext } from "@/lib/staff/session";
+import { AuthCheckUnavailable, ForbiddenError, SecondFactorRequired, type StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
 import { drainJobs } from "@/lib/workflow/jobs";
@@ -21,6 +21,18 @@ export async function guarded(fn: () => Promise<void>): Promise<StaffActionState
     return { ok: true };
   } catch (e) {
     if (e instanceof ForbiddenError) return { error: "You do not have permission to do that." };
+    // Half signed in, not forbidden. Every action in the console can now end
+    // this way, and the person needs telling what to do rather than being told
+    // they lack a permission they may well hold.
+    if (e instanceof SecondFactorRequired) {
+      return {
+        error:
+          e.outcome === "verify"
+            ? "Your sign-in needs your authenticator code. Reload this page and enter it, then try again."
+            : "This school requires an authenticator app. Reload this page to set one up, then try again.",
+      };
+    }
+    if (e instanceof AuthCheckUnavailable) return { error: e.message };
     if (e instanceof WorkflowError) {
       if (e.code === "status_conflict") {
         return { error: "This application changed while you were looking at it. Reload and try again." };

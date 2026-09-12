@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { can, PERMISSION_CODES, PERMISSION_LABELS, type PermissionCode } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteStaff, inviteStaff, resendInvite, updateRolePermissions, updateStaffAccess } from "./actions";
+import { deleteStaff, inviteStaff, resendInvite, resetStaffMfa, updateRolePermissions, updateStaffAccess } from "./actions";
 
 export default async function StaffAdminPage() {
   const { supabase, userId, permissions } = await requireStaff("staff.write");
@@ -97,6 +97,17 @@ export default async function StaffAdminPage() {
               <div className="mb-3 flex flex-wrap gap-2">
                 {accepted.get(s.id) === false && s.is_active ? (
                   <ActionForm action={resendInvite} label="Resend invitation" size="xs" variant="outline">
+                    <input type="hidden" name="staffId" value={s.id} />
+                  </ActionForm>
+                ) : null}
+                {s.id !== userId && s.is_active ? (
+                  <ActionForm
+                    action={resetStaffMfa}
+                    label="Reset authenticator"
+                    size="xs"
+                    variant="outline"
+                    confirm={`Clear ${s.full_name}'s authenticator app? Do this when they have lost the phone it was on. They will sign in with their password alone until they set a new one up, and this is recorded against your name.`}
+                  >
                     <input type="hidden" name="staffId" value={s.id} />
                   </ActionForm>
                 ) : null}

@@ -7,6 +7,7 @@ import {
   toPermissionSet,
 } from "@/lib/permissions";
 import { contentSecurityPolicy, newNonce } from "@/lib/security-headers";
+import { mfaOutcome, mfaPathAllowed, mfaRedirectPath } from "@/lib/staff/mfa";
 
 /**
  * Two jobs, and they have different scopes.
@@ -94,6 +95,48 @@ export async function proxy(request: NextRequest) {
     url.pathname = "/staff";
     url.search = "";
     return withPolicy(NextResponse.redirect(url));
+  }
+
+  // The second factor comes before permissions, and before the path check.
+  //
+  // Ordering matters twice over. Somebody who still owes a code has not
+  // finished signing in, so telling them what they may not open answers the
+  // wrong question. And the verify screen has to be reachable while every
+  // other page is not, which only works if this runs before `canAccessPath`.
+  //
+  // A verdict that cannot be reached is answered the way a failed permission
+  // read is a few lines below: 503 and reload. Never a redirect to the verify
+  // screen -- somebody with no factor would be stranded there, asked for a
+  // code no app can produce.
+  if (user && !isLoginPage && !isPasswordResetPage) {
+    const { data: settingRow, error: settingError } = await supabase
+      .from("settings")
+      .select("value")
+      .eq("key", "staff_mfa_required")
+      .maybeSingle();
+    // `nextLevel` is aal2 exactly when the session carries a verified factor,
+    // read from the session rather than fetched, so this adds no round trip to
+    // the auth server on every single page load.
+    const { data: levels, error: levelError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (settingError || levelError) {
+      return withPolicy(
+        new NextResponse("Could not check your sign-in just now. Reload in a moment.", { status: 503 })
+      );
+    }
+
+    const outcome = mfaOutcome({
+      hasVerifiedFactor: levels?.nextLevel === "aal2",
+      currentLevel: (levels?.currentLevel ?? null) as "aal1" | "aal2" | null,
+      requiredBySchool: settingRow?.value === true,
+    });
+
+    if (!mfaPathAllowed(outcome, pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = mfaRedirectPath(outcome);
+      url.search = "";
+      return withPolicy(NextResponse.redirect(url));
+    }
   }
 
   if (user && !isLoginPage && !isPasswordResetPage) {
