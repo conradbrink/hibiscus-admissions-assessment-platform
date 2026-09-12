@@ -1,100 +1,284 @@
 {
-  "note": "The WhatsApp templates as Meta approves them, one entry per message_templates row. Body text and the order of parameters are the contract: we fill {{1}}..{{n}} positionally, so re-wording is free but re-ordering silently sends the wrong values. The button carries its own {{1}}, numbered separately from the body, and Meta only accepts it as a dynamic URL when an example value is submitted with it. web/scripts/zavu-templates.mjs prints these as form fields and as the SQL that records the ids Zavu gives back.",
+  "note": "The WhatsApp templates as Meta approves them, one entry per message_templates row. Body text and the order of parameters are the contract: we fill {{1}}..{{n}} positionally, so re-wording is free but re-ordering silently sends the wrong values. The button carries its own {{1}}, numbered separately from the body, and Meta only accepts it as a dynamic URL when an example value is submitted with it. web/scripts/zavu-templates.mjs prints these as form fields and as the SQL that records the ids Zavu gives back. The button URL is the address the site answers on today; when the custom domain is connected it changes here and in every template already approved with Zavu, or every button a parent taps stops resolving.",
   "category": "UTILITY",
   "language": "en",
-  "buttonUrl": "https://admissions.hibiscus.co.bw/a/{{1}}",
+  "buttonUrl": "https://hibiscus-admissions-assessment-plat.vercel.app/a/{{1}}",
   "buttonExample": "k4mQx8Rt2vNp",
   "templates": [
     {
       "key": "booking_confirmed",
       "body": "Hi {{1}}, {{2}}'s assessment at {{3}} is booked for {{4}} at {{5}}. Reference {{6}}. Tap below to see the details.",
-      "parameters": ["parent_first_name", "student_first_name", "campus", "assessment_date", "assessment_time", "application_reference"],
-      "samples": ["Neo", "Lesedi", "Block 7", "14 September 2026", "09:00", "HIS-2026-0142"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "assessment_date",
+        "assessment_time",
+        "application_reference"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "14 September 2026",
+        "09:00",
+        "HIS-2026-0142"
+      ],
       "button": "See the details"
     },
     {
       "key": "assessment_reminder_48h",
       "body": "Hi {{1}}, a reminder that {{2}}'s assessment at {{3}} is on {{4}} at {{5}}. Tap below to see the details.",
-      "parameters": ["parent_first_name", "student_first_name", "campus", "assessment_date", "assessment_time"],
-      "samples": ["Neo", "Lesedi", "Block 7", "14 September 2026", "09:00"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "assessment_date",
+        "assessment_time"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "14 September 2026",
+        "09:00"
+      ],
       "button": "See the details"
     },
     {
       "key": "assessment_reminder_day",
       "body": "Hi {{1}}, this is a quick reminder that {{2}} is expected for an assessment with us today at {{3}}, at our {{4}} campus. Tap below to see the details and how to find us.",
-      "parameters": ["parent_first_name", "student_first_name", "assessment_time", "campus"],
-      "samples": ["Neo", "Lesedi", "09:00", "Block 7"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "assessment_time",
+        "campus"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "09:00",
+        "Block 7"
+      ],
       "button": "See the details"
     },
     {
       "key": "booking_cancelled",
       "body": "Hi {{1}}, {{2}}'s booking at {{3}} has been cancelled. Tap below to choose a new time whenever suits you.",
-      "parameters": ["parent_first_name", "student_first_name", "campus"],
-      "samples": ["Neo", "Lesedi", "Block 7"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7"
+      ],
       "button": "Choose a new time"
     },
     {
       "key": "no_show_reschedule",
       "body": "Hi {{1}}, we missed {{2}} today. Tap below to choose a new date and time.",
-      "parameters": ["parent_first_name", "student_first_name"],
-      "samples": ["Neo", "Lesedi"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi"
+      ],
       "button": "Choose a new time"
     },
     {
       "key": "rebook_nudge",
       "body": "Hi {{1}}, {{2}} does not have a new assessment time yet. Tap below to choose one.",
-      "parameters": ["parent_first_name", "student_first_name"],
-      "samples": ["Neo", "Lesedi"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi"
+      ],
       "button": "Choose a new time"
     },
     {
       "key": "results_and_offer",
       "body": "Hi {{1}}, {{2}}'s assessment results and an offer of a place at {{3}} are ready. Tap below to read them.",
-      "parameters": ["parent_first_name", "student_first_name", "campus"],
-      "samples": ["Neo", "Lesedi", "Block 7"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7"
+      ],
       "button": "Read the offer"
     },
     {
       "key": "offer_reminder",
       "body": "Hi {{1}}, the offer of a place for {{2}} at {{3}} expires on {{4}}. Tap below to accept it.",
-      "parameters": ["parent_first_name", "student_first_name", "campus", "offer_expiry_date"],
-      "samples": ["Neo", "Lesedi", "Block 7", "30 September 2026"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "offer_expiry_date"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "30 September 2026"
+      ],
       "button": "Accept the offer"
     },
     {
       "key": "payment_reminder",
       "body": "Hi {{1}}, {{2}} is due for {{3}}'s place by {{4}}. Tap below to pay securely.",
-      "parameters": ["parent_first_name", "amount_due", "student_first_name", "payment_due_date"],
-      "samples": ["Neo", "BWP 4,500.00", "Lesedi", "30 September 2026"],
+      "parameters": [
+        "parent_first_name",
+        "amount_due",
+        "student_first_name",
+        "payment_due_date"
+      ],
+      "samples": [
+        "Neo",
+        "BWP 4,500.00",
+        "Lesedi",
+        "30 September 2026"
+      ],
       "button": "Pay now"
     },
     {
       "key": "payment_failed",
       "body": "Hi {{1}}, the payment for {{2}}'s place did not go through. Tap below to try again or see the bank details.",
-      "parameters": ["parent_first_name", "student_first_name"],
-      "samples": ["Neo", "Lesedi"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi"
+      ],
       "button": "Try again"
     },
     {
       "key": "registration_reminder",
       "body": "Hi {{1}}, {{2}}'s registration is not finished yet. Tap below to continue where you left off.",
-      "parameters": ["parent_first_name", "student_first_name"],
-      "samples": ["Neo", "Lesedi"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi"
+      ],
       "button": "Continue"
     },
     {
       "key": "documents_missing",
       "body": "Hi {{1}}, we still need: {{2}}. Tap below to upload them.",
-      "parameters": ["parent_first_name", "missing_documents"],
-      "samples": ["Neo", "birth certificate, latest school report"],
+      "parameters": [
+        "parent_first_name",
+        "missing_documents"
+      ],
+      "samples": [
+        "Neo",
+        "birth certificate, latest school report"
+      ],
       "button": "Upload documents"
     },
     {
       "key": "welcome_enrolled",
       "body": "Hi {{1}}, {{2}} is enrolled at {{3}} in {{4}}, starting {{5}}. Welcome to Hibiscus International Schools.",
-      "parameters": ["parent_first_name", "student_first_name", "campus", "grade", "start_date"],
-      "samples": ["Neo", "Lesedi", "Block 7", "Grade 1", "12 January 2027"],
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "grade",
+        "start_date"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "Grade 1",
+        "12 January 2027"
+      ],
       "button": null
+    },
+    {
+      "key": "playdate_confirmed",
+      "body": "Hi {{1}}, we are looking forward to meeting {{2}}. The play date at our {{3}} campus is on {{4}}, starting at {{5}}. Please come to reception and give your name, and a teacher will take you both through. There is nothing to bring. Tap below for the details.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "assessment_date",
+        "assessment_time"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Phase 2",
+        "14 September 2026",
+        "09:00"
+      ],
+      "button": "View or change"
+    },
+    {
+      "key": "preschool_offer",
+      "body": "Hi {{1}}, we are delighted to offer {{2}} a place at {{3}}. Tap below to read the offer and accept it.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Phase 2"
+      ],
+      "button": "Read the offer"
+    },
+    {
+      "key": "preschool_enquiry_received",
+      "body": "Hi {{1}}, thank you for your enquiry for {{2}} to join {{3}}. Your reference is {{4}}. Our admissions team will check availability and come back to you. Tap below if you would like to book a play date and see the campus first. You can also message us on {{5}} and we will answer there.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "application_reference",
+        "campus_whatsapp"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Phase 2",
+        "HIS-2026-0142",
+        "+267 72 320 145"
+      ],
+      "button": "Book a play date"
+    },
+    {
+      "key": "deferred_follow_up",
+      "body": "Hi {{1}}, you asked us to get in touch about {{2}}'s place at {{3}} around now. Is this still a good time? Tap below to tell us, or message us on {{4}} and we will answer there.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "campus_whatsapp"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Phase 2",
+        "+267 72 320 145"
+      ],
+      "button": "Talk to us"
     }
   ]
 }

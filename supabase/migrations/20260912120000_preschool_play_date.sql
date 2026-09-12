@@ -72,8 +72,12 @@ values (
   'playdate_confirmed',
   'Play date booked',
   'en',
-  E'Hi {{1}}, {{2}}''s play date at {{3}} is booked for {{4}} at {{5}}. Your reference is {{6}} — give your name or the reference at reception. Tap below to view or change it.',
-  array['parent_first_name','student_first_name','campus','assessment_date','assessment_time','application_reference'],
+  -- Deliberately not a reworded `visit_confirmed`. Meta refused the first
+  -- submission, and the one thing that set it apart from the four templates
+  -- around it was that it read almost word for word like two already
+  -- approved on this account. This one says the same facts in its own words.
+  E'Hi {{1}}, we are looking forward to meeting {{2}}. The play date at our {{3}} campus is on {{4}}, starting at {{5}}. Please come to reception and give your name, and a teacher will take you both through. There is nothing to bring. Tap below for the details.',
+  array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
   true,
   'next_step',
   false,
@@ -149,7 +153,7 @@ select pg_temp.bump_email('preschool_enquiry_received',
 -- campus shares one, and a family told to message the wrong country messages
 -- nobody.
 update public.message_templates
-   set body_preview = E'Hi {{1}}, thank you for your enquiry for {{2}} to join {{3}}. Your reference is {{4}}. Our admissions team will check availability and come back to you. Tap below if you would like to book a play date and see the campus first, or message us on {{5}}.',
+   set body_preview = E'Hi {{1}}, thank you for your enquiry for {{2}} to join {{3}}. Your reference is {{4}}. Our admissions team will check availability and come back to you. Tap below if you would like to book a play date and see the campus first. You can also message us on {{5}} and we will answer there.',
        parameters = array['parent_first_name','student_first_name','campus','application_reference','campus_whatsapp']
  where key = 'preschool_enquiry_received';
 
