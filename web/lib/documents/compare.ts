@@ -1,3 +1,4 @@
+import { oneLine, oneLineOrNull } from "@/lib/documents/reading-text";
 import type { Json } from "@/lib/supabase/types";
 
 /**
@@ -48,8 +49,9 @@ function tokens(s: string | null | undefined, dropStopwords = false): string[] {
     .filter((t) => t.length > 0 && (!dropStopwords || !STOPWORDS.has(t)));
 }
 
+/** A value out of a reading: one line, or nothing. See reading-text.ts. */
 function str(v: Json | undefined): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
+  return oneLineOrNull(v);
 }
 
 function nameMatch(registrationFirst: string | null, registrationMiddle: string | null, documentFirstNames: string | null): Match {
@@ -149,7 +151,16 @@ export function mismatchText(flags: MismatchFlag[]): string {
     .join("\n");
 }
 
+/**
+ * Flags back out of `registrations.mismatch_flags`, which is a `json` column
+ * holding whatever an earlier version of this code put there. Both values
+ * are cleaned on the way out as well as on the way in: rows written before
+ * `oneLine` existed are still in the database, and they are still rendered
+ * on the parent's form and mailed to them.
+ */
 export function parseMismatchFlags(json: Json | null | undefined): MismatchFlag[] {
   if (!Array.isArray(json)) return [];
-  return json.filter((x): x is MismatchFlag => !!x && typeof x === "object" && "field" in x && "document_id" in x);
+  return json
+    .filter((x): x is MismatchFlag => !!x && typeof x === "object" && "field" in x && "document_id" in x)
+    .map((f) => ({ ...f, label: oneLine(String(f.label ?? "")), document_value: oneLineOrNull(f.document_value), registration_value: oneLineOrNull(f.registration_value) }));
 }

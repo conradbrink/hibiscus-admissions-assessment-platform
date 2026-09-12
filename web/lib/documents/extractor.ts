@@ -2,6 +2,7 @@ import "server-only";
 import type { z } from "zod";
 import { getAiProvider } from "@/lib/ai/provider";
 import { devOutputFor, isExtractable, schemaFor, systemPromptFor, userPromptFor, EXTRACTION_PROMPT_VERSION } from "@/lib/documents/extraction-schemas";
+import { sanitiseReading } from "@/lib/documents/reading-text";
 import type { DocumentRow, Json } from "@/lib/supabase/types";
 
 /**
@@ -15,6 +16,17 @@ import type { DocumentRow, Json } from "@/lib/supabase/types";
  *
  * What the model sees: the file and which kind of document it is. No name,
  * no date of birth, nothing else the family told us — so it cannot be led.
+ *
+ * What comes back is treated as the parent's bytes, because that is what it
+ * is. Two things happen to it before anybody sees it, both here so there is
+ * one place to look:
+ *
+ *   - it is parsed against the schema again, by us. The provider does this
+ *     too; a second check costs nothing and does not depend on a library's
+ *     behaviour staying the same.
+ *   - every string is reduced to one line, so a value transcribed off a
+ *     doctored certificate cannot forge a second line in the staff task or
+ *     the parent's email it ends up in. See lib/documents/reading-text.ts.
  */
 
 export type ExtractionResult =
@@ -51,7 +63,11 @@ export const anthropicExtractor: DocumentExtractor = {
       devOutput: () => devOutputFor(code) as never,
     });
     if (!result.ok) return { ok: false, error: `${result.reason}: ${result.error ?? ""}`.trim(), retryable: result.retryable };
-    const { confidence, ...fields } = result.output;
+    // Ours, not the provider's: whatever the SDK did, this is the shape the
+    // rest of the system is entitled to assume.
+    const checked = schema.safeParse(result.output);
+    if (!checked.success) return { ok: false, error: "The reading did not match the shape asked for.", retryable: false };
+    const { confidence, ...fields } = sanitiseReading(checked.data);
     return { ok: true, fields, confidence, model: `${result.model} (${EXTRACTION_PROMPT_VERSION})` };
   },
 };
