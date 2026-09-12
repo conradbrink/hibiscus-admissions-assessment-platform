@@ -483,6 +483,50 @@ Two things were missing before this and are worth knowing:
 
 Ships behind `onboarding_journey_enabled`, off, like the re-enrolment asks did.
 
+### The first morning (PR #79)
+
+Two internal things, neither of which sends a family anything — which is why
+they are **not** under `onboarding_journey_enabled`. A school still deciding
+whether to automate its messages still wants the list on the morning.
+
+- **One task per campus**, due at that campus's `first_day_arrival_time` (or
+  seven), listing everyone starting there today with their grade. Left
+  **unassigned** on purpose: every other journey task goes to the person who
+  owned the application because it is about one child, but this one is about a
+  campus and belongs on the shared list, where whoever opens the gate picks it
+  up. A morning job addressed to someone on leave is worse than one addressed to
+  nobody.
+- **`welcomed_on_first_day`**, a staff-owned checklist step due on the day, so
+  `/staff/onboarding` records per child that somebody actually greeted them.
+
+`tasks_has_a_subject` was relaxed to admit a campus as a third kind of subject.
+It is not a loosening in practice — `tasks_select` already scopes on
+`campus_id`, so a campus-only task is scoped by the policy that is already
+there, and a task with no subject at all is still refused. Security case 55
+checks both halves.
+
+The morning list is made idempotent by a partial unique index on
+`(campus_id, due_at)` rather than a read-then-write, because two drains can
+overlap: `due_at` is derived from the start date and the arrival time, so it is
+the same constant on every sweep of that day.
+
+**The medical line is deliberately a pointer, not a copy.** The task names
+*who* has something on their medical record and sends the reader to the child's
+own record. It is campus-wide, readable by everyone with `applications.read`
+there, and it outlives being ticked — copying allergies and medication into it
+would put a child's medical facts in a second place with a second lifetime, to
+save one click. Nobody is missed; nothing is duplicated.
+
+The sweep also calls `open_student_onboarding` for each child starting today.
+That RPC is idempotent and inserts only what is missing, which is how a step
+added after a child enrolled reaches them at all — otherwise
+`welcomed_on_first_day` would exist for children who enrol from now on and for
+nobody already on their way in.
+
+**No morning-of message.** The school chose three messages before and one
+after, and the first-day details go three days ahead so a family can act on
+them. A fifth would be the over-messaging they asked to avoid.
+
 ### Optional extras, and paying for them (PR #77, PR #78)
 
 Stationery, transport, lunch, aftercare — priced per campus, because the

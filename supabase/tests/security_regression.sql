@@ -2392,6 +2392,90 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 55. The first-day morning list
+  --
+  -- `tasks_has_a_subject` was relaxed to admit a campus as a third kind of
+  -- subject. That is only safe because `tasks_select` already scopes on
+  -- `campus_id`, so this checks both halves: a task about nothing is still
+  -- refused, and a campus-only task is visible to that campus and nowhere else.
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+
+    -- A task about nothing at all is still refused.
+    begin
+      insert into public.tasks (type, title) values ('welcome_new_starters', 'Nobody''s task');
+      v_fail := v_fail || E'\n  - ' || '55: a task with no subject at all was accepted';
+    exception
+      when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('55: the no-subject task failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    insert into public.tasks (campus_id, type, title, details, due_at, priority)
+    values (c_block7, 'welcome_new_starters', 'Block 7: 2 new starters today', 'Starting today: ...', '2027-01-12T05:00:00Z', 'high')
+    returning id into v_id;
+
+    -- One list per campus per morning, whatever the drain does. This is what
+    -- stops two overlapping drains opening the same job twice.
+    begin
+      insert into public.tasks (campus_id, type, title, due_at)
+      values (c_block7, 'welcome_new_starters', 'Block 7 again', '2027-01-12T05:00:00Z');
+      v_fail := v_fail || E'\n  - ' || '55: a campus got two morning lists for the same day';
+    exception
+      when unique_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('55: the duplicate list failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- The next morning is a different list, not a blocked one.
+    begin
+      insert into public.tasks (campus_id, type, title, due_at)
+      values (c_block7, 'welcome_new_starters', 'Block 7 tomorrow', '2027-01-13T05:00:00Z');
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('55: the next day''s list was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A campus-only task obeys campus scope exactly as an application-scoped
+    -- one does. The Broadhurst manager has applications.read and must not see
+    -- Block 7's morning.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.tasks where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '55: a Broadhurst manager saw Block 7''s morning list';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('55: unexpected error as the Broadhurst manager: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The control: head-office admissions staff see it, so the case above is
+    -- campus scoping rather than the task being invisible to everyone.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.tasks where id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '55 control: head-office staff cannot see a campus task at all';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('55 control: unexpected error as staff: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The per-child half: a staff-owned step, so the board shows it and no
+    -- parent is ever asked whether somebody greeted their child.
+    select count(*) into v_count from public.onboarding_steps
+     where code = 'welcomed_on_first_day' and owner = 'staff' and is_active and due_offset_days = 0;
+    if v_count <> 1 then
+      v_fail := v_fail || E'\n  - ' || '55: welcomed_on_first_day is missing, not staff-owned, or not due on the day';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then
