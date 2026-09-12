@@ -26,7 +26,6 @@ import {
   assignOwner,
   assignTask,
   changeGrade,
-  setDayPattern,
   cancelBookingByStaff,
   checkIn,
   completeCallback,
@@ -144,6 +143,9 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
         ? { until: app.deferred_until, reason: app.deferred_reason, canResume: canWrite }
         : null,
   };
+  // Half day or full day. It decides which term fee the letter quotes, so it
+  // belongs with the letter rather than in a box of its own beside it.
+  const dayPattern = (grade?.sort_order ?? 999) <= 50 ? { value: app.day_pattern, canSet: canWrite } : null;
   const eligibleSessions = (upcoming ?? []).filter(
     (s) =>
       s.kind === (app.requires_assessment ? "assessment" : "visit") &&
@@ -310,7 +312,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} />
 
           {/* Timeline */}
           <section className="surface">
@@ -520,31 +522,6 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               </details>
             ) : null}
           </section>
-
-          {/* Half day or full day, for the pre-school grades that are priced both ways */}
-          {(grade?.sort_order ?? 999) <= 50 ? (
-            <section className="surface p-4 text-sm">
-              <h2 className="text-sm font-semibold">Day pattern</h2>
-              <p className="mt-1 text-muted-foreground">
-                {app.day_pattern === "half" ? "Half day" : app.day_pattern === "full" ? "Full day" : "Not decided yet"}
-              </p>
-              {canWrite ? (
-                <ActionForm action={setDayPattern} label="Save" variant="outline" size="sm" className="mt-2">
-                  {idField}
-                  <NativeSelect name="dayPattern" defaultValue={app.day_pattern ?? ""}>
-                    <option value="">Not decided yet</option>
-                    <option value="half">Half day</option>
-                    <option value="full">Full day</option>
-                  </NativeSelect>
-                  <p className="text-xs text-muted-foreground">
-                    Decides which term fee the next offer letter quotes. While this is undecided the letter shows both
-                    rates and asks the family to confirm; either way, tuition is invoiced and is not payable to accept
-                    the offer. An offer already sent keeps the fees it was drafted with.
-                  </p>
-                </ActionForm>
-              ) : null}
-            </section>
-          ) : null}
 
           {/* Notes */}
           <section className="surface p-4 text-sm">

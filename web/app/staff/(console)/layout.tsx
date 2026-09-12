@@ -11,7 +11,7 @@ import { requireStaff } from "@/lib/staff/session";
  */
 export default async function ConsoleLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireStaff();
-  const groups = visibleNavGroups(ctx.permissions);
+  const groups = visibleNavGroups(ctx.permissions, { orientationDone: ctx.profile.orientation_completed_at !== null });
   const { count } = await ctx.supabase.from("tasks").select("id", { count: "exact", head: true }).eq("status", "open").eq("assignee_staff_id", ctx.userId);
   return (
     <div className="min-h-dvh md:p-4 lg:p-6">

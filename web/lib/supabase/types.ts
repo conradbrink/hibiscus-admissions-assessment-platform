@@ -145,6 +145,10 @@ export type StaffProfileRow = {
   email: string;
   is_active: boolean;
   digest_enabled: boolean;
+  /** Slugs of the orientation screens this person has marked as read. */
+  orientation_read: string[];
+  /** Set when the last screen is ticked. Until then the console keeps offering it. */
+  orientation_completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1717,7 +1721,7 @@ export type StudentJourneyMessageRow = {
 export type Database = {
   public: {
     Tables: {
-      staff_profiles: TableOf<StaffProfileRow, "is_active" | "digest_enabled">;
+      staff_profiles: TableOf<StaffProfileRow, "is_active" | "digest_enabled" | "orientation_read" | "orientation_completed_at">;
       permissions: TableOf<PermissionRow, "sort_order">;
       roles: TableOf<RoleRow, "description" | "is_system" | "campus_scoped">;
       role_permissions: TableOf<
@@ -2625,6 +2629,8 @@ export type Database = {
       current_staff_id: { Args: Record<string, never>; Returns: string | null };
       has_permission: { Args: { p_code: string }; Returns: boolean };
       my_permissions: { Args: Record<string, never>; Returns: string[] };
+      mark_orientation_read: { Args: { p_slug: string; p_complete?: boolean }; Returns: undefined };
+      reset_orientation: { Args: Record<string, never>; Returns: undefined };
       can_access_campus: { Args: { p_campus_id: string }; Returns: boolean };
       next_application_reference: { Args: Record<string, never>; Returns: string };
       next_student_code: { Args: Record<string, never>; Returns: string };

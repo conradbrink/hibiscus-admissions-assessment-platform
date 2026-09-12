@@ -145,7 +145,10 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
 ];
 
 /** Reachable by anyone signed in, whatever they hold. */
-const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account"];
+// The orientation belongs to everybody who can sign in, including a content
+// author who holds nothing else: it is how a person learns what the people
+// either side of them do.
+const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", "/staff/orientation"];
 
 export function permissionForPath(pathname: string): PermissionCode | null {
   if (ALWAYS_ALLOWED.some((p) => matchesPrefix(pathname, p))) return null;
