@@ -14,16 +14,26 @@ update public.campuses
    set name = 'Potch CBD'
  where code = 'potch' and name = 'Potch';
 
--- The new site, with the school's own maps link. Address and phone are
--- deliberately left empty: they have not been given, and a second site wearing
--- the CBD's address would send a family to the wrong gate. Both are filled in
--- Set up → Campuses, and until then the site shows its name and its map.
-insert into public.campuses (code, name, descriptor, country, currency, maps_url, sort_order, is_active)
+-- The new site, with its own address and maps link. The CBD keeps 23 Maury
+-- Avenue: the rename above touches the name and nothing else.
+--
+-- No phone yet. The address column carries the street and then the numbers,
+-- one per line, so the number is appended in Set up → Campuses when there is
+-- one; until then the address reads as a street alone rather than as somebody
+-- else's switchboard.
+insert into public.campuses (code, name, descriptor, country, currency, address, maps_url, sort_order, is_active)
 select 'potch_south', 'Potch South', c.descriptor, c.country, c.currency,
+       '120 Rivier Street, Potchefstroom, North West, South Africa',
        'https://maps.app.goo.gl/Bcru51tABdoNMBtQ6', c.sort_order + 1, true
   from public.campuses c
  where c.code = 'potch'
 on conflict (code) do nothing;
+
+-- Safe to re-run, and the way the address arrives if the row above already
+-- existed from an earlier apply.
+update public.campuses
+   set address = '120 Rivier Street, Potchefstroom, North West, South Africa'
+ where code = 'potch_south' and address is null;
 
 -- The same ages, with their own capacity to fill in later.
 insert into public.campus_grades (campus_id, grade_id, is_active, capacity, external_grade_code, requires_assessment)
