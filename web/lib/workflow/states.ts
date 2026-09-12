@@ -33,17 +33,25 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
     // Reschedule keeps the status; cancel returns to enquiry.
     "assessment_booked",
     "new_enquiry",
+    // "Actually, next year." Deferring cancels the sitting — see `onDeferred`.
+    "deferred",
   ],
-  no_show: ["assessment_booked", "new_enquiry"],
+  no_show: ["assessment_booked", "new_enquiry", "deferred"],
+  // Not `deferred`: the child is at the keyboard. Whatever the parent has
+  // just decided, the sitting finishes or is abandoned first.
   assessment_in_progress: ["assessment_completed", "assessment_booked"],
-  assessment_completed: ["awaiting_decision"],
+  // Sat, not yet decided — a real moment for a family to ask us to wait.
+  assessment_completed: ["awaiting_decision", "deferred"],
   awaiting_decision: ["staff_review", "approved", "waitlisted", "declined", "deferred"],
   staff_review: ["approved", "waitlisted", "declined", "deferred"],
-  // Paused, not closed. One way back, and it is the same one every time: the
-  // family is where they were, waiting on the school's answer. Reversible in
-  // one click is the whole point — a status a family cannot come back from is
-  // the Withdraw it was invented to replace.
-  deferred: ["awaiting_decision"],
+  // Paused, not closed, and reversible in one click — a status a family cannot
+  // come back from is the Withdraw it was invented to replace.
+  //
+  // Two ways back rather than one, because deferring cancels a live booking:
+  // a family who still has to sit an assessment returns to `new_enquiry` to
+  // book one, and everybody else to the decision they were waiting on. Which,
+  // is `statusAfterDeferral` (lib/workflow/deferral.ts).
+  deferred: ["awaiting_decision", "new_enquiry"],
   approved: ["offer_draft", "waitlisted"],
   waitlisted: ["approved", "declined"],
   declined: [],
