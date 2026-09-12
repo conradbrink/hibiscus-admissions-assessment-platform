@@ -40,7 +40,10 @@ export default async function DashboardPage() {
         .limit(50),
       supabase
         .from("tasks")
-        .select("id, title, due_at, priority, application_id")
+        // The subject comes too, so a task written by a person lands here with
+        // somewhere to go. One about an applicant or a child links to them;
+        // one about a campus says which, and opens the list.
+        .select("id, title, due_at, priority, application_id, student_id, campuses(name)")
         .eq("status", "open")
         .eq("assignee_staff_id", userId)
         .order("due_at", { ascending: true, nullsFirst: false })
@@ -184,14 +187,25 @@ export default async function DashboardPage() {
             </div>
             {myTasks && myTasks.length > 0 ? (
               <ul className="divide-y divide-border/70">
-                {myTasks.map((t) => (
-                  <li key={t.id} className="flex items-center gap-3 px-5 py-2.5 text-sm">
-                    <SquareCheck className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <Link href={t.application_id ? `/staff/applications/${t.application_id}` : "/staff/tasks"} className="min-w-0 flex-1 truncate hover:underline">{t.title}</Link>
-                    <span className="text-xs text-muted-foreground">{t.due_at ? formatDate(t.due_at) : ""}</span>
-                    <PriorityBadge priority={t.priority} />
-                  </li>
-                ))}
+                {myTasks.map((t) => {
+                  const where = t.application_id
+                    ? `/staff/applications/${t.application_id}`
+                    : t.student_id
+                      ? `/staff/students/${t.student_id}`
+                      : "/staff/tasks";
+                  return (
+                    <li key={t.id} className="flex items-center gap-3 px-5 py-2.5 text-sm">
+                      <SquareCheck className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                      <Link href={where} className="min-w-0 flex-1 truncate hover:underline">{t.title}</Link>
+                      {/* Which school, for a task that names no child. */}
+                      {!t.application_id && !t.student_id ? (
+                        <span className="hidden text-xs text-muted-foreground sm:inline">{one(t.campuses)?.name}</span>
+                      ) : null}
+                      <span className="text-xs text-muted-foreground">{t.due_at ? formatDate(t.due_at) : ""}</span>
+                      <PriorityBadge priority={t.priority} />
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
               <div className="px-5 pb-5"><EmptyState>Nothing assigned to you.</EmptyState></div>
