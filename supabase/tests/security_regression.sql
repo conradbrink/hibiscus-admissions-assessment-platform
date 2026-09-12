@@ -2784,6 +2784,19 @@ begin
     end;
     perform pg_temp.service();
 
+    -- Signed out is not "nobody": an unauthenticated caller must not hold
+    -- execute on either function at all. Both raise `not_signed_in` anyway,
+    -- which is exactly why the grant was easy to leave wrong.
+    if has_function_privilege('anon', 'public.mark_orientation_read(text, boolean)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '58: anon can execute mark_orientation_read';
+    end if;
+    if has_function_privilege('anon', 'public.reset_orientation()', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '58: anon can execute reset_orientation';
+    end if;
+    if not has_function_privilege('authenticated', 'public.mark_orientation_read(text, boolean)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '58 control: authenticated lost execute on mark_orientation_read';
+    end if;
+
     -- A slug is text, and text from a browser: the function refuses the
     -- shapes that are not a screen rather than storing them.
     begin
