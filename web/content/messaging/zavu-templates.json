@@ -279,6 +279,79 @@
         "+267 72 320 145"
       ],
       "button": "Talk to us"
+    },
+    {
+      "key": "onboarding_welcome",
+      "body": "Hi {{1}}, we are looking forward to welcoming {{2}} to {{3}} on {{4}}. Tap below for everything you need to get ready, and a short guide for new families.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "start_date"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "14 January 2027"
+      ],
+      "button": "Get ready"
+    },
+    {
+      "key": "onboarding_outstanding",
+      "body": "Hi {{1}}, before {{2}} starts at {{3}} on {{4}} we still need a few things from you: {{5}}. Tap below to finish — it only takes a few minutes.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "start_date",
+        "outstanding_items"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "14 January 2027",
+        "birth certificate, immunisation record"
+      ],
+      "button": "Finish the list"
+    },
+    {
+      "key": "first_day_details",
+      "body": "Hi {{1}}, {{2}}'s first day at {{3}} is {{4}}. Please arrive by {{5}}. Tap below for where to go and what to bring. If you need anything before then, message us on {{6}} and we will help.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "start_date",
+        "arrival_time",
+        "campus_whatsapp"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "14 January 2027",
+        "07:30",
+        "+267 72 320 145"
+      ],
+      "button": "First day details"
+    },
+    {
+      "key": "first_week_check_in",
+      "body": "Hi {{1}}, {{2}} has finished their first week at {{3}}. How did it go? Message us on {{4}} and someone from the campus will read it and come back to you.",
+      "parameters": [
+        "parent_first_name",
+        "student_first_name",
+        "campus",
+        "campus_whatsapp"
+      ],
+      "samples": [
+        "Neo",
+        "Lesedi",
+        "Block 7",
+        "+267 72 320 145"
+      ]
     }
   ]
 }

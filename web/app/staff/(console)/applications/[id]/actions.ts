@@ -154,17 +154,63 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
   });
 }
 
+/**
+ * Every "what happens to this family" answer: approve, waitlist, decline,
+ * "not now" and "not at all".
+ *
+ * Deferring and withdrawing live here because they are choices staff make at
+ * that moment, not separate filing actions — but neither overrides the rules
+ * engine, so both keep the permission their own buttons carried before they
+ * moved in: anybody who may edit an applicant may promise to ring a family
+ * back or close their application, while approving, waitlisting and declining
+ * still need decisions.override.
+ */
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
-    const ctx = await requireStaffAction("decisions.override");
+    const raw = Object.fromEntries(formData);
+    const outcome = z.enum(["approved", "waitlisted", "declined", "deferred", "withdrawn"]).parse(raw.outcome);
+    const paused = outcome === "deferred" || outcome === "withdrawn";
+    const ctx = await requireStaffAction(paused ? "applications.write" : "decisions.override");
+
+    if (outcome === "withdrawn") {
+      // The code is required and the note is not. It is the other way round
+      // from how it reads: the note is often the useful half, but it is the
+      // code that can be counted, and a pick-list nobody has to fill in is a
+      // pick-list of "other".
+      const parsed = idSchema
+        .extend({
+          reasonCode: z.enum(WITHDRAWN_REASON_CODES),
+          reason: z.string().trim().min(3).max(500),
+        })
+        .parse(raw);
+      const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+      await onWithdrawn(admin, app, parsed.reason, ctx.actor, parsed.reasonCode);
+      done(parsed.applicationId);
+      return;
+    }
+
+    if (outcome === "deferred") {
+      const parsed = idSchema
+        .extend({
+          until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
+          reason: z.string().trim().max(500).optional(),
+        })
+        .parse(raw);
+      // A date in the past is a typo, and the follow-ups for it would all be
+      // dropped as already gone — leaving a paused application nothing would
+      // ever wake.
+      if (!isFutureDate(parsed.until)) throw new Error("Choose a date in the future.");
+      const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+      await onDeferred(admin, app, { until: parsed.until, reason: parsed.reason?.trim() || null }, ctx.actor);
+      done(parsed.applicationId);
+      return;
+    }
+
     const parsed = idSchema
-      .extend({
-        outcome: z.enum(["approved", "waitlisted", "declined"]),
-        reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
-      })
-      .parse(Object.fromEntries(formData));
+      .extend({ reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000) })
+      .parse(raw);
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    await onManualDecision(admin, app, parsed.outcome, parsed.reason, ctx.actor);
+    await onManualDecision(admin, app, outcome, parsed.reason, ctx.actor);
     // An approval queues the offer draft; run it now rather than on the
     // next sweep, so the child is on the Offers page when staff look.
     drainSoon();
@@ -178,45 +224,6 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
     const parsed = idSchema.extend({ note: z.string().trim().max(1000).optional() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onCallbackCompleted(admin, app, parsed.note || null, ctx.actor);
-    done(parsed.applicationId);
-  });
-}
-
-export async function withdraw(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
-  return guarded(async () => {
-    const ctx = await requireStaffAction("applications.write");
-    // The code is required and the note is not. It is the other way round
-    // from how it reads: the note is often the useful half, but it is the
-    // code that can be counted, and a pick-list nobody has to fill in is a
-    // pick-list of "other".
-    const parsed = idSchema
-      .extend({
-        reasonCode: z.enum(WITHDRAWN_REASON_CODES),
-        reason: z.string().trim().min(3).max(500),
-      })
-      .parse(Object.fromEntries(formData));
-    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    await onWithdrawn(admin, app, parsed.reason, ctx.actor, parsed.reasonCode);
-    done(parsed.applicationId);
-  });
-}
-
-/** "Talk to us later in the year." Pauses the application on the date they named. */
-export async function defer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
-  return guarded(async () => {
-    const ctx = await requireStaffAction("applications.write");
-    const parsed = idSchema
-      .extend({
-        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
-        reason: z.string().trim().max(500).optional(),
-      })
-      .parse(Object.fromEntries(formData));
-    // A date in the past is a typo, and the follow-ups for it would all be
-    // dropped as already gone — leaving a paused application nothing would
-    // ever wake.
-    if (!isFutureDate(parsed.until)) throw new Error("Choose a date in the future.");
-    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    await onDeferred(admin, app, { until: parsed.until, reason: parsed.reason?.trim() || null }, ctx.actor);
     done(parsed.applicationId);
   });
 }
@@ -286,6 +293,47 @@ export async function generateLinkForStaff(_: StaffActionState, formData: FormDa
   } catch (e) {
     return { error: (e as Error).message };
   }
+}
+
+/**
+ * A task about this applicant, written by a person.
+ *
+ * The same permission as the tasks page — `tasks.write`, which Management
+ * holds and no other write. The campus comes from the applicant rather than a
+ * picker: a task about this child belongs to the campus this child applied
+ * to, and that is also what scopes who can see it.
+ */
+export async function addApplicantTask(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("tasks.write");
+    const parsed = idSchema
+      .extend({
+        title: z.string().trim().min(3, "Give the task a title.").max(200),
+        details: z.string().trim().max(2000).optional(),
+        assigneeStaffId: z.string().optional(),
+        dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+        priority: z.enum(["low", "normal", "high"]).default("normal"),
+      })
+      .parse(Object.fromEntries(formData));
+    const { app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const { error } = await ctx.supabase.from("tasks").insert({
+      application_id: app.id,
+      campus_id: app.campus_id,
+      type: "staff_task",
+      title: parsed.title,
+      details: parsed.details || null,
+      priority: parsed.priority,
+      // 07:00 at the campus, so "due Friday" is the start of Friday rather
+      // than midnight, which the overdue filter reads as Thursday night.
+      due_at: parsed.dueOn ? `${parsed.dueOn}T07:00:00+02:00` : null,
+      assignee_staff_id: parsed.assigneeStaffId || null,
+      created_by_type: "staff",
+      created_by: ctx.userId,
+    });
+    if (error) throw new Error(error.message);
+    done(parsed.applicationId);
+    revalidatePath("/staff/tasks");
+  });
 }
 
 export async function completeTask(_: StaffActionState, formData: FormData): Promise<StaffActionState> {

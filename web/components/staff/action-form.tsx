@@ -19,6 +19,7 @@ export function ActionForm({
   size = "default",
   className,
   confirm,
+  confirmBy,
   id,
   resetOnSubmit = true,
   children,
@@ -29,6 +30,15 @@ export function ActionForm({
   size?: "default" | "sm" | "xs" | "lg";
   className?: string;
   confirm?: string;
+  /**
+   * A confirmation that depends on what was chosen in the form.
+   *
+   * One box now holds several answers — approve, defer, withdraw — and only
+   * some of them need a warning. Plain data rather than a callback, because
+   * this component is reached from a server component: the field is read at
+   * submit time and its value looked up here.
+   */
+  confirmBy?: { field: string; messages: Record<string, string> };
   /**
    * Give the form an id when fields outside it belong to it — a column of
    * checkboxes in a table, say, which cannot sit inside the form itself.
@@ -54,7 +64,9 @@ export function ActionForm({
       {...(resetOnSubmit ? { action: formAction } : {})}
       className={cn("space-y-2", className)}
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) {
+        const chosen = confirmBy ? String(new FormData(e.currentTarget).get(confirmBy.field) ?? "") : null;
+        const question = (chosen !== null ? confirmBy?.messages[chosen] : null) ?? confirm;
+        if (question && !window.confirm(question)) {
           e.preventDefault();
           return;
         }
