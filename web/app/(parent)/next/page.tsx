@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/parent/page-header";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph, loadSiblingApplications } from "@/lib/applications";
+import { bookingNounTitle } from "@/lib/booking/noun";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { requireParentSession } from "@/lib/tokens/server";
-import { isNextAction, NEXT_ACTIONS, STATUS_LABELS } from "@/lib/workflow/states";
+import { isNextAction, nextActionCopy, STATUS_LABELS } from "@/lib/workflow/states";
 import { MessagePreferences } from "@/components/parent/message-preferences";
 import { TalkToUs } from "@/components/parent/talk-to-us";
 import { setWhatsAppPreference } from "./actions";
@@ -30,7 +31,8 @@ export default async function NextPage() {
   if (app.status === "new_enquiry" && app.next_action === null) redirect("/next/grade");
 
   const siblings = await loadSiblingApplications(admin, contact.id);
-  const copy = NEXT_ACTIONS[isNextAction(app.next_action) ? app.next_action : "none"];
+  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null };
+  const copy = nextActionCopy(isNextAction(app.next_action) ? app.next_action : "none", nounInput);
   const actionRequired = copy.parentCta !== null;
 
   return (
@@ -74,7 +76,7 @@ export default async function NextPage() {
       {booking ? (
         <section className="mt-5 surface p-5 text-sm">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {booking.kind === "assessment" ? "Assessment" : "Visit"}
+            {bookingNounTitle(nounInput)}
           </p>
           <p className="mt-1 font-semibold">
             {formatDateLong(booking.session.starts_at)}, {formatTime(booking.session.starts_at)}
@@ -102,6 +104,7 @@ export default async function NextPage() {
       <TalkToUs
         campusName={campus.name}
         address={campus.address}
+        mapsUrl={campus.maps_url}
         phone={campus.phone}
         whatsapp={campus.whatsapp}
         studentFirstName={app.child_first_name}

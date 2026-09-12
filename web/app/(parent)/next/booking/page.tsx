@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { BookingCard } from "@/components/parent/booking-card";
+import { bookingNoun } from "@/lib/booking/noun";
 import { EmailAddress } from "@/components/parent/email-address";
 import { PageHeader } from "@/components/parent/page-header";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ export default async function BookingPage() {
   if (!graph.booking) redirect("/next");
 
   const { application: app, campus, booking, contact } = graph;
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
   const settings = await getSettings(admin);
   const qr = await QRCode.toDataURL(app.reference, { margin: 1, width: 192 });
   const past = hasStarted(booking.session.starts_at);
@@ -32,17 +34,18 @@ export default async function BookingPage() {
     <>
       <PageHeader title="Your booking" />
       <BookingCard
-        kind={booking.kind}
+        noun={noun}
         startsAt={booking.session.starts_at}
         campusName={campus.name}
         location={booking.session.location}
         address={campus.address}
+        mapsUrl={campus.maps_url}
         reference={app.reference}
         qrDataUrl={qr}
       />
       {locked && booking.status === "booked" ? (
         <p className="mt-6 rounded-xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Your {booking.kind === "assessment" ? "assessment" : "visit"} is less than {settings.rescheduleCutoffHours} hours away, so the booking can no longer be changed or cancelled online. If something has come up, please call {campus.name}.
+          Your {noun} is less than {settings.rescheduleCutoffHours} hours away, so the booking can no longer be changed or cancelled online. If something has come up, please call {campus.name}.
         </p>
       ) : null}
       {!past && !locked && booking.status === "booked" ? (

@@ -19,7 +19,7 @@ import {
   type Dimension,
   type FactRow,
 } from "@/lib/analytics/breakdown";
-import { delta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
+import { deferredSummary, delta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
 import { daysAgoDateString, toSchoolDateString } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
@@ -74,6 +74,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const then = headline(before);
   const counts = funnelCounts(all);
   const stages = funnelStages(counts);
+  // Ninety days is "soon enough to matter for the intake being planned", and
+  // the same window the page already defaults to looking back over.
+  const deferred = deferredSummary(all, daysAgoDateString(-90));
   const conv = conversion(counts, all.filter((r) => r.requires_assessment).length);
   const cycle = cycleTimes(all);
   const prevCycle = cycleTimes(before);
@@ -126,6 +129,15 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <h2 className="mb-1 text-sm font-semibold">The funnel</h2>
           <p className="mb-3 text-xs text-muted-foreground">Each bar is scaled to enquiries. The first percentage is the share of enquiries that reached the stage; the second is the conversion from the stage before.</p>
           <FunnelChart stages={stages} />
+          {/* Beside the funnel, not in it: a pause is not a stage families
+              pass through on the way to enrolling. */}
+          {deferred.count > 0 ? (
+            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Deferred — {deferred.count}</span>
+              {deferred.dueWithin > 0 ? `, of which ${deferred.dueWithin} due back within 90 days` : ", none due back within 90 days"}.
+              Paused at the family&rsquo;s request, and counted in neither the funnel nor the forecast.
+            </p>
+          ) : null}
         </section>
         <section className="surface p-4">
           <h2 className="mb-1 text-sm font-semibold">Step conversion, now against before</h2>

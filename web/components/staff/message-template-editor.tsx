@@ -9,6 +9,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
 import { templateProblems } from "@/lib/messaging/template-checks";
+import { submitWithoutReset } from "@/lib/staff/submit-without-reset";
 
 /** Sample values so the preview reads like a real message. Same as the email editor's. */
 const SAMPLE: Record<string, string> = {
@@ -74,7 +75,7 @@ export function MessageTemplateEditor({
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <form action={formAction} className="space-y-4">
+      <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
         <input type="hidden" name="key" value={template.key} />
         <input type="hidden" name="parameters" value={parameters.join(",")} />
         <div className="space-y-1"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={template.name} required /></div>

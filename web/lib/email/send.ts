@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { loadApplicationGraph, type ApplicationGraph } from "@/lib/applications";
+import { bookingNoun } from "@/lib/booking/noun";
 import { buildIcs } from "@/lib/email/ics";
 import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
@@ -94,21 +95,22 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     // is not something a template can cut out of the blob.
     campus_phone: campus.phone ?? null,
     campus_whatsapp: campus.whatsapp ?? null,
+    // A link that opens the campus in a maps app. A plot number in Gaborone is
+    // not something a parent can drive to; this is. Null for a campus the
+    // school has not given a link for, and the directions line drops out.
+    campus_maps_url: campus.maps_url ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
-    // What to call the appointment. A parent who booked a look around the
-    // campus should not be told their assessment is confirmed, and the two
-    // moments share one template, so the noun is a variable rather than a
-    // second template (and a second Meta approval) per moment.
+    // What to call the appointment: assessment, visit, or play date. A parent
+    // who booked a look around the campus should not be told their assessment
+    // is confirmed, and those moments share one template, so the noun is a
+    // variable rather than a template (and a Meta approval) per moment.
     // Never null: the nudge to rebook is sent precisely when there is no
     // booking left, and an empty noun would read "choose a new  time".
-    booking_kind: booking
-      ? booking.kind === "assessment"
-        ? "assessment"
-        : "visit"
-      : application.requires_assessment
-        ? "assessment"
-        : "visit",
+    booking_kind: bookingNoun({
+      requiresAssessment: application.requires_assessment,
+      bookingKind: booking?.kind ?? null,
+    }),
     // Null renders as empty and satisfies an {{#if}}, so a template that
     // references a link its send did not mint simply omits it.
     results_link: links.results ?? null,
@@ -127,6 +129,12 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     promotion_text: extras.promotionText ?? null,
     outstanding_items: extras.outstandingItems ?? null,
     all_received: extras.allReceived ? "yes" : null,
+    // Did this child sit an assessment? The template language has {{#if}} and
+    // no {{#unless}} (lib/email/render.ts), so the mirror is a second
+    // variable rather than a negation — the shape `all_received` already uses.
+    // Null renders empty and fails an {{#if}}, so the two are exclusive.
+    assessed: application.requires_assessment ? "yes" : null,
+    no_assessment: application.requires_assessment ? null : "yes",
     start_date: formatDateLong(graph.intake.starts_on),
   };
 }

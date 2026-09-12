@@ -12,6 +12,7 @@ import { funnelSessionKey } from "@/lib/funnel-session";
 import { recordFunnelStep } from "@/lib/funnel";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
+import { bookingNoun } from "@/lib/booking/noun";
 import { getSettings } from "@/lib/settings";
 import { withinCutoff } from "@/lib/format-date";
 import { requireParentSession } from "@/lib/tokens/server";
@@ -155,7 +156,7 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
   if (graph.booking) {
     const settings = await getSettings(admin);
     if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) {
-      const noun = graph.booking.kind === "assessment" ? "assessment" : "visit";
+      const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: graph.booking.kind });
       return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the ${noun}. Please call ${graph.campus.name}.` };
     }
   }

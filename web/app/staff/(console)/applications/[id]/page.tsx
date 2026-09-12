@@ -12,16 +12,20 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { MobileInput } from "@/components/ui/mobile-input";
+import { bookingNounTitle } from "@/lib/booking/noun";
 import { formatDate, formatDateLong, formatDateTime, formatTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { isNextAction, NEXT_ACTIONS, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { WITHDRAWN_REASON_CODES, WITHDRAWN_REASON_LABELS } from "@/lib/workflow/withdrawal";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addNote,
   assignOwner,
+  assignTask,
+  defer,
   changeGrade,
   setDayPattern,
   cancelBookingByStaff,
@@ -33,6 +37,7 @@ import {
   markNoShow,
   recordDecision,
   rescheduleByStaff,
+  resumeDeferred,
   refreshSummary,
   resendLink,
   sendWhatsAppTemplate,
@@ -121,7 +126,8 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   ]);
   const summary = summaryInputs ? summaryView(summaryInputs, storedSummary ?? null, settings.aiSummaryEnabled) : null;
   const bookingSession = booking ? one(booking.sessions) : null;
-  const na = isNextAction(app.next_action) ? NEXT_ACTIONS[app.next_action] : null;
+  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null };
+  const na = isNextAction(app.next_action) ? nextActionCopy(app.next_action, nounInput) : null;
   const canWrite = can(permissions, "applications.write");
   const canDelete = can(permissions, "applications.delete");
   const canDeliver = can(permissions, "assessments.deliver");
@@ -150,9 +156,12 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
         <div className="space-y-5">
           {summary ? <SummaryPanel applicationId={app.id} view={summary} action={refreshSummary} /> : null}
 
-          {/* Next action */}
+          {/* Next action (Parent) — and, directly beneath it, the staff half
+              of the same idea. They were a page apart, one in the main column
+              and one in a 320px sidebar, which read as two unrelated things
+              rather than "whose move is it". */}
           <section className="surface p-4">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Next action</p>
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Next action (Parent)</p>
             <p className="mt-1 text-base font-semibold">{na?.staffLabel ?? "—"}</p>
             {app.next_action_due_at ? (
               <p className="text-sm text-muted-foreground">Due {formatDateTime(app.next_action_due_at)}</p>
@@ -162,10 +171,61 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             </p>
           </section>
 
+          {/* Next action (Staff) */}
+          <section className="surface p-4 text-sm">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Next action (Staff)</p>
+            {openTasks.length > 0 ? (
+              <ul className="mt-2 space-y-2">
+                {openTasks.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{t.title}</p>
+                      {t.details ? <p className="mt-0.5 text-xs whitespace-pre-line text-muted-foreground">{t.details}</p> : null}
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t.due_at ? `Due ${formatDateTime(t.due_at)}` : "No due date"} · {one(t.staff_profiles)?.full_name ?? "Unassigned"}
+                      </p>
+                    </div>
+                    <PriorityBadge priority={t.priority} />
+                    {/* Out of the 320px sidebar, there is room to hand a task
+                        to somebody from the applicant it is about, rather than
+                        going back to the tasks list to find it. */}
+                    {canWrite ? (
+                      <ActionForm action={assignTask} label="Assign" size="xs" variant="outline" resetOnSubmit={false} className="flex items-center gap-1 space-y-0">
+                        <input type="hidden" name="taskId" value={t.id} />
+                        {idField}
+                        <NativeSelect name="assigneeStaffId" defaultValue={t.assignee_staff_id ?? ""} className="h-7 w-40 py-0 text-xs md:h-7">
+                          <option value="">Unassigned</option>
+                          {(staff ?? []).map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                        </NativeSelect>
+                      </ActionForm>
+                    ) : null}
+                    {canWrite ? (
+                      t.type === "callback" && app.status === "callback_requested" ? (
+                        <ActionForm action={completeCallback} label="Called — done" size="xs" variant="success">
+                          {idField}
+                        </ActionForm>
+                      ) : (
+                        <ActionForm action={completeTask} label="Done" size="xs" variant="success">
+                          <input type="hidden" name="taskId" value={t.id} />
+                          {idField}
+                        </ActionForm>
+                      )
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-muted-foreground">Nothing for staff to do.</p>
+            )}
+            {closedTasks.length > 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">{closedTasks.length} completed</p>
+            ) : null}
+          </section>
+
           {/* Booking */}
           <section className="surface p-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{app.requires_assessment ? "Assessment" : "Visit"}</h2>
+              <h2 className="text-sm font-semibold">{bookingNounTitle(nounInput)}</h2>
               {booking ? <BookingBadge status={booking.status} /> : null}
             </div>
             {booking && bookingSession ? (
@@ -450,46 +510,6 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             </section>
           ) : null}
 
-          {/* Tasks */}
-          <section className="surface p-4 text-sm">
-            <h2 className="text-sm font-semibold">Tasks</h2>
-            {openTasks.length > 0 ? (
-              <ul className="mt-2 space-y-3">
-                {openTasks.map((t) => (
-                  <li key={t.id} className="rounded-lg border border-border p-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium">{t.title}</span>
-                      <PriorityBadge priority={t.priority} />
-                    </div>
-                    {t.details ? <p className="mt-1 text-xs text-muted-foreground">{t.details}</p> : null}
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {t.due_at ? `Due ${formatDateTime(t.due_at)}` : "No due date"} · {one(t.staff_profiles)?.full_name ?? "Unassigned"}
-                    </p>
-                    {canWrite ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {t.type === "callback" && app.status === "callback_requested" ? (
-                          <ActionForm action={completeCallback} label="Called — done" size="xs" variant="success">
-                            {idField}
-                          </ActionForm>
-                        ) : (
-                          <ActionForm action={completeTask} label="Done" size="xs" variant="success">
-                            <input type="hidden" name="taskId" value={t.id} />
-                            {idField}
-                          </ActionForm>
-                        )}
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-muted-foreground">No open tasks.</p>
-            )}
-            {closedTasks.length > 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">{closedTasks.length} completed</p>
-            ) : null}
-          </section>
-
           {/* Decision */}
           {canDecide && !terminal && ["awaiting_decision", "staff_review", "new_enquiry", "visit_booked", "callback_requested", "waitlisted"].includes(app.status) ? (
             <section className="surface p-4 text-sm">
@@ -534,13 +554,51 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             ) : null}
           </section>
 
+          {/* Not now. The box says what will happen, because "deferred" on its
+              own sounds like a filing decision rather than a promise to ring
+              them. */}
+          {canWrite && !terminal && app.status !== "deferred" ? (
+            <section className="surface p-4 text-sm">
+              <h2 className="text-sm font-semibold">Defer</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                For a family who wants a place later in the year. We message them around the date and put a call on
+                the owner&rsquo;s list for the day itself. Nothing is cancelled and one click brings them back.
+              </p>
+              <ActionForm action={defer} label="Defer" variant="outline" size="sm" className="mt-2">
+                {idField}
+                <Input type="date" name="until" required aria-label="Come back to them on" />
+                <Input name="reason" placeholder="What they said (optional)" maxLength={500} />
+              </ActionForm>
+            </section>
+          ) : null}
+
+          {canWrite && app.status === "deferred" ? (
+            <section className="surface p-4 text-sm">
+              <h2 className="text-sm font-semibold">Deferred</h2>
+              <p className="mt-1">
+                Coming back to them {app.deferred_until ? <strong>{formatDate(app.deferred_until)}</strong> : "on no set date"}.
+              </p>
+              {app.deferred_reason ? <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">{app.deferred_reason}</p> : null}
+              <ActionForm action={resumeDeferred} label="They are ready — resume" variant="success" size="sm" className="mt-2">
+                {idField}
+              </ActionForm>
+            </section>
+          ) : null}
+
           {/* Withdraw */}
           {canWrite && !terminal ? (
             <section className="surface p-4 text-sm">
               <h2 className="text-sm font-semibold">Withdraw</h2>
               <ActionForm action={withdraw} label="Withdraw application" variant="destructive" size="sm" className="mt-2" confirm="Withdraw this application? Bookings and open tasks are cancelled.">
                 {idField}
-                <Input name="reason" placeholder="Reason" required minLength={3} />
+                {/* The reason in their own words is often the useful half, but
+                    it is the code that can be counted — which is why the
+                    pick-list is the required one. */}
+                <NativeSelect name="reasonCode" defaultValue="" required aria-label="Why are they withdrawing?">
+                  <option value="" disabled>Why are they withdrawing?</option>
+                  {WITHDRAWN_REASON_CODES.map((c) => <option key={c} value={c}>{WITHDRAWN_REASON_LABELS[c]}</option>)}
+                </NativeSelect>
+                <Input name="reason" placeholder="In their words" required minLength={3} />
               </ActionForm>
             </section>
           ) : null}

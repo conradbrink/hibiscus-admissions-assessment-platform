@@ -64,6 +64,8 @@ declare
   x_request uuid;
   x_payment uuid;
   x_app2 uuid;
+  -- Case 56 builds its own too, for the same reason.
+  x_deferred uuid;
   -- Phase 2 fixtures
   p2_competency uuid;
   p2_bank uuid;
@@ -2472,6 +2474,127 @@ begin
      where code = 'welcomed_on_first_day' and owner = 'staff' and is_active and due_offset_days = 0;
     if v_count <> 1 then
       v_fail := v_fail || E'\n  - ' || '55: welcomed_on_first_day is missing, not staff-owned, or not due on the day';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 56. Deferred, and why a family said no
+  --
+  -- `deferred` is the first status added to the constraint since it was
+  -- written with every phase's statuses in it, and `withdrawn_reason_code` is
+  -- the first column whose whole value is that it can only hold one of six
+  -- things. Both are only worth anything if the database refuses what is not
+  -- on the list — a typo'd status would sit in the pipeline in a column
+  -- nothing draws, and an invented reason code would quietly become a
+  -- category in the analytics.
+  --
+  -- The call the school promises to make is a task, so it obeys campus scope
+  -- like every other task: a manager at one campus must not see another
+  -- campus's deferred family, or the promise is kept by the wrong person.
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+
+    select application_id into x_deferred from public.create_application(
+      'Sec','Deferrer','sec-defer@test.invalid','sec-defer@test.invalid',null,null,
+      'Child','Z','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+
+    -- The status is on the list.
+    begin
+      update public.applications
+         set status = 'deferred', deferred_until = current_date + 30, deferred_reason = 'Moving house in March'
+       where id = x_deferred;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('56: a deferred status was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- And a near miss is not.
+    begin
+      update public.applications set status = 'defered' where id = x_deferred;
+      v_fail := v_fail || E'\n  - ' || '56: a misspelt status was accepted';
+    exception
+      when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('56: the misspelt status failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- A withdrawal reason has to be one of the six.
+    begin
+      update public.applications set withdrawn_reason_code = 'they_ghosted_us' where id = x_deferred;
+      v_fail := v_fail || E'\n  - ' || '56: an invented withdrawal reason was accepted';
+    exception
+      when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('56: the invented reason failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- The control, so the case above is the list and not the column refusing
+    -- everything: a real code, and null for the withdrawals that predate it.
+    begin
+      update public.applications set withdrawn_reason_code = 'fees' where id = x_deferred;
+      update public.applications set withdrawn_reason_code = null where id = x_deferred;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('56 control: a valid withdrawal reason was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The call the school promised, on the owner's badge at the right campus.
+    -- `apply_transition` fills `campus_id` from the application it is about
+    -- (20260904120800_workflow_engine.sql), and that column is what
+    -- `tasks_select` scopes on — a task carrying a null campus is visible to
+    -- everyone with `applications.read`, by design, for the head-office ones.
+    -- So this inserts it the way the engine would.
+    insert into public.tasks (application_id, campus_id, type, title, due_at, priority)
+    values (x_deferred, c_block7, 'deferral_due', 'Call about Child Z', now() + interval '30 days', 'normal')
+    returning id into v_id;
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.tasks where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '56: a Broadhurst manager saw Block 7''s deferred family';
+      end if;
+      select count(*) into v_count from public.applications where id = x_deferred;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '56: a Broadhurst manager saw a deferred Block 7 application';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('56: unexpected error as the Broadhurst manager: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.tasks where id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '56 control: head-office staff cannot see the deferral task at all';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('56 control: unexpected error as staff: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The follow-up exists as a pair, and the WhatsApp half is inactive until
+    -- somebody pastes the approved id in — the same state every companion
+    -- starts in, and what stops a template sending with no wording behind it.
+    --
+    -- The "active" half of that cannot be broken from here: `message_templates`
+    -- refuses an active row with no provider id, checked by trying. What this
+    -- catches is the half that can — a migration that ships the email and
+    -- forgets the companion, which is how `what_to_expect` went missing for
+    -- real families until the coverage check was written.
+    select count(*) into v_count from public.email_templates
+     where key = 'deferred_follow_up' and is_active and audience = 'parent';
+    if v_count <> 1 then
+      v_fail := v_fail || E'\n  - ' || '56: the deferral follow-up email is missing or not parent-facing';
+    end if;
+    select count(*) into v_count from public.message_templates
+     where key = 'deferred_follow_up' and not is_active;
+    if v_count <> 1 then
+      v_fail := v_fail || E'\n  - ' || '56: the deferral companion is missing, or active before it was approved';
     end if;
   end;
 

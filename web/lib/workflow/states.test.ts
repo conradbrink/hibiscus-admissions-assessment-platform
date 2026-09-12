@@ -17,15 +17,38 @@ import {
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
 
 describe("state machine", () => {
+  // The board is the funnel. Two statuses are off it on purpose: `withdrawn`,
+  // which left, and `deferred`, which is paused at the family's request and
+  // would otherwise sit in a column reading as work nobody has done. Both are
+  // still named and toned, because both are shown on the applicant.
+  const OFF_BOARD: ApplicationStatus[] = ["withdrawn", "deferred"];
+
   it("names every status once in the board and gives each a label and tone", () => {
     const onBoard = new Set(PIPELINE_GROUPS.flatMap((g) => g.statuses));
     for (const s of ALL) {
       expect(STATUS_LABELS[s]).toBeTruthy();
       expect(STATUS_TONE[s]).toBeTruthy();
-      if (s !== "withdrawn") expect(onBoard.has(s)).toBe(true);
+      if (!OFF_BOARD.includes(s)) expect(onBoard.has(s)).toBe(true);
     }
     const counted = PIPELINE_GROUPS.flatMap((g) => g.statuses);
     expect(new Set(counted).size).toBe(counted.length);
+  });
+
+  it("keeps the off-board statuses out of the columns, and only those", () => {
+    const onBoard = new Set(PIPELINE_GROUPS.flatMap((g) => g.statuses));
+    expect(ALL.filter((s) => !onBoard.has(s)).sort()).toEqual([...OFF_BOARD].sort());
+  });
+
+  it("lets a deferred family come back, and does not strand them", () => {
+    // The reason it exists: reversible in one click. A status a family cannot
+    // come back from is the Withdraw it was invented to replace.
+    expect(canTransition("deferred", "awaiting_decision")).toBe(true);
+    expect(canTransition("deferred", "withdrawn")).toBe(true);
+    expect(TERMINAL_STATUSES.has("deferred")).toBe(false);
+    // And every point a family might say "not now" can reach it.
+    for (const from of ["new_enquiry", "visit_booked", "callback_requested", "awaiting_decision", "staff_review"] as ApplicationStatus[]) {
+      expect(canTransition(from, "deferred")).toBe(true);
+    }
   });
 
   it("only ever points at real statuses", () => {

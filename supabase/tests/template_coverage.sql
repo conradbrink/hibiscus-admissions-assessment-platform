@@ -24,6 +24,19 @@
 --               deciding which of the two lists it belongs in, which is the
 --               whole point.
 
+-- Does this text read the word to somebody who is not being assessed?
+--
+-- {{#if assessed}} blocks are removed whole, then every remaining {{…}} —
+-- variable names and block markers alike — so what is searched is only what a
+-- parent actually reads.
+create or replace function pg_temp.says_assessment(p_text text) returns boolean
+language sql immutable as $$
+  select regexp_replace(
+           regexp_replace(coalesce(p_text, ''), '\{\{#if assessed\}\}.*?\{\{/if\}\}', '', 'gs'),
+           '\{\{[^}]*\}\}', '', 'g'
+         ) ilike '%assess%';
+$$;
+
 do $$
 declare
   v_list text;
@@ -87,6 +100,61 @@ begin
 
   if v_count > 0 then
     raise exception E'TEMPLATE COVERAGE: % key(s) listed as a known gap now have a companion. Remove them from known_gap:\n%', v_count, v_list;
+  end if;
+
+  -- 4. The word "assessment" must not reach a family whose child sits none.
+  --
+  --    A pre-school family read "Thank you for bringing them to the
+  --    assessment" under the subject "assessment results", because the outcome
+  --    letters were written for the only track that existed when they were
+  --    written. Branching them fixed those two; this stops the next one.
+  --
+  --    Templates on `assessed_only` are unreachable from the pre-school track:
+  --    routing never sends them to an application with
+  --    `requires_assessment = false` (web/lib/workflow/actions.ts). Everything
+  --    else a parent can receive must either not say the word, or say it
+  --    inside an {{#if assessed}} block.
+  --
+  --    Variable names are stripped before the search, so {{assessment_date}}
+  --    on a play date and {{#if no_assessment}} on an outcome letter are not
+  --    the word — they are never read by anybody.
+  create temp table if not exists assessed_only(key text primary key, why text);
+  truncate assessed_only;
+  insert into assessed_only(key, why) values
+    ('enquiry_received',        'the assessed track''s enquiry; pre-school gets preschool_enquiry_received'),
+    ('enquiry_nudge',           'chases an unbooked assessment'),
+    ('booking_confirmed',       'an assessment is booked'),
+    ('what_to_expect',          'what the assessment morning looks like'),
+    ('assessment_reminder_48h', 'reminds about an assessment'),
+    ('assessment_reminder_day', 'reminds about an assessment'),
+    ('assessment_completed',    'sent when an assessment is submitted'),
+    ('no_show_reschedule',      'nobody arrived for an assessment'),
+    ('rebook_nudge',            'chases a replacement assessment time'),
+    ('results_and_offer',       'carries results; pre-school gets preschool_offer');
+
+  select string_agg(format('  - %s (%s)', t.key, t.name), E'\n' order by t.key), count(*)
+    into v_list, v_count
+  from public.email_templates t
+  where t.is_active
+    and t.audience in ('parent', 'family')
+    and not exists (select 1 from assessed_only a where a.key = t.key)
+    and pg_temp.says_assessment(t.subject || ' ' || t.body_text || ' ' || t.body_html);
+
+  if v_count > 0 then
+    raise exception E'TEMPLATE COVERAGE: % active parent-facing email template(s) say "assessment" where a pre-school family can read it:\n%\n\nPut the sentence inside {{#if assessed}} with a pre-school sentence beside it, or add the key to assessed_only in supabase/tests/template_coverage.sql if routing can never send it to a pre-school family.', v_count, v_list;
+  end if;
+
+  select string_agg(format('  - %s (%s)', m.key, m.name), E'\n' order by m.key), count(*)
+    into v_list, v_count
+  from public.message_templates m
+  -- Inactive ones too: an inactive row is wording waiting for Meta's
+  -- approval, and the moment to catch the word is before it is submitted,
+  -- not after a parent has read it.
+  where not exists (select 1 from assessed_only a where a.key = m.key)
+    and pg_temp.says_assessment(m.body_preview);
+
+  if v_count > 0 then
+    raise exception E'TEMPLATE COVERAGE: % WhatsApp template(s) say "assessment" where a pre-school family can read it:\n%\n\nWhatsApp has no {{#if}}, so the wording has to be split into its own template — or the key belongs in assessed_only.', v_count, v_list;
   end if;
 
   -- Passing, with the outstanding gaps printed so they are seen every run.

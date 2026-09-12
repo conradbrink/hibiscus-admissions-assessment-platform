@@ -14,12 +14,15 @@ import { streetLine, telHref, whatsappHref } from "@/lib/campus-contact";
 export function TalkToUs({
   campusName,
   address,
+  mapsUrl,
   phone,
   whatsapp,
   studentFirstName,
 }: {
   campusName: string;
   address: string | null;
+  /** A link that opens the campus in a maps app, when the school has set one. */
+  mapsUrl?: string | null;
   phone: string | null;
   whatsapp: string | null;
   studentFirstName?: string | null;
@@ -65,7 +68,19 @@ export function TalkToUs({
           </a>
         ) : null}
       </div>
-      {street ? <p className="mt-3 text-muted-foreground">Or come and see us: {street}</p> : null}
+      {street ? (
+        <p className="mt-3 text-muted-foreground">
+          Or come and see us: {street}
+          {mapsUrl ? (
+            <>
+              {" · "}
+              <a href={mapsUrl} target="_blank" rel="noreferrer noopener" className="font-medium text-primary underline underline-offset-4">
+                Get directions
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
     </section>
   );
 }

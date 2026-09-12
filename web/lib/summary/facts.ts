@@ -1,5 +1,6 @@
+import { bookingNounTitle } from "@/lib/booking/noun";
 import type { ApplicationStatus } from "@/lib/supabase/types";
-import { NEXT_ACTIONS, STATUS_LABELS, TERMINAL_STATUSES, isNextAction } from "@/lib/workflow/states";
+import { nextActionCopy, STATUS_LABELS, TERMINAL_STATUSES, isNextAction } from "@/lib/workflow/states";
 
 /**
  * The applicant's story as plain facts, and the things that need a person's
@@ -23,7 +24,7 @@ export type SummaryInputs = {
   grade: string;
   intake: string;
   events: Array<{ type: string; occurred_at: string; summary: string }>;
-  booking: { starts_at: string; kind: string } | null;
+  booking: { starts_at: string; kind: "assessment" | "visit" } | null;
   attempt: { status: string; marking_status: string; submitted_at: string | null } | null;
   decision: { final_outcome: string; decided_by: string; decided_at: string; override_reason: string | null } | null;
   offer: { status: string; expires_at: string | null; sent_at: string | null } | null;
@@ -80,9 +81,9 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 const MILESTONES: Array<[string, string]> = [
-  ["booking.created", "Assessment booked"],
+  ["booking.created", "Booking made"],
   ["booking.rescheduled", "Booking changed"],
-  ["booking.no_show", "Missed the assessment"],
+  ["booking.no_show", "Did not arrive"],
   ["booking.checked_in", "Checked in"],
   ["assessment.completed", "Assessment completed"],
   ["decision.made", "Decision recorded"],
@@ -113,10 +114,11 @@ export function summaryFacts(input: SummaryInputs): { facts: string[]; flags: Fl
   }
 
   facts.push(`Status: ${STATUS_LABELS[a.status]}.`);
-  const na = isNextAction(a.next_action) ? NEXT_ACTIONS[a.next_action] : null;
+  const nounInput = { requiresAssessment: a.requires_assessment, bookingKind: input.booking?.kind ?? null };
+  const na = isNextAction(a.next_action) ? nextActionCopy(a.next_action, nounInput) : null;
   if (na && a.next_action !== "none") facts.push(`Next: ${na.staffLabel}${a.next_action_due_at ? `, due ${dayString(a.next_action_due_at)}` : ""}.`);
 
-  if (input.booking) facts.push(`${input.booking.kind === "visit" ? "Visit" : "Assessment"} booked for ${dayString(input.booking.starts_at)}.`);
+  if (input.booking) facts.push(`${bookingNounTitle(nounInput)} booked for ${dayString(input.booking.starts_at)}.`);
   if (input.attempt) {
     facts.push(
       input.attempt.status === "submitted" || input.attempt.status === "marked"

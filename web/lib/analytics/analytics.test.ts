@@ -39,6 +39,8 @@ function row(over: Partial<FactRow>): FactRow {
     heard_from: null,
     promotion_code: null,
     promotion_name: null,
+    deferred_until: null,
+    withdrawn_reason_code: null,
     ...over,
   };
 }
@@ -119,6 +121,28 @@ describe("forecast", () => {
     expect(stageOf(row({ status: "no_show", booked_at: "x" }))).toBe("booked");
     expect(stageOf(row({ status: "new_enquiry" }))).toBe("enquired");
   });
+  it("files a deferred application as neither live nor lost", () => {
+    // The trap: `stageOf` ends in a default that reads the milestone stamps,
+    // so without its own case a deferred application keeps counting as live
+    // and the forecast promises places to families who said "not now".
+    expect(stageOf(row({ status: "deferred", assessed_at: "x" }))).toBe("deferred");
+    expect(stageOf(row({ status: "deferred", booked_at: "x" }))).toBe("deferred");
+
+    // The other trap: mapping it to "closed" would score every pause as a
+    // conversion that failed and drag every stage rate down.
+    const history = [...Array(MIN_SAMPLE)].map((_, i) => (i % 2 ? enrolled : declined));
+    const withPauses = [...history, ...[...Array(MIN_SAMPLE)].map(() => row({ status: "deferred" as const, assessed_at: "x" }))];
+    expect(historicalRates(withPauses).enquired).toEqual(historicalRates(history).enquired);
+  });
+
+  it("leaves a deferred application out of the expected enrolments", () => {
+    const rates = historicalRates([]);
+    const current = [row({ status: "new_enquiry" }), row({ status: "deferred" })];
+    const l = forecast(current, rates, [{ campus_id: "c1", grade_id: "g4", capacity: 10, campus_name: "Block 7", grade_name: "Stage 4", grade_sort: 40 }])[0];
+    expect(l.pipeline).toEqual({ enquired: 1 });
+    expect(l.expected).toBe(0.3);
+  });
+
   it("uses history when there is enough of it and defaults otherwise", () => {
     const thin = historicalRates([enrolled, declined]);
     expect(thin.enquired).toMatchObject({ source: "default", rate: DEFAULT_RATES.enquired, sample: 2 });

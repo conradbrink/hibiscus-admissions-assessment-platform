@@ -16,6 +16,17 @@ describe("retentionCandidates", () => {
     ];
     expect(retentionCandidates(rows, settings, now).map((r) => r.id)).toEqual(["a", "c"]);
   });
+  it("never anonymises a deferred application", () => {
+    // A deferral is a plan, not an abandonment: the family asked us to come
+    // back. Both windows are allow-lists, so `deferred` is out by
+    // construction — this is what stops somebody adding it to one.
+    const rows = [
+      { id: "paused", status: "deferred" as const, status_changed_at: daysAgo(400), retention_hold: false, anonymised_at: null },
+    ];
+    expect(retentionCandidates(rows, settings, now)).toEqual([]);
+    expect(ABANDONED_STATUSES).not.toContain("deferred");
+    expect(CLOSED_STATUSES).not.toContain("deferred");
+  });
   it("never picks a held or already anonymised application", () => {
     const rows = [
       { id: "held", status: "withdrawn" as const, status_changed_at: daysAgo(400), retention_hold: true, anonymised_at: null },

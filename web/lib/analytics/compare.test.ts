@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { funnelCounts, groupBy, type FactRow } from "@/lib/analytics/breakdown";
-import { delta, fmtDelta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
+import { cycleTimes, funnelCounts, groupBy, type FactRow } from "@/lib/analytics/breakdown";
+import { deferredSummary, delta, fmtDelta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
 
 function row(over: Partial<FactRow>): FactRow {
   return {
@@ -8,7 +8,7 @@ function row(over: Partial<FactRow>): FactRow {
     intake_id: "i1", intake_label: "Term 1 2027", entry_route: "assessment", source: "website", requires_assessment: true, status: "new_enquiry",
     enquired_at: "2026-08-03T09:00:00Z", booked_at: null, attended_at: null, no_show_at: null, assessed_at: null, decided_at: null, offered_at: null,
     accepted_at: null, paid_at: null, enrolled_at: null, withdrawn_at: null, decision_outcome: null, offer_status: null, paid_minor: 0, emails_sent: 0,
-    messages_sent: 0, no_show_count: 0, prefilled_count: 0, prefill_changed_count: 0, registration_submitted: false, heard_from: null, promotion_code: null, promotion_name: null,
+    messages_sent: 0, no_show_count: 0, prefilled_count: 0, prefill_changed_count: 0, registration_submitted: false, heard_from: null, promotion_code: null, promotion_name: null, deferred_until: null, withdrawn_reason_code: null,
     ...over,
   };
 }
@@ -50,5 +50,48 @@ describe("comparison", () => {
     const s = shares(groupBy(rows, "campus"));
     expect(s.map((x) => x.label)).toEqual(["B", "A"]);
     expect(s[0].share).toBeCloseTo(2 / 3);
+  });
+});
+
+describe("deferred, beside the funnel", () => {
+  it("counts the paused and how many are due back inside the horizon", () => {
+    const rows = [
+      row({ status: "deferred", deferred_until: "2026-10-01" }),
+      row({ status: "deferred", deferred_until: "2027-03-01" }),
+      // A deferral with no date counts as paused but never as due: "soon" is
+      // exactly what an absent date does not say.
+      row({ status: "deferred", deferred_until: null }),
+      row({ status: "enrolled" }),
+    ];
+    expect(deferredSummary(rows, "2026-12-31")).toEqual({ count: 3, dueWithin: 1, horizon: "2026-12-31" });
+  });
+
+  it("keeps them out of the funnel entirely", () => {
+    const stages = funnelStages(funnelCounts([row({ status: "deferred", deferred_until: "2026-10-01" })]));
+    expect(stages.map((s) => s.key)).not.toContain("deferred");
+  });
+
+  it("leaves the cycle-time medians alone", () => {
+    // A six-month pause would otherwise move "days to decision" for everybody.
+    const quick = row({ status: "declined", enquired_at: "2026-08-01T00:00:00Z", assessed_at: "2026-08-01T00:00:00Z", decided_at: "2026-08-03T00:00:00Z" });
+    const paused = row({ status: "deferred", enquired_at: "2026-08-01T00:00:00Z", assessed_at: "2026-08-01T00:00:00Z", decided_at: "2027-02-01T00:00:00Z" });
+    expect(cycleTimes([quick, paused]).assessmentToDecision).toBe(2);
+  });
+
+  it("groups withdrawals by reason, naming the ones with no code", () => {
+    const groups = groupBy(
+      [
+        row({ status: "withdrawn", withdrawn_reason_code: "fees" }),
+        row({ status: "withdrawn", withdrawn_reason_code: "fees" }),
+        row({ status: "withdrawn", withdrawn_reason_code: "another_school" }),
+        row({ status: "withdrawn", withdrawn_reason_code: null }),
+        row({ status: "enrolled" }),
+      ],
+      "withdrawn_reason"
+    );
+    const byKey = Object.fromEntries(groups.map((g) => [g.key, g.counts.enquiries]));
+    expect(byKey).toEqual({ fees: 2, another_school: 1, "not recorded": 1, "still applying": 1 });
+    // Coded reasons first, then the unrecorded, then everybody else.
+    expect(groups.map((g) => g.key)).toEqual(["another_school", "fees", "not recorded", "still applying"]);
   });
 });

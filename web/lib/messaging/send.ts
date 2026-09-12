@@ -133,6 +133,16 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
     const v = vars[name];
     return sanitiseParam(v === null || v === undefined ? "" : String(v));
   });
+  // An empty placeholder is not a cosmetic problem. Meta refuses a template
+  // parameter with no text, so the send fails at the provider with an error
+  // nobody reads; and where it does not, the parent reads a sentence with a
+  // hole in it — "or message us on ." is worse than no message at all. The
+  // moment goes by email, and the reason names the variable so whoever fills
+  // it in knows which field is blank.
+  const blank = template.parameters.filter((name, i) => params[i] === "");
+  if (blank.length > 0) {
+    return skip(`the "${opts.templateKey}" template needs ${blank.join(", ")}, which ${blank.length === 1 ? "is" : "are"} not set`);
+  }
   const rendered = renderPreview(template.body_preview, params) + (buttonSuffix ? ` [${template.link_purpose} link]` : "");
 
   const { data: message, error: mErr } = await admin

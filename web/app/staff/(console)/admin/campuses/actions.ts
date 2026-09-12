@@ -18,6 +18,9 @@ const schema = z.object({
   // somebody has on a sign outside the building.
   phone: z.string().trim().max(40).optional(),
   whatsapp: z.string().trim().max(40).optional(),
+  // A shortened Google Maps link is the usual shape, but any https link a
+  // phone can open is fine; the constraint in the database says the same.
+  mapsUrl: z.union([z.literal(""), z.url().max(500).startsWith("https://")]).optional(),
   headName: z.string().trim().max(80).optional(),
   headTitle: z.string().trim().max(80).optional(),
   removeSignature: z.string().optional(),
@@ -51,6 +54,7 @@ export async function saveCampus(_: StaffActionState, formData: FormData): Promi
         address: p.address || null,
         phone: p.phone || null,
         whatsapp: p.whatsapp || null,
+        maps_url: p.mapsUrl || null,
         head_name: p.headName || null,
         head_title: p.headTitle || null,
         ...(p.removeSignature === "1" ? { signature_data_url: null } : uploaded ? { signature_data_url: uploaded } : {}),

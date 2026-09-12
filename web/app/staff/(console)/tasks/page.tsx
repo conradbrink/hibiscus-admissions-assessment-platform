@@ -76,16 +76,20 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                       <Link href={`/staff/students/${student.id}`} className="underline">
                         {student.preferred_name || student.legal_first_name} {student.legal_last_name} · {student.student_code}
                       </Link>
-                    ) : campus ? (
-                      <span>{campus.name}</span>
                     ) : null}
+                    {/* Which school. With nine campuses a task list without it
+                        is a list nobody can triage. */}
+                    {campus ? <span className={app || student ? "ml-2" : undefined}>{campus.name}</span> : null}
                     {t.due_at ? <span className={overdue ? " ml-2 font-medium text-destructive" : " ml-2"}>Due {formatDateTime(t.due_at)}</span> : null}
                   </p>
                 </div>
                 <PriorityBadge priority={t.priority} />
+                {/* Said out loud as well as set in the picker: the picker is a
+                    control, and a control is not a statement of fact. */}
+                <span className="text-xs text-muted-foreground">{assignee?.full_name ?? "Unassigned"}</span>
                 {canWrite ? (
                   <>
-                    <ActionForm action={assignTask} label="Assign" size="xs" variant="outline" className="flex items-center gap-1 space-y-0">
+                    <ActionForm action={assignTask} label="Assign" size="xs" variant="outline" resetOnSubmit={false} className="flex items-center gap-1 space-y-0">
                       <input type="hidden" name="taskId" value={t.id} />
                       {app ? <input type="hidden" name="applicationId" value={app.id} /> : null}
                       <NativeSelect name="assigneeStaffId" defaultValue={t.assignee_staff_id ?? ""} className="h-7 w-40 py-0 text-xs md:h-7">
@@ -98,9 +102,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                       {app ? <input type="hidden" name="applicationId" value={app.id} /> : null}
                     </ActionForm>
                   </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{assignee?.full_name ?? "Unassigned"}</span>
-                )}
+                ) : null}
               </li>
             );
           })}

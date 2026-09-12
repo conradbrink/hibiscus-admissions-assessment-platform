@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
+import { bookingNoun } from "@/lib/booking/noun";
 import { buildIcs } from "@/lib/email/ics";
 import { readParentSession } from "@/lib/tokens/server";
 
@@ -14,12 +15,17 @@ export async function GET() {
   if (!graph?.booking) return new Response("Not found", { status: 404 });
 
   const { application: app, campus, booking } = graph;
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
   const ics = buildIcs({
     uid: booking.id,
+    // In a calendar the child's name is what makes the entry findable, and
+    // the campus is what makes it drivable. Both, whichever this booking is.
     summary:
-      booking.kind === "assessment"
+      noun === "assessment"
         ? `${app.child_first_name} — Hibiscus assessment`
-        : `Hibiscus International Schools visit — ${campus.name}`,
+        : noun === "play date"
+          ? `${app.child_first_name} — Hibiscus play date, ${campus.name}`
+          : `Hibiscus International Schools visit — ${campus.name}`,
     description: `Reference ${app.reference}`,
     location: [campus.name, booking.session.location].filter(Boolean).join(", "),
     startsAt: new Date(booking.session.starts_at),

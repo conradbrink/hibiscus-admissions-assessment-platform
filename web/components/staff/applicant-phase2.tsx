@@ -107,8 +107,11 @@ export async function ApplicantPhase2({
     <section className="surface p-4">
       <Tabs defaultValue={app.requires_assessment ? "assessment" : "decision"}>
         <TabsList>
-          <TabsTrigger value="assessment">Assessment</TabsTrigger>
-          <TabsTrigger value="profile">Learning profile</TabsTrigger>
+          {/* A pre-school applicant has neither, and a tab whose whole content
+              is "there is nothing here" is one everybody clicks once. The fact
+              is already to hand — the Downloads list reads it too. */}
+          {app.requires_assessment ? <TabsTrigger value="assessment">Assessment</TabsTrigger> : null}
+          {app.requires_assessment ? <TabsTrigger value="profile">Learning profile</TabsTrigger> : null}
           <TabsTrigger value="decision">Decision</TabsTrigger>
           <TabsTrigger value="offer">Offer</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
@@ -117,78 +120,77 @@ export async function ApplicantPhase2({
           <TabsTrigger value="downloads">Downloads</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="assessment" className="text-sm">
-          {!app.requires_assessment ? (
-            <p className="text-muted-foreground">Pre-school applicant: no assessment is required.</p>
-          ) : attempts?.length ? (
-            <div className="space-y-3">
-              {attempts.map((at) => (
-                <div key={at.id} className="rounded-lg border border-border p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/staff/assessments/attempts/${at.id}`} className="font-medium hover:underline">Sitting on {formatDate(at.launched_at)}</Link>
-                    {at.marking_status === "complete" ? (
-                      <a href={`/staff/assessments/attempts/${at.id}/report`} target="_blank" rel="noopener" className="ml-2 text-xs font-medium text-primary hover:underline">Print report (PDF)</a>
-                    ) : null}
-                    <Badge variant={at.status === "marked" ? "success" : at.status === "abandoned" ? "secondary" : "info"}>{at.status.replace("_", " ")}</Badge>
-                    {at.status === "submitted" ? <Badge variant={at.marking_status === "awaiting_rubric" ? "warning" : "secondary"}>{at.marking_status.replace("_", " ")}</Badge> : null}
-                    {at.auto_submitted ? <span className="text-xs text-muted-foreground">auto-submitted at time limit</span> : null}
-                    {at.time_multiplier !== 1 ? <span className="text-xs text-muted-foreground">{at.time_multiplier}× time{at.accommodation_note ? `: ${at.accommodation_note}` : ""}</span> : null}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {at.started_at ? `Started ${formatDateTime(at.started_at)}` : "Not started"}{at.submitted_at ? ` · submitted ${formatDateTime(at.submitted_at)}` : ""}
-                  </p>
-                  {at.id === latestAttempt?.id && scores?.length ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {[...scores]
-                        .sort((x, y) => (x.scope === "overall" ? -1 : y.scope === "overall" ? 1 : x.scope.localeCompare(y.scope)))
-                        .map((s) => (
-                          <span key={`${s.scope}:${s.scope_id}`} className="rounded-md border border-border px-2 py-0.5 text-xs">
-                            {scopeName(s.scope, s.scope_id)} {s.percent}% · <span className={bandClass(s.band)}>{BAND_LABELS[s.band as BenchmarkBand] ?? s.band}</span>
-                          </span>
-                        ))}
+        {app.requires_assessment ? (
+          <>
+          <TabsContent value="assessment" className="text-sm">
+            {attempts?.length ? (
+              <div className="space-y-3">
+                {attempts.map((at) => (
+                  <div key={at.id} className="rounded-lg border border-border p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={`/staff/assessments/attempts/${at.id}`} className="font-medium hover:underline">Sitting on {formatDate(at.launched_at)}</Link>
+                      {at.marking_status === "complete" ? (
+                        <a href={`/staff/assessments/attempts/${at.id}/report`} target="_blank" rel="noopener" className="ml-2 text-xs font-medium text-primary hover:underline">Print report (PDF)</a>
+                      ) : null}
+                      <Badge variant={at.status === "marked" ? "success" : at.status === "abandoned" ? "secondary" : "info"}>{at.status.replace("_", " ")}</Badge>
+                      {at.status === "submitted" ? <Badge variant={at.marking_status === "awaiting_rubric" ? "warning" : "secondary"}>{at.marking_status.replace("_", " ")}</Badge> : null}
+                      {at.auto_submitted ? <span className="text-xs text-muted-foreground">auto-submitted at time limit</span> : null}
+                      {at.time_multiplier !== 1 ? <span className="text-xs text-muted-foreground">{at.time_multiplier}× time{at.accommodation_note ? `: ${at.accommodation_note}` : ""}</span> : null}
                     </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              Not sat yet. On the day, open the{" "}
-              <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
-              , check the child in and press Launch. The six-letter code and the address of the assessment page are shown there for the assessment computer.
-            </p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="profile" className="text-sm">
-          {!app.requires_assessment ? (
-            <p className="text-muted-foreground">No assessment, so no learning profile.</p>
-          ) : profile && computed && narrative?.success ? (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {profile.published_at ? `Published ${formatDateTime(profile.published_at)}` : "Not published"} · {profile.narrative_source === "ai" ? `AI narrative (${profile.ai_model ?? "model"}), validation ${profile.validation_status}` : `standard wording${profile.validation_status === "failed" ? " because the AI text failed validation" : ""}`}
-              </p>
-              <p>{narrative.data.summary}</p>
-              {narrative.data.strengths_text ? <p><span className="font-medium">Strengths.</span> {narrative.data.strengths_text}</p> : null}
-              {narrative.data.development_text ? <p><span className="font-medium">Next steps.</span> {narrative.data.development_text}</p> : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {computed.subjects.map((s) => (
-                  <div key={s.id} className="rounded-lg border border-border p-2">
-                    <p className="flex justify-between font-medium"><span>{s.name}</span><span className="tabular-nums">{s.percent}%</span></p>
-                    <ul className="mt-1 text-xs text-muted-foreground">
-                      {computed.competencies.filter((c) => c.subjectId === s.id).map((c) => (
-                        <li key={c.id} className="flex justify-between"><span>{c.name}</span><span>{c.percent}% · {BAND_LABELS[c.band]}</span></li>
-                      ))}
-                    </ul>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {at.started_at ? `Started ${formatDateTime(at.started_at)}` : "Not started"}{at.submitted_at ? ` · submitted ${formatDateTime(at.submitted_at)}` : ""}
+                    </p>
+                    {at.id === latestAttempt?.id && scores?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {[...scores]
+                          .sort((x, y) => (x.scope === "overall" ? -1 : y.scope === "overall" ? 1 : x.scope.localeCompare(y.scope)))
+                          .map((s) => (
+                            <span key={`${s.scope}:${s.scope_id}`} className="rounded-md border border-border px-2 py-0.5 text-xs">
+                              {scopeName(s.scope, s.scope_id)} {s.percent}% · <span className={bandClass(s.band)}>{BAND_LABELS[s.band as BenchmarkBand] ?? s.band}</span>
+                            </span>
+                          ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">The parent reads this at their profile link. Bands are the school&rsquo;s benchmarks; the wording never diagnoses or ranks.</p>
-            </div>
-          ) : (
-            <p className="text-muted-foreground">Generated automatically once the assessment is marked.</p>
-          )}
-        </TabsContent>
+            ) : (
+              <p className="text-muted-foreground">
+                Not sat yet. On the day, open the{" "}
+                <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
+                , check the child in and press Launch. The six-letter code and the address of the assessment page are shown there for the assessment computer.
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent value="profile" className="text-sm">
+            {profile && computed && narrative?.success ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  {profile.published_at ? `Published ${formatDateTime(profile.published_at)}` : "Not published"} · {profile.narrative_source === "ai" ? `AI narrative (${profile.ai_model ?? "model"}), validation ${profile.validation_status}` : `standard wording${profile.validation_status === "failed" ? " because the AI text failed validation" : ""}`}
+                </p>
+                <p>{narrative.data.summary}</p>
+                {narrative.data.strengths_text ? <p><span className="font-medium">Strengths.</span> {narrative.data.strengths_text}</p> : null}
+                {narrative.data.development_text ? <p><span className="font-medium">Next steps.</span> {narrative.data.development_text}</p> : null}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {computed.subjects.map((s) => (
+                    <div key={s.id} className="rounded-lg border border-border p-2">
+                      <p className="flex justify-between font-medium"><span>{s.name}</span><span className="tabular-nums">{s.percent}%</span></p>
+                      <ul className="mt-1 text-xs text-muted-foreground">
+                        {computed.competencies.filter((c) => c.subjectId === s.id).map((c) => (
+                          <li key={c.id} className="flex justify-between"><span>{c.name}</span><span>{c.percent}% · {BAND_LABELS[c.band]}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">The parent reads this at their profile link. Bands are the school&rsquo;s benchmarks; the wording never diagnoses or ranks.</p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Generated automatically once the assessment is marked.</p>
+            )}
+          </TabsContent>
+          </>
+        ) : null}
 
         <TabsContent value="decision" className="text-sm">
           {decisions?.length ? (

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { wrapHtml } from "@/lib/email/layout";
 import { renderHtml, renderSubject, validateTemplate, type TemplateVariables } from "@/lib/email/render";
+import { submitWithoutReset } from "@/lib/staff/submit-without-reset";
 
 /** Sample values so the preview reads like a real email. */
 const SAMPLE: TemplateVariables = {
@@ -81,7 +82,7 @@ export function TemplateEditor({
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <form action={formAction} className="space-y-4">
+      <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
         <input type="hidden" name="key" value={template.key} />
         <div className="space-y-1"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={template.name} required /></div>
         <div className="space-y-1"><Label htmlFor="description">When it is sent</Label><Input id="description" name="description" defaultValue={template.description ?? ""} /></div>
