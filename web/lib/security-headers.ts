@@ -19,14 +19,28 @@
  *     will be sent, a template as it will render), which is why `frame-src`
  *     is `'self'` rather than `'none'`.
  *
- * `script-src` keeps `'unsafe-inline'`. Next's App Router ships an inline
- * bootstrap with every page, and the gateway bridge submits its form from an
- * inline script; a nonce would be better and needs the proxy to mint one per
- * request and Next to be told about it. That is a change worth making on its
- * own, with its own testing — and the rest of the policy is worth having
- * today: it still stops a foreign script being *loaded*, stops the console
- * being framed, stops a form being re-pointed at somebody else's server, and
- * stops plugins and base-tag rewrites outright.
+ * `script-src` is nonce-based. The proxy mints one random nonce per request,
+ * puts it in the request's own CSP header — which is how Next is told to
+ * stamp it on the scripts it injects — and in the response header the browser
+ * enforces. An injected `<script>` cannot guess the nonce, so a stored XSS
+ * has nothing to execute with.
+ *
+ * Three pieces of it are deliberate:
+ *
+ *   'strict-dynamic'  a script that carries the nonce may load the chunks it
+ *                     needs. Without it every chunk filename would have to be
+ *                     allow-listed, which is not a thing anybody maintains.
+ *   'unsafe-inline'   ignored by every browser that understands nonces, which
+ *                     is every browser that matters. It is here for a browser
+ *                     old enough to understand neither, where the choice is
+ *                     between a working page and a broken one.
+ *   'self'            likewise ignored where 'strict-dynamic' applies.
+ *
+ * The nonce only reaches the HTML of a page Next renders per request, so the
+ * root layout forces dynamic rendering. A prerendered page would carry the
+ * build's HTML with no nonce in it and every script on it would be refused —
+ * which is exactly what the enquiry form and the sign-in page did when this
+ * was first tried.
  */
 
 export type SecurityHeader = { key: string; value: string };
@@ -49,7 +63,10 @@ function sentryOrigin(dsn: string | undefined): string | null {
   return origin;
 }
 
-export function contentSecurityPolicy(env: NodeJS.ProcessEnv = process.env): string {
+export function contentSecurityPolicy(
+  env: NodeJS.ProcessEnv = process.env,
+  opts: { nonce?: string } = {}
+): string {
   const supabase = originOf(env.NEXT_PUBLIC_SUPABASE_URL);
   const sentry = sentryOrigin(env.NEXT_PUBLIC_SENTRY_DSN);
 
@@ -68,7 +85,12 @@ export function contentSecurityPolicy(env: NodeJS.ProcessEnv = process.env): str
     // The sandboxed srcdoc previews are same-origin documents.
     ["frame-src", ["'self'"]],
     ["form-action", ["'self'", ...GATEWAY_FORM_TARGETS]],
-    ["script-src", ["'self'", "'unsafe-inline'"]],
+    [
+      "script-src",
+      opts.nonce
+        ? ["'self'", "'unsafe-inline'", `'nonce-${opts.nonce}'`, "'strict-dynamic'"]
+        : ["'self'", "'unsafe-inline'"],
+    ],
     ["style-src", ["'self'", "'unsafe-inline'"]],
     ["img-src", img],
     ["font-src", ["'self'", "data:"]],
@@ -100,18 +122,19 @@ export function contentSecurityPolicy(env: NodeJS.ProcessEnv = process.env): str
  *   X-Frame-Options the same as frame-ancestors for browsers that predate it.
  */
 export function securityHeaders(env: NodeJS.ProcessEnv = process.env): SecurityHeader[] {
-  // `headers()` is evaluated once, at build time, and baked into the routes
-  // manifest — so a Supabase URL missing from the *build* environment would
-  // ship a `connect-src 'self'` that quietly blocks signing in and uploading
-  // a document, with nothing failing until a parent tried. A build that
-  // cannot state the policy correctly should not produce one.
+  // The CSP is built per request now, but this check stays here because this
+  // is the function the build calls: a Supabase URL missing from the *build*
+  // environment would still reach the browser as a `connect-src` that blocks
+  // signing in, with nothing failing until somebody tried.
   if (!originOf(env.NEXT_PUBLIC_SUPABASE_URL)) {
     throw new Error(
       "NEXT_PUBLIC_SUPABASE_URL must be set (and a valid URL) when building: the Content-Security-Policy names it, and without it the browser cannot reach Supabase."
     );
   }
   return [
-    { key: "Content-Security-Policy", value: contentSecurityPolicy(env) },
+    // No Content-Security-Policy here: it carries a per-request nonce, so the
+    // proxy sets it. A header in this list would be a second, nonce-less
+    // policy enforced alongside it.
     { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "X-Frame-Options", value: "DENY" },
@@ -129,3 +152,11 @@ export function securityHeaders(env: NodeJS.ProcessEnv = process.env): SecurityH
  * enquiry form is deliberately not on this list: the school links to it.
  */
 export const NOINDEX_PATHS = ["/staff/:path*", "/a/:path*", "/sit/:path*", "/family/:path*", "/next/:path*", "/offer/:path*", "/pay/:path*", "/register/:path*", "/profile/:path*"];
+
+/**
+ * A fresh nonce for one request. Base64 of 16 random bytes: unguessable, and
+ * short enough not to bloat every script tag on the page.
+ */
+export function newNonce(random: () => Uint8Array = () => crypto.getRandomValues(new Uint8Array(16))): string {
+  return Buffer.from(random()).toString("base64");
+}

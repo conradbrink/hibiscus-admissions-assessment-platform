@@ -6,18 +6,46 @@ import {
   matchesPrefix,
   toPermissionSet,
 } from "@/lib/permissions";
+import { contentSecurityPolicy, newNonce } from "@/lib/security-headers";
 
 /**
- * Session refresh and path authorisation for the **staff** console.
+ * Two jobs, and they have different scopes.
  *
- * The matcher below is `/staff/:path*` and nothing else. Parent pages are
- * deliberately outside it: they have no Supabase session to refresh, and
- * running a `getUser()` round trip on every parent page load would slow the
- * one part of the product where speed is the whole point. Parent access is
- * checked by `lib/tokens` inside each route.
+ * **Every** HTML request gets a Content-Security-Policy carrying a fresh
+ * nonce. The nonce goes into the *request* headers as well, because that is
+ * how Next is told to stamp it onto the scripts it injects, and into `x-nonce`
+ * for the one route that writes its own inline script (the payment gateway
+ * bridge).
+ *
+ * **Only** `/staff` gets the session refresh and the path authorisation.
+ * Parent pages are deliberately outside that: they have no Supabase session
+ * to refresh, and a `getUser()` round trip on every parent page load would
+ * slow the one part of the product where speed is the whole point. Parent
+ * access is checked by `lib/tokens` inside each route.
+ *
+ * The matcher below therefore covers everything except the static assets,
+ * where a policy would be noise, and `/api`, whose route handlers return
+ * JSON, authenticate themselves and must never meet the redirect below.
  */
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const nonce = newNonce();
+  const csp = contentSecurityPolicy(process.env, { nonce });
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  // Next reads the policy from the request to find the nonce to stamp.
+  requestHeaders.set("Content-Security-Policy", csp);
+
+  const withPolicy = <T extends NextResponse>(res: T): T => {
+    res.headers.set("Content-Security-Policy", csp);
+    return res;
+  };
+
+  let response = withPolicy(NextResponse.next({ request: { headers: requestHeaders } }));
+
+  // Everything below is the staff console's. A parent page has its policy and
+  // is on its way.
+  const staffPath = request.nextUrl.pathname === "/staff" || request.nextUrl.pathname.startsWith("/staff/");
+  if (!staffPath) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +59,7 @@ export async function proxy(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          response = NextResponse.next({ request });
+          response = withPolicy(NextResponse.next({ request: { headers: requestHeaders } }));
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -58,14 +86,14 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/staff/login";
     url.search = "";
-    return NextResponse.redirect(url);
+    return withPolicy(NextResponse.redirect(url));
   }
 
   if (user && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/staff";
     url.search = "";
-    return NextResponse.redirect(url);
+    return withPolicy(NextResponse.redirect(url));
   }
 
   if (user && !isLoginPage && !isPasswordResetPage) {
@@ -77,9 +105,8 @@ export async function proxy(request: NextRequest) {
     // permissions. Falling through to "nothing" on a timeout would strand an
     // administrator on the no-access page looking like a broken account.
     if (permissionError) {
-      return new NextResponse(
-        "Could not check your access just now. Reload in a moment.",
-        { status: 503 }
+      return withPolicy(
+        new NextResponse("Could not check your access just now. Reload in a moment.", { status: 503 })
       );
     }
 
@@ -91,7 +118,7 @@ export async function proxy(request: NextRequest) {
       url.search = "";
       // Guard against a home that is itself refused, which would loop.
       if (url.pathname === pathname) return response;
-      return NextResponse.redirect(url);
+      return withPolicy(NextResponse.redirect(url));
     }
   }
 
@@ -99,7 +126,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Route handlers under /api authenticate themselves and return a real 401;
-  // a redirect there would replay a POST against the login page.
-  matcher: ["/staff/:path*"],
+  // Everything that is a document, because every document needs the policy.
+  // Not the static assets — a policy on a chunk is noise — and not `/api`,
+  // whose route handlers return JSON, authenticate themselves and would be
+  // wrecked by the redirect above replaying a POST against the login page.
+  matcher: ["/((?!_next/static|_next/image|api/|favicon.ico|icon.png|apple-icon.png).*)"],
 };
