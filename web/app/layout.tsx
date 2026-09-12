@@ -12,6 +12,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * Every page is rendered per request, because every page carries a
+ * Content-Security-Policy nonce and a nonce cannot be prerendered: the HTML
+ * built once at deploy time would name a nonce that no later response's
+ * header agrees with, and the browser would refuse every script on the page.
+ *
+ * Six pages were prerendered before this — the enquiry form, the sign-in
+ * page, the two password pages, "no access" and the kiosk's "you are done" —
+ * and all six broke exactly that way when the nonce was first switched on.
+ * Setting it here rather than on each of them means a page added later cannot
+ * quietly become static and break in a browser rather than in CI.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "Hibiscus International Schools Admissions",

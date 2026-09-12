@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { escapeHtml } from "@/lib/email/render";
 import { paygateConfig } from "@/lib/payments/paygate";
@@ -17,6 +18,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: Request): Promise<Response> {
   if (paymentProviderName() !== "paygate") redirect("/pay");
+  // The one inline script this application writes by hand. It carries the
+  // request's nonce or the browser refuses it — and the form below still has
+  // its own button, so a parent gets to the gateway either way.
+  const nonce = (await headers()).get("x-nonce") ?? "";
   const session = await requireParentSession();
   const ref = new URL(request.url).searchParams.get("ref") ?? "";
   const admin = createAdminClient();
@@ -39,6 +44,6 @@ export async function GET(request: Request): Promise<Response> {
 <input type="hidden" name="CHECKSUM" value="${escapeHtml(checksum)}">
 <button type="submit">Continue to payment</button>
 </form>
-<script>document.getElementById("f").submit();</script></main></body></html>`;
+<script${nonce ? ` nonce="${escapeHtml(nonce)}"` : ""}>document.getElementById("f").submit();</script></main></body></html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } });
 }

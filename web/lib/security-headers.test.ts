@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentSecurityPolicy, NOINDEX_PATHS, securityHeaders } from "@/lib/security-headers";
+import { contentSecurityPolicy, newNonce, NOINDEX_PATHS, securityHeaders } from "@/lib/security-headers";
 
 const ENV = {
   NEXT_PUBLIC_SUPABASE_URL: "https://vzndqhghfaayhbuiaaga.supabase.co",
@@ -18,6 +18,23 @@ function directives(csp: string): Record<string, string[]> {
 
 describe("content security policy", () => {
   const d = directives(contentSecurityPolicy(ENV));
+
+  it("names the request's nonce, and trusts what that script loads", () => {
+    const withNonce = directives(contentSecurityPolicy(ENV, { nonce: "AbC123==" }));
+    expect(withNonce["script-src"]).toContain("'nonce-AbC123=='");
+    // Without 'strict-dynamic' every chunk filename would need allow-listing.
+    expect(withNonce["script-src"]).toContain("'strict-dynamic'");
+    // Kept, and ignored by every browser that understands nonces. It is here
+    // so a browser too old for either gets a working page rather than a blank
+    // one; it buys such a browser no protection, and costs the rest none.
+    expect(withNonce["script-src"]).toContain("'unsafe-inline'");
+  });
+
+  it("falls back to inline-permitting when no nonce is given", () => {
+    // The shape a caller gets if it forgets the nonce: weaker, but a working
+    // page rather than one with every script refused.
+    expect(d["script-src"]).toEqual(["'self'", "'unsafe-inline'"]);
+  });
 
   it("refuses to be framed, and says so twice", () => {
     // The modern directive and the header older browsers read.
@@ -49,10 +66,6 @@ describe("content security policy", () => {
   });
 
   it("still loads scripts only from this origin", () => {
-    // 'unsafe-inline' is present and deliberate (Next's inline bootstrap and
-    // the gateway bridge). What must never appear is a foreign host or
-    // 'unsafe-eval'.
-    expect(d["script-src"]).toEqual(["'self'", "'unsafe-inline'"]);
     expect(d["script-src"]).not.toContain("'unsafe-eval'");
     expect(contentSecurityPolicy(ENV)).not.toMatch(/script-src[^;]*\*(?!\.)/);
   });
@@ -111,9 +124,15 @@ describe("the other headers", () => {
     ).toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
   });
 
+  it("leaves the policy to the proxy, which is the only thing that knows the nonce", () => {
+    // Two Content-Security-Policy headers are both enforced. A second one
+    // here, without a nonce, would be a policy the nonce'd scripts also have
+    // to satisfy — and the reason for the first one would be gone.
+    expect(byKey["Content-Security-Policy"]).toBeUndefined();
+  });
+
   it("covers every header a reviewer expects to find", () => {
     expect(Object.keys(byKey).sort()).toEqual([
-      "Content-Security-Policy",
       "Cross-Origin-Opener-Policy",
       "Permissions-Policy",
       "Referrer-Policy",
@@ -135,5 +154,21 @@ describe("what search engines may index", () => {
     // The school links to /join from its website; a noindex there would be a
     // security control applied to the one page that wants to be found.
     expect(NOINDEX_PATHS.some((p) => p.startsWith("/join"))).toBe(false);
+  });
+});
+
+describe("the nonce itself", () => {
+  it("is different every time", () => {
+    const many = new Set(Array.from({ length: 200 }, () => newNonce()));
+    expect(many.size).toBe(200);
+  });
+
+  it("is base64 of sixteen bytes, which is 24 characters", () => {
+    expect(newNonce()).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+  });
+
+  it("carries the randomness it was given, rather than inventing any", () => {
+    const fixed = () => new Uint8Array(16).fill(7);
+    expect(newNonce(fixed)).toBe(Buffer.from(new Uint8Array(16).fill(7)).toString("base64"));
   });
 });

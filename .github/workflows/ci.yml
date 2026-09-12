@@ -65,6 +65,10 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://placeholder.example
         run: npm run build
 
+      - name: Every page is rendered per request (the CSP nonce depends on it)
+        working-directory: web
+        run: npm run check:nonce-safe
+
   dependencies:
     name: Dependency audit
     runs-on: ubuntu-latest
