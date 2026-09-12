@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
@@ -20,7 +21,7 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
-import { recordDecision, resumeDeferred } from "@/app/staff/(console)/applications/[id]/actions";
+import { recordDecision, resumeDeferred, setDayPattern } from "@/app/staff/(console)/applications/[id]/actions";
 
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
@@ -40,6 +41,7 @@ export async function ApplicantPhase2({
   gradeSort,
   sendWhatsApp,
   decision,
+  dayPattern,
 }: {
   supabase: StaffContext["supabase"];
   permissions: PermissionSet;
@@ -59,6 +61,12 @@ export async function ApplicantPhase2({
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
   };
+  /**
+   * Half day or full day, for the pre-school grades priced both ways. Null
+   * for every grade that is not. It sits on the Offer tab because that is the
+   * only thing it changes: which term fee the next letter quotes.
+   */
+  dayPattern: { value: "half" | "full" | null; canSet: boolean } | null;
 }) {
   const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
@@ -301,6 +309,29 @@ export async function ApplicantPhase2({
         </TabsContent>
 
         <TabsContent value="offer" className="text-sm">
+          {dayPattern ? (
+            <div className="mb-4 rounded-lg border border-border p-3">
+              <h3 className="font-semibold">Full or half day?</h3>
+              <p className="mt-1">
+                {dayPattern.value === "half" ? "Half day" : dayPattern.value === "full" ? "Full day" : "Not decided yet"}
+              </p>
+              {dayPattern.canSet ? (
+                <ActionForm action={setDayPattern} label="Save" variant="outline" size="sm" className="mt-2">
+                  {idField}
+                  <NativeSelect name="dayPattern" defaultValue={dayPattern.value ?? ""} aria-label="Full or half day">
+                    <option value="">Not decided yet</option>
+                    <option value="half">Half day</option>
+                    <option value="full">Full day</option>
+                  </NativeSelect>
+                  <p className="text-xs text-muted-foreground">
+                    Decides which term fee the next offer letter quotes. While this is undecided the letter shows both
+                    rates and asks the family to confirm; either way, tuition is invoiced and is not payable to accept
+                    the offer. An offer already sent keeps the fees it was drafted with.
+                  </p>
+                </ActionForm>
+              ) : null}
+            </div>
+          ) : null}
           {offers === null ? (
             <p className="text-muted-foreground">You do not have permission to see offers.</p>
           ) : liveOffer ? (

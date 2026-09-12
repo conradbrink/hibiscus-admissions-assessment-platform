@@ -16,7 +16,8 @@ export type NavIcon =
   | "payments" | "registrations" | "export" | "students" | "onboarding" | "reenrolment" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
-  | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs";
+  | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
+  | "orientation";
 
 export type NavItem = {
   href: string;
@@ -75,6 +76,13 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
     items: [{ href: "/staff/admin", label: "Settings", icon: "settings", permission: "applications.read" }],
+  },
+  // Its own group, and last. It carries no permission — everybody who can
+  // sign in may read it — and `visibleNavGroups` drops it the moment the
+  // person has finished, which is the point of it being here at all.
+  {
+    label: null,
+    items: [{ href: "/staff/orientation", label: "Orientation", icon: "orientation" }],
   },
 ];
 
@@ -142,8 +150,17 @@ function allowed(permissions: PermissionSet, item: NavItem): boolean {
   return (item.permission === undefined || permissions.has("admin") || permissions.has(item.permission)) && canAccessPath(permissions, item.href);
 }
 
-export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
-  const groups = NAV_GROUPS.map((group) => ({ label: group.label, items: group.items.filter((item) => allowed(permissions, item)) }));
+export function visibleNavGroups(permissions: PermissionSet, options?: { orientationDone?: boolean }): NavGroup[] {
+  const groups = NAV_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.items.filter(
+      (item) =>
+        allowed(permissions, item) &&
+        // Finished it? It goes away. Still reachable by its address, and by
+        // the link on the account page, for looking something up.
+        !(item.href === "/staff/orientation" && options?.orientationDone)
+    ),
+  }));
   // The Settings door only shows when something is behind it for this person.
   return groups
     .map((g) => (g.items.some((i) => i.href === "/staff/admin") && visibleSettingsSections(permissions).length === 0 ? { ...g, items: [] } : g))

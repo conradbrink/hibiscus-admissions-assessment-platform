@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { TriangleAlert, ArrowRight, CalendarDays, SquareCheck, CreditCard, FileText, Scale, Users } from "lucide-react";
+import { redirect } from "next/navigation";
+import { TriangleAlert, ArrowRight, CalendarDays, Compass, SquareCheck, CreditCard, FileText, Scale, Users } from "lucide-react";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { StatTile } from "@/components/staff/stat-tile";
 import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
 import { bookingNounTitle } from "@/lib/booking/noun";
 import { formatDate, formatTime, toSchoolDateString } from "@/lib/format-date";
 import { bookedRowLabel, bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
+import { orientationProgress } from "@/lib/orientation";
 import { requireStaff } from "@/lib/staff/session";
 
 type Counts = Record<string, number>;
@@ -17,7 +19,16 @@ type Counts = Record<string, number>;
  * zero is not shown: a quiet dashboard is the goal, not a full one.
  */
 export default async function DashboardPage() {
-  const { supabase, userId } = await requireStaff("applications.read");
+  const { supabase, userId, profile } = await requireStaff("applications.read");
+
+  // A colleague who has never opened the orientation is sent to it once —
+  // this is the screen they land on when they sign in, so it is the place to
+  // do it. Once they have read a single screen they are never redirected
+  // again: the card below keeps it in front of them instead, and a person
+  // halfway through their first week should not have to fight the dashboard
+  // to get at their work.
+  const orientation = orientationProgress(profile.orientation_read);
+  if (orientation.read === 0 && !profile.orientation_completed_at) redirect("/staff/orientation");
   const now = new Date();
   const today = toSchoolDateString(now);
   const weekEnd = new Date(now);
@@ -131,6 +142,23 @@ export default async function DashboardPage() {
   return (
     <>
       <PageTitle title="Dashboard" />
+
+      {/* Until it is finished. Then it goes, along with the menu item. */}
+      {!profile.orientation_completed_at ? (
+        <Link
+          href={`/staff/orientation/${orientation.remaining[0]?.slug ?? ""}`}
+          className="surface mb-4 flex flex-wrap items-center gap-3 border-primary/30 px-5 py-3.5 text-sm transition-shadow hover:shadow-lift"
+        >
+          <Compass className="size-5 shrink-0 text-primary" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Finish your orientation</span>
+            <span className="block text-xs text-muted-foreground">
+              {orientation.read} of {orientation.total} read · next up: {orientation.remaining[0]?.title}
+            </span>
+          </span>
+          <ArrowRight className="size-4 text-muted-foreground" aria-hidden />
+        </Link>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

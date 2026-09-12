@@ -2708,6 +2708,94 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 58. Orientation progress: your own row, and only two columns of it
+  -- -------------------------------------------------------------------------
+  -- The orientation is the one thing a member of staff writes to their own
+  -- staff_profiles row. It is done through a definer function rather than a
+  -- policy, because RLS grants a row and not a column: a policy generous
+  -- enough to tick off a page of reading would be generous enough to set
+  -- is_active. These checks are what stops that being quietly loosened.
+  declare
+    v_read text[];
+    v_done timestamptz;
+    v_active boolean;
+  begin
+    perform pg_temp.impersonate(u_assessor);
+    perform public.mark_orientation_read('signing-in', false);
+    perform public.mark_orientation_read('signing-in', false);  -- twice is once
+    perform public.mark_orientation_read('dashboard', true);
+    perform pg_temp.service();
+
+    select orientation_read, orientation_completed_at into v_read, v_done
+      from public.staff_profiles where id = u_assessor;
+    if array_length(v_read, 1) <> 2 then
+      v_fail := v_fail || E'\n  - ' || '58: the assessor''s own progress was not recorded once per screen';
+    end if;
+    if v_done is null then
+      v_fail := v_fail || E'\n  - ' || '58: finishing did not set orientation_completed_at';
+    end if;
+
+    -- Somebody else's row is untouched by anything they can call.
+    select orientation_read into v_read from public.staff_profiles where id = u_staff;
+    if coalesce(array_length(v_read, 1), 0) <> 0 then
+      v_fail := v_fail || E'\n  - ' || '58: one person''s orientation reached another person''s row';
+    end if;
+
+    -- The column a person may not set on themselves. `staff_profiles_update`
+    -- lets anyone write their own row — meant for their name and their digest
+    -- preference — and a row is not a column, so is_active came with it. A
+    -- deactivated account still holds a session cookie until it expires; this
+    -- is what stops it switching itself back on.
+    begin
+      perform pg_temp.impersonate(u_assessor);
+      update public.staff_profiles set is_active = false, full_name = 'Renamed by themselves'
+       where id = u_assessor;
+      perform pg_temp.service();
+      select is_active into v_active from public.staff_profiles where id = u_assessor;
+      if v_active is not true then
+        v_fail := v_fail || E'\n  - ' || '58: a member of staff set is_active on their own row';
+      end if;
+      -- The harmless half still goes through, or the guard is a blanket ban
+      -- dressed up as a rule.
+      if (select full_name from public.staff_profiles where id = u_assessor) <> 'Renamed by themselves' then
+        v_fail := v_fail || E'\n  - ' || '58 control: a member of staff could not change their own name';
+      end if;
+    exception
+      when others then
+        perform pg_temp.service();
+        v_fail := v_fail || E'\n  - ' || ('58: the self-update failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- And the people whose job it is are untouched: Settings → Staff and
+    -- roles writes this same column through this same table.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      update public.staff_profiles set is_active = false where id = u_staff;
+      perform pg_temp.service();
+      if (select is_active from public.staff_profiles where id = u_staff) is not false then
+        v_fail := v_fail || E'\n  - ' || '58 control: staff.write could no longer deactivate a colleague';
+      end if;
+      update public.staff_profiles set is_active = true where id = u_staff;
+    exception
+      when others then
+        perform pg_temp.service();
+        v_fail := v_fail || E'\n  - ' || ('58 control: the administrator was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A slug is text, and text from a browser: the function refuses the
+    -- shapes that are not a screen rather than storing them.
+    begin
+      perform pg_temp.impersonate(u_assessor);
+      perform public.mark_orientation_read(repeat('x', 200), false);
+      v_fail := v_fail || E'\n  - ' || '58: an over-long slug was accepted';
+    exception when others then null;
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

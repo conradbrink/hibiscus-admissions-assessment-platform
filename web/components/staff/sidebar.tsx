@@ -71,9 +71,17 @@ export function StaffSidebar({ groups, name, email }: { groups: NavGroup[]; name
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground">{initials(name || email)}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-foreground">{name || email}</p>
-        <button type="button" onClick={signOut} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-          <LogOut className="size-3" aria-hidden /> Sign out
-        </button>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <button type="button" onClick={signOut} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+            <LogOut className="size-3" aria-hidden /> Sign out
+          </button>
+          {/* The way back once the orientation has been finished and its menu
+              item has gone. Somebody looking a thing up should not have to
+              remember the address. */}
+          <Link href="/staff/orientation" className="text-muted-foreground hover:text-foreground">
+            Orientation
+          </Link>
+        </span>
       </div>
     </div>
   );
