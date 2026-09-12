@@ -38,6 +38,22 @@ is in the pull request that introduced this repository. The short version:
   allow-list of variables, validated at save time.
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
+- **TRUNCATE is the write RLS does not govern.** Row-level security filters
+  rows for select, insert, update and delete and says nothing about
+  `truncate table`, which is checked against the table privilege alone.
+  Supabase's default `grant all` gave `anon` and `authenticated` TRUNCATE on
+  91 of 92 tables, including the two that are deliberately append-only and
+  matter most after an incident — `audit_log` and `application_events`, which
+  carry a select policy and no write policy, so a staff member can neither
+  add a line nor alter one, and could have removed every line. Revoked, for
+  existing tables and for the ones our migrations create next
+  (`20260913000000_revoke_truncate.sql`); case 61 asserts it over every table,
+  because the default-privileges entry owned by `supabase_admin` is not ours
+  to change. It was never reachable — PostgREST has no verb that emits
+  TRUNCATE — but that is somebody else's implementation detail, not an
+  invariant of ours, which is the same reason the pg_net grant is watched
+  rather than trusted.
+
 - **Campus isolation is swept, not listed.** Case 60 of the security suite
   asks the schema rather than the feature list: every table naming an
   application, checked for a manager scoped to one campus, with a positive

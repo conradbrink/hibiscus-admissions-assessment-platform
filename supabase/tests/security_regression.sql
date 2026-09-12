@@ -3038,6 +3038,70 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 61. The one write row-level security does not govern
+  --
+  -- RLS filters rows for select, insert, update and delete, and says nothing
+  -- about `truncate table`: that is checked against the table privilege
+  -- alone. So a role holding TRUNCATE empties a table whatever its policies
+  -- say, and the tables where that matters most are the append-only ones —
+  -- `audit_log` and `application_events` carry a select policy and no write
+  -- policy at all, which stops a staff member adding or altering a line and
+  -- would not have stopped them removing every line.
+  --
+  -- Supabase's default `grant all` includes it, on every table, to both the
+  -- key that ships in the browser and every signed-in user.
+  -- `20260913000000_revoke_truncate.sql` takes it back and stops our own new
+  -- tables arriving with it — but the default-privileges entry owned by
+  -- `supabase_admin` is not ours to change, so a table created by Supabase
+  -- itself would still arrive with it granted. Hence this, which asks every
+  -- table rather than trusting the revoke to have been complete.
+  --
+  -- Two controls are deliberately not relied on here. That PostgREST has no
+  -- verb which emits TRUNCATE is somebody else's implementation detail. That
+  -- no function in `public` truncates anything is true today and is one
+  -- `security invoker` wrapper away from not being — the same shape as the
+  -- pg_net bridge case 59 watches for. The privilege itself is the thing to
+  -- hold, so this asserts the privilege.
+  -- -------------------------------------------------------------------------
+  begin
+    declare
+      v_rel text;
+    begin
+      for v_rel in
+        select n.nspname || '.' || c.relname
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'public'
+           and c.relkind = 'r'
+           and (has_table_privilege('anon', c.oid, 'TRUNCATE')
+                or has_table_privilege('authenticated', c.oid, 'TRUNCATE'))
+         order by 1
+      loop
+        v_fail := v_fail || E'\n  - ' ||
+          ('61: anon or authenticated may TRUNCATE ' || v_rel || ', which no policy can prevent');
+      end loop;
+    end;
+
+    -- And the other half: a function that truncates, reachable over RPC,
+    -- would put the privilege back within reach of whoever owns the function.
+    declare
+      v_fn text;
+    begin
+      for v_fn in
+        select p.oid::regprocedure::text
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public'
+           and p.prosrc ~* '\mtruncate\M'
+      loop
+        if has_function_privilege('anon', v_fn::regprocedure, 'execute')
+           or has_function_privilege('authenticated', v_fn::regprocedure, 'execute') then
+          v_fail := v_fail || E'\n  - ' || ('61: a function that truncates is callable: ' || v_fn);
+        end if;
+      end loop;
+    end;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then
