@@ -24,6 +24,7 @@ const STAGE_LABELS: Record<Stage, string> = {
   registering: "Registering",
   enrolled: "Enrolled",
   closed: "Closed",
+  deferred: "Deferred",
 };
 
 /**

@@ -22,9 +22,10 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
     "callback_requested",
     // Assessment-exempt grades go straight to a decision.
     "awaiting_decision",
+    "deferred",
   ],
-  visit_booked: ["new_enquiry", "assessment_booked", "awaiting_decision", "visit_booked"],
-  callback_requested: ["new_enquiry", "assessment_booked", "visit_booked", "awaiting_decision"],
+  visit_booked: ["new_enquiry", "assessment_booked", "awaiting_decision", "visit_booked", "deferred"],
+  callback_requested: ["new_enquiry", "assessment_booked", "visit_booked", "awaiting_decision", "deferred"],
   assessment_booked: [
     "no_show",
     "assessment_in_progress",
@@ -36,8 +37,13 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
   no_show: ["assessment_booked", "new_enquiry"],
   assessment_in_progress: ["assessment_completed", "assessment_booked"],
   assessment_completed: ["awaiting_decision"],
-  awaiting_decision: ["staff_review", "approved", "waitlisted", "declined"],
-  staff_review: ["approved", "waitlisted", "declined"],
+  awaiting_decision: ["staff_review", "approved", "waitlisted", "declined", "deferred"],
+  staff_review: ["approved", "waitlisted", "declined", "deferred"],
+  // Paused, not closed. One way back, and it is the same one every time: the
+  // family is where they were, waiting on the school's answer. Reversible in
+  // one click is the whole point — a status a family cannot come back from is
+  // the Withdraw it was invented to replace.
+  deferred: ["awaiting_decision"],
   approved: ["offer_draft", "waitlisted"],
   waitlisted: ["approved", "declined"],
   declined: [],
@@ -121,6 +127,7 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   awaiting_decision: "Awaiting decision",
   staff_review: "Staff review",
   approved: "Approved",
+  deferred: "Deferred",
   waitlisted: "Waitlisted",
   declined: "Declined",
   offer_draft: "Offer draft",
@@ -151,6 +158,8 @@ export const STATUS_TONE: Record<ApplicationStatus, StatusTone> = {
   awaiting_decision: "warning",
   staff_review: "warning",
   approved: "success",
+  // Not a warning: nobody is late, the family asked for this.
+  deferred: "muted",
   waitlisted: "muted",
   declined: "destructive",
   offer_draft: "muted",
@@ -181,6 +190,10 @@ export const PIPELINE_GROUPS: ReadonlyArray<{
     statuses: ["assessment_booked", "no_show", "assessment_in_progress", "assessment_completed"],
   },
   { key: "decision", label: "Decision", statuses: ["awaiting_decision", "staff_review"] },
+  // `deferred` is deliberately not a column. The board is the work in front of
+  // the school, and a family who asked to be called in March is not work in
+  // March minus four months. They are found by their own filter, and the
+  // dashboard raises them when their date comes near.
   { key: "outcome", label: "Outcome", statuses: ["approved", "waitlisted", "declined"] },
   {
     key: "offer",
@@ -206,6 +219,7 @@ export const NEXT_ACTION_KEYS = [
   "attend_visit",
   "await_callback",
   "await_school_contact",
+  "await_deferred_date",
   "await_results",
   "await_decision",
   "await_offer",
@@ -264,6 +278,12 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
     parentDetail: "Our admissions team is reviewing availability and will be in touch shortly.",
     parentCta: null,
     staffLabel: "Review pre-school enquiry",
+  },
+  await_deferred_date: {
+    parentTitle: "No action required.",
+    parentDetail: "We will be in touch closer to the time you asked us to call.",
+    parentCta: null,
+    staffLabel: "Deferred — waiting for the date",
   },
   await_results: {
     parentTitle: "No action required.",

@@ -61,6 +61,7 @@ export type ApplicationStatus =
   | "assessment_in_progress"
   | "assessment_completed"
   | "awaiting_decision"
+  | "deferred"
   | "staff_review"
   | "approved"
   | "waitlisted"
@@ -384,6 +385,12 @@ export type ApplicationRow = {
   next_action: string | null;
   next_action_due_at: string | null;
   withdrawn_reason: string | null;
+  /** Why they withdrew, from the short list in lib/workflow/withdrawal.ts. Null before the list existed. */
+  withdrawn_reason_code: string | null;
+  /** The date a deferred family asked to be contacted again. */
+  deferred_until: string | null;
+  /** What they said when they asked to be deferred, in the words of whoever spoke to them. */
+  deferred_reason: string | null;
   /**
    * The family said at enquiry that the child has additional needs. It exists
    * so the sitting can be arranged properly — extra time, a quieter room, an
@@ -2579,6 +2586,8 @@ export type Database = {
           heard_from: HeardFrom | null;
           promotion_code: string | null;
           promotion_name: string | null;
+          deferred_until: string | null;
+          withdrawn_reason_code: string | null;
         };
         Relationships: [];
       };

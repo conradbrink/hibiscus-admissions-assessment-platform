@@ -1,4 +1,5 @@
 import type { ApplicationStatus } from "@/lib/supabase/types";
+import { isWithdrawnReasonCode, WITHDRAWN_REASON_LABELS, WITHDRAWN_REASON_UNKNOWN } from "@/lib/workflow/withdrawal";
 import { heardFromLabel } from "@/lib/heard-from";
 
 /**
@@ -42,6 +43,10 @@ export type FactRow = {
   registration_submitted: boolean;
   /** "How did you hear about us?" — null when the question was never asked. */
   heard_from: string | null;
+  /** The date a deferred family asked to be contacted again. Null unless they deferred. */
+  deferred_until: string | null;
+  /** Why they withdrew, from the short list. Null for anything withdrawn before the list existed. */
+  withdrawn_reason_code: string | null;
   /** The promotion on the application, if any: a code the parent typed or a deal staff applied. */
   promotion_code: string | null;
   promotion_name: string | null;
@@ -124,8 +129,17 @@ function medianDays(rows: FactRow[], from: (r: FactRow) => string | null, to: (r
   return median(rows.map((r) => days(from(r), to(r))).filter((v): v is number => v !== null && v >= 0));
 }
 
-/** Median days between the milestones the specification names. */
-export function cycleTimes(rows: FactRow[]) {
+/**
+ * Median days between the milestones the specification names.
+ *
+ * Deferred applications are left out of all of them. A family who pauses for
+ * six months would otherwise move "days to decision" for everybody, and the
+ * number the school reads would describe nobody's experience. Excluding them
+ * is honest and cheap; subtracting the paused interval is neither, and would
+ * need a second set of timestamps nobody keeps.
+ */
+export function cycleTimes(input: FactRow[]) {
+  const rows = input.filter((r) => r.status !== "deferred");
   const assessed = rows.filter((r) => r.requires_assessment);
   return {
     enquiryToBooking: medianDays(assessed, (r) => r.enquired_at, (r) => r.booked_at),
@@ -138,7 +152,7 @@ export function cycleTimes(rows: FactRow[]) {
   };
 }
 
-export const DIMENSIONS = ["campus", "grade", "month", "week", "heard_from", "promotion", "source", "entry_route", "outcome"] as const;
+export const DIMENSIONS = ["campus", "grade", "month", "week", "heard_from", "promotion", "source", "entry_route", "outcome", "withdrawn_reason"] as const;
 export type Dimension = (typeof DIMENSIONS)[number];
 
 export const DIMENSION_LABELS: Record<Dimension, string> = {
@@ -151,6 +165,7 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   source: "Lead source",
   entry_route: "Entry route",
   outcome: "Assessment outcome",
+  withdrawn_reason: "Why they withdrew",
 };
 
 /** ISO week's Monday as YYYY-MM-DD, in UTC; enquiries cluster by week of enquiry. */
@@ -190,6 +205,18 @@ export function dimensionKey(r: FactRow, dim: Dimension): { key: string; label: 
     case "outcome": {
       const o = r.decision_outcome ?? (r.decided_at ? "unknown" : "not decided");
       return { key: o, label: o.replace(/_/g, " "), sort: o };
+    }
+    case "withdrawn_reason": {
+      // Everything that did not withdraw is one group rather than nine, so
+      // the reasons are read against each other and not against the whole
+      // intake. The uncoded withdrawals are named instead of dropped: a
+      // share that is unknown should be visible, not quietly absent from the
+      // denominator.
+      if (r.status !== "withdrawn") return { key: "still applying", label: "Did not withdraw", sort: "2" };
+      const code = isWithdrawnReasonCode(r.withdrawn_reason_code) ? r.withdrawn_reason_code : null;
+      return code
+        ? { key: code, label: WITHDRAWN_REASON_LABELS[code], sort: `0${WITHDRAWN_REASON_LABELS[code]}` }
+        : { key: WITHDRAWN_REASON_UNKNOWN, label: "Reason not recorded", sort: "1" };
     }
   }
 }

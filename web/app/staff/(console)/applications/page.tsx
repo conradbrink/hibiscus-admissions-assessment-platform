@@ -107,6 +107,14 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
             {g.label} <span className="opacity-70">{groupCount(g.statuses)}</span>
           </Link>
         ))}
+        {/* Deferred is not a column of the funnel — it is a pause beside it —
+            but a family nobody can find is a family nobody comes back to. */}
+        <Link
+          href={qs({ group: undefined, status: "deferred", page: undefined })}
+          className={`rounded-full border px-3 py-1 text-xs ${sp.status === "deferred" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+        >
+          Deferred <span className="opacity-70">{countByStatus.get("deferred") ?? 0}</span>
+        </Link>
       </div>
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">

@@ -9,7 +9,7 @@ import { rate } from "@/lib/analytics/breakdown";
  */
 
 /** Where an application stands, coarsened to the stages whose conversion we measure. */
-export type Stage = "enquired" | "booked" | "assessed" | "approved" | "offered" | "accepted" | "paid" | "registering" | "enrolled" | "closed";
+export type Stage = "enquired" | "booked" | "assessed" | "approved" | "offered" | "accepted" | "paid" | "registering" | "enrolled" | "closed" | "deferred";
 
 export function stageOf(r: Pick<FactRow, "status" | "booked_at" | "assessed_at">): Stage {
   switch (r.status) {
@@ -35,6 +35,16 @@ export function stageOf(r: Pick<FactRow, "status" | "booked_at" | "assessed_at">
     case "offer_draft":
     case "offer_pending_approval":
       return "approved";
+    // Deferred is neither converted nor lost: the family paused. Returned
+    // before the default, which would otherwise read the milestone timestamps
+    // and file them as still live — so the forecast would promise places to
+    // families who have just said "not now", and nothing would look broken.
+    case "deferred":
+      return "deferred";
+    // Waitlisted has counted as closed since the forecast was written, and
+    // is arguably wrong for the same reason as deferred was. It stays: it is
+    // today's behaviour and changing it would move numbers the school has
+    // been reading for months without saying so.
     case "waitlisted":
       return "closed";
     case "assessment_completed":
@@ -63,6 +73,9 @@ export const DEFAULT_RATES: Record<Stage, number> = {
   registering: 0.98,
   enrolled: 1,
   closed: 0,
+  // Never read: `deferred` is not an open stage and `historicalRates` only
+  // fills the stages it forecasts. Present because the record must be total.
+  deferred: 0,
 };
 
 export const MIN_SAMPLE = 20;
@@ -75,6 +88,11 @@ export type StageRate = { stage: Stage; rate: number; sample: number; source: "h
  * closed. An application still in flight says nothing yet.
  */
 export function historicalRates(history: FactRow[]): Record<Stage, StageRate> {
+  // Deferred applications are in neither half on purpose. Counting them as
+  // settled would score every pause as a conversion that failed and drag
+  // every stage rate down; counting them as live would say they had converted
+  // when nobody knows yet. A family who defers and later enrols counts, from
+  // that day, as an enrolment from the stage they paused at.
   const settled = history.filter((r) => r.status === "enrolled" || stageOf(r) === "closed");
   const reached = (stage: Stage) => settled.filter((r) => reachedStage(r, stage));
   const out = {} as Record<Stage, StageRate>;
@@ -110,6 +128,8 @@ export function reachedStage(r: FactRow, stage: Stage): boolean {
       return !!r.enrolled_at;
     case "closed":
       return stageOf(r) === "closed";
+    case "deferred":
+      return stageOf(r) === "deferred";
   }
 }
 
@@ -155,7 +175,9 @@ export function forecast(
     let lowConfidence = false;
     for (const r of rows) {
       const s = stageOf(r);
-      if (s === "closed") continue;
+      // Neither contributes a place to the forecast: one has gone, the other
+      // has paused. The deferred are counted beside the funnel instead.
+      if (s === "closed" || s === "deferred") continue;
       pipeline[s] = (pipeline[s] ?? 0) + 1;
       if (COMMITTED.has(s)) committed += 1;
       expected += s === "enrolled" ? 1 : rates[s].rate;

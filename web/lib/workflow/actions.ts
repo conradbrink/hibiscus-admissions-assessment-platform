@@ -1,5 +1,7 @@
 import "server-only";
 import { bookingConfirmedTemplateKey, bookingNoun } from "@/lib/booking/noun";
+import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt } from "@/lib/workflow/deferral";
+import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
@@ -479,6 +481,93 @@ export async function onManualDecision(
 }
 
 /**
+ * "Not now — come back to us later in the year."
+ *
+ * Deferring is not a decision and not a closure. The application pauses on a
+ * date the family named; two follow-ups go out around it and a task lands on
+ * the owner's badge on the day, so the school is the one that comes back
+ * rather than the family having to remember.
+ *
+ * Live bookings are deliberately left alone. A family who defers after their
+ * play date has nothing booked; one who defers with a booking still ahead of
+ * them may well still come, and cancelling it for them would be answering a
+ * question nobody asked.
+ */
+export async function onDeferred(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "owner_staff_id">,
+  spec: { until: string; reason: string | null },
+  actor: Actor
+): Promise<void> {
+  const settings = await getSettings(admin);
+  const { error } = await admin
+    .from("applications")
+    .update({ deferred_until: spec.until, deferred_reason: spec.reason })
+    .eq("id", app.id);
+  if (error) throw new WorkflowError(error.message, "database");
+
+  // Every send holds only while the application is still deferred, so a
+  // family who answers the first — or whom staff move back — is never chased
+  // by the second. The same mechanism `enquiry_nudge` uses.
+  const live = { application_status: ["deferred" as const] };
+  const jobs: JobSpec[] = deferralFollowUps(spec.until, settings.deferralFollowUpDaysBefore).map((f) =>
+    emailJob(app.id, DEFERRAL_TEMPLATE_KEY, { suffix: f.suffix, runAfter: f.runAt, precondition: live })
+  );
+
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: app.status,
+    newStatus: "deferred",
+    nextAction: "await_deferred_date",
+    nextActionDueAt: deferralTaskDueAt(spec.until),
+    event: {
+      type: "application.deferred",
+      summary: `Deferred until ${formatDateLong(spec.until)}`,
+      payload: { deferred_until: spec.until, reason: spec.reason },
+    },
+    // The messages are a courtesy; this is the promise. A family who does not
+    // answer either message is rung by a person on the day.
+    tasks: [
+      {
+        type: "deferral_due",
+        title: `Call about ${app.child_first_name} — they asked us to get back to them`,
+        details: spec.reason ? `What they said: ${spec.reason}` : "No reason recorded.",
+        priority: "normal",
+        dueAt: deferralTaskDueAt(spec.until),
+        assigneeStaffId: app.owner_staff_id,
+      },
+    ],
+    jobs,
+    audit: { action: "application.deferred", before: { status: app.status }, after: { deferred_until: spec.until } },
+    actor,
+  });
+}
+
+/**
+ * Back from a deferral, by the family's answer or by staff.
+ *
+ * The date stays on the record — it is what happened — and the open call task
+ * is resolved, because the reason for it has just been answered.
+ */
+export async function onDeferralEnded(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status">,
+  actor: Actor
+): Promise<void> {
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: "deferred",
+    newStatus: "awaiting_decision",
+    nextAction: "await_school_contact",
+    nextActionDueAt: hoursFromNow(48),
+    event: { type: "application.deferral_ended", summary: "Back from deferral", payload: {} },
+    resolveTaskTypes: ["deferral_due"],
+    audit: { action: "application.deferral_ended", before: { status: app.status } },
+    actor,
+  });
+}
+
+/**
  * Withdraws from any non-terminal state. Cancels the live booking, abandons
  * a live sitting, withdraws a live offer, and closes open tasks — so no job
  * queued for any of them finds its precondition still true.
@@ -487,7 +576,13 @@ export async function onWithdrawn(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
   reason: string | null,
-  actor: Actor
+  actor: Actor,
+  /**
+   * Why, from the short list, for the analytics. Null where the system
+   * withdrew on its own behalf: it would be inventing an answer the family
+   * never gave.
+   */
+  reasonCode: WithdrawnReasonCode | null = null
 ): Promise<void> {
   const now = new Date().toISOString();
   await admin
@@ -525,7 +620,7 @@ export async function onWithdrawn(
     .eq("status", "open");
   const { error } = await admin
     .from("applications")
-    .update({ withdrawn_reason: reason })
+    .update({ withdrawn_reason: reason, withdrawn_reason_code: reasonCode })
     .eq("id", app.id);
   if (error) throw new WorkflowError(error.message, "database");
 
@@ -534,8 +629,8 @@ export async function onWithdrawn(
     expectedStatus: app.status,
     newStatus: "withdrawn",
     nextAction: "none",
-    event: { type: "application.withdrawn", summary: "Application withdrawn", payload: { reason } },
-    audit: { action: "application.withdrawn", before: { status: app.status }, after: { reason } },
+    event: { type: "application.withdrawn", summary: "Application withdrawn", payload: { reason, reason_code: reasonCode } },
+    audit: { action: "application.withdrawn", before: { status: app.status }, after: { reason, reason_code: reasonCode } },
     actor,
   });
 }

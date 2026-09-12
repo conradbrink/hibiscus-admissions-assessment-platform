@@ -22,6 +22,8 @@ import {
   onBookingCreated,
   onCallbackCompleted,
   onCheckedIn,
+  onDeferralEnded,
+  onDeferred,
   onManualDecision,
   onNoShow,
   onOwnerAssigned,
@@ -29,7 +31,9 @@ import {
   onWithdrawn,
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
+import { isFutureDate } from "@/lib/workflow/deferral";
 import { isNextAction } from "@/lib/workflow/states";
+import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
 
 /**
  * Staff actions on one applicant. Each checks the permission, loads the
@@ -181,10 +185,50 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
 export async function withdraw(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
-    const parsed = idSchema.extend({ reason: z.string().trim().min(3).max(500) }).parse(Object.fromEntries(formData));
+    // The code is required and the note is not. It is the other way round
+    // from how it reads: the note is often the useful half, but it is the
+    // code that can be counted, and a pick-list nobody has to fill in is a
+    // pick-list of "other".
+    const parsed = idSchema
+      .extend({
+        reasonCode: z.enum(WITHDRAWN_REASON_CODES),
+        reason: z.string().trim().min(3).max(500),
+      })
+      .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    await onWithdrawn(admin, app, parsed.reason, ctx.actor);
+    await onWithdrawn(admin, app, parsed.reason, ctx.actor, parsed.reasonCode);
     done(parsed.applicationId);
+  });
+}
+
+/** "Talk to us later in the year." Pauses the application on the date they named. */
+export async function defer(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({
+        until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
+        reason: z.string().trim().max(500).optional(),
+      })
+      .parse(Object.fromEntries(formData));
+    // A date in the past is a typo, and the follow-ups for it would all be
+    // dropped as already gone — leaving a paused application nothing would
+    // ever wake.
+    if (!isFutureDate(parsed.until)) throw new Error("Choose a date in the future.");
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    await onDeferred(admin, app, { until: parsed.until, reason: parsed.reason?.trim() || null }, ctx.actor);
+    done(parsed.applicationId);
+  });
+}
+
+/** Back from a deferral: the family answered, or staff picked it up early. */
+export async function resumeDeferred(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const { applicationId } = idSchema.parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, applicationId);
+    await onDeferralEnded(admin, app, ctx.actor);
+    done(applicationId);
   });
 }
 

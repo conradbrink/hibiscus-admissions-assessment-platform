@@ -17,6 +17,8 @@ export type Settings = {
   nextStepTokenDays: number;
   assessmentReminderHours: number[];
   enquiryNudgeHours: number;
+  /** Days before the date a deferred family named, one entry per follow-up. Zero is the morning of the date. */
+  deferralFollowUpDaysBefore: number[];
   offerExpiryDays: number;
   offerReminderDaysBefore: number[];
   parentSessionMinutes: number;
@@ -66,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   nextStepTokenDays: 90,
   assessmentReminderHours: [48, 3],
   enquiryNudgeHours: 48,
+  deferralFollowUpDaysBefore: [5, 0],
   offerExpiryDays: 14,
   offerReminderDaysBefore: [7, 2],
   parentSessionMinutes: 60,
@@ -111,6 +114,7 @@ const KEYS: Record<keyof Settings, string> = {
   nextStepTokenDays: "next_step_token_days",
   assessmentReminderHours: "assessment_reminder_hours",
   enquiryNudgeHours: "enquiry_nudge_hours",
+  deferralFollowUpDaysBefore: "deferral_follow_up_days_before",
   offerExpiryDays: "offer_expiry_days",
   offerReminderDaysBefore: "offer_reminder_days_before",
   parentSessionMinutes: "parent_session_minutes",
@@ -153,6 +157,19 @@ const KEYS: Record<keyof Settings, string> = {
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
   return typeof v === "number" && Number.isInteger(v) && v > 0 ? v : fallback;
+}
+
+/**
+ * The same, but zero counts. "On the day" is a real offset, and the positive
+ * version would drop it silently — leaving a school that asked for a reminder
+ * on the date with no reminder on the date.
+ *
+ * An empty list is honoured rather than replaced: "do not follow up
+ * automatically" is a thing a school may mean.
+ */
+function asNonNegativeIntArray(v: Json | undefined, fallback: number[]): number[] {
+  if (!Array.isArray(v)) return fallback;
+  return v.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0);
 }
 
 function asPositiveIntArray(v: Json | undefined, fallback: number[]): number[] {
@@ -207,6 +224,10 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
       d.assessmentReminderHours
     ),
     enquiryNudgeHours: asPositiveInt(map.get(KEYS.enquiryNudgeHours), d.enquiryNudgeHours),
+    deferralFollowUpDaysBefore: asNonNegativeIntArray(
+      map.get(KEYS.deferralFollowUpDaysBefore),
+      d.deferralFollowUpDaysBefore
+    ),
     offerExpiryDays: asPositiveInt(map.get(KEYS.offerExpiryDays), d.offerExpiryDays),
     offerReminderDaysBefore: asPositiveIntArray(
       map.get(KEYS.offerReminderDaysBefore),

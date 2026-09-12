@@ -81,6 +81,30 @@ export function funnelStages(c: FunnelCounts): FunnelStage[] {
   }));
 }
 
+export type DeferredSummary = { count: number; dueWithin: number; horizon: string };
+
+/**
+ * The families who paused, shown beside the funnel rather than in it.
+ *
+ * The funnel is a path and this is a pause: putting deferrals in as a stage
+ * would say families passed through them on the way to enrolling, which is
+ * the opposite of what happened. What the school wants when planning an
+ * intake is the pair of numbers — how many are paused, and how many are due
+ * back soon enough to matter for this one.
+ *
+ * `horizon` is a date; anything due on or before it counts as due back.
+ * A deferral with no date counts in the total and not in the due, because
+ * "soon" is exactly what it does not say.
+ */
+export function deferredSummary(rows: FactRow[], horizon: string): DeferredSummary {
+  const deferred = rows.filter((r) => r.status === "deferred");
+  return {
+    count: deferred.length,
+    dueWithin: deferred.filter((r) => r.deferred_until !== null && r.deferred_until <= horizon).length,
+    horizon,
+  };
+}
+
 export type Share = { key: string; label: string; count: number; share: number | null; enrolled: number; enquiryToEnrolment: number | null };
 
 /** A breakdown as shares of the whole, largest first. */

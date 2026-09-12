@@ -19,11 +19,13 @@ import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { WITHDRAWN_REASON_CODES, WITHDRAWN_REASON_LABELS } from "@/lib/workflow/withdrawal";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addNote,
   assignOwner,
   assignTask,
+  defer,
   changeGrade,
   setDayPattern,
   cancelBookingByStaff,
@@ -35,6 +37,7 @@ import {
   markNoShow,
   recordDecision,
   rescheduleByStaff,
+  resumeDeferred,
   refreshSummary,
   resendLink,
   sendWhatsAppTemplate,
@@ -551,13 +554,51 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             ) : null}
           </section>
 
+          {/* Not now. The box says what will happen, because "deferred" on its
+              own sounds like a filing decision rather than a promise to ring
+              them. */}
+          {canWrite && !terminal && app.status !== "deferred" ? (
+            <section className="surface p-4 text-sm">
+              <h2 className="text-sm font-semibold">Defer</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                For a family who wants a place later in the year. We message them around the date and put a call on
+                the owner&rsquo;s list for the day itself. Nothing is cancelled and one click brings them back.
+              </p>
+              <ActionForm action={defer} label="Defer" variant="outline" size="sm" className="mt-2">
+                {idField}
+                <Input type="date" name="until" required aria-label="Come back to them on" />
+                <Input name="reason" placeholder="What they said (optional)" maxLength={500} />
+              </ActionForm>
+            </section>
+          ) : null}
+
+          {canWrite && app.status === "deferred" ? (
+            <section className="surface p-4 text-sm">
+              <h2 className="text-sm font-semibold">Deferred</h2>
+              <p className="mt-1">
+                Coming back to them {app.deferred_until ? <strong>{formatDate(app.deferred_until)}</strong> : "on no set date"}.
+              </p>
+              {app.deferred_reason ? <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">{app.deferred_reason}</p> : null}
+              <ActionForm action={resumeDeferred} label="They are ready — resume" variant="success" size="sm" className="mt-2">
+                {idField}
+              </ActionForm>
+            </section>
+          ) : null}
+
           {/* Withdraw */}
           {canWrite && !terminal ? (
             <section className="surface p-4 text-sm">
               <h2 className="text-sm font-semibold">Withdraw</h2>
               <ActionForm action={withdraw} label="Withdraw application" variant="destructive" size="sm" className="mt-2" confirm="Withdraw this application? Bookings and open tasks are cancelled.">
                 {idField}
-                <Input name="reason" placeholder="Reason" required minLength={3} />
+                {/* The reason in their own words is often the useful half, but
+                    it is the code that can be counted — which is why the
+                    pick-list is the required one. */}
+                <NativeSelect name="reasonCode" defaultValue="" required aria-label="Why are they withdrawing?">
+                  <option value="" disabled>Why are they withdrawing?</option>
+                  {WITHDRAWN_REASON_CODES.map((c) => <option key={c} value={c}>{WITHDRAWN_REASON_LABELS[c]}</option>)}
+                </NativeSelect>
+                <Input name="reason" placeholder="In their words" required minLength={3} />
               </ActionForm>
             </section>
           ) : null}

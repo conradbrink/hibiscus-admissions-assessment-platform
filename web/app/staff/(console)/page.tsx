@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   const today = toSchoolDateString(now);
   const weekEnd = new Date(now);
   weekEnd.setDate(weekEnd.getDate() + 7);
-  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: playDatesThisWeek }] =
+  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: deferredDueSoon }, { count: playDatesThisWeek }] =
     await Promise.all([
       supabase.rpc("dashboard_counts"),
       // Both kinds. A pre-school campus books no assessments, so a board
@@ -53,6 +53,14 @@ export default async function DashboardPage() {
         .from("campus_grades")
         .select("campus_id, requires_assessment, grades!inner(requires_assessment)")
         .eq("is_active", true),
+      // Deferred families whose date is here. The board does not show them —
+      // a pause is not a column of the funnel — so this is what stops a
+      // family who asked to be called in March going uncalled in March.
+      supabase
+        .from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "deferred")
+        .lte("deferred_until", toSchoolDateString(weekEnd)),
       // The pre-school counterpart of `assessments_this_week`, which counts
       // `kind = 'assessment'` and is therefore a permanent zero for a
       // pre-school campus.
@@ -87,6 +95,7 @@ export default async function DashboardPage() {
     { label: "No-shows to follow up", value: n("no_shows_unresolved"), href: "/staff/applications?status=no_show" },
     { label: "Enquiries not booked after 48 hours", value: n("unbooked_over_48h"), href: "/staff/applications?status=new_enquiry" },
     { label: "Callbacks requested", value: n("callbacks_open"), href: "/staff/tasks?type=callback" },
+    { label: "Deferred families due back", value: deferredDueSoon ?? 0, href: "/staff/applications?status=deferred" },
     { label: "Payments overdue", value: n("payments_overdue"), href: "/staff/payments", urgent: true },
     { label: "Payments that did not complete", value: n("payments_failed"), href: "/staff/payments" },
     { label: "Parents still to upload documents", value: n("documents_missing"), href: "/staff/registrations" },
