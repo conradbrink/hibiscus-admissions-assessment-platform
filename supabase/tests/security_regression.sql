@@ -53,6 +53,17 @@ declare
   -- campus assigned, and an admissions manager limited to Broadhurst.
   u_campus_none uuid := gen_random_uuid();
   u_campus_mgr uuid := gen_random_uuid();
+  -- A bursar who works at one campus only. The payment policies used to reach
+  -- campus by joining `applications`; they now read the denormalised column,
+  -- and this is who proves that still holds.
+  u_finance_bh uuid := gen_random_uuid();
+  -- Case 54 builds its own admissions row: case 43 deletes app_block7.
+  x_app uuid;
+  x_offer uuid;
+  x_acceptance uuid;
+  x_request uuid;
+  x_payment uuid;
+  x_app2 uuid;
   -- Phase 2 fixtures
   p2_competency uuid;
   p2_bank uuid;
@@ -111,7 +122,8 @@ begin
     (u_finance, 'sec-finance@test.invalid'),
     (u_author, 'sec-author@test.invalid'),
     (u_campus_none, 'sec-campus-none@test.invalid'),
-    (u_campus_mgr, 'sec-campus-mgr@test.invalid');
+    (u_campus_mgr, 'sec-campus-mgr@test.invalid'),
+    (u_finance_bh, 'sec-finance-bh@test.invalid');
   insert into public.staff_profiles (id, full_name, email, is_active) values
     (u_admin, 'Sec Admin', 'sec-admin@test.invalid', true),
     (u_staff, 'Sec Staff', 'sec-staff@test.invalid', true),
@@ -122,7 +134,8 @@ begin
     (u_finance, 'Sec Finance', 'sec-finance@test.invalid', true),
     (u_author, 'Sec Author', 'sec-author@test.invalid', true),
     (u_campus_none, 'Sec Campus None', 'sec-campus-none@test.invalid', true),
-    (u_campus_mgr, 'Sec Campus Manager', 'sec-campus-mgr@test.invalid', true);
+    (u_campus_mgr, 'Sec Campus Manager', 'sec-campus-mgr@test.invalid', true),
+    (u_finance_bh, 'Sec Finance Broadhurst', 'sec-finance-bh@test.invalid', true);
   insert into public.staff_roles (staff_id, role_id)
   select u, r.id from (values
     (u_admin, 'super_admin'),
@@ -133,7 +146,8 @@ begin
     (u_finance, 'finance'),
     (u_author, 'content_author'),
     (u_campus_none, 'campus_admin'),
-    (u_campus_mgr, 'admissions_manager')
+    (u_campus_mgr, 'admissions_manager'),
+    (u_finance_bh, 'finance')
   ) as x(u, code) join public.roles r on r.code = x.code;
 
   select id into c_block7 from public.campuses where code = 'block7';
@@ -144,7 +158,8 @@ begin
     raise exception 'SUITE BROKEN: seed data missing (campuses/grades/intakes)';
   end if;
 
-  insert into public.staff_campuses (staff_id, campus_id) values (u_campus_admin, c_broadhurst), (u_campus_mgr, c_broadhurst);
+  insert into public.staff_campuses (staff_id, campus_id) values
+    (u_campus_admin, c_broadhurst), (u_campus_mgr, c_broadhurst), (u_finance_bh, c_broadhurst);
 
   select application_id into app_block7 from public.create_application(
     'Sec','Parent','sec-parent-a@test.invalid','sec-parent-a@test.invalid',null,null,
@@ -2178,6 +2193,200 @@ begin
       end if;
     exception when others then
       v_fail := v_fail || E'\n  - ' || ('53: the currency trigger failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 54. A payment request that names a child rather than an admission
+  --
+  -- The payment records used to require an application, an offer and an
+  -- acceptance, and both read policies reached campus by joining
+  -- `applications`. Relaxing that is a change to tables holding money, so
+  -- every guard that replaced a NOT NULL is checked here: exactly one subject,
+  -- a campus derived rather than accepted, and a bursar who still sees only
+  -- their own campus under the rewritten policies.
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+
+    -- Case 43 deletes app_block7 for real, so this case builds its own
+    -- admissions row rather than reusing a fixture that is no longer there.
+    select application_id into x_app from public.create_application(
+      'Sec','Payer','sec-extras@test.invalid','sec-extras@test.invalid',null,null,
+      'Child','X','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    insert into public.offers (application_id, template_id, template_version, currency, rendered_html, terms_html, status)
+    values (x_app, p2_offer_template, 1, 'BWP', '<p>offer</p>', '<p>terms</p>', 'accepted') returning id into x_offer;
+    insert into public.offer_acceptances (application_id, offer_id, template_id, template_version, decision, terms_accepted, terms_hash, fees)
+    values (x_app, x_offer, p2_offer_template, 1, 'accepted', true, 'sec-hash-x', '{}'::jsonb) returning id into x_acceptance;
+    insert into public.payment_requests (application_id, offer_id, acceptance_id, currency, amount_minor, due_at)
+    values (x_app, x_offer, x_acceptance, 'BWP', 750000, now() + interval '14 days') returning id into x_request;
+    insert into public.payments (payment_request_id, method, provider, company_ref, status, amount_minor, currency)
+    values (x_request, 'eft', 'bank', 'SEC-EFT-X', 'pending', 750000, 'BWP') returning id into x_payment;
+    -- A second application with no open request, so the one-subject check is
+    -- what refuses the insert below rather than the one-open-request index.
+    select application_id into x_app2 from public.create_application(
+      'Sec','Payer2','sec-extras2@test.invalid','sec-extras2@test.invalid',null,null,
+      'Child','Y','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+
+    -- A request must name exactly one subject. Both is the dangerous one: it
+    -- would make `kind`, the campus and every downstream branch ambiguous.
+    begin
+      insert into public.payment_requests
+        (application_id, offer_id, acceptance_id, student_id, currency, amount_minor, due_at)
+      values (x_app2, x_offer, x_acceptance, crm_student_block7, 'BWP', 1000, now() + interval '7 days');
+      v_fail := v_fail || E'\n  - ' || '54: a payment request named both an application and a child';
+    exception
+      when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('54: the both-subjects insert failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- And neither: money owed by nobody.
+    begin
+      insert into public.payment_requests (currency, amount_minor, due_at)
+      values ('BWP', 1000, now() + interval '7 days');
+      v_fail := v_fail || E'\n  - ' || '54: a payment request named no subject at all';
+    exception
+      when check_violation then null;
+      -- The campus trigger fires first and raises its own complaint; either is
+      -- a refusal, which is what matters.
+      when others then
+        if sqlerrm not like '%must resolve to a campus%' then
+          v_fail := v_fail || E'\n  - ' || ('54: the no-subject insert failed with "' || sqlerrm || '"');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- An admissions request still derives the application's own campus and
+    -- still calls itself an admission, so nothing about the funnel moved.
+    select count(*) into v_count from public.payment_requests r
+     join public.applications a on a.id = r.application_id
+     where r.id = x_request and r.campus_id = a.campus_id and r.kind = 'admission';
+    if v_count <> 1 then
+      v_fail := v_fail || E'\n  - ' || '54: an admissions request lost its campus or its kind';
+    end if;
+
+    -- A child's request: the campus and the kind are the trigger's, whatever
+    -- the insert claimed. A forged campus is what the rewritten read policy
+    -- would otherwise trust.
+    begin
+      insert into public.payment_requests (student_id, campus_id, kind, currency, amount_minor, due_at)
+      values (crm_student_block7, c_broadhurst, 'admission', 'BWP', 25000, now() + interval '7 days')
+      returning id into v_id;
+      select count(*) into v_count from public.payment_requests
+       where id = v_id and campus_id = c_block7 and kind = 'extras';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '54: a request kept a campus or kind it was handed rather than its child''s';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('54: the extras request insert failed: ' || sqlerrm);
+    end;
+
+    -- One open request per child, the same rule the funnel has per
+    -- application. Two would let a second checkout charge for lines the first
+    -- one already covered.
+    begin
+      insert into public.payment_requests (student_id, currency, amount_minor, due_at)
+      values (crm_student_block7, 'BWP', 25000, now() + interval '7 days');
+      v_fail := v_fail || E'\n  - ' || '54: a child got a second open payment request';
+    exception
+      when unique_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('54: the second open request failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- A payment's subject is its request's, overwritten rather than trusted.
+    begin
+      insert into public.payments
+        (payment_request_id, application_id, campus_id, method, provider, company_ref, status, amount_minor, currency)
+      values (v_id, x_app, c_broadhurst, 'online', 'dev', 'SEC-EXTRAS', 'pending', 25000, 'BWP')
+      returning id into v_id2;
+      select count(*) into v_count from public.payments
+       where id = v_id2
+         and student_id = crm_student_block7
+         and application_id is null
+         and campus_id = c_block7;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '54: a payment kept a subject or campus that was not its request''s';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('54: the extras payment insert failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The rewritten policies, on the case they were rewritten for. A bursar at
+    -- Broadhurst has finance.read and still must not see a Block 7 child's
+    -- order or what was paid against it.
+    begin
+      perform pg_temp.impersonate(u_finance_bh);
+      select count(*) into v_count from public.payment_requests where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '54: a Broadhurst bursar saw a Block 7 child''s extras request';
+      end if;
+      select count(*) into v_count from public.payments where id = v_id2;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '54: a Broadhurst bursar saw a Block 7 child''s extras payment';
+      end if;
+      -- And the admissions rows they were never allowed to see either, which
+      -- is the regression the policy rewrite could have introduced.
+      select count(*) into v_count from public.payment_requests where id = x_request;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '54: a Broadhurst bursar saw a Block 7 admissions request';
+      end if;
+      select count(*) into v_count from public.payments where id = x_payment;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '54: a Broadhurst bursar saw a Block 7 admissions payment';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('54: unexpected error as the Broadhurst bursar: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The control: a head-office bursar sees both, so the cases above are
+    -- campus scoping rather than the policy refusing everything.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      select count(*) into v_count from public.payment_requests where id = v_id;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '54 control: finance cannot read an extras request at all';
+      end if;
+      select count(*) into v_count from public.payments where id = v_id2;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '54 control: finance cannot read an extras payment at all';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('54 control: unexpected error as finance: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- An assessor has no business with money, extras included.
+    begin
+      perform pg_temp.impersonate(u_assessor);
+      select count(*) into v_count from public.payment_requests where id = v_id;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '54: an assessor read an extras request'; end if;
+      select count(*) into v_count from public.payments where id = v_id2;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '54: an assessor read an extras payment'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('54: unexpected error as assessor: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Nobody writes money by hand, whatever its subject: requests are raised
+    -- and settled by the engine under the service role.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      insert into public.payment_requests (student_id, currency, amount_minor, due_at)
+      values (crm_student_broadhurst, 'BWP', 1, now() + interval '1 day');
+      v_fail := v_fail || E'\n  - ' || '54: a bursar raised an extras request by hand';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('54: the by-hand request was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
     end;
     perform pg_temp.service();
   end;

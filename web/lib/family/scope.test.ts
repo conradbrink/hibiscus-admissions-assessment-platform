@@ -32,6 +32,11 @@ const FORBIDDEN = [
   '.from("student_onboarding_items"',
   '.from("optional_items"',
   '.from("student_optional_selections"',
+  // Money. A request and its payments name a child, so the slip that would
+  // leak a sibling's medical notes would leak another family's order and what
+  // they paid for it.
+  '.from("payment_requests"',
+  '.from("payments"',
   // The service-role client is minted by the loaders, so a page that builds
   // its own is a page that could query anything.
   "createAdminClient",

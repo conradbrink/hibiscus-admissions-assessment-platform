@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   applicableItems,
   basketTotal,
+  earliestOrderBy,
   isOrderable,
   optionsOf,
+  orderLines,
   outstandingTotal,
   type ItemLike,
   type SelectionLike,
@@ -122,5 +124,47 @@ describe("outstandingTotal", () => {
     const s = [sel(), sel({ item_id: "i2", status: "paid", unit_amount_minor: 90000 })];
     expect(basketTotal(s).totalMinor).toBe(115000);
     expect(outstandingTotal(s).totalMinor).toBe(25000);
+  });
+});
+
+describe("orderLines", () => {
+  const items = [
+    { id: "i1", code: "stationery_pack", label: "Stationery pack" },
+    { id: "i2", code: "lunch_term", label: "Lunch, per term" },
+  ];
+
+  it("prices each line from the selection, not the catalogue", () => {
+    // The item now costs more than it did in November; the family pays November's
+    // price, which is the whole reason the selection snapshots it.
+    const lines = orderLines([sel({ unit_amount_minor: 20000 })], items);
+    expect(lines).toEqual([{ code: "stationery_pack", label: "Stationery pack", amount_minor: 20000 }]);
+  });
+
+  it("says a quantity out loud rather than hiding it in the total", () => {
+    const lines = orderLines([sel({ quantity: 3, unit_amount_minor: 25000 })], items);
+    expect(lines[0].label).toBe("Stationery pack × 3");
+    expect(lines[0].amount_minor).toBe(75000);
+  });
+
+  it("still produces a payable line when the item has been renamed away", () => {
+    const lines = orderLines([sel({ item_id: "gone" })], items);
+    expect(lines[0]).toEqual({ code: "gone", label: "Optional extra", amount_minor: 25000 });
+  });
+
+  it("adds up to the same figure the basket showed", () => {
+    const chosen = [sel({ quantity: 2 }), sel({ item_id: "i2", unit_amount_minor: 90000 })];
+    const total = orderLines(chosen, items).reduce((sum, l) => sum + l.amount_minor, 0);
+    expect(total).toBe(basketTotal(chosen).totalMinor);
+  });
+});
+
+describe("earliestOrderBy", () => {
+  it("takes the soonest date, because that is the one that lapses first", () => {
+    expect(earliestOrderBy([{ order_by: "2026-02-01" }, { order_by: "2026-01-15" }, { order_by: null }])).toBe("2026-01-15");
+  });
+
+  it("is null when nothing ordered has a date", () => {
+    expect(earliestOrderBy([{ order_by: null }, { order_by: null }])).toBeNull();
+    expect(earliestOrderBy([])).toBeNull();
   });
 });

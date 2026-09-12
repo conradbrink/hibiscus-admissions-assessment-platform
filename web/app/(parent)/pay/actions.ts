@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
 import { requireParentSession } from "@/lib/tokens/server";
 import { PARENT_ACTOR, WorkflowError } from "@/lib/workflow/engine";
+import { onPaymentStarted } from "@/lib/workflow/payment-actions";
 
 /**
  * Paying online and asking for a re-check. The session names the
@@ -40,10 +41,15 @@ export async function startOnlinePayment(): Promise<PayState> {
   let redirectUrl: string;
   try {
     const started = await startCheckout(admin, {
-      graph,
       request,
+      reference: graph.application.reference,
+      description: `Registration and admission fees — ${graph.application.reference}`,
+      customer: { email: graph.contact.email, firstName: graph.contact.first_name, lastName: graph.contact.last_name },
       returnUrl: `${siteUrl()}/pay/return`,
       backUrl: `${siteUrl()}/pay?cancelled=1`,
+      // The admissions consequence: the application moves to
+      // payment_processing and the verify job is scheduled.
+      onStarted: (payment) => onPaymentStarted(admin, graph.application, request, payment),
     });
     redirectUrl = started.redirectUrl;
   } catch (e) {

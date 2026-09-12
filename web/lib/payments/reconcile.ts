@@ -1,7 +1,9 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { onExtrasPaid, onExtrasPaymentFailed } from "@/lib/extras/settle";
 import { amountMatches } from "@/lib/payments/amounts";
 import { getPaymentProvider, type VerifyResult } from "@/lib/payments/provider";
+import { subjectKindOf } from "@/lib/payments/subject";
 import { getSettings } from "@/lib/settings";
 import type { Json, PaymentRow } from "@/lib/supabase/types";
 import { SYSTEM_ACTOR, WorkflowError, type Actor } from "@/lib/workflow/engine";
@@ -12,6 +14,12 @@ import { onPaymentFailed, onPaymentVerified } from "@/lib/workflow/payment-actio
  * Called when the parent returns, by the payment_verify job, and by the
  * sweep the cron runs — all of them idempotent, because the gateway is
  * asked, not told, and a paid answer is applied once.
+ *
+ * Asking the gateway is the same question whatever is being paid for, so
+ * everything up to the branch is shared: the verify, the attempt count, the
+ * stamped response, the amount check and our own expiry. Only the consequences
+ * differ — an admission moves an application through the engine, an extras
+ * order settles its own lines (`lib/extras/settle.ts`).
  */
 export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, actor: Actor = SYSTEM_ACTOR): Promise<"paid" | "pending" | "failed"> {
   if (payment.status === "succeeded") return "paid";
@@ -42,14 +50,39 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
     raw_response: { ...(payment.raw_response && typeof payment.raw_response === "object" && !Array.isArray(payment.raw_response) ? (payment.raw_response as Record<string, Json>) : {}), ...(result.raw && typeof result.raw === "object" && !Array.isArray(result.raw) ? (result.raw as Record<string, Json>) : {}) } as Json,
   };
   await admin.from("payments").update(stamped).eq("id", payment.id);
-  const { data: app } = await admin.from("applications").select("*").eq("id", payment.application_id).single();
   const { data: request } = await admin.from("payment_requests").select("*").eq("id", payment.payment_request_id).single();
-  if (!app || !request) throw new WorkflowError("payment's application or request missing", "database");
+  if (!request) throw new WorkflowError("payment's request missing", "database");
+
+  const mismatch = `amount_mismatch: provider says ${result.amountMinor ?? "?"} ${result.currency ?? "?"}`;
+  const ourExpiry = payment.expires_at !== null && new Date(payment.expires_at).getTime() < Date.now();
+
+  if (subjectKindOf(payment) === "extras") {
+    if (result.status === "paid") {
+      if (!amountMatches(payment, result)) {
+        await onExtrasPaymentFailed(admin, request, payment, mismatch, { review: true });
+        return "failed";
+      }
+      await onExtrasPaid(admin, request, payment, { approvalCode: result.approvalCode });
+      return "paid";
+    }
+    if (result.status === "failed" || result.status === "expired") {
+      await onExtrasPaymentFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
+      return "failed";
+    }
+    if (ourExpiry) {
+      await onExtrasPaymentFailed(admin, request, payment, "expired");
+      return "failed";
+    }
+    return "pending";
+  }
+
+  const { data: app } = await admin.from("applications").select("*").eq("id", payment.application_id!).single();
+  if (!app) throw new WorkflowError("payment's application missing", "database");
 
   if (result.status === "paid") {
     if (!amountMatches(payment, result)) {
       // Money moved, but not the amount we asked for. Never "paid": finance looks.
-      await onPaymentFailed(admin, app, request, payment, `amount_mismatch: provider says ${result.amountMinor ?? "?"} ${result.currency ?? "?"}`, actor, { review: true });
+      await onPaymentFailed(admin, app, request, payment, mismatch, actor, { review: true });
       return "failed";
     }
     await onPaymentVerified(admin, app, request, payment, { approvalCode: result.approvalCode }, actor);
@@ -60,7 +93,7 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
     return "failed";
   }
   // Still pending at the gateway. Past our own time limit, give up on it.
-  if (payment.expires_at && new Date(payment.expires_at).getTime() < Date.now()) {
+  if (ourExpiry) {
     await onPaymentFailed(admin, app, request, payment, "expired", actor);
     return "failed";
   }

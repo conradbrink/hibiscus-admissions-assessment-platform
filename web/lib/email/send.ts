@@ -194,7 +194,11 @@ export async function paymentExtras(
   if (request) {
     out.dueAt = new Date(request.due_at);
     out.paymentDueDate = formatDateLong(request.due_at);
-    const { data: offerRow } = await admin.from("offers").select("fees").eq("id", request.offer_id).maybeSingle();
+    // A promotion is something an offer carries, so only an admissions request
+    // has one to mention. An extras request names a child and no offer.
+    const { data: offerRow } = request.offer_id
+      ? await admin.from("offers").select("fees").eq("id", request.offer_id).maybeSingle()
+      : { data: null };
     out.promotionText = promotionTextFrom(offerRow?.fees);
     out.amountDue = formatMoney(Number(request.amount_minor) - Number(request.paid_minor), request.currency);
     const bank = await loadBankInstructions(admin, { currency: request.currency, campusId: graph.application.campus_id });

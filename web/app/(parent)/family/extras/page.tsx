@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ExtraItem } from "@/components/parent/extra-item";
 import { PageHeader } from "@/components/parent/page-header";
-import { basketTotal, isOrderable, optionsOf, type ItemLike } from "@/lib/extras/catalogue";
+import { Button } from "@/components/ui/button";
+import { basketTotal, isOrderable, optionsOf, outstandingTotal, type ItemLike } from "@/lib/extras/catalogue";
 import { loadFamilyExtras } from "@/lib/family/extras";
 import { familyClient } from "@/lib/family/scope";
 import { formatDateLong, toSchoolDateString } from "@/lib/format-date";
@@ -50,6 +52,7 @@ export default async function ExtrasPage() {
           if (items.length === 0) return null;
           const name = student.preferred_name || student.legal_first_name;
           const basket = basketTotal(selections);
+          const owing = outstandingTotal(selections);
           const byItem = new Map(selections.map((s) => [s.item_id, s]));
 
           return (
@@ -90,13 +93,23 @@ export default async function ExtrasPage() {
                   );
                 })}
               </ul>
+
+              {/* Only once something is actually outstanding: a Pay button over
+                  an empty order can only disappoint. */}
+              {owing.lines > 0 && owing.currency ? (
+                <div className="mt-3">
+                  <Button size="parent" nativeButton={false} render={<Link href={`/family/extras/pay/${student.id}`} />}>
+                    Pay for {name}&rsquo;s order — {formatMoney(owing.totalMinor, owing.currency)}
+                  </Button>
+                </div>
+              ) : null}
             </section>
           );
         })}
       </div>
 
       <p className="mt-8 text-sm text-muted-foreground">
-        Nothing is charged yet — the school will confirm what you have ordered and how to pay for it.
+        Order what you want and leave the rest. Nothing here is needed for your child to start, and nothing here is ever chased.
       </p>
     </>
   );

@@ -96,3 +96,50 @@ export function basketTotal(selections: readonly SelectionLike[]): Basket {
 export function outstandingTotal(selections: readonly SelectionLike[]): Basket {
   return basketTotal(selections.filter((s) => s.status === "selected"));
 }
+
+// ---------------------------------------------------------------------------
+// Turning an order into something payable
+// ---------------------------------------------------------------------------
+
+/** A selection as it appears on a payment request, with the label to show. */
+export type OrderLine = { code: string; label: string; amount_minor: number };
+
+export type LabelledItem = { id: string; code: string; label: string };
+
+/**
+ * The payable lines for one child's order, in the shape `payment_requests.lines`
+ * already uses (`requestLines`, `lib/payments/requests.ts`) so the parent's page,
+ * the finance panel and the receipt render them without knowing where they came
+ * from.
+ *
+ * The money is the *selection's* `unit_amount_minor`, not the item's current
+ * price: a family pays what they were shown when they chose. The item is
+ * consulted only for the code and the wording, and a quantity above one is said
+ * out loud rather than hidden in a total nobody can check.
+ */
+export function orderLines(
+  selections: readonly (SelectionLike & { quantity: number })[],
+  items: readonly LabelledItem[]
+): OrderLine[] {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  return selections.map((s) => {
+    const item = byId.get(s.item_id);
+    const label = item?.label ?? "Optional extra";
+    return {
+      code: item?.code ?? s.item_id,
+      label: s.quantity > 1 ? `${label} × ${s.quantity}` : label,
+      amount_minor: s.unit_amount_minor * s.quantity,
+    };
+  });
+}
+
+/**
+ * When the school needs the money by: the soonest order-by date among the
+ * things ordered, because that is the one that stops being orderable first.
+ * Null when nothing in the order has a date, and the caller falls back to a
+ * plain fortnight.
+ */
+export function earliestOrderBy(items: readonly Pick<ItemLike, "order_by">[]): string | null {
+  const dates = items.map((i) => i.order_by).filter((d): d is string => Boolean(d));
+  return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+}
