@@ -57,6 +57,9 @@ declare
   -- campus by joining `applications`; they now read the denormalised column,
   -- and this is who proves that still holds.
   u_finance_bh uuid := gen_random_uuid();
+  -- Management: read-only everywhere else, and the reason `tasks.write` had
+  -- to be its own permission. Case 57.
+  u_management uuid := gen_random_uuid();
   -- Case 54 builds its own admissions row: case 43 deletes app_block7.
   x_app uuid;
   x_offer uuid;
@@ -125,7 +128,8 @@ begin
     (u_author, 'sec-author@test.invalid'),
     (u_campus_none, 'sec-campus-none@test.invalid'),
     (u_campus_mgr, 'sec-campus-mgr@test.invalid'),
-    (u_finance_bh, 'sec-finance-bh@test.invalid');
+    (u_finance_bh, 'sec-finance-bh@test.invalid'),
+    (u_management, 'sec-management@test.invalid');
   insert into public.staff_profiles (id, full_name, email, is_active) values
     (u_admin, 'Sec Admin', 'sec-admin@test.invalid', true),
     (u_staff, 'Sec Staff', 'sec-staff@test.invalid', true),
@@ -137,7 +141,8 @@ begin
     (u_author, 'Sec Author', 'sec-author@test.invalid', true),
     (u_campus_none, 'Sec Campus None', 'sec-campus-none@test.invalid', true),
     (u_campus_mgr, 'Sec Campus Manager', 'sec-campus-mgr@test.invalid', true),
-    (u_finance_bh, 'Sec Finance Broadhurst', 'sec-finance-bh@test.invalid', true);
+    (u_finance_bh, 'Sec Finance Broadhurst', 'sec-finance-bh@test.invalid', true),
+    (u_management, 'Sec Management', 'sec-management@test.invalid', true);
   insert into public.staff_roles (staff_id, role_id)
   select u, r.id from (values
     (u_admin, 'super_admin'),
@@ -149,7 +154,8 @@ begin
     (u_author, 'content_author'),
     (u_campus_none, 'campus_admin'),
     (u_campus_mgr, 'admissions_manager'),
-    (u_finance_bh, 'finance')
+    (u_finance_bh, 'finance'),
+    (u_management, 'management')
   ) as x(u, code) join public.roles r on r.code = x.code;
 
   select id into c_block7 from public.campuses where code = 'block7';
@@ -2596,6 +2602,109 @@ begin
     if v_count <> 1 then
       v_fail := v_fail || E'\n  - ' || '56: the deferral companion is missing, or active before it was approved';
     end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 57. A task somebody writes, and who may tick it off
+  --
+  -- `tasks_insert` used to ask for `applications.write`. Management holds no
+  -- write permission at all, so letting them set a task by reusing that one
+  -- would have handed them the applicant record with it. `tasks.write` exists
+  -- to be the narrower answer, and this is what says it stayed narrow: the
+  -- role that got the grant can write a task, and a role with
+  -- `applications.write` but no grant cannot.
+  --
+  -- The other half is completion. A task is given to somebody; if the policy
+  -- had kept asking for `applications.write`, the person it was given to
+  -- would have been refused by the database when they ticked it off.
+  -- -------------------------------------------------------------------------
+  begin
+    perform pg_temp.service();
+
+    -- Management may write one.
+    begin
+      perform pg_temp.impersonate(u_management);
+      insert into public.tasks (campus_id, type, title, priority, assignee_staff_id, created_by_type, created_by)
+      values (c_block7, 'staff_task', 'Chase the Block 7 fire certificate', 'normal', u_management, 'staff', u_management)
+      returning id into v_id;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('57: Management could not write a task: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Admissions staff hold `applications.write` and not `tasks.write`, so
+    -- the permission is doing the work rather than riding on the old one.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.tasks (campus_id, type, title, created_by_type, created_by)
+      values (c_block7, 'staff_task', 'Admissions staff should not manage to write this', 'staff', u_staff);
+      v_fail := v_fail || E'\n  - ' || '57: a role without tasks.write wrote a task anyway';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('57: the unpermitted insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- A task still has to be about something. This is what stops a staff task
+    -- with no campus, which would also be a task outside every campus scope.
+    begin
+      perform pg_temp.impersonate(u_management);
+      insert into public.tasks (type, title, created_by_type, created_by)
+      values ('staff_task', 'A task about nothing', 'staff', u_management);
+      v_fail := v_fail || E'\n  - ' || '57: a staff task with no subject was accepted';
+    exception
+      when check_violation then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('57: the no-subject task failed with "' || sqlerrm || '"');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- The person it was given to can tick it off, holding no write permission
+    -- of any other kind.
+    begin
+      perform pg_temp.impersonate(u_management);
+      update public.tasks set status = 'done', resolved_at = now(), resolved_by = u_management where id = v_id;
+      select count(*) into v_count from public.tasks where id = v_id and status = 'done';
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '57: the assignee could not complete their own task';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('57: the assignee was refused: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Somebody else's task, and no permission that covers it: refused. The
+    -- assessor holds `applications.read` and no write of any kind.
+    update public.tasks set status = 'open', resolved_at = null, resolved_by = null where id = v_id;
+    begin
+      perform pg_temp.impersonate(u_assessor);
+      update public.tasks set status = 'done' where id = v_id;
+      select count(*) into v_count from public.tasks where id = v_id and status = 'done';
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '57: somebody who was not the assignee ticked off another person''s task';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('57: unexpected error as the assessor: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- And campus scope still holds: a Broadhurst manager cannot see a task
+    -- written for Block 7, however it was written.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.tasks where id = v_id;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '57: a Broadhurst manager saw a Block 7 staff task';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('57: unexpected error as the Broadhurst manager: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
   end;
 
   -- -------------------------------------------------------------------------
