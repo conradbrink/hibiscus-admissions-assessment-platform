@@ -1,9 +1,9 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { applicableItems, optionsOf, isOrderable, type ItemLike } from "@/lib/extras/catalogue";
-import { loadFamilyStudents, requireStudentInFamily, type FamilyStudent } from "@/lib/family/scope";
+import { loadFamilyContacts, loadFamilyStudents, requireStudentInFamily, type FamilyStudent } from "@/lib/family/scope";
 import type { FamilySession } from "@/lib/tokens/session";
-import type { OptionalItemRow, StudentOptionalSelectionRow } from "@/lib/supabase/types";
+import type { OptionalItemRow, PaymentRequestRow, PaymentRow, StudentOptionalSelectionRow } from "@/lib/supabase/types";
 
 /**
  * The extras a family may order, and what they have ordered, through the
@@ -136,4 +136,175 @@ export async function cancelExtra(
     .eq("student_id", student.id)
     .eq("status", "selected");
   if (error) throw new Error(error.message);
+}
+
+// ---------------------------------------------------------------------------
+// Paying for an order
+// ---------------------------------------------------------------------------
+
+/**
+ * The money side of one child's extras, read through the session like
+ * everything else here: the child is checked against the family first, and
+ * every query then names that child rather than an id off a form.
+ *
+ * `scope.test.ts` forbids `payment_requests` and `payments` under
+ * `app/(parent)/family`, so these two are the only way a family page can reach
+ * them at all.
+ */
+export type StudentOrder = {
+  student: FamilyStudent;
+  /** The lines still to be paid for, whether or not a request exists yet. */
+  outstanding: StudentOptionalSelectionRow[];
+  items: OptionalItemRow[];
+  /** The latest request, of any status. Null before the family taps Pay. */
+  request: PaymentRequestRow | null;
+  payments: PaymentRow[];
+};
+
+export async function loadStudentOrder(
+  admin: AdminClient,
+  session: FamilySession,
+  studentId: string
+): Promise<StudentOrder> {
+  const student = await requireStudentInFamily(admin, session, studentId);
+
+  const [{ data: selections, error: sErr }, { data: request, error }] = await Promise.all([
+    admin.from("student_optional_selections").select("*").eq("student_id", student.id).eq("status", "selected"),
+    admin
+      .from("payment_requests")
+      .select("*")
+      .eq("student_id", student.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (sErr) throw new Error(sErr.message);
+  if (error) throw new Error(error.message);
+
+  const outstanding = selections ?? [];
+  const { data: items, error: iErr } = outstanding.length
+    ? await admin
+        .from("optional_items")
+        .select("*")
+        .in(
+          "id",
+          outstanding.map((s) => s.item_id)
+        )
+    : { data: [], error: null };
+  if (iErr) throw new Error(iErr.message);
+
+  if (!request) return { student, outstanding, items: items ?? [], request: null, payments: [] };
+
+  const { data: payments, error: pErr } = await admin
+    .from("payments")
+    .select("*")
+    // Both, deliberately: the request narrows it, and the child is the thing
+    // the session actually verified.
+    .eq("payment_request_id", request.id)
+    .eq("student_id", student.id)
+    .order("created_at", { ascending: false });
+  if (pErr) throw new Error(pErr.message);
+
+  return { student, outstanding, items: items ?? [], request, payments: payments ?? [] };
+}
+
+/** Every processing payment for this child, for the "check again" button. */
+export async function loadStudentProcessingPayments(
+  admin: AdminClient,
+  session: FamilySession,
+  studentId: string
+): Promise<PaymentRow[]> {
+  const student = await requireStudentInFamily(admin, session, studentId);
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .eq("student_id", student.id)
+    .eq("status", "processing")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** The family's first contact, for what the gateway shows on its page. */
+export async function payerForFamily(
+  admin: AdminClient,
+  session: FamilySession
+): Promise<{ email: string; firstName: string; lastName: string }> {
+  const contacts = await loadFamilyContacts(admin, session);
+  const first = contacts[0];
+  return {
+    email: first?.email ?? "",
+    firstName: first?.first_name ?? "",
+    lastName: first?.last_name ?? "",
+  };
+}
+
+/**
+ * One processing payment, found by the reference the gateway posted back.
+ *
+ * For the PayGate return, which arrives as a cross-site POST with no cookie:
+ * there is no session to scope by, so the child named in the URL is what
+ * narrows it, and a reference that belongs to another child matches nothing.
+ * Kept here rather than in the route so `scope.test.ts` still holds — the
+ * route has no business naming `payments` itself.
+ */
+export async function processingPaymentForStudent(
+  admin: AdminClient,
+  studentId: string,
+  providerRef: string
+): Promise<PaymentRow | null> {
+  if (!providerRef) return null;
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .eq("provider_ref", providerRef)
+    .eq("student_id", studentId)
+    .eq("status", "processing")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Everything the receipt for a paid order needs, in one scoped read.
+ *
+ * The campus is reference data rather than family data, so it is fetched here
+ * beside the rest instead of being threaded through `loadFamilyStudents` — that
+ * type is shared by every family page and none of the others want a letterhead.
+ */
+export type StudentReceipt = {
+  student: FamilyStudent;
+  campus: { name: string; descriptor: string | null; address: string | null } | null;
+  gradeName: string | null;
+  payerName: string;
+  request: PaymentRequestRow;
+  payment: PaymentRow;
+};
+
+export async function loadStudentReceipt(
+  admin: AdminClient,
+  session: FamilySession,
+  studentId: string
+): Promise<StudentReceipt | null> {
+  const order = await loadStudentOrder(admin, session, studentId);
+  if (!order.request) return null;
+  const payment = order.payments.find((p) => p.status === "succeeded");
+  if (!payment) return null;
+
+  const [{ data: campus }, contacts] = await Promise.all([
+    order.student.current_campus_id
+      ? admin.from("campuses").select("name, descriptor, address").eq("id", order.student.current_campus_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    loadFamilyContacts(admin, session),
+  ]);
+  const payer = contacts[0];
+
+  return {
+    student: order.student,
+    campus: campus ?? null,
+    gradeName: order.student.grade?.name ?? null,
+    payerName: payer ? `${payer.first_name} ${payer.last_name}` : "",
+    request: order.request,
+    payment,
+  };
 }

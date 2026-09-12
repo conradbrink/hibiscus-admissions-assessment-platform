@@ -1085,11 +1085,21 @@ export type OfferAcceptanceRow = {
   created_at: string;
 };
 
+/**
+ * What is owed, for one of two subjects: the admissions triple (an
+ * application, the offer that priced it and the acceptance that agreed to it),
+ * or a child, for the optional extras their family ordered. Exactly one is
+ * named — `payment_requests_has_one_subject` — and `kind` and `campus_id` are
+ * both derived by trigger from whichever it is, never written by a caller.
+ */
 export type PaymentRequestRow = {
   id: string;
-  application_id: string;
-  offer_id: string;
-  acceptance_id: string;
+  application_id: string | null;
+  offer_id: string | null;
+  acceptance_id: string | null;
+  student_id: string | null;
+  kind: "admission" | "extras";
+  campus_id: string;
   currency: "BWP" | "ZAR";
   amount_minor: number;
   lines: Json;
@@ -1101,10 +1111,13 @@ export type PaymentRequestRow = {
   updated_at: string;
 };
 
+/** One attempt or receipt. Its subject is copied from its request by trigger. */
 export type PaymentRow = {
   id: string;
   payment_request_id: string;
-  application_id: string;
+  application_id: string | null;
+  student_id: string | null;
+  campus_id: string;
   method: PaymentMethod;
   provider: PaymentProviderName;
   provider_ref: string | null;
@@ -1672,6 +1685,8 @@ export type StudentOptionalSelectionRow = {
   unit_amount_minor: number;
   currency: "BWP" | "ZAR";
   status: "selected" | "paid" | "cancelled";
+  /** What paid for this line, once a request has been raised over it. */
+  payment_request_id: string | null;
   selected_at: string;
   cancelled_at: string | null;
   created_at: string;
@@ -1853,11 +1868,12 @@ export type Database = {
       >;
       student_optional_selections: TableOf<
         StudentOptionalSelectionRow,
-        "quantity" | "choice" | "status" | "selected_at" | "cancelled_at",
+        "quantity" | "choice" | "status" | "payment_request_id" | "selected_at" | "cancelled_at",
         [
           Rel<"student_optional_selections_student_id_fkey", "student_id", "students">,
           Rel<"student_optional_selections_item_id_fkey", "item_id", "optional_items">,
           Rel<"student_optional_selections_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"student_optional_selections_payment_request_id_fkey", "payment_request_id", "payment_requests">,
         ]
       >;
       student_journey_messages: TableOf<
@@ -2231,15 +2247,25 @@ export type Database = {
       >;
       payment_requests: TableOf<
         PaymentRequestRow,
-        "lines" | "paid_minor" | "status" | "paid_at",
+        // The subject columns are all optional because only one set of them is
+        // ever given; `kind` and `campus_id` are trigger-derived from it.
+        | "application_id" | "offer_id" | "acceptance_id" | "student_id" | "kind" | "campus_id"
+        | "lines" | "paid_minor" | "status" | "paid_at",
         [
           Rel<"payment_requests_application_id_fkey", "application_id", "applications">,
           Rel<"payment_requests_offer_id_fkey", "offer_id", "offers">,
           Rel<"payment_requests_acceptance_id_fkey", "acceptance_id", "offer_acceptances">,
+          Rel<"payment_requests_student_id_fkey", "student_id", "students">,
+          Rel<"payment_requests_campus_id_fkey", "campus_id", "campuses">,
         ]
       >;
       payments: TableOf<
         PaymentRow,
+        // The subject is copied from the request by trigger, so a caller need
+        // not send any of it.
+        | "application_id"
+        | "student_id"
+        | "campus_id"
         | "provider_ref"
         | "status"
         | "approval_code"
@@ -2258,6 +2284,8 @@ export type Database = {
         [
           Rel<"payments_payment_request_id_fkey", "payment_request_id", "payment_requests">,
           Rel<"payments_application_id_fkey", "application_id", "applications">,
+          Rel<"payments_student_id_fkey", "student_id", "students">,
+          Rel<"payments_campus_id_fkey", "campus_id", "campuses">,
           Rel<"payments_recorded_by_fkey", "recorded_by", "staff_profiles">,
           Rel<"payments_refunded_by_fkey", "refunded_by", "staff_profiles">,
         ]

@@ -452,6 +452,90 @@ Monday morning is which families to ring today.
 Progress is counted over **required** steps only, so an optional aftercare
 choice can never keep a family at 90 per cent forever.
 
+### The onboarding journey (PR #77)
+
+Four messages around a child's first day, anchored on `enrolments.starts_on`:
+a welcome three weeks before, a reminder of what is outstanding about ten days
+before (skipped entirely when nothing is), the first-day details three days
+before, and a check-in five days after. A family who does everything promptly
+gets **three**. The schedule is pure and tested in `lib/onboarding/schedule.ts`;
+`nextStep` returns **one** step or none, so a family who enrols late gets them
+on successive days rather than three at once.
+
+No teacher and no class name anywhere. The school asked for warm, not personal,
+and naming a teacher would have made the whole journey wait on class
+allocation.
+
+Two things were missing before this and are worth knowing:
+
+- **Nothing was ever assigned.** Almost every task in the system is created
+  unassigned, so the surfaces that would carry a personal reminder — the topbar
+  badge, the dashboard's "my tasks", `/staff/tasks?filter=mine` — were empty by
+  construction. `lib/onboarding/owner.ts` resolves the person who owned the
+  application, skipping anyone who has left, and every task the journey creates
+  goes to them.
+- **A task could only be about an application.** `commit_transition` requires
+  one, and by the time a child is onboarding theirs is terminal. `tasks.student_id`
+  gives post-enrolment work a subject; `tasks_select` already scoped on
+  `tasks.campus_id` directly, so no new policy was needed. The same column is
+  what lets a parent's WhatsApp reply open a task against the **child** rather
+  than a record that closed months ago (`lib/messaging/inbound.ts`).
+
+Ships behind `onboarding_journey_enabled`, off, like the re-enrolment asks did.
+
+### Optional extras, and paying for them (PR #77, PR #78)
+
+Stationery, transport, lunch, aftercare — priced per campus, because the
+currency is the campus's and one `amount_minor` cannot be both pula and rand.
+`optional_items` carries the catalogue (edited at
+`/staff/admin/optional-items`) and `student_optional_selections` what a family
+chose, with `unit_amount_minor` **snapshotted at selection time**: the
+catalogue will change between a family ordering in November and the office
+reconciling in January, and a family pays what they were shown.
+
+This deliberately did **not** reuse the existing `choice` onboarding steps.
+`uniform`, `book_pack` and `transport` are already `kind = 'choice'` with an
+`options` array, and putting a price in there would have meant money in a jsonb
+list of strings with no currency, no quantity, no order-by date and nothing to
+hang a payment off. The checklist keeps asking what size; the catalogue owns
+what is bought.
+
+**Paying for it relaxed the payment records rather than adding a second set.**
+`payment_requests` required an application, an offer *and* an acceptance, and
+`payments` required an application; both read policies reached campus by
+joining `applications`. Now each names exactly one subject — the admissions
+triple, or a child — enforced by `payment_requests_has_one_subject`, the same
+shape `access_tokens` uses. `kind` and `campus_id` are **derived by trigger**
+from whichever subject is named, never accepted from a caller, and a payment's
+whole subject is copied from its request the same way; that is what lets the
+rewritten policies test `can_access_campus(campus_id)` directly and still not
+be talked around by a forged column. Security case 54 proves each of those,
+each confirmed to fail against a deliberately weakened migration first.
+
+A second set of money tables would have meant a second reconciler, a second
+receipt, a second finance queue, and two places to look when a parent says they
+paid. Instead `startCheckout` stopped taking an `ApplicationGraph` — it only
+ever wanted a reference, a description and a customer — and the gateway layer
+(`lib/payments/provider.ts` and all three adapters) needed no change at all.
+
+**One payment per child.** Siblings at campuses in different countries are
+priced in different currencies, so one family basket could not always add up.
+
+What an extras payment does *not* do is go through the workflow engine. There
+is no application status to move and no student timeline to write to —
+`funnel_events` and `application_events` are both application-scoped — so
+`lib/extras/settle.ts` settles the request, flips the covered lines to `paid`,
+and escalates anything a person should see (a part payment, an amount
+mismatch) as a **student-scoped task** on the owner's badge. The money trail is
+the `payments` rows, which carry the provider's answer, the amount, the
+approval code and every verify attempt.
+
+Two honest limits: extras rows are **read-only in the finance console** (every
+write on that panel moves an application, and an extras order has none, so
+recording a transfer against one is a later change), and an order is **never
+chased** — no reminder, no dunning, and it never makes a family look behind on
+the checklist.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
