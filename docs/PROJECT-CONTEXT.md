@@ -38,6 +38,22 @@ is in the pull request that introduced this repository. The short version:
   allow-list of variables, validated at save time.
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
+- **Security is watched, not remembered.** The September audit was a
+  photograph; three things keep it a film. CodeQL (`.github/workflows/
+  codeql.yml`, `security-extended`) follows data through the program and
+  finds the classes every web application shares. Semgrep runs six rules
+  that live in this repository (`.github/semgrep/rules.yml`) and name no
+  registry — the invariants no generic scanner could know: no secret behind
+  a `NEXT_PUBLIC_` name, the service-role key read in one file only, no
+  unreviewed `dangerouslySetInnerHTML` source, no `Math.random()` outside
+  tests, no second Content-Security-Policy, no SQL built by interpolation.
+  Dependabot (`.github/dependabot.yml`) opens the update that `npm audit`
+  would otherwise only mention on a week somebody happened to open a pull
+  request; security updates are ungrouped and immediate, the rest are one
+  grouped pull request a week. Each semgrep rule was checked against a
+  deliberate violation, because a rule that has never fired is a rule
+  nobody has tested.
+
 - **Permission-native from migration 1** (no role-string layer to migrate off).
 - **Answers never leave the server.** Keys are readable by content authors
   and the marker (service role). The kiosk reads the frozen form; a unit test

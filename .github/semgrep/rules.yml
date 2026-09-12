@@ -1,0 +1,129 @@
+# The rules a generic scanner cannot know.
+#
+# CodeQL runs alongside this and covers the classes every web application
+# shares: injection, path traversal, unsafe deserialisation, tainted redirects.
+# There is no point restating those here.
+#
+# What CodeQL cannot know is what *this* system promises. Each rule below is an
+# invariant that was decided once, for a reason written down next to it, and
+# that nothing in the code says out loud. A reviewer cannot be relied on to
+# remember all of them at midnight in a hurry; a grep can.
+#
+# Every rule passes on the tree as it stands, and each was checked against a
+# deliberate violation before being committed — a rule that has never fired is
+# a rule nobody has tested.
+#
+# Run locally:  semgrep scan --config .github/semgrep/rules.yml
+# No network, no registry, no account: the rules are in the repository.
+
+rules:
+  # ---------------------------------------------------------------------------
+  - id: secret-in-a-public-variable
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      NEXT_PUBLIC_ variables are inlined into the JavaScript bundle the browser
+      downloads. Anything named here is published to the world, so a name that
+      sounds like a secret is either a real secret being leaked or a name that
+      will fool the next reader into leaking one. Read it from a server-only
+      variable instead.
+    patterns:
+      - pattern-either:
+          - pattern: process.env.$NAME
+          - pattern: process.env["$NAME"]
+      - metavariable-regex:
+          metavariable: $NAME
+          # PUBLISHABLE and ANON are the two Supabase keys that are designed to
+          # ship in the bundle; everything else with these words in it is not.
+          regex: ^NEXT_PUBLIC_(?!SUPABASE_(PUBLISHABLE|ANON)_KEY$).*(SECRET|SERVICE_ROLE|PRIVATE|PASSWORD|TOKEN|_API_KEY|CREDENTIAL).*$
+
+  # ---------------------------------------------------------------------------
+  - id: service-role-key-outside-the-admin-client
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      The service-role key bypasses every row-level security policy in the
+      database. It is read in exactly one place, lib/supabase/admin.ts, which is
+      marked server-only and is the single door every privileged query goes
+      through. A second reader is a second door, and the next one may not be
+      behind server-only.
+    paths:
+      exclude:
+        - web/lib/supabase/admin.ts
+    patterns:
+      - pattern-either:
+          - pattern: process.env.$NAME
+          - pattern: process.env["$NAME"]
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: ^SUPABASE_(SERVICE_ROLE_KEY|SECRET_KEY)$
+
+  # ---------------------------------------------------------------------------
+  - id: unreviewed-raw-html-sink
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      dangerouslySetInnerHTML renders its string as markup, so whatever reaches
+      it must be HTML this system composed itself. The named values are: an
+      offer letter and its terms, an agreement's body, and a template preview —
+      each rendered server-side through lib/email/render.ts, which escapes every
+      variable it substitutes. Anything else reaching this sink is a stored-XSS
+      hole. If you have a new source of trusted HTML, add it to this rule and
+      say in the pull request where its escaping happens.
+    patterns:
+      # The object, not the JSX attribute: this also catches one built into a
+      # variable first and handed to dangerouslySetInnerHTML further down.
+      - pattern: "{ __html: $HTML }"
+      - metavariable-regex:
+          metavariable: $HTML
+          # An identifier or member expression ending in one of the reviewed
+          # names, optionally concatenated with another such value.
+          regex: ^(?!\s*(?:[A-Za-z_$][\w$]*\.)*(?:rendered_html|terms_html|body_html|bodyHtml|preview)\s*(?:\+\s*(?:[A-Za-z_$][\w$]*\.)*(?:rendered_html|terms_html|body_html|bodyHtml|preview)\s*)*$)
+
+  # ---------------------------------------------------------------------------
+  - id: math-random-outside-tests
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Math.random() is not unpredictable. This system mints magic links, kiosk
+      codes, session tokens and a Content-Security-Policy nonce, and every one
+      of them is only worth anything if it cannot be guessed. Use
+      crypto.getRandomValues or crypto.randomUUID. Tests may use Math.random for
+      fixture ids, which is why they are excluded rather than the rule softened.
+    paths:
+      exclude:
+        - "*.test.ts"
+        - "*.test.tsx"
+        - "**/*.test.ts"
+        - "**/*.test.tsx"
+    pattern: Math.random()
+
+  # ---------------------------------------------------------------------------
+  - id: a-second-content-security-policy
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Two Content-Security-Policy response headers are both enforced, and the
+      browser takes the intersection. The policy is set in one place, proxy.ts,
+      because it carries a nonce minted for that request; a second policy set
+      anywhere else would have no nonce in it, and every script on the page
+      would be refused — silently, with the page still returning 200.
+    paths:
+      exclude:
+        - web/proxy.ts
+    pattern-either:
+      - pattern: $RES.headers.set("Content-Security-Policy", ...)
+      - pattern: $RES.headers.append("Content-Security-Policy", ...)
+      - pattern: '{ key: "Content-Security-Policy", value: ... }'
+
+  # ---------------------------------------------------------------------------
+  - id: sql-built-by-string-interpolation
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Every query in this system goes through the Supabase query builder or a
+      named RPC, both of which parameterise. A SQL statement assembled from a
+      template literal is how injection gets in, and there is no reason to have
+      one here.
+    patterns:
+      - pattern-regex: '`[^`]*\b(?i:select|insert\s+into|update|delete\s+from|drop\s+table|alter\s+table)\b[^`]*\$\{'

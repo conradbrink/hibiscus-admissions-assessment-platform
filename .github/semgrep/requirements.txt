@@ -1,0 +1,4 @@
+# Pinned so a scan is reproducible, and kept current by Dependabot (see
+# .github/dependabot.yml). The rules this runs are in rules.yml, in this
+# repository: no registry is contacted and no account is needed.
+semgrep==1.177.0

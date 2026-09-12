@@ -1,0 +1,70 @@
+name: CodeQL
+
+# Static analysis for the vulnerability classes every web application shares:
+# a value from a request reaching a sink that interprets it (injection, path
+# traversal, unsafe redirect, prototype pollution, ReDoS), and the mistakes
+# that read as ordinary code (a comparison that always succeeds, a missing
+# await on a check, a regular expression that backtracks forever).
+#
+# This is the pass the September audit did not have. Everything up to now was
+# read by a person and asserted by tests, which finds what somebody thought to
+# look for. CodeQL follows data through the program and finds what nobody did.
+#
+# `security-extended` rather than the default set: the default is tuned for a
+# low false-positive rate on any repository, and this one is small enough that
+# a handful of findings to read through is a good trade for the extra queries.
+#
+# Findings appear under Security → Code scanning, and on the pull request that
+# introduced them. The repository is public, so this costs nothing.
+#
+# Note for whoever touches this next: GitHub also offers "default setup" for
+# code scanning in the repository settings. Enabling it *disables* this file.
+# Pick one. This file is the one that is reviewed, versioned, and explains
+# itself.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # A dependency's advisory, or a new query in CodeQL's own pack, can make code
+  # that was clean on Friday unclean on Monday without anybody touching it.
+  schedule:
+    - cron: "17 4 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyse:
+    name: Analyse JavaScript and TypeScript
+    runs-on: ubuntu-latest
+    permissions:
+      # Writing the results to the Security tab is the whole point.
+      security-events: write
+      contents: read
+      # Reading workflow run metadata, which the action needs on private repos
+      # and does no harm here.
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          # `none` skips the build: the extractor reads the source directly,
+          # which is what you want for TypeScript and avoids CI needing the
+          # placeholder environment variables `next build` insists on.
+          build-mode: none
+          config: |
+            paths-ignore:
+              - web/.next
+              - web/node_modules
+              - "**/*.min.js"
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
