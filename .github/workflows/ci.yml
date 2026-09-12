@@ -169,6 +169,36 @@ jobs:
           fi
           echo "No credential-shaped strings found."
 
+  invariants:
+    name: This system's own rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install semgrep
+        run: pip install -r .github/semgrep/requirements.txt
+
+      - name: Check the invariants a generic scanner cannot know
+        # The rules live in the repository and name no registry, so this runs
+        # offline, needs no account, and cannot change behaviour because
+        # somebody else edited a ruleset. What each rule is for is written
+        # beside it in rules.yml.
+        #
+        # `--error` makes a finding fail the job. Blocking from the first
+        # commit, for the reason the lint step above gives: a gate that is
+        # permanently red is a gate everybody learns to ignore, and starting
+        # clean is the one moment when making it blocking costs nothing.
+        run: |
+          semgrep scan \
+            --config .github/semgrep/rules.yml \
+            --metrics=off \
+            --error \
+            --quiet
+
   schema:
     name: Schema replay, RLS and template coverage
     runs-on: ubuntu-latest

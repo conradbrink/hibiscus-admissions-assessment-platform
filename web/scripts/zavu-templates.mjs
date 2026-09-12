@@ -64,9 +64,20 @@ if (flag("sql")) {
     const [key, id] = pair.split("=");
     if (!doc.templates.some((t) => t.key === key)) throw new Error(`no template called "${key}"`);
     if (!id) throw new Error(`${key}: no id`);
-    console.log(
-      `update message_templates set zavu_template_id = '${id.replace(/'/g, "''")}', is_active = true, updated_at = now() where key = '${key}';`
-    );
+    // Validated, not escaped. This line prints SQL that somebody pastes into
+    // the production SQL editor, so the id has to be beyond suspicion rather
+    // than quoted correctly: a Zavu template id is alphanumeric with dashes
+    // and underscores, and anything else is a typo or a paste that went wrong.
+    // The key is already known to be one of ours from the check above.
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+      throw new Error(`${key}: "${id}" is not a template id (letters, digits, dash, underscore; up to 64)`);
+    }
+    // This script's whole job is to emit SQL text for a person to read and
+    // paste; both values it interpolates are validated against a fixed shape
+    // immediately above, which is why the rule is suppressed here and only
+    // here.
+    // nosemgrep: sql-built-by-string-interpolation
+    console.log(`update message_templates set zavu_template_id = '${id}', is_active = true, updated_at = now() where key = '${key}';`);
   }
   process.exit(0);
 }

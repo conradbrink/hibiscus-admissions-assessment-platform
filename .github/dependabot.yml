@@ -1,0 +1,87 @@
+# Dependency updates, opened as pull requests.
+#
+# The audit this repository had until now was a snapshot: `npm audit` in CI
+# tells you about an advisory the moment somebody happens to open a pull
+# request, and says nothing on the quiet weeks. A school's admissions system
+# has quiet weeks. Dependabot is what turns "we checked in September" into
+# "we are told when it changes".
+#
+# Updates land as ordinary pull requests, so CI — typecheck, lint, 747 unit
+# tests, build, schema replay, the security regression suite — runs on every
+# one of them before anybody merges. That is the point: the safety of taking
+# an update is exactly the safety of the gate in front of `main`.
+#
+# Grouped deliberately. Fifteen separate pull requests a week is how a team
+# learns to merge without reading; one grouped pull request a week is
+# something a person actually reviews.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # The application.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Gaborone
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      # A security fix is its own pull request, never grouped and never
+      # waiting for Monday: if it can be applied it should be applied.
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+      # Everything else moves together, split only by how much a bump can
+      # break. Patch and minor are read quickly; a major is read properly.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [major]
+
+  # ---------------------------------------------------------------------------
+  # The static-analysis tool, pinned so a scan is reproducible.
+  # ---------------------------------------------------------------------------
+  # A pinned version with nothing watching it is a version that is current on
+  # the day it is written and stale for the next two years.
+  - package-ecosystem: pip
+    directory: /.github/semgrep
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: ci
+
+  # ---------------------------------------------------------------------------
+  # The workflows themselves.
+  # ---------------------------------------------------------------------------
+  # A compromised action runs with whatever the workflow's token can do, which
+  # is why every job here declares `permissions` and why the actions are worth
+  # keeping current. These are pinned by tag (actions/checkout@v4), so an
+  # update here is a real change, not a no-op.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Gaborone
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
