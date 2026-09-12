@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { StoryPlayer } from "@/components/kiosk/story/story-player";
 import { storyVoiceProvider } from "@/lib/assessment/story-voice";
+import { devShortcutsAllowed } from "@/lib/deployment";
 import { requireStaff } from "@/lib/staff/session";
 import type { DeliveryForm } from "@/lib/assessment/delivery";
 import type { SubmitState } from "../actions";
@@ -32,7 +33,9 @@ function previewExpiry(): number {
 }
 
 export default async function Preview({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
-  if (process.env.VERCEL_ENV === "production") await requireStaff("assessments.deliver");
+  // The walk-through renders real questions. Anywhere but a developer's own
+  // machine it asks who you are — a preview deployment is a deployment.
+  if (!devShortcutsAllowed()) await requireStaff("assessments.deliver");
   const { c } = await searchParams;
   const code = c && CHAPTERS.has(c) ? c : "garden";
   const chapter = JSON.parse(readFileSync(path.join(process.cwd(), "content", "story", `${code}.json`), "utf8")) as Chapter;

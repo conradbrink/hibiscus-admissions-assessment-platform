@@ -7,6 +7,7 @@ import { handleReply } from "@/lib/messaging/inbound";
 import { normaliseMobile } from "@/lib/contacts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { guarded } from "@/lib/staff/action-helpers";
+import { devShortcutsAllowed } from "@/lib/deployment";
 import { requireStaffAction } from "@/lib/staff/session";
 
 /**
@@ -18,7 +19,7 @@ import { requireStaffAction } from "@/lib/staff/session";
 export async function simulateReply(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("admin");
-    if (process.env.VERCEL_ENV === "production") throw new Error("Not available in production.");
+    if (!devShortcutsAllowed()) throw new Error("Not available on a deployment.");
     const p = z.object({ from: z.string().trim().min(7).max(25), text: z.string().trim().min(1).max(1000) }).parse(Object.fromEntries(formData));
     const from = normaliseMobile(p.from);
     if (!from) throw new Error("That number could not be normalised.");

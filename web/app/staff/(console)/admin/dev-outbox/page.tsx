@@ -4,6 +4,7 @@ import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/format-date";
+import { devShortcutsAllowed } from "@/lib/deployment";
 import { requireStaff } from "@/lib/staff/session";
 import { simulateReply } from "./actions";
 
@@ -31,7 +32,7 @@ export default async function OutboxPage() {
   const provider = process.env.EMAIL_PROVIDER ?? "dev";
   const messaging = process.env.MESSAGING_PROVIDER ?? "dev";
   const payments = process.env.PAYMENT_PROVIDER ?? "dev";
-  const canSimulate = process.env.VERCEL_ENV !== "production";
+  const canSimulate = devShortcutsAllowed();
 
   return (
     <>
