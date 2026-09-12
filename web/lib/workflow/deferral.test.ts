@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deferralFollowUps, deferralTaskDueAt, isFutureDate } from "./deferral";
+import { deferralFollowUps, deferralTaskDueAt, isFutureDate, statusAfterDeferral } from "./deferral";
 
 const at = (iso: string) => new Date(iso);
 
@@ -56,5 +56,19 @@ describe("isFutureDate", () => {
   it("refuses a date in the past", () => {
     expect(isFutureDate("2026-09-01", at("2026-09-12T10:00:00Z"))).toBe(false);
     expect(isFutureDate("2026-09-13", at("2026-09-12T10:00:00Z"))).toBe(true);
+  });
+});
+
+describe("statusAfterDeferral", () => {
+  it("sends a primary family back to book, because deferring cancelled their sitting", () => {
+    expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false })).toBe("new_enquiry");
+  });
+
+  it("sends a family who already sat it back to the decision", () => {
+    expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: true })).toBe("awaiting_decision");
+  });
+
+  it("sends a pre-school family back to the decision, which is the only place their answer comes from", () => {
+    expect(statusAfterDeferral({ requiresAssessment: false, hasSatAssessment: false })).toBe("awaiting_decision");
   });
 });

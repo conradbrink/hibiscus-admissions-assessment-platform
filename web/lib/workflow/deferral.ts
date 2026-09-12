@@ -77,6 +77,27 @@ export function deferralTaskDueAt(deferredUntil: string): Date {
   return atSendTime(deferredUntil, 0);
 }
 
+/**
+ * Where a family lands when the deferral ends.
+ *
+ * Not always where they came from. Deferring cancels any live booking — the
+ * seat goes back and the reminders stop — so a family who paused with an
+ * assessment booked has nothing booked when they return, and putting them back
+ * in `awaiting_decision` would leave them waiting on a school decision that
+ * cannot be made until a child who has not sat the assessment sits it. They go
+ * to `new_enquiry`, where the next step is to book.
+ *
+ * A family who has already sat it, or never needed to, goes to
+ * `awaiting_decision`, which is where their answer actually comes from.
+ */
+export function statusAfterDeferral(input: {
+  requiresAssessment: boolean;
+  /** A sitting that was submitted or marked. A cancelled booking is not one. */
+  hasSatAssessment: boolean;
+}): "new_enquiry" | "awaiting_decision" {
+  return input.requiresAssessment && !input.hasSatAssessment ? "new_enquiry" : "awaiting_decision";
+}
+
 /** Is this date worth deferring to at all? Past dates are a typo, not a plan. */
 export function isFutureDate(day: string, now: Date = new Date()): boolean {
   return atSendTime(day, 0).getTime() > now.getTime();

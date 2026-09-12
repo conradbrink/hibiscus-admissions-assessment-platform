@@ -562,9 +562,19 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               <h2 className="text-sm font-semibold">Defer</h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 For a family who wants a place later in the year. We message them around the date and put a call on
-                the owner&rsquo;s list for the day itself. Nothing is cancelled and one click brings them back.
+                the owner&rsquo;s list for the day itself, and one click brings them back.
+                {booking && booking.status !== "cancelled"
+                  ? " Their booking is cancelled, so the seat goes back and the reminders stop."
+                  : ""}
               </p>
-              <ActionForm action={defer} label="Defer" variant="outline" size="sm" className="mt-2">
+              <ActionForm
+                action={defer}
+                label="Defer"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                confirm={booking && booking.status !== "cancelled" ? "Defer this family? Their booking is cancelled and the seat goes back." : undefined}
+              >
                 {idField}
                 <Input type="date" name="until" required aria-label="Come back to them on" />
                 <Input name="reason" placeholder="What they said (optional)" maxLength={500} />

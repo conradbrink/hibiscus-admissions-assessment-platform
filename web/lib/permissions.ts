@@ -31,6 +31,8 @@ export const PERMISSION_CODES = [
   "rules.write",
   "templates.write",
   "staff.write",
+  /** Write a task of your own and give it to somebody. Management holds this and no other write. */
+  "tasks.write",
   "roles.write",
   "staff.delete",
   "settings.write",
@@ -61,6 +63,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "finance.write": "Reconcile payments and issue refunds",
   "rules.write": "Change admission rules",
   "templates.write": "Edit email and offer templates",
+  "tasks.write": "Create tasks and assign them to staff",
   "staff.write": "Invite colleagues and set their roles and campuses",
   "roles.write": "Change what each role may do",
   "staff.delete": "Delete a staff account",

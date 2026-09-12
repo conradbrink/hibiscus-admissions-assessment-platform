@@ -1,6 +1,6 @@
 import "server-only";
 import { bookingConfirmedTemplateKey, bookingNoun } from "@/lib/booking/noun";
-import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt } from "@/lib/workflow/deferral";
+import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfterDeferral } from "@/lib/workflow/deferral";
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
@@ -488,10 +488,12 @@ export async function onManualDecision(
  * the owner's badge on the day, so the school is the one that comes back
  * rather than the family having to remember.
  *
- * Live bookings are deliberately left alone. A family who defers after their
- * play date has nothing booked; one who defers with a booking still ahead of
- * them may well still come, and cancelling it for them would be answering a
- * question nobody asked.
+ * A live booking is cancelled. That is not tidiness: the assessment reminders
+ * are queued against the booking and hold only while it is `booked`, so a
+ * family who paused would otherwise still be told their assessment is in two
+ * days — and a seat nobody is coming to would stay held. Cancelling silently
+ * stops both. No cancellation email: the family asked for this on the phone,
+ * and the follow-ups around their date are the message that matters.
  */
 export async function onDeferred(
   admin: AdminClient,
@@ -505,6 +507,12 @@ export async function onDeferred(
     .update({ deferred_until: spec.until, deferred_reason: spec.reason })
     .eq("id", app.id);
   if (error) throw new WorkflowError(error.message, "database");
+
+  await admin
+    .from("bookings")
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" })
+    .eq("application_id", app.id)
+    .in("status", ["booked", "checked_in", "in_progress"]);
 
   // Every send holds only while the application is still deferred, so a
   // family who answers the first — or whom staff move back — is never chased
@@ -538,6 +546,10 @@ export async function onDeferred(
       },
     ],
     jobs,
+    // The chase stops: a family who has paused is not late for anything, and
+    // the no-show follow-up on a sitting they will not now attend is a call
+    // somebody would otherwise make for no reason.
+    resolveTaskTypes: ["follow_up_no_show"],
     audit: { action: "application.deferred", before: { status: app.status }, after: { deferred_until: spec.until } },
     actor,
   });
@@ -551,18 +563,35 @@ export async function onDeferred(
  */
 export async function onDeferralEnded(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
   actor: Actor
 ): Promise<void> {
+  // A sitting that was submitted or marked. The booking their deferral
+  // cancelled is not one, which is the whole point of asking.
+  const { count } = await admin
+    .from("attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", app.id)
+    .in("status", ["submitted", "marked"]);
+  const newStatus = statusAfterDeferral({
+    requiresAssessment: app.requires_assessment,
+    hasSatAssessment: (count ?? 0) > 0,
+  });
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: "deferred",
-    newStatus: "awaiting_decision",
-    nextAction: "await_school_contact",
+    newStatus,
+    // Back to the step they were on: book the sitting, or wait for us.
+    nextAction: newStatus === "new_enquiry" ? "book_assessment" : "await_school_contact",
     nextActionDueAt: hoursFromNow(48),
-    event: { type: "application.deferral_ended", summary: "Back from deferral", payload: {} },
+    event: {
+      type: "application.deferral_ended",
+      summary: newStatus === "new_enquiry" ? "Back from deferral — to book a sitting" : "Back from deferral",
+      payload: { resumed_to: newStatus },
+    },
     resolveTaskTypes: ["deferral_due"],
-    audit: { action: "application.deferral_ended", before: { status: app.status } },
+    audit: { action: "application.deferral_ended", before: { status: app.status }, after: { status: newStatus } },
     actor,
   });
 }
