@@ -2809,6 +2809,66 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 59. The edge of the database: who may call what
+  -- -------------------------------------------------------------------------
+  -- Three grants that were being held up by something else — a PostgREST
+  -- schema list, an error message, a caller's search path. Each is now
+  -- refused on its own, and each of these assertions fails if the grant
+  -- comes back.
+  declare
+    v_fn text;
+  begin
+    -- pg_net makes the database itself fetch a URL. `anon` and
+    -- `authenticated` hold EXECUTE on it — that grant belongs to
+    -- `supabase_admin` and cannot be revoked from here — and what keeps it
+    -- out of reach is that PostgREST exposes `public` and `graphql_public`
+    -- and not `net`.
+    --
+    -- The half that is ours: nothing in `public` may carry pg_net across
+    -- that line. `drain_tick` calls it and is callable by nobody.
+    for v_fn in
+      select p.oid::regprocedure::text
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public'
+         and p.prosrc ilike '%net.http%'
+    loop
+      if has_function_privilege('anon', v_fn::regprocedure, 'execute')
+         or has_function_privilege('authenticated', v_fn::regprocedure, 'execute') then
+        v_fail := v_fail || E'\n  - ' || ('59: a function that calls pg_net is callable: ' || v_fn);
+      end if;
+    end loop;
+
+    -- A trigger function is not an API. Whatever it would do if it could be
+    -- called, nobody outside the trigger should be able to try.
+    for v_fn in
+      select p.oid::regprocedure::text
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        join pg_type t on t.oid = p.prorettype
+       where n.nspname = 'public' and t.typname = 'trigger'
+    loop
+      if has_function_privilege('anon', v_fn::regprocedure, 'execute')
+         or has_function_privilege('authenticated', v_fn::regprocedure, 'execute') then
+        v_fail := v_fail || E'\n  - ' || ('59: a trigger function is callable: ' || v_fn);
+      end if;
+    end loop;
+
+    -- And every function this schema defines pins its search path, so an
+    -- unqualified name cannot be answered by a schema somebody else planted.
+    for v_fn in
+      select p.oid::regprocedure::text
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public'
+         and p.prokind = 'f'
+         and not exists (
+           select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c where c like 'search_path=%'
+         )
+    loop
+      v_fail := v_fail || E'\n  - ' || ('59: no search_path on ' || v_fn);
+    end loop;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then
