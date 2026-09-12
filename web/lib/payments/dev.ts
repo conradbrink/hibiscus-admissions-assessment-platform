@@ -1,18 +1,24 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { devShortcutsAllowed } from "@/lib/deployment";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CheckoutRequest, CheckoutResult, PaymentProvider, VerifyResult } from "@/lib/payments/provider";
 
 /**
  * The development gateway. Charges nothing, and cannot report a payment as
- * made unless the non-production "simulate" screen at /pay/dev wrote the
- * outcome onto the payment row first. In production it refuses to exist.
+ * made unless the "simulate" screen at /pay/dev wrote the outcome onto the
+ * payment row first. On any deployment it refuses to exist.
  */
 
-// VERCEL_ENV, not NODE_ENV: `next build` and preview deployments both run
-// with NODE_ENV=production, and previews are exactly where this belongs.
-if (process.env.VERCEL_ENV === "production") {
-  throw new Error("PAYMENT_PROVIDER=dev is not allowed in production. Set PAYMENT_PROVIDER=paygate or dpo.");
+// Not production, and not any other deployment either unless somebody has
+// said so: a preview build has no PAYMENT_PROVIDER, so it would otherwise
+// fall back to this adapter and be able to report a payment as made. The
+// screen is refused by `devGatewayEnabled`; this refuses the adapter behind
+// it, so neither half can be reached by the other's mistake.
+if (!devShortcutsAllowed()) {
+  throw new Error(
+    "The development payment gateway cannot run on a deployment. Set PAYMENT_PROVIDER=paygate or dpo for this environment, or ALLOW_DEV_SHORTCUTS=1 if this deployment is deliberately a sandbox."
+  );
 }
 
 export type DevSimulation = { dev_simulated: "paid" | "failed" | "cancelled"; simulated_at: string };

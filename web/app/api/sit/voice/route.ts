@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { readKioskSession } from "@/lib/assessment/kiosk-server";
+import { devShortcutsAllowed } from "@/lib/deployment";
 import { MAX_NARRATION_CHARS } from "@/lib/assessment/story";
 import { narrationAudio, storyVoiceProvider, VoiceError } from "@/lib/assessment/story-voice";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -21,8 +22,9 @@ export async function GET(request: Request): Promise<Response> {
   if (storyVoiceProvider() !== "elevenlabs") return Response.json({ error: "no voice provider" }, { status: 404 });
 
   const session = await readKioskSession();
-  const preview = process.env.VERCEL_ENV !== "production";
-  if (!session && !preview) return Response.json({ error: "no session" }, { status: 401 });
+  // A walk-through on a developer's machine has no sitting. A preview
+  // deployment is not that, and synthesising narration costs money per line.
+  if (!session && !devShortcutsAllowed()) return Response.json({ error: "no session" }, { status: 401 });
 
   const url = new URL(request.url);
   const parsed = query.safeParse({ t: url.searchParams.get("t") ?? "" });
@@ -30,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const admin = createAdminClient();
   const ctx = await requestContext();
-  const verdict = await enforceRateLimit(admin, LIMITS.storyVoice, session?.attemptId ?? ctx.ipHash ?? "preview");
+  const verdict = await enforceRateLimit(admin, LIMITS.storyVoice, session?.attemptId ?? ctx.ipHash ?? "walkthrough");
   if (!verdict.ok) return Response.json({ error: "slow down" }, { status: 429 });
 
   try {
