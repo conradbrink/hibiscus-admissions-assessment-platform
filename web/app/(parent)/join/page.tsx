@@ -21,7 +21,10 @@ const CHOICES: Array<{ href: string; icon: typeof CalendarCheck; title: string; 
     href: "/join/preschool",
     icon: Baby,
     title: "Join pre-school",
-    detail: "Nursery to Pre-Reception. No assessment: tell us about your child and book a visit to see the campus.",
+    // The card title stays "Join pre-school": a parent looking for a place is
+    // looking for the door, not for what happens once they are through it.
+    // The detail line is where the booking gets its name.
+    detail: "Nursery to Pre-Reception. No assessment: tell us about your child and book a play date to see the campus.",
     primary: false,
   },
   {

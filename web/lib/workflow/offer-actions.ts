@@ -243,11 +243,16 @@ export async function onOfferApproved(
   if (error) throw new WorkflowError(error.message, "database");
 
   const live = { offer_id: offer.id, offer_status: ["sent", "viewed"] };
+  const offerTemplateKey = app.requires_assessment ? "results_and_offer" : "preschool_offer";
   const jobs: JobSpec[] = [
     {
       type: "send_email",
-      payload: { template_key: "results_and_offer", links: app.requires_assessment ? ["results", "offer"] : ["offer"], offer_id: offer.id },
-      idempotencyKey: `email:${app.id}:results_and_offer:${offer.id}`,
+      // A pre-school family has no results and no learning profile, and the
+      // results link was already omitted for them — so `results_and_offer`
+      // opened by thanking them for an assessment and promised a profile that
+      // did not exist. Their own template says neither.
+      payload: { template_key: offerTemplateKey, links: app.requires_assessment ? ["results", "offer"] : ["offer"], offer_id: offer.id },
+      idempotencyKey: `email:${app.id}:${offerTemplateKey}:${offer.id}`,
     },
     {
       type: "offer_expire",

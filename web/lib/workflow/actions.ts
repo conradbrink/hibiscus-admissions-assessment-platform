@@ -1,4 +1,5 @@
 import "server-only";
+import { bookingConfirmedTemplateKey, bookingNoun } from "@/lib/booking/noun";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
@@ -156,8 +157,9 @@ export async function onEnquiryCreated(
 // Bookings
 // ---------------------------------------------------------------------------
 
-function bookingSummary(session: Pick<SessionRow, "starts_at">, kind: "assessment" | "visit") {
-  return `${kind === "assessment" ? "Assessment" : "Visit"} booked for ${formatDateLong(session.starts_at)}, ${formatTime(session.starts_at)}`;
+function bookingSummary(session: Pick<SessionRow, "starts_at">, noun: string) {
+  const label = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return `${label} booked for ${formatDateLong(session.starts_at)}, ${formatTime(session.starts_at)}`;
 }
 
 /**
@@ -167,7 +169,7 @@ function bookingSummary(session: Pick<SessionRow, "starts_at">, kind: "assessmen
  */
 export async function onBookingCreated(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
   booking: Pick<BookingRow, "id" | "kind">,
   session: Pick<SessionRow, "starts_at">,
   actor: Actor,
@@ -178,6 +180,11 @@ export async function onBookingCreated(
   const live = { booking_id: booking.id, booking_status: ["booked"] };
 
   if (booking.kind === "visit") {
+    // A pre-school family books a play date; a primary family books a visit.
+    // One stored kind, two words and two templates — `visit_confirmed` is
+    // approved with Zavu for the look-around door and is left alone.
+    const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking.kind };
+    const noun = bookingNoun(nounInput);
     // Null when the application is past the booking stage: the visit is
     // recorded and confirmed, and where the family actually is — awaiting an
     // offer, paying — is left alone. See `statusAfterBooking`.
@@ -190,11 +197,11 @@ export async function onBookingCreated(
       nextActionDueAt: moved ? startsAt : null,
       event: {
         type: "booking.created",
-        summary: bookingSummary(session, "visit"),
+        summary: bookingSummary(session, noun),
         payload: { booking_id: booking.id, kind: "visit" },
       },
       resolveTaskTypes: ["callback"],
-      jobs: [emailJob(app.id, "visit_confirmed", { suffix: booking.id, bookingId: booking.id })],
+      jobs: [emailJob(app.id, bookingConfirmedTemplateKey(nounInput), { suffix: booking.id, bookingId: booking.id })],
       audit: { action: "booking.created", entityType: "booking", entityId: booking.id },
       actor,
     });
@@ -403,7 +410,7 @@ export async function onBookingCancelled(
  */
 export async function onRescheduled(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
   oldBooking: Pick<BookingRow, "id">,
   newSessionId: string,
   actor: Actor

@@ -1,3 +1,4 @@
+import { bookingNoun, type BookingNounInput } from "@/lib/booking/noun";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 
 /**
@@ -313,6 +314,26 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
     staffLabel: "—",
   },
 };
+
+/**
+ * The copy for one next action, with the booking called what this family's
+ * booking is called.
+ *
+ * Only `attend_visit` moves: a pre-school family books a play date and a
+ * primary family looking around books a visit, and both store the same
+ * `next_action`. Adding a second code would mean a constraint change and a
+ * second row in every consumer, for one word.
+ */
+export function nextActionCopy(action: NextAction, input: BookingNounInput): NextActionCopy {
+  const copy = NEXT_ACTIONS[action];
+  if (action !== "attend_visit" || bookingNoun(input) !== "play date") return copy;
+  return {
+    parentTitle: "Your next step is to come for the play date.",
+    parentDetail: "Come and play, look around, and ask us anything. There is nothing to bring.",
+    parentCta: { label: "View play date", href: "/next/booking" },
+    staffLabel: "Attend play date",
+  };
+}
 
 export function isNextAction(value: string | null | undefined): value is NextAction {
   return (NEXT_ACTION_KEYS as readonly string[]).includes(value ?? "");

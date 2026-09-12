@@ -1,8 +1,9 @@
 import { CalendarPlus, MapPin } from "lucide-react";
+import type { BookingNoun } from "@/lib/booking/noun";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 
 export function BookingCard({
-  kind,
+  noun,
   startsAt,
   campusName,
   location,
@@ -11,7 +12,8 @@ export function BookingCard({
   reference,
   qrDataUrl,
 }: {
-  kind: "assessment" | "visit";
+  /** What this family's booking is called. See lib/booking/noun.ts. */
+  noun: BookingNoun;
   startsAt: string;
   campusName: string;
   location: string | null;
@@ -27,7 +29,9 @@ export function BookingCard({
     <div className="overflow-hidden surface">
       <div className="bg-primary px-5 py-4 text-primary-foreground">
         <p className="text-xs font-semibold tracking-wide uppercase opacity-90">
-          {kind === "assessment" ? "Assessment" : "School visit"}
+          {/* "School visit" rather than "Visit" only here: on a card with
+              nothing else on it, the bare word reads like an instruction. */}
+          {noun === "assessment" ? "Assessment" : noun === "visit" ? "School visit" : "Play date"}
         </p>
         <p className="mt-1 text-xl font-bold">{formatDateLong(startsAt)}</p>
         <p className="text-lg">{formatTime(startsAt)}</p>
