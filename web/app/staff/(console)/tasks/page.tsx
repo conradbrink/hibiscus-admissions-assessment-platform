@@ -17,7 +17,12 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   let query = supabase
     .from("tasks")
-    .select("*, applications(id, reference, child_first_name, child_last_name), staff_profiles!tasks_assignee_staff_id_fkey(full_name)")
+    // All three subjects: a task names an applicant, a child, or — for the
+    // first-day list — only its campus. Rendering whichever is there is what
+    // stops a student task appearing as a title with nothing to click.
+    .select(
+      "*, applications(id, reference, child_first_name, child_last_name), students(id, legal_first_name, legal_last_name, preferred_name, student_code), campuses(name), staff_profiles!tasks_assignee_staff_id_fkey(full_name)"
+    )
     .eq("status", "open")
     .order("due_at", { ascending: true, nullsFirst: false })
     .limit(200);
@@ -53,18 +58,26 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         <ul className="space-y-2">
           {tasks.map((t) => {
             const app = one(t.applications);
+            const student = one(t.students);
+            const campus = one(t.campuses);
             const assignee = one(t.staff_profiles);
             const overdue = t.due_at ? hasStarted(t.due_at) : false;
             return (
               <li key={t.id} className="flex flex-wrap items-center gap-3 surface px-4 py-3 text-sm">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{t.title}</p>
-                  {t.details ? <p className="text-xs text-muted-foreground">{t.details}</p> : null}
+                  {t.details ? <p className="whitespace-pre-line text-xs text-muted-foreground">{t.details}</p> : null}
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {app ? (
                       <Link href={`/staff/applications/${app.id}`} className="underline">
                         {app.child_first_name} {app.child_last_name} · {app.reference}
                       </Link>
+                    ) : student ? (
+                      <Link href={`/staff/students/${student.id}`} className="underline">
+                        {student.preferred_name || student.legal_first_name} {student.legal_last_name} · {student.student_code}
+                      </Link>
+                    ) : campus ? (
+                      <span>{campus.name}</span>
                     ) : null}
                     {t.due_at ? <span className={overdue ? " ml-2 font-medium text-destructive" : " ml-2"}>Due {formatDateTime(t.due_at)}</span> : null}
                   </p>

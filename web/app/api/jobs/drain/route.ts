@@ -3,6 +3,7 @@ import { reconcileProcessingPayments } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainJobs } from "@/lib/workflow/jobs";
 import { queueDigests } from "@/lib/workflow/automation/digest";
+import { sweepFirstDay } from "@/lib/workflow/automation/first-day";
 import { sweepOnboarding } from "@/lib/workflow/automation/onboarding";
 import { sweepReenrolment } from "@/lib/workflow/automation/reenrolment";
 import { anonymiseExpired } from "@/lib/workflow/automation/retention";
@@ -74,6 +75,12 @@ export async function GET(request: Request) {
     console.error("[onboarding] sweep failed", e);
     return { sent: -1, skipped: -1, tasks: -1 };
   });
+  // Not under `onboardingJourneyEnabled`: this sends nobody anything, and a
+  // school still deciding about the messages still wants the morning list.
+  const firstDay = await sweepFirstDay(admin).catch((e) => {
+    console.error("[first day] sweep failed", e);
+    return { campuses: -1, starters: -1 };
+  });
   const sessionsCreated = await ensureWeekdaySessions(admin).catch((e) => {
     console.error("[sessions] weekday schedule failed", e);
     return -1;
@@ -86,6 +93,7 @@ export async function GET(request: Request) {
     routed_enquiries: routed,
     reenrolment,
     onboarding,
+    first_day: firstDay,
     reconciled_payments: reconciled,
     waitlist_promoted: waitlist.promoted,
     waitlist_tasks: waitlist.tasks,
