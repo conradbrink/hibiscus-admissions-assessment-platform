@@ -3,7 +3,9 @@ import { TriangleAlert, ArrowRight, CalendarDays, SquareCheck, CreditCard, FileT
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { StatTile } from "@/components/staff/stat-tile";
 import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
+import { bookingNounTitle } from "@/lib/booking/noun";
 import { formatDate, formatTime, toSchoolDateString } from "@/lib/format-date";
+import { bookedRowLabel, bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
 import { requireStaff } from "@/lib/staff/session";
 
 type Counts = Record<string, number>;
@@ -16,30 +18,64 @@ type Counts = Record<string, number>;
  */
 export default async function DashboardPage() {
   const { supabase, userId } = await requireStaff("applications.read");
-  const today = toSchoolDateString(new Date());
-
-  const [{ data: countsRaw }, { data: todays }, { data: myTasks }] = await Promise.all([
-    supabase.rpc("dashboard_counts"),
-    supabase
-      .from("bookings")
-      .select("id, status, applications(id, reference, child_first_name, child_last_name, grades!applications_grade_id_fkey(name)), sessions!inner(starts_at, campus_id, campuses(name))")
-      .eq("kind", "assessment")
-      .in("status", ["booked", "checked_in", "in_progress", "completed"])
-      .gte("sessions.starts_at", `${today}T00:00:00+02:00`)
-      .lt("sessions.starts_at", `${today}T23:59:59+02:00`)
-      .order("starts_at", { referencedTable: "sessions" })
-      .limit(50),
-    supabase
-      .from("tasks")
-      .select("id, title, due_at, priority, application_id")
-      .eq("status", "open")
-      .eq("assignee_staff_id", userId)
-      .order("due_at", { ascending: true, nullsFirst: false })
-      .limit(6),
-  ]);
+  const now = new Date();
+  const today = toSchoolDateString(now);
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: playDatesThisWeek }] =
+    await Promise.all([
+      supabase.rpc("dashboard_counts"),
+      // Both kinds. A pre-school campus books no assessments, so a board
+      // filtered to them was an empty list on a day with children arriving.
+      // `requires_assessment` comes along so each row can say which it is.
+      supabase
+        .from("bookings")
+        .select(
+          "id, status, kind, applications(id, reference, child_first_name, child_last_name, requires_assessment, grades!applications_grade_id_fkey(name)), sessions!inner(starts_at, campus_id, campuses(name))"
+        )
+        .in("status", ["booked", "checked_in", "in_progress", "completed"])
+        .gte("sessions.starts_at", `${today}T00:00:00+02:00`)
+        .lt("sessions.starts_at", `${today}T23:59:59+02:00`)
+        .order("starts_at", { referencedTable: "sessions" })
+        .limit(50),
+      supabase
+        .from("tasks")
+        .select("id, title, due_at, priority, application_id")
+        .eq("status", "open")
+        .eq("assignee_staff_id", userId)
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .limit(6),
+      // What this person's campuses do, for what to call things. No rows is
+      // head office: every campus, both words. RLS already decides what they
+      // can *see*; this only decides the labels.
+      supabase.from("staff_campuses").select("campus_id").eq("staff_id", userId),
+      supabase
+        .from("campus_grades")
+        .select("campus_id, requires_assessment, grades!inner(requires_assessment)")
+        .eq("is_active", true),
+      // The pre-school counterpart of `assessments_this_week`, which counts
+      // `kind = 'assessment'` and is therefore a permanent zero for a
+      // pre-school campus.
+      supabase
+        .from("bookings")
+        .select("id, applications!inner(requires_assessment), sessions!inner(starts_at)", { count: "exact", head: true })
+        .eq("kind", "visit")
+        .eq("applications.requires_assessment", false)
+        .in("status", ["booked", "checked_in"])
+        .gte("sessions.starts_at", now.toISOString())
+        .lt("sessions.starts_at", weekEnd.toISOString()),
+    ]);
   const c = (countsRaw ?? {}) as Counts;
   const n = (k: string) => c[k] ?? 0;
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+  const kinds = bookingKindsInScope(
+    (offered ?? []).map((o) => ({
+      campusId: o.campus_id,
+      requiresAssessment: o.requires_assessment,
+      gradeRequiresAssessment: one(o.grades)?.requires_assessment ?? false,
+    })),
+    (myCampuses ?? []).map((r) => r.campus_id)
+  );
 
   const attention: Array<{ label: string; value: number; href: string; urgent?: boolean }> = [
     { label: "Written answers waiting for a marker", value: n("awaiting_marking"), href: "/staff/assessments/today" },
@@ -63,8 +99,15 @@ export default async function DashboardPage() {
 
   const pipeline = [
     { label: "New enquiries", value: n("new_enquiries"), href: "/staff/applications?group=enquiry" },
-    { label: "Visits booked", value: n("visits_booked"), href: "/staff/applications?status=visit_booked" },
-    { label: "Assessments this week", value: n("assessments_this_week"), href: "/staff/assessments/today" },
+    // One status, two words: `visit_booked` holds a primary family's look
+    // around and a pre-school family's play date alike.
+    { label: bookedRowLabel(kinds), value: n("visits_booked"), href: "/staff/applications?status=visit_booked" },
+    ...(kinds.assessment
+      ? [{ label: "Assessments this week", value: n("assessments_this_week"), href: "/staff/assessments/today" }]
+      : []),
+    ...(kinds.playDate
+      ? [{ label: "Play dates this week", value: playDatesThisWeek ?? 0, href: "/staff/applications?status=visit_booked" }]
+      : []),
     { label: "Awaiting a decision", value: n("awaiting_decision"), href: "/staff/decisions" },
     { label: "Offers out with parents", value: n("offers_outstanding"), href: "/staff/applications?status=offer_sent" },
     { label: "Paying", value: n("payments_outstanding"), href: "/staff/payments" },
@@ -79,13 +122,18 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <section aria-label="Today's assessments" className="surface">
+          <section aria-label={todaysBoardTitle(kinds)} className="surface">
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <div>
-                <h2 className="font-semibold">Today&rsquo;s assessments</h2>
-                <p className="text-xs text-muted-foreground">{formatDate(new Date())}</p>
+                <h2 className="font-semibold">{todaysBoardTitle(kinds)}</h2>
+                <p className="text-xs text-muted-foreground">{formatDate(now)}</p>
               </div>
-              <Link href="/staff/assessments/today" className="text-xs font-medium text-primary hover:underline">Open check-in board</Link>
+              {/* The check-in board is the assessment day: launching sittings
+                  and marking them. A campus with no assessing grade has no
+                  such day, and the link led to an empty page. */}
+              {kinds.assessment ? (
+                <Link href="/staff/assessments/today" className="text-xs font-medium text-primary hover:underline">Open check-in board</Link>
+              ) : null}
             </div>
             {todays && todays.length > 0 ? (
               <ul className="divide-y divide-border/70">
@@ -101,13 +149,18 @@ export default async function DashboardPage() {
                         {app?.child_first_name} {app?.child_last_name}
                       </Link>
                       <span className="hidden text-muted-foreground sm:inline">{grade?.name} · {campus?.name}</span>
+                      {/* Which of the three this is. On a mixed board the
+                          time and the name do not say. */}
+                      <span className="text-xs text-muted-foreground">
+                        {bookingNounTitle({ requiresAssessment: app?.requires_assessment ?? true, bookingKind: b.kind })}
+                      </span>
                       <BookingBadge status={b.status} />
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <div className="px-5 pb-5"><EmptyState>No assessments booked for today.</EmptyState></div>
+              <div className="px-5 pb-5"><EmptyState>{todaysBoardEmpty(kinds)}</EmptyState></div>
             )}
           </section>
 
@@ -175,7 +228,12 @@ export default async function DashboardPage() {
             ) : (
               <>
                 <p className="mt-1 text-lg leading-snug font-semibold">Everything is up to date.</p>
-                <p className="mt-1 text-sm opacity-80">{n("assessments_this_week")} assessments booked this week.</p>
+                <p className="mt-1 text-sm opacity-80">
+                  {kinds.assessment ? `${n("assessments_this_week")} assessments` : null}
+                  {kinds.assessment && kinds.playDate ? " and " : null}
+                  {kinds.playDate ? `${playDatesThisWeek ?? 0} play dates` : null}
+                  {" booked this week."}
+                </p>
               </>
             )}
           </section>

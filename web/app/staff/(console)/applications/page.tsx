@@ -8,7 +8,7 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
-import { isNextAction, NEXT_ACTIONS, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
+import { isNextAction, nextActionCopy, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
 import { FLAG_LABELS, type Flag } from "@/lib/summary/facts";
 
 type Search = {
@@ -40,7 +40,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   let query = supabase
     .from("applications")
     .select(
-      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, campuses(name), grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
+      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -150,7 +150,9 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 const grade = one(r.grades);
                 const contact = one(r.contacts);
                 const owner = one(r.staff_profiles);
-                const na = isNextAction(r.next_action) ? NEXT_ACTIONS[r.next_action].staffLabel : "—";
+                const na = isNextAction(r.next_action)
+                  ? nextActionCopy(r.next_action, { requiresAssessment: r.requires_assessment, bookingKind: null }).staffLabel
+                  : "—";
                 return (
                   <tr key={r.id} className="hover:bg-muted/40">
                     <td className="px-3 py-2">

@@ -37,10 +37,25 @@ describe("summaryFacts", () => {
   it("tells the story in order and flags an offer expiring within three days", () => {
     const { facts, flags } = summaryFacts(inputs());
     expect(facts[0]).toContain("Thato: Stage 4 at Block 7");
-    expect(facts).toContain("Assessment booked on 2026-08-01.");
+    expect(facts).toContain("Booking made on 2026-08-01.");
     expect(facts).toContain("Offer sent on 2026-09-03.");
     expect(facts).toContain("Status: Offer sent.");
     expect(flags.map((f) => f.kind)).toEqual(["offer_expiring"]);
+  });
+  it("calls a pre-school child's booking a play date", () => {
+    // The milestone labels are keyed on the event type alone, so they had to
+    // stop naming the assessment: "Assessment booked" was printed for a
+    // three-year-old whose booking is a play date.
+    const { facts } = summaryFacts(
+      inputs({
+        application: { ...inputs().application, requires_assessment: false, entry_route: "visit" },
+        booking: { starts_at: "2026-08-10T08:00:00Z", kind: "visit" },
+        attempt: null,
+      })
+    );
+    expect(facts).toContain("Booking made on 2026-08-01.");
+    expect(facts).toContain("Play date booked for 2026-08-10.");
+    expect(facts.join(" ")).not.toContain("Assessment booked");
   });
   it("flags overdue payment, missing documents, mismatches, overdue tasks, a reply and siblings", () => {
     const { flags } = summaryFacts(
