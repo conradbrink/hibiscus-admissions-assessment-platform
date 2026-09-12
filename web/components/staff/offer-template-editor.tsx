@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { renderHtml, validateTemplate, type TemplateVariables } from "@/lib/email/render";
+import { submitWithoutReset } from "@/lib/staff/submit-without-reset";
 
 const SAMPLE: TemplateVariables = {
   parent_first_name: "Sarah",
@@ -55,7 +56,7 @@ export function OfferTemplateEditor({
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <form action={formAction} className="space-y-4">
+      <form onSubmit={submitWithoutReset(formAction)} className="space-y-4">
         <input type="hidden" name="key" value={template.key} />
         <div className="space-y-1"><Label htmlFor="name">Name</Label><Input id="name" name="name" defaultValue={template.name} required /></div>
         <div className="space-y-1"><Label htmlFor="description">Description</Label><Input id="description" name="description" defaultValue={template.description ?? ""} /></div>

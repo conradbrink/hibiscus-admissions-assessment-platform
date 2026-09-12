@@ -7,6 +7,7 @@ export function BookingCard({
   campusName,
   location,
   address,
+  mapsUrl,
   reference,
   qrDataUrl,
 }: {
@@ -16,6 +17,8 @@ export function BookingCard({
   location: string | null;
   /** The campus's address and phone lines, one per line. */
   address?: string | null;
+  /** A link that opens the campus in a maps app. Omitted when the school has not set one. */
+  mapsUrl?: string | null;
   reference: string;
   qrDataUrl?: string | null;
 }) {
@@ -38,6 +41,17 @@ export function BookingCard({
             {addressLines.map((line) => (
               <span key={line} className="block text-muted-foreground">{line}</span>
             ))}
+            {/* A plot number is not something a parent can drive to. */}
+            {mapsUrl ? (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="mt-1 inline-block font-medium text-primary underline underline-offset-4"
+              >
+                Get directions
+              </a>
+            ) : null}
           </span>
         </p>
         <p className="text-muted-foreground">

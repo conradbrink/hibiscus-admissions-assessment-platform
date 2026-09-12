@@ -30,6 +30,7 @@ export default async function CampusesPage() {
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr] sm:items-end">
               <div><span className="text-xs text-muted-foreground">Office number (parents tap to call)</span><Input name="phone" type="tel" defaultValue={c.phone ?? ""} placeholder="+267 392 4299" /></div>
               <div><span className="text-xs text-muted-foreground">WhatsApp number (parents tap to chat)</span><Input name="whatsapp" type="tel" defaultValue={c.whatsapp ?? ""} placeholder="+267 72 320 145" /></div>
+              <div className="sm:col-span-2"><span className="text-xs text-muted-foreground">Maps link (parents tap for directions; leave empty and the address stands alone)</span><Input name="mapsUrl" type="url" defaultValue={c.maps_url ?? ""} placeholder="https://maps.app.goo.gl/…" /></div>
               <p className="text-xs text-muted-foreground">Shown on the parent&rsquo;s pages and in the &ldquo;Talk to our admissions team&rdquo; message. Leave one empty and that way of reaching you is simply not offered.</p>
             </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">

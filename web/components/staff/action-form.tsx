@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { submitWithoutReset } from "@/lib/staff/submit-without-reset";
 
 export type StaffActionState = { error?: string; ok?: boolean };
 
@@ -19,6 +20,7 @@ export function ActionForm({
   className,
   confirm,
   id,
+  resetOnSubmit = true,
   children,
 }: {
   action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
@@ -33,16 +35,30 @@ export function ActionForm({
    * Those fields carry `form="<this id>"` and are submitted with it.
    */
   id?: string;
+  /**
+   * Whether React may clear the fields once the action resolves.
+   *
+   * True suits a form that creates something — the note box should empty. It
+   * is wrong for a form whose fields are seeded from the row they are about,
+   * like the assignee picker on a task: React restores each field to its
+   * *mount-time* value, so the moment you assign somebody the control snaps
+   * back to "Unassigned" while the database happily holds the new assignee.
+   */
+  resetOnSubmit?: boolean;
   children?: React.ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
     <form
       id={id}
-      action={formAction}
+      {...(resetOnSubmit ? { action: formAction } : {})}
       className={cn("space-y-2", className)}
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        if (confirm && !window.confirm(confirm)) {
+          e.preventDefault();
+          return;
+        }
+        if (!resetOnSubmit) submitWithoutReset(formAction)(e);
       }}
     >
       {children}

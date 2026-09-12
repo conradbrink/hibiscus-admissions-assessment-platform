@@ -45,7 +45,7 @@ export async function sweepOnboarding(admin: AdminClient, now: Date = new Date()
   const { data: enrolments, error } = await admin
     .from("enrolments")
     .select(
-      "id, student_id, starts_on, campus_id, students!inner(id, legal_first_name, preferred_name, family_id, status), campuses(name, address, phone, first_day_arrival_time), grades(name)"
+      "id, student_id, starts_on, campus_id, students!inner(id, legal_first_name, preferred_name, family_id, status), campuses(name, address, phone, maps_url, first_day_arrival_time), grades(name)"
     )
     .not("starts_on", "is", null)
     .in("students.status", ["onboarding", "active"]);
@@ -84,6 +84,7 @@ export async function sweepOnboarding(admin: AdminClient, now: Date = new Date()
       start_date: formatDateLong(e.starts_on),
       campus_phone: campus?.phone ?? null,
       campus_address: campus?.address ?? null,
+      campus_maps_url: campus?.maps_url ?? null,
       arrival_time: campus?.first_day_arrival_time ? formatTime(`1970-01-01T${campus.first_day_arrival_time}Z`) : null,
       guide_url: settings.parentGuideUrl || null,
     };

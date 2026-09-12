@@ -102,6 +102,7 @@ export default async function NextPage() {
       <TalkToUs
         campusName={campus.name}
         address={campus.address}
+        mapsUrl={campus.maps_url}
         phone={campus.phone}
         whatsapp={campus.whatsapp}
         studentFirstName={app.child_first_name}

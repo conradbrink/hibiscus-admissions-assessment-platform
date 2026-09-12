@@ -223,6 +223,8 @@ export type CampusRow = {
    */
   phone: string | null;
   whatsapp: string | null;
+  /** A link that opens this campus in a maps app. Null: the address stands alone. */
+  maps_url: string | null;
   /** What time a new family should arrive on the first day. Null: the message omits the line. */
   first_day_arrival_time: string | null;
   /** Who signs this campus's offer letters, and their signature as a small PNG or JPEG data URL. */
@@ -1753,7 +1755,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "maps_url" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
       promotions: TableOf<
         PromotionRow,

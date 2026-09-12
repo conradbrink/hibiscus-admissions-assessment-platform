@@ -94,6 +94,10 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     // is not something a template can cut out of the blob.
     campus_phone: campus.phone ?? null,
     campus_whatsapp: campus.whatsapp ?? null,
+    // A link that opens the campus in a maps app. A plot number in Gaborone is
+    // not something a parent can drive to; this is. Null for a campus the
+    // school has not given a link for, and the directions line drops out.
+    campus_maps_url: campus.maps_url ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
     // What to call the appointment. A parent who booked a look around the
