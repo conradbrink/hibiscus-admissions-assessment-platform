@@ -9,6 +9,7 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { MessagesPanel } from "@/components/staff/messages-panel";
 import { DecisionFields } from "@/components/staff/decision-fields";
+import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
@@ -21,7 +22,8 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
-import { recordDecision, resumeDeferred, setDayPattern } from "@/app/staff/(console)/applications/[id]/actions";
+import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
+import { checkIn, recordDecision, resumeDeferred, setDayPattern } from "@/app/staff/(console)/applications/[id]/actions";
 
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
@@ -42,6 +44,7 @@ export async function ApplicantPhase2({
   sendWhatsApp,
   decision,
   dayPattern,
+  booking,
 }: {
   supabase: StaffContext["supabase"];
   permissions: PermissionSet;
@@ -49,6 +52,11 @@ export async function ApplicantPhase2({
   gradeSort: number;
   /** The manual template send, from the applicant page's actions. */
   sendWhatsApp: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
+  /**
+   * The live booking, so the sitting can be started from here. Null when
+   * there is none, or when it has been cancelled or missed.
+   */
+  booking: { status: string } | null;
   /**
    * Which answers this member may record right now. Worked out on the page,
    * where the status, the permissions and the booking are already to hand.
@@ -100,6 +108,12 @@ export async function ApplicantPhase2({
     ? registrationCompleteness({ registration: registration ?? null, contacts: regContacts ?? [], documents: documents ?? [], requirements: requirements ?? [], gradeSort, agreementTemplates: agreementTemplates ?? [], acceptances: acceptances ?? [] })
     : null;
   const latestAttempt = attempts?.[0] ?? null;
+  const canDeliver = can(permissions, "assessments.deliver");
+  // "ready" is launched but not yet started: the code was minted and either
+  // mistyped, never typed, or has expired. A fresh one can be issued.
+  const waitingAttempt = latestAttempt?.status === "ready" ? latestAttempt : null;
+  // Cancelled and no-show bookings are not something to launch against.
+  const liveBooking = booking && ["booked", "checked_in", "in_progress"].includes(booking.status);
   const [{ data: scores }, { data: messages }, { data: messageTemplates }] = await Promise.all([
     latestAttempt ? supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id) : Promise.resolve({ data: [] }),
     supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
@@ -179,11 +193,43 @@ export async function ApplicantPhase2({
               </div>
             ) : (
               <p className="text-muted-foreground">
-                Not sat yet. On the day, open the{" "}
+                Not sat yet. Start it from here, or on the day from the{" "}
                 <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
-                , check the child in and press Launch. The six-letter code and the address of the assessment page are shown there for the assessment computer.
+                , which lists every child booked in that morning.
               </p>
             )}
+            {/* The code and the link, on the page the office is already
+                looking at. Before this, a sitting could only be started from
+                the check-in board, so starting one child meant leaving their
+                record, finding them in a list of the day's bookings and
+                coming back — and there was no way at all to start a child
+                whose assessment is not today. Same three steps as the board,
+                same actions, in the order they happen. */}
+            {canDeliver && liveBooking ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
+                {waitingAttempt ? (
+                  <>
+                    <span className="text-sm">Launched and waiting for the code to be typed.</span>
+                    <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={waitingAttempt.id} />
+                  </>
+                ) : booking?.status === "booked" ? (
+                  <>
+                    {/* Checking in is not a formality here: `launchAttempt`
+                        refuses a booking that is still `booked`, so this is
+                        the step that makes Launch possible. */}
+                    <span className="text-sm">Check {app.child_first_name} in, then launch.</span>
+                    <ActionForm action={checkIn} label="Check in" variant="success" size="sm">
+                      <input type="hidden" name="applicationId" value={app.id} />
+                    </ActionForm>
+                  </>
+                ) : !latestAttempt ? (
+                  <>
+                    <span className="text-sm">Checked in. Launch to get the code and the link for the assessment computer.</span>
+                    <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </TabsContent>
           <TabsContent value="profile" className="text-sm">
             {profile && computed && narrative?.success ? (

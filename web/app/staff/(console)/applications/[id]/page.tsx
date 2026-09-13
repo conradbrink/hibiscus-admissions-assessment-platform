@@ -321,7 +321,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} booking={booking ? { status: booking.status } : null} />
 
           {/* Timeline */}
           <section className="surface">

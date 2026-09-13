@@ -45,6 +45,13 @@ export function ageOn(dateOfBirth: string, on: string): number | null {
 
 export type GradeRecommendation =
   | { kind: "grade"; grade: GradeRow; ageOnCutoff: number }
+  /**
+   * Younger than every ruled grade on offer, with no rolling grade to catch
+   * them. Separate from `too_old` because the two need opposite answers: the
+   * caller parks one at the bottom of the ladder and the other at the top,
+   * and conflating them is what filed a three-year-old as Form 5.
+   */
+  | { kind: "too_young"; ageOnCutoff: number }
   | { kind: "too_old"; ageOnCutoff: number }
   | { kind: "invalid" };
 
@@ -62,7 +69,11 @@ export function recommendGrade<G extends GradeLike>(
   dateOfBirth: string,
   cutoffOn: string,
   grades: readonly G[]
-): { kind: "grade"; grade: G; ageOnCutoff: number } | { kind: "too_old"; ageOnCutoff: number } | { kind: "invalid" } {
+):
+  | { kind: "grade"; grade: G; ageOnCutoff: number }
+  | { kind: "too_young"; ageOnCutoff: number }
+  | { kind: "too_old"; ageOnCutoff: number }
+  | { kind: "invalid" } {
   const age = ageOn(dateOfBirth, cutoffOn);
   if (age === null || age < 0) return { kind: "invalid" };
 
@@ -75,6 +86,12 @@ export function recommendGrade<G extends GradeLike>(
   if (age < youngest) {
     const rolling = active.find((g) => g.age_turning === null);
     if (rolling) return { kind: "grade", grade: rolling, ageOnCutoff: age };
+    // No rolling grade in this list to catch them. That is the ordinary case
+    // at a campus that starts at Reception: a three-year-old is not too old
+    // for Block 7, they are too young for it, and saying so is the whole
+    // point of this branch. Answering `too_old` here sent the caller to the
+    // far end of the ladder and filed the child as Form 5.
+    return { kind: "too_young", ageOnCutoff: age };
   }
   return { kind: "too_old", ageOnCutoff: age };
 }
@@ -87,4 +104,31 @@ export function recommendGrade<G extends GradeLike>(
 export function isPlausibleDateOfBirth(dateOfBirth: string, today: string): boolean {
   const age = ageOn(dateOfBirth, today);
   return age !== null && age >= 0 && age <= 21;
+}
+
+/**
+ * Where to park an application whose date of birth matches no grade the
+ * campus teaches. The application has to exist — the family has given us
+ * their details — and the confirmation screen asks the parent to choose, so
+ * this is a starting point rather than an answer.
+ *
+ * Which *end* of the ladder is the whole bug this replaces. The old code
+ * took the highest grade for every non-match, so a three-year-old enquiring
+ * at Block 7 — which starts at Reception and has no rolling class to catch a
+ * younger child — was filed as Form 5, the top of the secondary school. A
+ * child who is too young belongs at the bottom of the ladder and a child who
+ * is too old at the top, and `recommendGrade` now tells the two apart.
+ *
+ * `grades` must be ordered by `sort_order`, which is how the catalogue loads
+ * them. Pure, so the choice is testable without a database.
+ */
+export function parkingGrade<G extends { id: string }>(
+  verdict: "too_young" | "too_old" | "invalid",
+  grades: readonly G[]
+): G | null {
+  if (grades.length === 0) return null;
+  // An unreadable date of birth is not evidence of an older child, so it
+  // parks at the bottom too: the gentler end to be wrong at, and the one the
+  // parent is most likely to correct rather than accept.
+  return verdict === "too_old" ? (grades.at(-1) ?? null) : (grades[0] ?? null);
 }
