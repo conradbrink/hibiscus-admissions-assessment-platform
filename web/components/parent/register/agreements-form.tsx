@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export type AcceptedAgreement = { signatureName: string; acceptedAt: string; signatureDataUrl: string | null };
+export type AcceptedAgreement = { signatureName: string; acceptedAt: string; signatureDataUrl: string | null; decision: "accepted" | "declined" };
 
 export function AgreementsForm({
   action,
@@ -18,7 +18,7 @@ export function AgreementsForm({
   readOnly,
 }: {
   action: (state: RegisterFormState, formData: FormData) => Promise<RegisterFormState>;
-  agreements: Array<{ key: string; name: string; bodyHtml: string; required: boolean; documentUrl: string | null }>;
+  agreements: Array<{ key: string; name: string; bodyHtml: string; required: boolean; documentUrl: string | null; mayDecline: boolean }>;
   accepted: Record<string, AcceptedAgreement>;
   signerName: string;
   readOnly: boolean;
@@ -36,12 +36,39 @@ export function AgreementsForm({
               Open the {a.name} as a PDF (opens in a new tab)
             </a>
           ) : null}
-          <label className="mt-3 flex items-start gap-3 text-sm">
-            <input type="checkbox" name={`agree_${a.key}`} value="1" defaultChecked={!!accepted[a.key]} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" aria-invalid={Boolean(f[`agree_${a.key}`])} />
-            <span>I have read and accept the {a.name}{a.required ? "" : " (optional)"}.</span>
-          </label>
-          {f[`agree_${a.key}`] ? <p className="mt-1 text-sm text-destructive">{f[`agree_${a.key}`]}</p> : null}
-          {accepted[a.key] ? <p className="mt-1 text-xs text-muted-foreground">Accepted by {accepted[a.key].signatureName} on {accepted[a.key].acceptedAt}.</p> : null}
+          {a.mayDecline ? (
+            // Two options, neither preselected. A tick box with a default is
+            // not a decision, and this is the one agreement where the school
+            // needs a real answer rather than the absence of an objection:
+            // it decides whether this child appears in a newsletter or on
+            // Facebook. Declining is a complete answer and lets them carry on.
+            // aria-invalid belongs on the group, not on each radio: a single
+            // radio is not invalid on its own, the unanswered question is.
+            <fieldset className="mt-3" role="radiogroup" aria-invalid={Boolean(f[`agree_${a.key}`])} aria-describedby={f[`agree_${a.key}`] ? `agree_${a.key}-error` : undefined}>
+              <legend className="text-sm font-medium">Please choose one — you may say no, and it will not hold up your registration.</legend>
+              <div className="mt-2 space-y-2">
+                <label className="flex items-start gap-3 text-sm">
+                  <input type="radio" name={`agree_${a.key}`} value="accepted" defaultChecked={accepted[a.key]?.decision === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
+                  <span>Yes — my child may appear in the school&rsquo;s photographs and social media.</span>
+                </label>
+                <label className="flex items-start gap-3 text-sm">
+                  <input type="radio" name={`agree_${a.key}`} value="declined" defaultChecked={accepted[a.key]?.decision === "declined"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
+                  <span>No — please do not use photographs of my child.</span>
+                </label>
+              </div>
+            </fieldset>
+          ) : (
+            <label className="mt-3 flex items-start gap-3 text-sm">
+              <input type="checkbox" name={`agree_${a.key}`} value="accepted" defaultChecked={accepted[a.key]?.decision === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" aria-invalid={Boolean(f[`agree_${a.key}`])} />
+              <span>I have read and accept the {a.name}{a.required ? "" : " (optional)"}.</span>
+            </label>
+          )}
+          {f[`agree_${a.key}`] ? <p id={`agree_${a.key}-error`} className="mt-1 text-sm text-destructive">{f[`agree_${a.key}`]}</p> : null}
+          {accepted[a.key] ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {accepted[a.key].decision === "declined" ? "Declined" : "Accepted"} by {accepted[a.key].signatureName} on {accepted[a.key].acceptedAt}.
+            </p>
+          ) : null}
         </section>
       ))}
       {!readOnly ? (

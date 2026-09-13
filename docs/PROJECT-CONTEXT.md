@@ -38,6 +38,25 @@ is in the pull request that introduced this repository. The short version:
   allow-list of variables, validated at save time.
 - **Tests from day one, lint blocking from the first commit** — deliberate
   departures from the sibling repo, explained in the CI file.
+- **An agreement is scoped by grade, and some may be refused.**
+  `agreement_templates` carries `grade_sort_min`/`grade_sort_max`, the same
+  shape `document_requirements` has used since Phase 3, so the learner code of
+  conduct starts at Stage 1 (`grades.sort_order` 60) and no pre-school family
+  is asked to accept rules about uniform and homework. `may_decline` splits
+  "must answer" from "must agree": the photographs and social media consent is
+  `required = true, may_decline = true`, so a parent has to choose Yes or No
+  and either answer lets them finish — a permission nobody may refuse is not a
+  permission, and what the office needs is the short list of children who may
+  not be photographed. A refusal is a signed, dated row with
+  `decision = 'declined'`, shown as such on the staff record and in both PDFs.
+  The rule is pure in `applicableAgreements`/`agreementSatisfied`
+  (`web/lib/registration/completeness.ts`) and applied where the parent's list
+  is built and where completeness is judged, so the screen and the gate cannot
+  disagree. `publish_agreement_template` carries the scope forward to each new
+  version: without that, fixing a typo would put the code of conduct back in
+  front of pre-school families and turn the photographs question into a
+  demand, with nothing looking wrong. Case 62 of the security suite asserts it.
+
 - **A second factor, opt-in first.** Staff sign-in took a password and
   nothing else, so a phished password was the whole console. An authenticator
   app (TOTP) can now be set up under Set up → My security, and the decision

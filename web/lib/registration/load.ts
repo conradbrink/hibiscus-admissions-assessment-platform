@@ -1,7 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
-import { registrationCompleteness, type Completeness } from "@/lib/registration/completeness";
+import { applicableAgreements, registrationCompleteness, type Completeness } from "@/lib/registration/completeness";
 import type { AgreementAcceptanceRow, AgreementTemplateRow, DocumentRequirementRow, DocumentRow, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 /** Everything the registration pages, the staff view and the engine's submit rule read, in one call. */
@@ -33,7 +33,12 @@ export async function loadRegistrationBundle(admin: AdminClient, graph: Pick<App
     contacts: contacts.data ?? [],
     documents: documents.data ?? [],
     requirements: requirements.data ?? [],
-    agreementTemplates: templates.data ?? [],
+    // Scoped to this child's grade here, so the parent's list, the action's
+    // "did they answer everything" check and the completeness rule are all
+    // reading one list. `registrationCompleteness` applies the same filter
+    // again from the raw rows it is given, which is belt and braces of the
+    // same kind as the `is_active` filter above being repeated there.
+    agreementTemplates: applicableAgreements(templates.data ?? [], graph.grade.sort_order),
     acceptances: acceptances.data ?? [],
   };
   return {

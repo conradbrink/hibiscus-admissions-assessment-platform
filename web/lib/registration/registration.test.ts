@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applicableRequirements, missingDocumentsText, nextStep, registrationCompleteness } from "@/lib/registration/completeness";
+import { applicableAgreements, applicableRequirements, missingDocumentsText, nextStep, registrationCompleteness } from "@/lib/registration/completeness";
 import { changedFromApplication } from "@/lib/registration/prefill";
 import { familySchema, issuesToFields, signatureMatches, studentSchema } from "@/lib/registration/schema";
-import type { AgreementTemplateRow, DocumentRequirementRow, DocumentRow, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
+import type { AgreementAcceptanceRow, AgreementTemplateRow, DocumentRequirementRow, DocumentRow, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 const req = (code: string, required = true, min: number | null = null): DocumentRequirementRow => ({
   code, label: code, description: null, required, grade_sort_min: min, grade_sort_max: null, sort_order: 0, is_active: true, created_at: "", updated_at: "",
@@ -13,7 +13,16 @@ const doc = (code: string, review: DocumentRow["review_status"] = "pending"): Do
   reviewed_by: null, reviewed_at: null, review_note: null, extraction_status: "not_run", extracted_fields: null, extraction_model: null, extraction_error: null, extracted_at: null, superseded_by: null, deleted_at: null,
   uploaded_at: "", created_at: "", updated_at: "",
 });
-const template = (id: string, required = true): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, document_url: null, sort_order: 100, is_active: true, created_by: null, created_at: "", updated_at: "" });
+const template = (
+  id: string,
+  required = true,
+  over: Partial<AgreementTemplateRow> = {}
+): AgreementTemplateRow => ({ id, key: id, version: 1, name: id, description: null, body_html: "", required, document_url: null, sort_order: 100, is_active: true, created_by: null, created_at: "", updated_at: "", grade_sort_min: null, grade_sort_max: null, may_decline: false, ...over });
+
+const answer = (templateId: string, decision: "accepted" | "declined" = "accepted"): AgreementAcceptanceRow => ({
+  id: templateId, application_id: "a", agreement_template_id: templateId, template_key: templateId, template_version: 1,
+  body_hash: "h", signature_name: "K M", signature_svg: null, ip_hash: null, user_agent: null, accepted_at: "", decision,
+});
 const contact = (kind: RegistrationContactRow["kind"]): RegistrationContactRow => ({
   id: kind, application_id: "a", kind, position: 1, contact_id: null, title: "Mrs", gender: "F", first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",
 });
@@ -31,8 +40,89 @@ describe("applicable requirements", () => {
   });
 });
 
+describe("which agreements an applicant is asked for", () => {
+  // The learner code of conduct is a code a *learner* signs up to. A family
+  // registering a baby has no use for rules about uniform and homework, so it
+  // starts at Stage 1 (grades.sort_order 60) and everything below that is
+  // pre-school.
+  const templates = [
+    template("learner_code_of_conduct", true, { grade_sort_min: 60, sort_order: 10 }),
+    template("fees_policy", true, { sort_order: 30 }),
+    template("photography_consent", true, { may_decline: true, sort_order: 50 }),
+    template("retired", true, { is_active: false }),
+  ];
+
+  it("leaves the code of conduct out of every pre-school grade", () => {
+    // Babies 1 through Reception 50, Reception included: it is taught at the
+    // pre-school campuses.
+    for (const gradeSort of [1, 2, 3, 4, 5, 10, 20, 30, 40, 50]) {
+      expect(applicableAgreements(templates, gradeSort).map((t) => t.key)).toEqual(["fees_policy", "photography_consent"]);
+    }
+  });
+
+  it("asks for it from Stage 1 upward", () => {
+    for (const gradeSort of [60, 70, 120, 170]) {
+      expect(applicableAgreements(templates, gradeSort).map((t) => t.key)).toContain("learner_code_of_conduct");
+    }
+  });
+
+  it("never offers a retired agreement, at any grade", () => {
+    expect(applicableAgreements(templates, 60).map((t) => t.key)).not.toContain("retired");
+  });
+
+  it("keeps them in the order the school set", () => {
+    expect(applicableAgreements(templates, 60).map((t) => t.key)).toEqual(["learner_code_of_conduct", "fees_policy", "photography_consent"]);
+  });
+});
+
+describe("an agreement the parent may refuse", () => {
+  const preschool = {
+    registration: stamped(),
+    contacts: [contact("primary_guardian"), contact("emergency")],
+    requirements,
+    documents: [doc("birth_certificate"), doc("vaccination_card")],
+    gradeSort: 4,
+    agreementTemplates: [
+      template("learner_code_of_conduct", true, { grade_sort_min: 60 }),
+      template("fees_policy"),
+      template("photography_consent", true, { may_decline: true }),
+    ],
+  };
+
+  it("counts a refusal as answered, so the family can finish registering", () => {
+    // The point of the whole change: a permission nobody may refuse is not a
+    // permission. Declining has to let them through, or the choice is a
+    // fiction and the parent simply sits there until they change their mind.
+    const c = registrationCompleteness({ ...preschool, acceptances: [answer("fees_policy"), answer("photography_consent", "declined")] });
+    expect(c.sections.agreements).toBe(true);
+    expect(c.complete).toBe(true);
+  });
+
+  it("still refuses to let them skip it", () => {
+    const c = registrationCompleteness({ ...preschool, acceptances: [answer("fees_policy")] });
+    expect(c.sections.agreements).toBe(false);
+    expect(c.missingAgreements.map((t) => t.key)).toEqual(["photography_consent"]);
+  });
+
+  it("does not let a refusal stand in for an agreement that must be accepted", () => {
+    // A declined fees policy is not a signed fees policy, whatever the row says.
+    const c = registrationCompleteness({ ...preschool, acceptances: [answer("fees_policy", "declined"), answer("photography_consent")] });
+    expect(c.missingAgreements.map((t) => t.key)).toEqual(["fees_policy"]);
+  });
+
+  it("never blocks a pre-school family on the code of conduct", () => {
+    const c = registrationCompleteness({ ...preschool, acceptances: [answer("fees_policy"), answer("photography_consent")] });
+    expect(c.missingAgreements).toEqual([]);
+    expect(c.complete).toBe(true);
+    // The same family one grade higher is asked for it, which is what makes
+    // the line above mean something.
+    const stage1 = registrationCompleteness({ ...preschool, gradeSort: 60, documents: [...preschool.documents, doc("school_report")], acceptances: [answer("fees_policy"), answer("photography_consent")] });
+    expect(stage1.missingAgreements.map((t) => t.key)).toEqual(["learner_code_of_conduct"]);
+  });
+});
+
 describe("completeness", () => {
-  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [{ id: "x", application_id: "a", agreement_template_id: "policies", template_key: "policies", template_version: 1, body_hash: "h", signature_name: "K M", signature_svg: null, ip_hash: null, user_agent: null, accepted_at: "" }] };
+  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [answer("policies")] };
 
   it("is complete when every section is stamped, required documents are uploaded and agreements accepted", () => {
     const c = registrationCompleteness({ ...base, documents: [doc("birth_certificate"), doc("vaccination_card"), doc("school_report")] });

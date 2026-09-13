@@ -174,6 +174,13 @@ export const emergencySchema = z.object({
 export const agreementsSchema = z.object({
   signatureName: required(120, "Type your full name as your signature."),
   acceptedKeys: z.array(z.string().regex(/^[a-z0-9_]+$/)).default([]),
+  /**
+   * The agreements the parent answered *no* to. Only an agreement the school
+   * marked `may_decline` can be here, and the action checks that: a refusal is
+   * a complete answer for the photographs consent and no answer at all for the
+   * fees policy.
+   */
+  declinedKeys: z.array(z.string().regex(/^[a-z0-9_]+$/)).default([]),
 });
 
 /** Zod issues → { field: message }, first message per field, matching lib/validation. */

@@ -30,6 +30,8 @@ export type SignedAgreement = {
   signaturePath: string | null;
   acceptedOn: string;
   bodyHash: string;
+  /** A refused agreement is still signed and dated; it just says no. */
+  declined: boolean;
 };
 
 export type AgreementsDocumentProps = {
@@ -53,7 +55,7 @@ export function AgreementsDocument(p: AgreementsDocumentProps) {
       <Page size="A4" style={s.page}>
         <Letterhead logoUrl={p.logoUrl} campus={p.letterhead} lines={["Signed agreements", p.reference]} />
         <Text style={s.title}>{p.studentName}</Text>
-        <Text style={s.subtitle}>Agreements accepted at registration · {p.reference} · printed {p.printedOn}</Text>
+        <Text style={s.subtitle}>Agreements answered at registration · {p.reference} · printed {p.printedOn}</Text>
 
         {p.agreements.map((a) => (
           <View key={`${a.name}-${a.version}`}>
@@ -62,7 +64,9 @@ export function AgreementsDocument(p: AgreementsDocumentProps) {
               <Text key={i} style={s.para}>{line}</Text>
             ))}
             <View style={s.sign} wrap={false}>
-              <Text style={s.signMeta}>Accepted by {a.signatureName} on {a.acceptedOn}.</Text>
+              <Text style={s.signMeta}>
+                {a.declined ? `DECLINED by ${a.signatureName} on ${a.acceptedOn}. This family did not give permission.` : `Accepted by ${a.signatureName} on ${a.acceptedOn}.`}
+              </Text>
               {a.signaturePath ? (
                 <Svg viewBox={`0 0 ${SIGNATURE_WIDTH} ${SIGNATURE_HEIGHT}`} style={{ width: 240, height: 80, marginTop: 4 }}>
                   <Path d={a.signaturePath} fill="none" stroke="#1a1a1a" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />

@@ -20,7 +20,10 @@ describe("staff record PDFs", () => {
       printedOn: "7 September 2026",
       sections: [{ heading: "Student", fields: [{ label: "Legal name", value: "Naledi Moeti" }, { label: "Allergies", value: null }] }],
       documents: [{ label: "Birth certificate", status: "Accepted", filename: "bc.jpg", uploadedOn: "6 September 2026" }],
-      agreements: [{ name: "Parent Policy", version: 2, acceptedOn: "6 September 2026", signedBy: "K Moeti" }],
+      agreements: [
+        { name: "Parent Policy", version: 2, acceptedOn: "6 September 2026", signedBy: "K Moeti", declined: false },
+        { name: "Photographs and social media", version: 1, acceptedOn: "6 September 2026", signedBy: "K Moeti", declined: true },
+      ],
     }) as unknown as ReactElement<DocumentProps>;
     const buffer = await renderToBuffer(element);
     expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
@@ -38,8 +41,11 @@ describe("staff record PDFs", () => {
       reference: "HBS-2026-00010",
       printedOn: "7 September 2026",
       agreements: [
-        { name: "Parent Policy", version: 2, bodyHtml: "<h2>Parent Policy</h2><p>One.</p><p>Two.</p>", signatureName: "K Moeti", signaturePath: path, acceptedOn: "6 September 2026", bodyHash: "abcdef0123456789abcdef" },
-        { name: "Fees Policy", version: 1, bodyHtml: "<p>Fees.</p>", signatureName: "K Moeti", signaturePath: null, acceptedOn: "6 September 2026", bodyHash: "0123" },
+        { name: "Parent Policy", version: 2, bodyHtml: "<h2>Parent Policy</h2><p>One.</p><p>Two.</p>", signatureName: "K Moeti", signaturePath: path, acceptedOn: "6 September 2026", bodyHash: "abcdef0123456789abcdef", declined: false },
+        { name: "Fees Policy", version: 1, bodyHtml: "<p>Fees.</p>", signatureName: "K Moeti", signaturePath: null, acceptedOn: "6 September 2026", bodyHash: "0123", declined: false },
+        // A refusal is part of the signed pack: it is the record that this
+        // family said no, and it must not read like an acceptance.
+        { name: "Photographs and social media", version: 1, bodyHtml: "<p>Photographs.</p>", signatureName: "K Moeti", signaturePath: path, acceptedOn: "6 September 2026", bodyHash: "beef", declined: true },
       ],
     }) as unknown as ReactElement<DocumentProps>;
     const buffer = await renderToBuffer(element);

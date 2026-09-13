@@ -25,6 +25,42 @@ export function applicableRequirements(requirements: DocumentRequirementRow[], g
     .sort((a, b) => a.sort_order - b.sort_order);
 }
 
+/**
+ * The agreements this applicant is actually asked for.
+ *
+ * The same filter as `applicableRequirements` above, on purpose: the learner
+ * code of conduct is a code a *learner* signs up to, and a family registering
+ * a toddler has no use for rules about uniform and homework. Scoping it by
+ * `grades.sort_order` is how the document requirements have worked since
+ * Phase 3, so this reads the same and behaves the same.
+ *
+ * Applied both where the parent's list is built and where completeness is
+ * judged. If only one of the two applied it, a pre-school family would be
+ * blocked on an agreement the screen never showed them.
+ */
+export function applicableAgreements(templates: AgreementTemplateRow[], gradeSort: number): AgreementTemplateRow[] {
+  return templates
+    .filter((t) => t.is_active)
+    .filter((t) => (t.grade_sort_min === null || t.grade_sort_min <= gradeSort) && (t.grade_sort_max === null || t.grade_sort_max >= gradeSort))
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
+/**
+ * Whether this agreement has been answered in a way that lets the parent move
+ * on.
+ *
+ * The distinction the photographs consent exists for: an agreement the school
+ * may not proceed without needs `accepted`, but one the parent is entitled to
+ * refuse needs only an *answer*. Treating a refusal as "still outstanding"
+ * would make the choice a fiction — the parent would sit on the same screen
+ * until they changed their mind, which is not consent, it is attrition.
+ */
+export function agreementSatisfied(template: AgreementTemplateRow, acceptance: AgreementAcceptanceRow | undefined): boolean {
+  if (!acceptance) return false;
+  if (template.may_decline) return true;
+  return acceptance.decision === "accepted";
+}
+
 /** The live document for a requirement, if any: not superseded, not deleted. */
 export function liveDocument(documents: DocumentRow[], code: string): DocumentRow | null {
   return documents.find((d) => d.requirement_code === code && !d.superseded_by && !d.deleted_at) ?? null;
@@ -58,9 +94,9 @@ export function registrationCompleteness(input: {
     if (!doc) missingDocuments.push(q);
     else if (doc.review_status === "rejected" || doc.scan_status === "infected") rejectedDocuments.push(q);
   }
-  const requiredAgreements = input.agreementTemplates.filter((t) => t.is_active && t.required);
-  const acceptedIds = new Set(input.acceptances.map((a) => a.agreement_template_id));
-  const missingAgreements = requiredAgreements.filter((t) => !acceptedIds.has(t.id));
+  const requiredAgreements = applicableAgreements(input.agreementTemplates, input.gradeSort).filter((t) => t.required);
+  const answers = new Map(input.acceptances.map((a) => [a.agreement_template_id, a]));
+  const missingAgreements = requiredAgreements.filter((t) => !agreementSatisfied(t, answers.get(t.id)));
   const hasPrimary = input.contacts.some((c) => c.kind === "primary_guardian");
   const hasEmergency = input.contacts.some((c) => c.kind === "emergency");
 

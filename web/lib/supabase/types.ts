@@ -1302,10 +1302,17 @@ export type AgreementTemplateRow = {
   document_url: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Lowest grades.sort_order this applies to; null means no lower bound. */
+  grade_sort_min: number | null;
+  grade_sort_max: number | null;
+  /** Compulsory to answer, but the parent may answer no. See lib/registration/completeness.ts. */
+  may_decline: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type AgreementDecision = "accepted" | "declined";
 
 export type AgreementAcceptanceRow = {
   id: string;
@@ -1319,6 +1326,8 @@ export type AgreementAcceptanceRow = {
   ip_hash: string | null;
   user_agent: string | null;
   accepted_at: string;
+  /** A declined row is still a signed, timestamped answer: this family said no. */
+  decision: AgreementDecision;
 };
 
 export type ExportStatus = "pending" | "exported" | "failed";

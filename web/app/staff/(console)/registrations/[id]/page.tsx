@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
-import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
+import { applicableAgreements, registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { RELATIONSHIP_LABELS } from "@/lib/registration/schema";
 import { signatureDataUrl } from "@/lib/registration/signature";
 import { requireStaff } from "@/lib/staff/session";
@@ -209,9 +209,30 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
           <section className="surface p-4">
             <h2 className="text-sm font-semibold">Agreements</h2>
             <ul className="mt-2 text-sm">
-              {(templates ?? []).map((t) => {
+              {/* Scoped to the child's grade, so a pre-school record does not
+                  list the learner code of conduct as an outstanding item the
+                  family was never asked for. */}
+              {applicableAgreements(templates ?? [], grade?.sort_order ?? 0).map((t) => {
                 const a = (acceptances ?? []).find((x) => x.agreement_template_id === t.id);
-                return <li key={t.id} className="flex flex-wrap gap-2 py-1"><span className="font-medium">{t.name}</span>{t.document_url ? <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-2">document</a> : null}{a ? <span className="text-xs text-muted-foreground">v{a.template_version} · signed &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}{a.signature_svg ? "" : " (typed name only)"}</span> : <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "not accepted" : "optional, not accepted"}</Badge>}</li>;
+                const declined = a?.decision === "declined";
+                return (
+                  <li key={t.id} className="flex flex-wrap items-center gap-2 py-1">
+                    <span className="font-medium">{t.name}</span>
+                    {t.document_url ? <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline underline-offset-2">document</a> : null}
+                    {/* A refusal is an answer, not a gap, and it is the one the
+                        office has to act on: this child is not to be
+                        photographed. It gets a badge of its own so nobody
+                        reads past it as though the family had simply signed. */}
+                    {declined ? <Badge variant="warning">declined</Badge> : null}
+                    {a ? (
+                      <span className="text-xs text-muted-foreground">
+                        v{a.template_version} · {declined ? "refused" : "signed"} &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}{a.signature_svg ? "" : " (typed name only)"}
+                      </span>
+                    ) : (
+                      <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? (t.may_decline ? "not answered" : "not accepted") : "optional, not accepted"}</Badge>
+                    )}
+                  </li>
+                );
               })}
             </ul>
             {signatures.length ? (
