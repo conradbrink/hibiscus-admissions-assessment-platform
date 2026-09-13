@@ -33,7 +33,7 @@ export default async function DashboardPage() {
   const today = toSchoolDateString(now);
   const weekEnd = new Date(now);
   weekEnd.setDate(weekEnd.getDate() + 7);
-  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: deferredDueSoon }, { count: playDatesThisWeek }] =
+  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: deferredDueSoon }, { count: playDatesThisWeek }, { count: failedMessages }] =
     await Promise.all([
       supabase.rpc("dashboard_counts"),
       // Both kinds. A pre-school campus books no assessments, so a board
@@ -86,6 +86,15 @@ export default async function DashboardPage() {
         .in("status", ["booked", "checked_in"])
         .gte("sessions.starts_at", now.toISOString())
         .lt("sessions.starts_at", weekEnd.toISOString()),
+      // A WhatsApp the provider refused. Silent everywhere else: the parent
+      // simply never hears from us and the funnel looks entirely normal, so
+      // this is the only place it surfaces. Seven days, because a template
+      // that is broken has been broken since somebody last edited it.
+      supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "failed")
+        .gte("created_at", new Date(now.getTime() - 7 * 86_400_000).toISOString()),
     ]);
   const c = (countsRaw ?? {}) as Counts;
   const n = (k: string) => c[k] ?? 0;
@@ -117,6 +126,10 @@ export default async function DashboardPage() {
     { label: "Waitlist places available", value: n("waitlist_places"), href: "/staff/tasks?type=waitlist_place_available" },
     { label: "WhatsApp replies to read", value: n("parent_replies"), href: "/staff/tasks?type=parent_replied" },
     { label: "Tasks overdue", value: n("tasks_overdue"), href: "/staff/tasks?filter=overdue", urgent: true },
+    // A template the provider is refusing. It went unnoticed for a day once
+    // because a failed WhatsApp is silent everywhere else: the parent simply
+    // never hears from us, and the funnel looks normal.
+    { label: "WhatsApp messages that failed to send", value: failedMessages ?? 0, href: "/staff/admin/message-templates", urgent: true },
   ].filter((a) => a.value > 0);
   const reminder = attention.find((a) => a.urgent) ?? attention[0] ?? null;
 

@@ -13,12 +13,34 @@ import { requireStaff } from "@/lib/staff/session";
  */
 export default async function MessageTemplatesPage() {
   const { supabase } = await requireStaff("templates.write");
-  const [{ data: templates }, { data: emails }, settings] = await Promise.all([
+  // A week of failures, per template. The reason this exists: the pre-school
+  // enquiry confirmation failed at the provider for a full day — every single
+  // send — and nothing anywhere said so. It was found only because somebody
+  // happened to have the provider's own inbox open. A template that is
+  // refusing to send is the most urgent thing this page can tell you, so it
+  // says it on the row, with the provider's own words.
+  const now = new Date();
+  const since = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const [{ data: templates }, { data: emails }, { data: failures }, settings] = await Promise.all([
     supabase.from("message_templates").select("*").order("key"),
     supabase.from("email_templates").select("key, name").eq("is_active", true),
+    supabase
+      .from("messages")
+      .select("template_key, error, created_at")
+      .eq("status", "failed")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false }),
     getSettings(supabase),
   ]);
   const emailName = new Map((emails ?? []).map((e) => [e.key, e.name]));
+  const failed = new Map<string, { count: number; error: string | null }>();
+  for (const f of failures ?? []) {
+    // An inbound reply carries no template key and cannot fail to send.
+    if (!f.template_key) continue;
+    const seen = failed.get(f.template_key);
+    // Newest first from the query, so the first error seen is the latest one.
+    failed.set(f.template_key, { count: (seen?.count ?? 0) + 1, error: seen?.error ?? f.error });
+  }
 
   return (
     <>
@@ -47,7 +69,14 @@ export default async function MessageTemplatesPage() {
                 <span className="font-medium">{t.name}</span>
                 <span className="ml-2 font-mono text-xs text-muted-foreground">{t.key}</span>
                 <p className="truncate text-xs text-muted-foreground">Beside the email “{emailName.get(t.key) ?? t.key}” · Zavu id: {t.zavu_template_id ? "set" : "not set"} · updated {formatDate(t.updated_at)}</p>
+                {failed.get(t.key) ? (
+                  <p className="mt-1 text-xs font-medium text-destructive">
+                    {failed.get(t.key)!.count} failed to send in the last 7 days
+                    {failed.get(t.key)!.error ? <span className="font-normal"> · {failed.get(t.key)!.error}</span> : null}
+                  </p>
+                ) : null}
               </div>
+              {failed.get(t.key) ? <Badge variant="destructive">Failing</Badge> : null}
               <Badge variant={t.is_active ? "success" : "muted"}>{t.is_active ? "Active" : "Inactive"}</Badge>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             </Link>

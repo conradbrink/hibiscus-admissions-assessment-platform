@@ -1,5 +1,5 @@
 import "server-only";
-import { bookingConfirmedTemplateKey, bookingNoun } from "@/lib/booking/noun";
+import { bookingConfirmedTemplateKey, bookingMovedTemplateKey, bookingNoun } from "@/lib/booking/noun";
 import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfterDeferral } from "@/lib/workflow/deferral";
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { AdminClient } from "@/lib/supabase/admin";
@@ -191,6 +191,13 @@ export async function onBookingCreated(
     // recorded and confirmed, and where the family actually is — awaiting an
     // offer, paying — is left alone. See `statusAfterBooking`.
     const moved = statusAfterBooking(app.status, "visit");
+    // A reschedule is not a second booking, and saying so is not cosmetic.
+    // Until now this branch ignored `rescheduledFromId` altogether — the
+    // assessment branch below has always honoured it — so moving a play date
+    // sent the confirmation again. The parent held two messages a minute
+    // apart, both reading like a fresh booking, with different times and
+    // nothing to say which stood; one family read that and cancelled.
+    const rescheduled = Boolean(opts.rescheduledFromId);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
@@ -198,13 +205,22 @@ export async function onBookingCreated(
       nextAction: moved ? "attend_visit" : null,
       nextActionDueAt: moved ? startsAt : null,
       event: {
-        type: "booking.created",
-        summary: bookingSummary(session, noun),
-        payload: { booking_id: booking.id, kind: "visit" },
+        type: rescheduled ? "booking.rescheduled" : "booking.created",
+        summary: rescheduled ? `${bookingSummary(session, noun)} (moved)` : bookingSummary(session, noun),
+        payload: { booking_id: booking.id, kind: "visit", rescheduled_from: opts.rescheduledFromId },
       },
       resolveTaskTypes: ["callback"],
-      jobs: [emailJob(app.id, bookingConfirmedTemplateKey(nounInput), { suffix: booking.id, bookingId: booking.id })],
-      audit: { action: "booking.created", entityType: "booking", entityId: booking.id },
+      jobs: [
+        emailJob(app.id, rescheduled ? bookingMovedTemplateKey(nounInput) : bookingConfirmedTemplateKey(nounInput), {
+          suffix: booking.id,
+          bookingId: booking.id,
+        }),
+      ],
+      audit: {
+        action: rescheduled ? "booking.rescheduled" : "booking.created",
+        entityType: "booking",
+        entityId: booking.id,
+      },
       actor,
     });
     return;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingConfirmedTemplateKey, bookingNoun, bookingNounPlural, bookingNounTitle } from "./noun";
+import { bookingConfirmedTemplateKey, bookingMovedTemplateKey, bookingNoun, bookingNounPlural, bookingNounTitle } from "./noun";
 
 describe("bookingNoun", () => {
   it("calls a pre-school booking a play date", () => {
@@ -50,5 +50,24 @@ describe("bookingConfirmedTemplateKey", () => {
 
   it("leaves the approved visit template alone for everybody else", () => {
     expect(bookingConfirmedTemplateKey({ requiresAssessment: true, bookingKind: "visit" })).toBe("visit_confirmed");
+  });
+});
+
+describe("bookingMovedTemplateKey", () => {
+  it("splits the same way the confirmation does", () => {
+    expect(bookingMovedTemplateKey({ requiresAssessment: false, bookingKind: "visit" })).toBe("playdate_moved");
+    expect(bookingMovedTemplateKey({ requiresAssessment: true, bookingKind: "visit" })).toBe("visit_moved");
+  });
+
+  it("is never the confirmation", () => {
+    // The bug this replaces: a reschedule sent the confirmation again, so the
+    // parent held two messages a minute apart with different times and no way
+    // to tell which stood. Whatever else changes, these two must not converge.
+    for (const input of [
+      { requiresAssessment: false, bookingKind: "visit" as const },
+      { requiresAssessment: true, bookingKind: "visit" as const },
+    ]) {
+      expect(bookingMovedTemplateKey(input)).not.toBe(bookingConfirmedTemplateKey(input));
+    }
   });
 });
