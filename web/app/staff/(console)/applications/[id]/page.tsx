@@ -107,10 +107,19 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
       .from("sessions")
       .select("id, kind, starts_at, location, capacity, min_grade_sort, max_grade_sort")
       .eq("campus_id", app.campus_id)
+      // Only the kind this child needs. Both kinds sit in one table at three
+      // sittings a weekday each, so reading both spent half the budget below
+      // on rows the filter then threw away.
+      .eq("kind", app.requires_assessment ? "assessment" : "visit")
       .eq("is_published", true)
       .gt("starts_at", new Date().toISOString())
       .order("starts_at")
-      .limit(30),
+      // Read the whole horizon, as loadAvailableSlots does for the parent.
+      // The cap is applied before the grade band is filtered below, so a short
+      // read hides dates that exist rather than showing fewer of them — and
+      // the office had a dropdown that stopped four days out with weeks of
+      // published sessions behind it.
+      .limit(200),
     supabase.from("access_tokens").select("purpose, expires_at, use_count, revoked_at, created_at").eq("application_id", id).order("created_at", { ascending: false }).limit(5),
   ]);
 
