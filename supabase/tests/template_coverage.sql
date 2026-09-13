@@ -32,8 +32,16 @@
 create or replace function pg_temp.says_assessment(p_text text) returns boolean
 language sql immutable as $$
   select regexp_replace(
-           regexp_replace(coalesce(p_text, ''), '\{\{#if assessed\}\}.*?\{\{/if\}\}', '', 'gs'),
-           '\{\{[^}]*\}\}', '', 'g'
+           regexp_replace(
+             regexp_replace(coalesce(p_text, ''), '\{\{#if assessed\}\}.*?\{\{/if\}\}', '', 'gs'),
+             '\{\{[^}]*\}\}', '', 'g'
+           ),
+           -- Saying a pre-school child does *not* sit one is the clearest way
+           -- to serve the rule this check exists for, and a substring search
+           -- cannot tell a denial from a claim. Narrow on purpose: only this
+           -- exact reassurance is stripped, so "the assessment" anywhere else
+           -- in the same template still fails.
+           '(do|does)( not|es not|n''t) sit an assessment', '', 'gi'
          ) ilike '%assess%';
 $$;
 

@@ -3167,6 +3167,85 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 63. One child, one enquiry: a corrected surname must not open a second
+  --     application, and twins must still get their own.
+  -- -------------------------------------------------------------------------
+  -- A parent enquired twice eighty-five seconds apart, correcting the child's
+  -- surname, and got two applications, two references and two of every
+  -- message. The duplicate check was here and missed, because it required the
+  -- surname to match exactly -- the one field in the set most often mistyped.
+  --
+  -- Both halves are asserted, because fixing the first by dropping the name
+  -- match entirely would merge twins, which is worse than the bug.
+  declare
+    v_campus uuid;
+    v_grade uuid;
+    v_intake uuid;
+    v_app_a uuid; v_ref_a text; v_created_a boolean;
+    v_app_b uuid; v_ref_b text; v_created_b boolean;
+    v_app_c uuid; v_created_c boolean;
+    v_last text;
+    v_email text := 'dedupe.' || gen_random_uuid() || '@example.test';
+  begin
+    perform pg_temp.service();
+    select id into v_campus from public.campuses where is_active order by sort_order limit 1;
+    select g.id into v_grade
+      from public.grades g
+      join public.campus_grades cg on cg.grade_id = g.id and cg.campus_id = v_campus and cg.is_active
+     where g.is_active
+     order by g.sort_order limit 1;
+    select id into v_intake from public.intakes where is_open order by starts_on limit 1;
+
+    if v_campus is null or v_grade is null or v_intake is null then
+      v_fail := v_fail || E'\n  - ' || '63: no campus/grade/intake fixture, so the dedupe was never exercised';
+    else
+      -- First try: the surname mistyped.
+      select application_id, reference, created into v_app_a, v_ref_a, v_created_a
+        from public.create_application(
+          'Patience', 'Tester', v_email, v_email, '+26770000000', '+26770000000',
+          'Manna', 'Bah', date '2024-12-19',
+          v_campus, v_grade, v_grade, v_intake, 'visit', 'website');
+
+      -- Second try, eighty-five seconds later: the surname corrected.
+      select application_id, reference, created into v_app_b, v_ref_b, v_created_b
+        from public.create_application(
+          'Patience', 'Tester', v_email, v_email, '+26770000000', '+26770000000',
+          'Manna', 'Charehwa', date '2024-12-19',
+          v_campus, v_grade, v_grade, v_intake, 'visit', 'website');
+
+      if v_app_b is distinct from v_app_a then
+        v_fail := v_fail || E'\n  - ' ||
+          '63: a corrected surname opened a second application, so the family gets two of every message';
+      end if;
+      if v_created_b then
+        v_fail := v_fail || E'\n  - ' || '63: the second submission reported itself as a new application';
+      end if;
+      if v_ref_b is distinct from v_ref_a then
+        v_fail := v_fail || E'\n  - ' || '63: the reference changed under a parent who had already been told it';
+      end if;
+
+      -- The correction is the point: what the parent retyped is the better
+      -- spelling of their own child's name.
+      select child_last_name into v_last from public.applications where id = v_app_a;
+      if v_last is distinct from 'Charehwa' then
+        v_fail := v_fail || E'\n  - ' ||
+          format('63: the corrected surname was discarded (still %L)', v_last);
+      end if;
+
+      -- And the half that must not regress: a twin, same parent, same day.
+      select application_id, created into v_app_c, v_created_c
+        from public.create_application(
+          'Patience', 'Tester', v_email, v_email, '+26770000000', '+26770000000',
+          'Bonolo', 'Charehwa', date '2024-12-19',
+          v_campus, v_grade, v_grade, v_intake, 'visit', 'website');
+      if v_app_c = v_app_a or not v_created_c then
+        v_fail := v_fail || E'\n  - ' ||
+          '63: a second child born the same day was merged into their sibling''s application';
+      end if;
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

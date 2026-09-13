@@ -60,3 +60,20 @@ export function bookingNounPlural(input: BookingNounInput): string {
 export function bookingConfirmedTemplateKey(input: BookingNounInput): "playdate_confirmed" | "visit_confirmed" {
   return bookingNoun(input) === "play date" ? "playdate_confirmed" : "visit_confirmed";
 }
+
+/**
+ * The template saying a booking has *moved*, rather than been made.
+ *
+ * A reschedule used to send the confirmation again. The parent then held two
+ * messages a minute apart, both reading like a fresh booking, with different
+ * times and nothing to say which one stood — and at least one family answered
+ * that by cancelling. "Your play date has moved to …" is one sentence and
+ * removes the ambiguity entirely.
+ *
+ * Split the same way as `bookingConfirmedTemplateKey`, and for the same
+ * reason: pre-school and primary are separately approved with the provider, so
+ * one reworded template cannot serve both doors.
+ */
+export function bookingMovedTemplateKey(input: BookingNounInput): "playdate_moved" | "visit_moved" {
+  return bookingNoun(input) === "play date" ? "playdate_moved" : "visit_moved";
+}
