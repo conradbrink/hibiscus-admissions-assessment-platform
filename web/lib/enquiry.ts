@@ -3,7 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
 import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
-import { recommendGrade } from "@/lib/grades";
+import { parkingGrade, recommendGrade } from "@/lib/grades";
 import { offerableIntakes } from "@/lib/intakes";
 
 /**
@@ -166,12 +166,9 @@ export async function createEnquiry(
   } else if (rec.kind === "grade") {
     gradeId = rec.grade.id;
   } else {
-    // No age match. Park the application on the campus's highest grade so
-    // it exists; the confirmation screen asks the parent to choose.
-    const highest = catalogue.grades.filter((g) => offeredHere.includes(g.id)).at(-1) ??
-      catalogue.grades.at(-1);
-    if (!highest) throw new Error("no_grades");
-    gradeId = highest.id;
+    const parked = parkingGrade(rec.kind, gradesHere.length > 0 ? gradesHere : catalogue.grades);
+    if (!parked) throw new Error("no_grades");
+    gradeId = parked.id;
   }
 
   const { data, error } = await admin.rpc("create_application", {

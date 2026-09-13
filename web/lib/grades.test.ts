@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ageOn, isPlausibleDateOfBirth, recommendGrade } from "@/lib/grades";
+import { ageOn, isPlausibleDateOfBirth, parkingGrade, recommendGrade } from "@/lib/grades";
+
 import type { GradeRow } from "@/lib/supabase/types";
 
 const grade = (code: string, age: number | null, active = true): GradeRow => ({
@@ -112,5 +113,81 @@ describe("two ladders, one age", () => {
     const bw = recommendGrade("2025-06-01", "2026-07-31", BOTSWANA);
     expect(sa.kind === "grade" && sa.grade.code).toBe("babies");
     expect(bw.kind === "grade" && bw.grade.code).toBe("nursery");
+  });
+});
+
+describe("a campus whose ladder has no class for a young child", () => {
+  // Block 7 and Broadhurst teach primary and secondary only. Their lowest
+  // class is Reception (turning 5) and neither has a rolling class, because
+  // Nursery is a pre-school class taught at the pre-school campuses. So a
+  // three-year-old whose parent picks Block 7 matches nothing at all.
+  //
+  // This is the shape the old tests never had: every case above hands
+  // `recommendGrade` the full LADDER, which contains `nursery`, so the
+  // `age < youngest` branch always found a rolling class and the bug below
+  // could not show itself.
+  const BLOCK_7 = [
+    grade("reception", 5),
+    grade("stage_1", 6),
+    grade("stage_7", 12),
+    grade("form_1", 12),
+    grade("form_5", 16),
+  ];
+
+  it("says too young, not too old", () => {
+    // The reported child: born 13 September 2022, so three on the cut-off.
+    const r = recommendGrade("2022-09-13", "2026-07-31", BLOCK_7);
+    expect(r.kind).toBe("too_young");
+    expect(r.kind === "too_young" && r.ageOnCutoff).toBe(3);
+  });
+
+  it("still places a child the campus does teach", () => {
+    // The fix must not move the cases that already worked.
+    const five = recommendGrade("2021-03-01", "2026-07-31", BLOCK_7);
+    expect(five.kind === "grade" && five.grade.code).toBe("reception");
+    const six = recommendGrade("2020-03-07", "2026-07-31", BLOCK_7);
+    expect(six.kind === "grade" && six.grade.code).toBe("stage_1");
+  });
+
+  it("still says too old for somebody past the top of the ladder", () => {
+    const r = recommendGrade("2005-01-01", "2026-07-31", BLOCK_7);
+    expect(r.kind).toBe("too_old");
+  });
+
+  it("keeps sending the young to the rolling class where there is one", () => {
+    // The same child at a pre-school campus is answered properly, which is
+    // why this was only ever visible at two of the nine campuses.
+    const r = recommendGrade("2022-09-13", "2026-07-31", LADDER);
+    expect(r.kind === "grade" && r.grade.code).toBe("kindergarten");
+  });
+});
+
+describe("where an unmatched application is parked", () => {
+  // `recommendGrade` says nothing fits; this is what the family's application
+  // is created as, until the confirmation screen asks the parent.
+  const BLOCK_7 = [
+    { id: "reception" },
+    { id: "stage_1" },
+    { id: "form_1" },
+    { id: "form_5" },
+  ];
+
+  it("puts a child who is too young at the bottom, not the top", () => {
+    // The bug, stated plainly: this returned form_5 for a three-year-old.
+    expect(parkingGrade("too_young", BLOCK_7)?.id).toBe("reception");
+  });
+
+  it("puts a child who is too old at the top", () => {
+    // And the reason the verdicts had to be split: parking everybody at the
+    // bottom would file a sixth-former as a five-year-old instead.
+    expect(parkingGrade("too_old", BLOCK_7)?.id).toBe("form_5");
+  });
+
+  it("treats an unreadable date of birth as the gentler end", () => {
+    expect(parkingGrade("invalid", BLOCK_7)?.id).toBe("reception");
+  });
+
+  it("has nothing to park on when the campus teaches nothing", () => {
+    expect(parkingGrade("too_young", [])).toBeNull();
   });
 });

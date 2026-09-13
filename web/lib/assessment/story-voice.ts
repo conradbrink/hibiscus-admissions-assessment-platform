@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { AdminClient } from "@/lib/supabase/admin";
-import { normaliseNarration } from "@/lib/assessment/story";
+import { normaliseNarration, spokenNarration } from "@/lib/assessment/story";
 
 /**
  * Tumi's recorded voice. When an ElevenLabs key is set, every line the
@@ -33,9 +33,18 @@ function modelId(): string {
   return process.env.ELEVENLABS_MODEL_ID?.trim() || DEFAULT_MODEL_ID;
 }
 
-/** Where a line's recording lives. Voice and model are part of the key, so changing either re-records. */
+/**
+ * Where a line's recording lives. Voice and model are part of the key, so
+ * changing either re-records.
+ *
+ * The key is built from the *spoken* form, not the written one, which is
+ * what makes changing how maths is read safe: `spokenNarration` is the
+ * identity for prose, so every sentence Tumi already has recorded keeps its
+ * hash, and only the lines carrying digits or operators rotate to a new key
+ * and are re-recorded on demand.
+ */
 export function voiceObjectPath(text: string): string {
-  const hash = createHash("sha256").update(`${voiceId()}:${modelId()}:${normaliseNarration(text)}`).digest("hex");
+  const hash = createHash("sha256").update(`${voiceId()}:${modelId()}:${spokenNarration(text)}`).digest("hex");
   return `${voiceId()}/${hash}.mp3`;
 }
 
@@ -101,7 +110,10 @@ export async function narrationAudio(admin: AdminClient, rawText: string): Promi
   const path = voiceObjectPath(text);
   const hit = await fromCache(admin, path);
   if (hit) return { bytes: hit, cached: true };
-  const bytes = await synthesiseWithElevenLabs(text);
+  // The provider is sent the spoken form. "3 x 7 = ?" has no English in it
+  // for a multilingual model to detect, and it guessed; "three times seven
+  // equals what?" cannot be mistaken for anything else.
+  const bytes = await synthesiseWithElevenLabs(spokenNarration(text));
   const { error } = await admin.storage.from(VOICE_BUCKET).upload(path, bytes, { contentType: "audio/mpeg", upsert: true });
   if (error) console.error("[story-voice] cache write failed", error.message);
   return { bytes, cached: false };
