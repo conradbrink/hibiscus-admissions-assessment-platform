@@ -3102,6 +3102,71 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 62. Editing an agreement's wording must not change who is asked for it
+  --
+  -- `publish_agreement_template` retires the live version and inserts a new
+  -- one, naming its columns. Two of those columns decide policy rather than
+  -- text: `grade_sort_min`, which keeps the learner code of conduct away from
+  -- families registering a toddler, and `may_decline`, which is what makes the
+  -- photographs consent a question rather than a demand.
+  --
+  -- If the insert forgets them, fixing a typo silently puts the code of
+  -- conduct back in front of every pre-school family and turns the photographs
+  -- consent into something no parent may refuse. Nothing would look wrong:
+  -- somebody changed a sentence and changed the policy.
+  --
+  -- So the new version inherits both, and this is the case that says so.
+  -- -------------------------------------------------------------------------
+  begin
+    declare
+      v_key text := 'sec_scope_probe';
+      v_min int;
+      v_max int;
+      v_decline boolean;
+      v_version int;
+    begin
+      perform pg_temp.service();
+
+      insert into public.agreement_templates (key, version, name, description, body_html, required, is_active, grade_sort_min, grade_sort_max, may_decline, sort_order)
+      values (v_key, 1, 'Scope probe', null, '<p>One.</p>', true, true, 60, 120, true, 42);
+
+      -- Publishing runs as a person with templates.write, which is what the
+      -- admin screen does.
+      perform pg_temp.impersonate(u_admin);
+      perform public.publish_agreement_template(v_key, 'Scope probe', null, '<p>Two.</p>', true, null);
+      perform pg_temp.service();
+
+      select version, grade_sort_min, grade_sort_max, may_decline
+        into v_version, v_min, v_max, v_decline
+        from public.agreement_templates where key = v_key and is_active;
+
+      if v_version <> 2 then
+        v_fail := v_fail || E'\n  - ' || format('62: publishing did not mint a new version (got %s)', v_version);
+      end if;
+      if v_min is distinct from 60 or v_max is distinct from 120 then
+        v_fail := v_fail || E'\n  - ' ||
+          format('62: the new version lost its grade band (%s..%s), so editing wording changed who is asked', v_min, v_max);
+      end if;
+      if v_decline is distinct from true then
+        v_fail := v_fail || E'\n  - ' ||
+          '62: the new version lost may_decline, so editing wording turned a question into a demand';
+      end if;
+
+      -- And a brand new agreement, with nothing to inherit, is open to
+      -- everybody rather than accidentally scoped to nothing.
+      perform pg_temp.impersonate(u_admin);
+      perform public.publish_agreement_template('sec_scope_fresh', 'Fresh', null, '<p>New.</p>', true, null);
+      perform pg_temp.service();
+      select grade_sort_min, grade_sort_max, may_decline
+        into v_min, v_max, v_decline
+        from public.agreement_templates where key = 'sec_scope_fresh' and is_active;
+      if v_min is not null or v_max is not null or v_decline then
+        v_fail := v_fail || E'\n  - ' || '62: a brand new agreement did not get the open defaults';
+      end if;
+    end;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

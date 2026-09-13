@@ -173,7 +173,7 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
     });
     const agreements = bundle.acceptances.map((a) => {
       const t = bundle.agreementTemplates.find((x) => x.id === a.agreement_template_id);
-      return { name: t?.name ?? a.template_key, version: a.template_version, acceptedOn: formatDateLong(a.accepted_at), signedBy: a.signature_name };
+      return { name: t?.name ?? a.template_key, version: a.template_version, acceptedOn: formatDateLong(a.accepted_at), signedBy: a.signature_name, declined: a.decision === "declined" };
     });
     const buffer = await render(
       createElement(RegistrationDocument, {
@@ -196,13 +196,13 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
   }
 
   // agreements
-  if (!bundle.acceptances.length) return { unavailable: "No agreements have been signed yet." };
+  if (!bundle.acceptances.length) return { unavailable: "No agreements have been answered yet." };
   const ids = [...new Set(bundle.acceptances.map((a) => a.agreement_template_id))];
   const { data: templates } = await admin.from("agreement_templates").select("*").in("id", ids);
   const agreements = bundle.acceptances
     .map((a) => {
       const t = (templates ?? []).find((x) => x.id === a.agreement_template_id);
-      return { name: t?.name ?? a.template_key, version: a.template_version, bodyHtml: t?.body_html ?? "<p>The wording of this version is no longer stored.</p>", signatureName: a.signature_name, signaturePath: signaturePathFrom(a.signature_svg), acceptedOn: formatDateLong(a.accepted_at), bodyHash: a.body_hash, sort: t?.sort_order ?? 0 };
+      return { name: t?.name ?? a.template_key, version: a.template_version, bodyHtml: t?.body_html ?? "<p>The wording of this version is no longer stored.</p>", signatureName: a.signature_name, signaturePath: signaturePathFrom(a.signature_svg), acceptedOn: formatDateLong(a.accepted_at), bodyHash: a.body_hash, sort: t?.sort_order ?? 0, declined: a.decision === "declined" };
     })
     .sort((a, b) => a.sort - b.sort);
   const buffer = await render(createElement(AgreementsDocument, { logoUrl, letterhead: graph.campus, studentName: nameOf(graph), reference: ref, printedOn: formatDateLong(new Date()), agreements }));

@@ -14,13 +14,15 @@ export default async function AgreementsStep() {
   const signer = `${primary?.first_name ?? graph.contact.first_name} ${primary?.last_name ?? graph.contact.last_name}`;
   const accepted: Record<string, AcceptedAgreement> = {};
   for (const a of bundle.acceptances) {
-    accepted[a.template_key] = { signatureName: a.signature_name, acceptedAt: formatDateLong(a.accepted_at), signatureDataUrl: a.signature_svg ? signatureDataUrl(a.signature_svg) : null };
+    accepted[a.template_key] = { signatureName: a.signature_name, acceptedAt: formatDateLong(a.accepted_at), signatureDataUrl: a.signature_svg ? signatureDataUrl(a.signature_svg) : null, decision: a.decision };
   }
   return (
     <RegisterShell step="agreements" title="Agreements" description="Please read each document, tick to accept it, then sign in the box at the end." readOnly={!editable}>
       <AgreementsForm
         action={acceptAgreements}
-        agreements={bundle.agreementTemplates.map((t) => ({ key: t.key, name: t.name, bodyHtml: t.body_html, required: t.required, documentUrl: t.document_url }))}
+        // Already scoped to this child's grade by loadRegistrationBundle, so a
+        // pre-school family is never shown the learner code of conduct.
+        agreements={bundle.agreementTemplates.map((t) => ({ key: t.key, name: t.name, bodyHtml: t.body_html, required: t.required, documentUrl: t.document_url, mayDecline: t.may_decline }))}
         accepted={accepted}
         signerName={signer}
         readOnly={!editable}

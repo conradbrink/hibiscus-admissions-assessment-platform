@@ -34,6 +34,46 @@ export async function publishAgreement(_: StaffActionState, formData: FormData):
   });
 }
 
+const scopeSchema = z.object({
+  key: z.string().regex(/^[a-z0-9_]+$/),
+  gradeSortMin: z.union([z.literal(""), z.coerce.number().int().min(0).max(1000)]).optional(),
+  gradeSortMax: z.union([z.literal(""), z.coerce.number().int().min(0).max(1000)]).optional(),
+  mayDecline: z.string().optional(),
+});
+
+/**
+ * Who is asked for an agreement, and whether they may say no.
+ *
+ * Separate from publishing on purpose. Publishing mints a new version, because
+ * the wording a family signed has to stay exactly as they saw it. Deciding
+ * that pre-school families are not asked for the learner code of conduct is
+ * not a change to anybody's wording, and minting a version over it would leave
+ * a trail of identical documents and make the signed record harder to read.
+ *
+ * So this edits the live version in place, and `publish_agreement_template`
+ * carries these three forward to the next version rather than dropping them —
+ * which is case 62 of the security suite.
+ */
+export async function updateAgreementScope(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("templates.write");
+    const p = scopeSchema.parse(Object.fromEntries(formData));
+    const min = p.gradeSortMin === "" || p.gradeSortMin === undefined ? null : p.gradeSortMin;
+    const max = p.gradeSortMax === "" || p.gradeSortMax === undefined ? null : p.gradeSortMax;
+    if (min !== null && max !== null && min > max) {
+      throw new Error("The lowest grade cannot be above the highest: nobody would be asked for this agreement.");
+    }
+    const { error } = await ctx.supabase
+      .from("agreement_templates")
+      .update({ grade_sort_min: min, grade_sort_max: max, may_decline: p.mayDecline === "1", updated_at: new Date().toISOString() })
+      .eq("key", p.key)
+      .eq("is_active", true);
+    if (error) throw new Error(error.message);
+    revalidatePath("/staff/admin/agreements");
+    revalidatePath(`/staff/admin/agreements/${p.key}`);
+  });
+}
+
 /** Retiring an agreement: no active version, so nobody is asked to sign it. */
 export async function retireAgreement(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {

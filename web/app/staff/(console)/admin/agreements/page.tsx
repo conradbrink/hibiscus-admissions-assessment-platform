@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/format-date";
 import { requireStaff } from "@/lib/staff/session";
-import { publishAgreement, retireAgreement } from "./actions";
+import { publishAgreement, retireAgreement, updateAgreementScope } from "./actions";
 
 export default async function AgreementsPage() {
   const { supabase } = await requireStaff("templates.write");
-  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at").eq("is_active", true).order("sort_order").order("name");
+  const { data: templates } = await supabase.from("agreement_templates").select("id, key, version, name, description, required, document_url, sort_order, updated_at, grade_sort_min, grade_sort_max, may_decline").eq("is_active", true).order("sort_order").order("name");
   return (
     <>
-      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Agreements" description="What a parent signs at registration, by typing their name. Editing publishes a new version; families who already signed keep the version they saw. Wording is the school's." />
+      <PageTitle back={{ href: "/staff/admin", label: "Settings" }} title="Agreements" description="What a parent signs at registration, by typing their name. Editing the wording publishes a new version; families who already signed keep the version they saw. The grade band and whether a parent may refuse are edited in place, because neither changes anybody's wording. Grades are numbered as on the grades list: Stage 1 is 60, and everything below it is pre-school." />
       <ul className="mb-6 divide-y divide-border surface">
         {(templates ?? []).map((t) => (
           <li key={t.id} className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
@@ -23,7 +23,25 @@ export default async function AgreementsPage() {
               <p className="text-muted-foreground">{t.description}</p>
               <p className="text-xs text-muted-foreground">Updated {formatDate(t.updated_at)}{t.document_url ? <> · <a href={t.document_url} target="_blank" rel="noopener noreferrer" className="underline">document</a></> : null}</p>
             </div>
-            <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? "required" : "optional"}</Badge>
+            <Badge variant={t.required ? "warning" : "secondary"}>
+              {!t.required ? "optional" : t.may_decline ? "must answer, may refuse" : "required"}
+            </Badge>
+            {/* Who is asked, and whether they may refuse. Edited on the live
+                version rather than published as a new one: this is not a
+                change to anybody's wording. Grades are `grades.sort_order` —
+                Stage 1 is 60, and everything below it is pre-school. */}
+            <ActionForm action={updateAgreementScope} label="Save scope" size="xs" variant="outline" className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="key" value={t.key} />
+              <label className="text-xs text-muted-foreground">from grade
+                <Input name="gradeSortMin" defaultValue={t.grade_sort_min ?? ""} inputMode="numeric" placeholder="any" className="ml-1 h-7 w-16" />
+              </label>
+              <label className="text-xs text-muted-foreground">to
+                <Input name="gradeSortMax" defaultValue={t.grade_sort_max ?? ""} inputMode="numeric" placeholder="any" className="ml-1 h-7 w-16" />
+              </label>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <input type="checkbox" name="mayDecline" value="1" defaultChecked={t.may_decline} /> may refuse
+              </label>
+            </ActionForm>
             <ActionForm action={retireAgreement} label="Retire" size="xs" variant="ghost" confirm="Retire this agreement? New families will no longer be asked to sign it."><input type="hidden" name="key" value={t.key} /></ActionForm>
           </li>
         ))}

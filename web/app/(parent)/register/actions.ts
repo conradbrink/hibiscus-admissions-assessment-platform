@@ -263,8 +263,15 @@ export async function continueFromDocuments(): Promise<RegisterFormState> {
 
 export async function acceptAgreements(_prev: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
   const values = valuesOf(formData);
-  const acceptedKeys = Object.keys(values).filter((k) => k.startsWith("agree_") && values[k] === "1").map((k) => k.slice("agree_".length));
-  const parsed = agreementsSchema.safeParse({ signatureName: values.signatureName ?? "", acceptedKeys });
+  // Each control posts its answer as its value: a tick box sends "accepted"
+  // when ticked and nothing when not, and the Agree/Decline pair sends one or
+  // the other. An agreement nobody answered is simply absent, which is what
+  // the check below is looking for.
+  const answerOf = (k: string) => values[`agree_${k}`];
+  const answeredKeys = Object.keys(values).filter((k) => k.startsWith("agree_")).map((k) => k.slice("agree_".length));
+  const acceptedKeys = answeredKeys.filter((k) => answerOf(k) === "accepted");
+  const declinedKeys = answeredKeys.filter((k) => answerOf(k) === "declined");
+  const parsed = agreementsSchema.safeParse({ signatureName: values.signatureName ?? "", acceptedKeys, declinedKeys });
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   // The signature itself never goes back into the form values: it is
   // strokes, not text, and the pad keeps its own drawing.
@@ -286,17 +293,32 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
     if (!signatureMatches(parsed.data.signatureName, first, last)) {
       return { fields: { signatureName: `Please type your full name, ${first} ${last}, exactly as it appears above.` }, values };
     }
-    const required = bundle.agreementTemplates.filter((t) => t.required);
-    const missing = required.filter((t) => !parsed.data.acceptedKeys.includes(t.key));
-    if (missing.length) {
-      const fields: Record<string, string> = {};
-      for (const t of missing) fields[`agree_${t.key}`] = "Please tick to accept.";
-      return { fields, values };
+    // `bundle.agreementTemplates` is already scoped to this child's grade, so
+    // a pre-school family is neither shown the learner code of conduct nor
+    // asked for it here. One list, so the screen and the gate cannot disagree.
+    const decisionOf = (key: string): "accepted" | "declined" | null =>
+      parsed.data.acceptedKeys.includes(key) ? "accepted" : parsed.data.declinedKeys.includes(key) ? "declined" : null;
+
+    const fields: Record<string, string> = {};
+    for (const t of bundle.agreementTemplates) {
+      const decision = decisionOf(t.key);
+      // A refusal only counts as an answer where the school allows one. Saying
+      // no to the fees policy is not a decision the parent gets to make, so it
+      // is treated as though they had not answered at all.
+      if (decision === "declined" && !t.may_decline) {
+        fields[`agree_${t.key}`] = "Please tick to accept.";
+      } else if (!decision && t.required) {
+        fields[`agree_${t.key}`] = t.may_decline ? "Please choose yes or no." : "Please tick to accept.";
+      }
     }
+    if (Object.keys(fields).length) return { fields, values };
+
     const ctx = await requestContext();
-    const accepted = bundle.agreementTemplates.filter((t) => parsed.data.acceptedKeys.includes(t.key));
+    const answered = bundle.agreementTemplates
+      .map((t) => ({ template: t, decision: decisionOf(t.key) }))
+      .filter((a): a is { template: (typeof bundle.agreementTemplates)[number]; decision: "accepted" | "declined" } => a.decision !== null);
     const { error } = await admin.from("agreement_acceptances").upsert(
-      accepted.map((t) => ({
+      answered.map(({ template: t, decision }) => ({
         application_id: graph.application.id,
         agreement_template_id: t.id,
         template_key: t.key,
@@ -306,8 +328,14 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
         signature_svg: signatureSvg(signature.strokes),
         ip_hash: ctx.ipHash,
         user_agent: ctx.userAgent,
+        decision,
       })),
-      { onConflict: "application_id,agreement_template_id", ignoreDuplicates: true }
+      // Not `ignoreDuplicates`, which it was until the photographs consent
+      // became a question with two answers. A parent who declined and came
+      // back to agree would have watched the form accept the change and the
+      // database keep the refusal — the worst kind of bug, because nothing
+      // looks wrong. They have signed again, so the row is theirs to rewrite.
+      { onConflict: "application_id,agreement_template_id" }
     );
     if (error) throw new WorkflowError(error.message, "database");
     await ensureRegistration(admin, graph.application.id);

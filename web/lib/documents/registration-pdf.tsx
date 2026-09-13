@@ -37,7 +37,7 @@ export type RegistrationDocumentProps = {
   printedOn: string;
   sections: Section[];
   documents: Array<{ label: string; status: string; filename: string | null; uploadedOn: string | null }>;
-  agreements: Array<{ name: string; version: number; acceptedOn: string; signedBy: string }>;
+  agreements: Array<{ name: string; version: number; acceptedOn: string; signedBy: string; declined: boolean }>;
 };
 
 function Rows({ fields }: { fields: Field[] }) {
@@ -87,7 +87,7 @@ export function RegistrationDocument(p: RegistrationDocumentProps) {
           p.agreements.map((a) => (
             <View key={`${a.name}-${a.version}`} style={s.row} wrap={false}>
               <Text style={s.label}>{a.name} (v{a.version})</Text>
-              <Text style={s.value}>Accepted {a.acceptedOn} · signed {a.signedBy}</Text>
+              <Text style={s.value}>{a.declined ? "DECLINED" : "Accepted"} {a.acceptedOn} · signed {a.signedBy}</Text>
             </View>
           ))
         ) : (
