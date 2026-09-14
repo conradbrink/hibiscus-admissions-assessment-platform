@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TemplateRenderError } from "@/lib/email/render";
 import { formatMoney, parseMoneyToMinor } from "@/lib/money";
-import { buildOfferVariables, feeSnapshotFrom, renderOffer, snapshotFees } from "@/lib/offers/snapshot";
+import { buildOfferVariables, feeLinesFor, feeSnapshotFrom, renderOffer, snapshotFees } from "@/lib/offers/snapshot";
 import type { FeeLineRow } from "@/lib/supabase/types";
 
 const lines: FeeLineRow[] = [
@@ -191,5 +191,41 @@ describe("half day and full day", () => {
     const v = buildOfferVariables(graph, snapshotFees({ currency: "BWP" }, single), { expiresAt: null, conditions: null });
     expect(v.tuition_term).toBe(formatMoney(1_700_000, "BWP"));
     expect(v.tuition_term_half).toBeNull();
+  });
+});
+
+describe("feeLinesFor", () => {
+  const fees = {
+    currency: "BWP" as const,
+    lines: [
+      { code: "registration" as const, label: "Application fee", amount_minor: 30000, payable_at_acceptance: true },
+      { code: "tuition_term_half" as const, label: "Tuition per term (half day)", amount_minor: 780000, payable_at_acceptance: false },
+      { code: "tuition_term_full" as const, label: "Tuition per term (full day)", amount_minor: 870000, payable_at_acceptance: false },
+    ],
+    total_minor: 1680000,
+    payable_at_acceptance_minor: 30000,
+  };
+
+  it("shows both rates while nobody has decided", () => {
+    expect(feeLinesFor(fees, null).map((l) => l.code)).toEqual(["registration", "tuition_term_half", "tuition_term_full"]);
+  });
+
+  it("drops the rate the child is not on", () => {
+    // Staff set "Full day", looked at the offer summary, and saw both rates
+    // still listed — which reads as the setting having done nothing.
+    expect(feeLinesFor(fees, "full").map((l) => l.code)).toEqual(["registration", "tuition_term_full"]);
+    expect(feeLinesFor(fees, "half").map((l) => l.code)).toEqual(["registration", "tuition_term_half"]);
+  });
+
+  it("leaves a schedule priced one way alone", () => {
+    const single = { ...fees, lines: [fees.lines[0], { code: "tuition_term" as const, label: "Tuition per term", amount_minor: 900000, payable_at_acceptance: false }] };
+    expect(feeLinesFor(single, "full").map((l) => l.code)).toEqual(["registration", "tuition_term"]);
+  });
+
+  it("narrows the display only, never the totals", () => {
+    // The snapshot stays the record of what was quoted, and neither term rate
+    // is payable at acceptance, so no figure on the page moves.
+    expect(fees.payable_at_acceptance_minor).toBe(30000);
+    expect(feeLinesFor(fees, "full").filter((l) => l.payable_at_acceptance)).toHaveLength(1);
   });
 });

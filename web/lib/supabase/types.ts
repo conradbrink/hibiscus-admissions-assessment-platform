@@ -2523,6 +2523,22 @@ export type Database = {
       >;
     };
     Views: {
+      /**
+       * Decisions that actually moved the application, matched to their
+       * timeline event. Read this wherever a decision is shown or summarised:
+       * `admission_decisions` is append-only and also holds the attempts the
+       * state machine refused, which are a true record of a button press and
+       * not a decision about a child.
+       */
+      v_effective_decisions: {
+        Row: AdmissionDecisionRow;
+        Relationships: [
+          Rel<"admission_decisions_application_id_fkey", "application_id", "applications">,
+          Rel<"admission_decisions_attempt_id_fkey", "attempt_id", "attempts">,
+          Rel<"admission_decisions_ruleset_id_fkey", "ruleset_id", "admission_rulesets">,
+          Rel<"admission_decisions_staff_id_fkey", "staff_id", "staff_profiles">,
+        ];
+      };
       /** The active campuses the caller may see; every campus filter reads this. */
       v_accessible_campuses: {
         Row: CampusRow;

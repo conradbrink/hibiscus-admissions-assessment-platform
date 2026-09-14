@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { loadApplicationGraph } from "@/lib/applications";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { feeLinesFor } from "@/lib/offers/snapshot";
 import { loadVisibleOffer } from "@/lib/offers/load";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireParentSession } from "@/lib/tokens/server";
@@ -53,7 +54,7 @@ export default async function OfferPage() {
         <section className="mt-5 surface p-5 text-sm">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Fees ({fees.currency})</p>
           <ul className="mt-2 divide-y divide-border">
-            {fees.lines.map((l) => (
+            {feeLinesFor(fees, graph.application.day_pattern).map((l) => (
               <li key={l.code} className="flex justify-between py-2"><span>{l.label}{l.waived ? <span className="ml-2 rounded-full bg-success/15 px-2 py-0.5 text-xs text-success">Waived</span> : null}</span><span className="tabular-nums">{l.waived && l.original_minor ? <s className="text-muted-foreground">{formatMoney(l.original_minor, fees.currency)}</s> : formatMoney(l.amount_minor, fees.currency)}</span></li>
             ))}
             <li className="flex justify-between py-2 font-semibold"><span>Payable on acceptance</span><span className="tabular-nums">{formatMoney(fees.payable_at_acceptance_minor, fees.currency)}</span></li>

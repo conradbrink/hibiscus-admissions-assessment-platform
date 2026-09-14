@@ -42,6 +42,50 @@ export type OfferBlock = { kind: "heading" | "para" | "fees" | "bank"; text: str
  * details the offer was rendered with). Inline tags vanish without leaving
  * a space before punctuation.
  */
+/**
+ * HTML entities, decoded for the PDF.
+ *
+ * The letter is HTML, so the templates are written with entities in them —
+ * and this converter used to know six of them by name. `&middot;` was not one,
+ * so the letterhead of every offer printed "Hibiscus International Schools
+ * &middot; Phase 2". A list of six was always going to be one short; the next
+ * author to reach for an em dash or a curly apostrophe would have found the
+ * same thing.
+ *
+ * One pass, so `&amp;middot;` decodes to the literal text `&middot;` rather
+ * than to a separator — the old chain replaced `&amp;` first and then walked
+ * over its own output. Numeric forms are handled generally, and anything
+ * unrecognised is left standing rather than swallowed, so a reader can see
+ * what to report.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  middot: "·",
+  bull: "•",
+  mdash: "—",
+  ndash: "–",
+  hellip: "…",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201C",
+  rdquo: "\u201D",
+  apos: "'",
+  quot: '"',
+  lt: "<",
+  gt: ">",
+  amp: "&",
+};
+
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, body: string) => {
+    if (body.startsWith("#")) {
+      const code = body[1] === "x" || body[1] === "X" ? Number.parseInt(body.slice(2), 16) : Number.parseInt(body.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? whole;
+  });
+}
+
 export function htmlToBlocks(html: string, opts: { dropLeadingHeading?: string } = {}): OfferBlock[] {
   const FEES = "\u0000fees\u0000";
   const marked = html
@@ -51,15 +95,10 @@ export function htmlToBlocks(html: string, opts: { dropLeadingHeading?: string }
     .replace(/<\/(p|h[1-6]|li|tr)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/?(strong|em|b|i|u|a|span)\b[^>]*>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&quot;/g, '"');
+    .replace(/<[^>]+>/g, " ");
+  const decoded = decodeEntities(marked);
   const blocks: OfferBlock[] = [];
-  for (const raw of marked.split("\n")) {
+  for (const raw of decoded.split("\n")) {
     const line = raw.replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
     if (!line) continue;
     if (line === FEES) blocks.push({ kind: "fees", text: "" });

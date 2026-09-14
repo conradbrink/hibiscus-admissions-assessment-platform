@@ -133,6 +133,11 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     // no {{#unless}} (lib/email/render.ts), so the mirror is a second
     // variable rather than a negation — the shape `all_received` already uses.
     // Null renders empty and fails an {{#if}}, so the two are exclusive.
+    // What to type into a banking app. The school asked for the child's name
+    // rather than the application reference: it is what a parent will actually
+    // type and what the bursar recognises on a statement. Distinct from
+    // `payment_reference`, which is the reference a payment *arrived* with.
+    reference_to_use: paymentReferenceFor(application.child_first_name, application.child_last_name),
     assessed: application.requires_assessment ? "yes" : null,
     no_assessment: application.requires_assessment ? null : "yes",
     start_date: formatDateLong(graph.intake.starts_on),
