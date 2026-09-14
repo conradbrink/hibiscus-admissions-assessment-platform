@@ -2,6 +2,7 @@ import type { ApplicationGraph } from "@/lib/applications";
 import { renderHtml, type TemplateVariables } from "@/lib/email/render";
 import { formatDateLong, toSchoolDateString } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { paymentReferenceFor } from "@/lib/payments/reference";
 import { promotionVariables } from "@/lib/promotions/apply";
 import type { DayPattern, FeeCode, FeeLineRow, FeeScheduleRow, OfferTemplateRow } from "@/lib/supabase/types";
 
@@ -40,6 +41,27 @@ export function snapshotFees(schedule: Pick<FeeScheduleRow, "currency">, lines: 
     if (l.payable_at_acceptance) snapshot.payable_at_acceptance_minor += l.amount_minor;
   }
   return snapshot;
+}
+
+/**
+ * The fee lines a reader should actually see, given what the school decided.
+ *
+ * A pre-school schedule prices both a half day and a full day, so the snapshot
+ * holds both. Once a child is placed on one, the other is not their fee —
+ * listing it invites exactly the question the letter has already answered.
+ * Staff set "Full day", looked at the offer summary, saw both rates still
+ * sitting there and reasonably concluded the setting had not applied.
+ *
+ * Undecided keeps both, which is the same choice `buildOfferVariables` makes
+ * for the letter: show the family the two rates rather than guess.
+ *
+ * Only the display narrows. Totals are untouched, because neither term rate is
+ * payable at acceptance and the snapshot stays the record of what was quoted.
+ */
+export function feeLinesFor(fees: FeeSnapshot, pattern: DayPattern | null): FeeSnapshot["lines"] {
+  if (!pattern) return fees.lines;
+  const other: FeeCode = pattern === "full" ? "tuition_term_half" : "tuition_term_full";
+  return fees.lines.filter((l) => l.code !== other);
 }
 
 /** Reads a stored `offers.fees` value back as a snapshot, or null for the empty placeholder. */
@@ -102,6 +124,15 @@ export function buildOfferVariables(
     intake_started: intake.starts_on > todayInSchoolTime(now) ? null : "yes",
     offer_expiry_date: opts.expiresAt ? formatDateLong(opts.expiresAt) : null,
     application_reference: application.reference,
+    // What to type into a banking app: the child's name, as the /pay page and
+    // the payment emails already show it. The letter used to name the
+    // application reference here, so a family was told two different things
+    // depending on which page they happened to be looking at.
+    reference_to_use: paymentReferenceFor(application.child_first_name, application.child_last_name),
+    // No assessment, no sentence about passing one. The letter is shared by
+    // both tracks and opened by congratulating a pre-school child on an intake
+    // assessment they were never asked to sit.
+    assessed: application.requires_assessment ? "yes" : null,
     registration_fee: line("registration"),
     admission_fee: line("admission"),
     tuition_annual: line("tuition_annual"),

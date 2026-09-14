@@ -14,7 +14,7 @@ import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
-import { feeSnapshotFrom } from "@/lib/offers/snapshot";
+import { feeLinesFor, feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
@@ -284,15 +284,17 @@ export async function ApplicantPhase2({
               ) : null}
             </div>
           ) : null}
-          {decision.canRecordOutcome || decision.canDefer || decision.canWithdraw ? (
+          {decision.canRecordOutcome ? (
             <div className="mb-4 rounded-lg border border-border p-3">
               <h3 className="font-semibold">Record a decision</h3>
+              {/* Gone the moment an outcome is recorded: the state machine
+                  stops allowing one, so `canRecordOutcome` turns false and
+                  this whole card leaves with it. Pausing and closing moved to
+                  the sidebar, where they stay reachable at every stage. */}
               <p className="mt-1 text-xs text-muted-foreground">
-                {decision.canRecordOutcome
-                  ? app.requires_assessment
-                    ? "Overrides the rules engine. A reason is required and audited."
-                    : "Pre-school applicants are decided here. A reason is required and audited."
-                  : "You may pause or close this application. Deciding the outcome needs the decisions permission."}
+                {app.requires_assessment
+                  ? "Overrides the rules engine. A reason is required and audited."
+                  : "Pre-school applicants are decided here. A reason is required and audited."}
               </p>
               <ActionForm
                 action={recordDecision}
@@ -300,23 +302,9 @@ export async function ApplicantPhase2({
                 size="sm"
                 className="mt-2"
                 confirm="Record this decision? It is audited and the parent will be informed."
-                confirmBy={{
-                  field: "outcome",
-                  messages: {
-                    deferred: decision.bookingWillBeCancelled
-                      ? "Defer this family? Their booking is cancelled and the seat goes back."
-                      : "Defer this family? We will message them around the date you chose.",
-                    withdrawn: "Withdraw this application? Bookings and open tasks are cancelled.",
-                  },
-                }}
               >
                 {idField}
-                <DecisionFields
-                  canRecordOutcome={decision.canRecordOutcome}
-                  canDefer={decision.canDefer}
-                  canWithdraw={decision.canWithdraw}
-                  bookingWillBeCancelled={decision.bookingWillBeCancelled}
-                />
+                <DecisionFields canRecordOutcome canDefer={false} canWithdraw={false} />
               </ActionForm>
             </div>
           ) : null}
@@ -393,7 +381,7 @@ export async function ApplicantPhase2({
                 const f = feeSnapshotFrom(liveOffer.fees);
                 return f ? (
                   <ul className="rounded-lg border border-border p-2 text-xs">
-                    {f.lines.map((l) => <li key={l.code} className="flex justify-between"><span>{l.label}</span><span className="tabular-nums">{formatMoney(l.amount_minor, f.currency)}</span></li>)}
+                    {feeLinesFor(f, dayPattern?.value ?? null).map((l) => <li key={l.code} className="flex justify-between"><span>{l.label}</span><span className="tabular-nums">{formatMoney(l.amount_minor, f.currency)}</span></li>)}
                     <li className="mt-1 flex justify-between border-t border-border pt-1 font-semibold"><span>Payable on acceptance</span><span className="tabular-nums">{formatMoney(f.payable_at_acceptance_minor, f.currency)}</span></li>
                   </ul>
                 ) : (

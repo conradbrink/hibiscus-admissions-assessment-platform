@@ -5,8 +5,11 @@ import { Label } from "@/components/ui/label";
 import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { HEARD_FROM_OPTIONS } from "@/lib/heard-from";
+import { offerableIntakes } from "@/lib/intakes";
 import { requireStaff } from "@/lib/staff/session";
 import { addApplicant } from "./actions";
+
+const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
  * The front desk's version of the enquiry form: a family standing there,
@@ -19,9 +22,19 @@ export default async function NewApplicantPage() {
   const [{ data: campuses }, { data: grades }, { data: intakes }, { data: offered }] = await Promise.all([
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
     supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
-    supabase.from("intakes").select("id, label, starts_on").eq("is_open", true).gte("starts_on", today).order("starts_on"),
+    // Every open term, past starts included. `offerableIntakes` decides which
+    // are still joinable — a date cutoff here quietly removed the term the
+    // school is actually teaching, so a family enrolling a child *now* was
+    // offered next January as the earliest date. The parent funnel was fixed;
+    // this form was not, and staff hit it the same week.
+    supabase.from("intakes").select("id, label, starts_on, is_open, academic_years(ends_on)").eq("is_open", true).order("starts_on"),
     supabase.from("campus_grades").select("campus_id, grade_id").eq("is_active", true),
   ]);
+
+  const joinable = offerableIntakes(
+    (intakes ?? []).map((i) => ({ ...i, year_ends_on: one(i.academic_years)?.ends_on ?? null })),
+    today
+  );
 
   const offeredAt = new Map<string, Set<string>>();
   for (const row of offered ?? []) {
@@ -43,7 +56,7 @@ export default async function NewApplicantPage() {
         description="For a family at the desk or on the phone. It creates the same application their own form would, and sends them the same emails."
       />
 
-      {(intakes ?? []).length === 0 ? (
+      {joinable.length === 0 ? (
         <p className="surface p-4 text-sm text-destructive">
           No start term is open, so an application cannot be created. Open one under Settings → Intakes first.
         </p>
@@ -113,8 +126,8 @@ export default async function NewApplicantPage() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="intakeId">Starting</Label>
-                  <NativeSelect id="intakeId" name="intakeId" required defaultValue={intakes?.[0]?.id ?? ""}>
-                    {(intakes ?? []).map((i) => (
+                  <NativeSelect id="intakeId" name="intakeId" required defaultValue={joinable[0]?.id ?? ""}>
+                    {joinable.map((i) => (
                       <option key={i.id} value={i.id}>{i.label}</option>
                     ))}
                   </NativeSelect>

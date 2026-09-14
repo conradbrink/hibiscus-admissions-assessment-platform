@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlToBlocks, withSignatory, htmlToParagraphs } from "@/lib/documents/offer-pdf";
+import { decodeEntities, htmlToBlocks, withSignatory, htmlToParagraphs } from "@/lib/documents/offer-pdf";
 
 describe("htmlToBlocks", () => {
   it("turns the letter into headings, paragraphs and the place of the fee table", () => {
@@ -35,5 +35,39 @@ describe("withSignatory", () => {
     const r = withSignatory(blocks.slice(0, 1), { name: "T. Modise", title: null, imageDataUrl: null });
     expect(r.blocks).toHaveLength(1);
     expect(r.sign).toBe(true);
+  });
+});
+
+describe("decodeEntities", () => {
+  it("decodes the separator that printed literally on every letterhead", () => {
+    // "Hibiscus International Schools &middot; Phase 2" is what the PDF showed
+    // for months: the converter knew six entities by name and this was not one.
+    expect(decodeEntities("Hibiscus International Schools &middot; Phase 2")).toBe("Hibiscus International Schools · Phase 2");
+  });
+
+  it("does not walk over its own output", () => {
+    // The old chain replaced &amp; first and then met the &middot; it had just
+    // produced. One pass means escaped text stays escaped.
+    expect(decodeEntities("&amp;middot;")).toBe("&middot;");
+    expect(decodeEntities("&amp;amp;")).toBe("&amp;");
+  });
+
+  it("handles the punctuation a letter is actually written with", () => {
+    expect(decodeEntities("don&rsquo;t &mdash; really&hellip;")).toBe("don\u2019t — really…");
+  });
+
+  it("handles numeric forms in both bases", () => {
+    expect(decodeEntities("&#183;&#xB7;")).toBe("··");
+  });
+
+  it("leaves anything it does not know standing, rather than swallowing it", () => {
+    // A reader can report "&frac12;"; a silently deleted character is invisible.
+    expect(decodeEntities("half &frac12; of it")).toBe("half &frac12; of it");
+  });
+
+  it("carries through the letter converter", () => {
+    expect(htmlToParagraphs("<p>Hibiscus International Schools &middot; Phase 2</p>")).toEqual([
+      "Hibiscus International Schools · Phase 2",
+    ]);
   });
 });

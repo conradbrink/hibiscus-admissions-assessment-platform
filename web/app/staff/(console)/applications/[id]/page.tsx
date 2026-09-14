@@ -7,6 +7,7 @@ import { SummaryPanel } from "@/components/staff/summary-panel";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { PauseOrClose } from "@/components/staff/pause-or-close";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +34,7 @@ import {
   deleteApplicant,
   generateLinkForStaff,
   markNoShow,
+  recordDecision,
   rescheduleByStaff,
   refreshSummary,
   resendLink,
@@ -556,6 +558,14 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
               </ul>
             ) : null}
           </section>
+
+          <PauseOrClose
+            applicationId={app.id}
+            action={recordDecision}
+            canDefer={decision.canDefer}
+            canWithdraw={decision.canWithdraw}
+            bookingWillBeCancelled={decision.bookingWillBeCancelled}
+          />
 
           {/* Delete. Deliberately last, deliberately its own box, and only for
               the permission the super administrator holds alone. Withdrawing
