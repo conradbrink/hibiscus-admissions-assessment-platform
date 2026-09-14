@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { saysAssessment } from "@/lib/messaging/template-checks";
 import { MessagesPanel } from "@/components/staff/messages-panel";
 import { DecisionFields } from "@/components/staff/decision-fields";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
@@ -117,7 +118,7 @@ export async function ApplicantPhase2({
   const [{ data: scores }, { data: messages }, { data: messageTemplates }] = await Promise.all([
     latestAttempt ? supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id) : Promise.resolve({ data: [] }),
     supabase.from("messages").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(50),
-    supabase.from("message_templates").select("key, name, is_active, meta_template_name, twilio_content_sid, zavu_template_id").eq("is_active", true).order("name"),
+    supabase.from("message_templates").select("key, name, is_active, body_preview, meta_template_name, twilio_content_sid, zavu_template_id").eq("is_active", true).order("name"),
   ]);
   // The trail behind those messages. Read separately rather than embedded so
   // a message with a long delivery history cannot push another message out of
@@ -537,7 +538,13 @@ export async function ApplicantPhase2({
             // Either identifier will do here: which one is needed depends on
             // the provider the deploy is using, and the send records the exact
             // reason if the wrong one is the only one set.
-            templates={(messageTemplates ?? []).filter((t) => t.meta_template_name || t.twilio_content_sid || t.zavu_template_id)}
+            // Addressable, and — for a child who does not sit one — not
+            // wording that says "assessment". Staff sent exactly that to a
+            // pre-school parent by hand, a second after she had been sent the
+            // play-date confirmation, and nothing stood in the way.
+            templates={(messageTemplates ?? [])
+              .filter((t) => t.meta_template_name || t.twilio_content_sid || t.zavu_template_id)
+              .filter((t) => app.requires_assessment || !saysAssessment(t.body_preview))}
             canSend={can(permissions, "applications.write")}
             action={sendWhatsApp}
           />

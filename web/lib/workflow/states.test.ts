@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import {
   assertTransition,
+  canBeDecided,
   canTransition,
   IllegalTransitionError,
   NEXT_ACTION_KEYS,
@@ -10,6 +11,7 @@ import {
   STATUS_LABELS,
   STATUS_TONE,
   statusAfterBooking,
+  statusAfterVisitArrival,
   TERMINAL_STATUSES,
   TRANSITIONS,
 } from "@/lib/workflow/states";
@@ -114,6 +116,48 @@ describe("state machine", () => {
     expect(() => assertTransition("offer_sent", "enrolled")).toThrow(IllegalTransitionError);
     expect(() => assertTransition("assessment_booked", "approved")).toThrow(IllegalTransitionError);
     expect(() => assertTransition("declined", "approved")).toThrow(IllegalTransitionError);
+  });
+
+  it("agrees with the graph about who can be decided", () => {
+    // The profile page used to carry its own list of decidable statuses and it
+    // drifted, so staff were shown an Approve button that always failed. A loop
+    // rather than a handful of cases, because the point is that the two can
+    // never disagree again.
+    for (const s of ALL) expect(canBeDecided(s)).toBe(canTransition(s, "approved"));
+  });
+
+  it("will not let a booked visit be approved until the child has arrived", () => {
+    // A play date that has been booked is not yet a play date that happened.
+    // Checking in is what moves it, and only then is there something to decide.
+    expect(canBeDecided("visit_booked")).toBe(false);
+    expect(canTransition("visit_booked", "awaiting_decision")).toBe(true);
+    expect(canBeDecided("awaiting_decision")).toBe(true);
+  });
+
+  it("does not offer a decision straight from an enquiry or a callback", () => {
+    expect(canBeDecided("new_enquiry")).toBe(false);
+    expect(canBeDecided("callback_requested")).toBe(false);
+  });
+
+  it("hands a pre-school child to the decision when they arrive for their play date", () => {
+    expect(statusAfterVisitArrival("visit_booked", false)).toBe("awaiting_decision");
+    expect(canBeDecided(statusAfterVisitArrival("visit_booked", false)!)).toBe(true);
+  });
+
+  it("does not walk a child past the assessment they have not sat", () => {
+    // A primary family can book a look-around visit through the visit door,
+    // and it is stored as the same kind as a play date. Arriving for it must
+    // not move them on: the assessment is still ahead of them.
+    expect(statusAfterVisitArrival("visit_booked", true)).toBeNull();
+    expect(statusAfterVisitArrival("new_enquiry", true)).toBeNull();
+  });
+
+  it("leaves a family who are already past the decision where they are", () => {
+    // Walking round the campus with an offer in hand is not a return to the
+    // decision. Same reasoning as `statusAfterBooking`.
+    for (const s of ["offer_sent", "paid", "enrolled"] as ApplicationStatus[]) {
+      expect(statusAfterVisitArrival(s, false)).toBeNull();
+    }
   });
 
   it("has copy for every next action", () => {

@@ -5,6 +5,7 @@ import { placesRemaining } from "@/lib/rules/capacity";
 import { evaluateAdmission, type Evaluation, type Rule } from "@/lib/rules/evaluate";
 import { getSettings } from "@/lib/settings";
 import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
+import { assertTransition } from "@/lib/workflow/states";
 
 /**
  * From "marked" to "decided". The rules engine computes an outcome; this
@@ -126,6 +127,13 @@ export async function applyDecision(
   spec: DecisionSpec
 ): Promise<void> {
   const settings = await getSettings(admin);
+  // Check the move before writing anything. The insert used to come first and
+  // `commit` threw on the graph afterwards, so a refused decision left a row
+  // in `admission_decisions` with no status change, no timeline entry and no
+  // audit — a decision that reads as recorded and did nothing. One applicant
+  // collected two of them before anyone noticed. `commit` checks again; this
+  // is the one that keeps the record honest.
+  if (app.status !== spec.outcome) assertTransition(app.status, spec.outcome);
   const { error } = await admin.from("admission_decisions").insert({
     application_id: app.id,
     attempt_id: spec.attemptId,
@@ -206,7 +214,10 @@ export async function applyDecision(
     newStatus: spec.outcome,
     nextAction,
     event: { type: "decision.made", summary: `Decision: ${spec.outcome}${manual ? " (by staff)" : ""} — ${spec.reason}`, payload },
-    resolveTaskTypes: ["review_decision", "review_preschool_enquiry"],
+    // `callback` too: a family can be decided straight from a callback
+    // request, and the task asking somebody to ring them should not outlive
+    // the decision.
+    resolveTaskTypes: ["review_decision", "review_preschool_enquiry", "callback"],
     tasks,
     jobs,
     audit,

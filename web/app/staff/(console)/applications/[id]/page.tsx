@@ -18,7 +18,7 @@ import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { canBeDecided, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addApplicantTask,
@@ -138,12 +138,14 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const canDeliver = can(permissions, "assessments.deliver");
   const canDecide = can(permissions, "decisions.override");
   const terminal = TERMINAL_STATUSES.has(app.status);
-  // Approve, waitlist, decline, defer, withdraw: one question, asked once, in
-  // the Decision tab. Deferring and withdrawing are not overrides of the rules
-  // engine, so they keep applications.write rather than decisions.override.
-  const decidableStatuses = ["awaiting_decision", "staff_review", "new_enquiry", "visit_booked", "callback_requested", "waitlisted"];
+  // Approve, defer, withdraw: one question, asked once, in the Decision tab.
+  // Deferring and withdrawing are not overrides of the rules engine, so they
+  // keep applications.write rather than decisions.override.
+  //
+  // Whether an outcome can be recorded is the state machine's answer, not a
+  // list kept here — see `canBeDecided`.
   const decision = {
-    canRecordOutcome: canDecide && !terminal && decidableStatuses.includes(app.status),
+    canRecordOutcome: canDecide && !terminal && canBeDecided(app.status),
     canDefer: canWrite && !terminal && app.status !== "deferred",
     canWithdraw: canWrite && !terminal,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),

@@ -6,17 +6,22 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { WITHDRAWN_REASON_CODES, WITHDRAWN_REASON_LABELS } from "@/lib/workflow/withdrawal";
 
-type Outcome = "approved" | "waitlisted" | "declined" | "deferred" | "withdrawn";
+type Outcome = "approved" | "deferred" | "withdrawn";
 
 /**
  * The fields inside "Record a decision".
  *
- * Deferring and withdrawing are answers staff give at this moment — "not now"
- * and "not at all" — so they are options here rather than buttons further down
- * the page. Each needs something different from the others, though: a date, a
- * reason code, or neither. So the choice drives the fields, because a date box
- * sitting there while somebody approves a child is a box they will wonder
- * about.
+ * Three answers: yes, not now, and they are no longer applying. Waitlist and
+ * decline were here too and have been taken out — the school does not turn a
+ * child away through this form. Both remain states an application can be in,
+ * because the rules engine can still reach them and history must still read
+ * back; they are simply no longer something a person picks.
+ *
+ * Deferring and withdrawing are answers staff give at this moment, so they are
+ * options here rather than buttons further down the page. Each needs something
+ * different from the others, though: a date, a reason code, or neither. So the
+ * choice drives the fields, because a date box sitting there while somebody
+ * approves a child is a box they will wonder about.
  */
 export function DecisionFields({
   canRecordOutcome,
@@ -40,13 +45,7 @@ export function DecisionFields({
         onChange={(e) => setOutcome(e.target.value as Outcome)}
         aria-label="Decision"
       >
-        {canRecordOutcome ? (
-          <>
-            <option value="approved">Approve</option>
-            <option value="waitlisted">Waitlist</option>
-            <option value="declined">Decline</option>
-          </>
-        ) : null}
+        {canRecordOutcome ? <option value="approved">Approve</option> : null}
         {canDefer ? <option value="deferred">Defer — come back to them later</option> : null}
         {canWithdraw ? <option value="withdrawn">Withdraw — they are no longer applying</option> : null}
       </NativeSelect>

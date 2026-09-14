@@ -10,6 +10,7 @@ import { isPlausibleDateOfBirth } from "@/lib/grades";
 import { removeDocumentObjects } from "@/lib/documents/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
+import { saysAssessment } from "@/lib/messaging/template-checks";
 import { generateSummary } from "@/lib/summary/generate";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
@@ -162,13 +163,18 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
  * that moment, not separate filing actions — but neither overrides the rules
  * engine, so both keep the permission their own buttons carried before they
  * moved in: anybody who may edit an applicant may promise to ring a family
- * back or close their application, while approving, waitlisting and declining
- * still need decisions.override.
+ * back or close their application, while approving still needs
+ * decisions.override.
+ *
+ * `waitlisted` and `declined` are deliberately absent from the enum. Taking
+ * them out of the dropdown alone would leave them reachable by anyone who
+ * edited the form, and an outcome that can be posted but not chosen is worse
+ * than either.
  */
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const raw = Object.fromEntries(formData);
-    const outcome = z.enum(["approved", "waitlisted", "declined", "deferred", "withdrawn"]).parse(raw.outcome);
+    const outcome = z.enum(["approved", "deferred", "withdrawn"]).parse(raw.outcome);
     const paused = outcome === "deferred" || outcome === "withdrawn";
     const ctx = await requireStaffAction(paused ? "applications.write" : "decisions.override");
 
@@ -381,6 +387,19 @@ export async function sendWhatsAppTemplate(_: StaffActionState, formData: FormDa
     const ctx = await requireStaffAction("applications.write");
     const parsed = idSchema.extend({ templateKey: z.string().regex(/^[a-z0-9_]+$/) }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    // The picker already hides these, but a form post is not obliged to have
+    // come from our form — and this is the send that actually reached a
+    // pre-school parent as "Brock's assessment at Phase 2 is booked".
+    if (!app.requires_assessment) {
+      const { data: template } = await admin
+        .from("message_templates")
+        .select("body_preview")
+        .eq("key", parsed.templateKey)
+        .maybeSingle();
+      if (saysAssessment(template?.body_preview)) {
+        throw new Error("That wording says “assessment”, and this child does not sit one. Pick the play-date version.");
+      }
+    }
     const verdict = await enforceRateLimit(admin, LIMITS.staffMessage, ctx.userId);
     if (!verdict.ok) throw new Error("Too many messages in a short time. Please wait a little.");
     const result = await sendCompanionMessage(admin, {
