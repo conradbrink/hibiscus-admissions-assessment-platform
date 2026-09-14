@@ -16,6 +16,12 @@ export type EnquiryFormState = {
   error?: string;
   fields?: Record<string, string>;
   values?: Record<string, string>;
+  /**
+   * The address is already on file and this browser holds no session for
+   * that family, so the link went to the inbox instead of a session starting
+   * here. The form is replaced by that sentence.
+   */
+  linkSent?: { email: string };
 };
 
 export type EnquiryFormProps = {
@@ -82,6 +88,20 @@ export function EnquiryForm({ route, campuses, promoCodesLive = false, action }:
   };
 
   const invalid = (name: string) => (f[name] ? { "aria-invalid": true, "aria-describedby": `${name}-error` } : {});
+
+  if (state.linkSent) {
+    return (
+      <section className="rounded-2xl bg-success/10 p-5" role="status">
+        <p className="text-xs font-semibold tracking-wide text-success uppercase">Check your email</p>
+        <h2 className="mt-2 text-xl font-bold">We already have your details.</h2>
+        <p className="mt-2 text-sm leading-relaxed">
+          We have sent a link to <span className="font-medium">{state.linkSent.email}</span>. Open it to carry on
+          with your application. The link is only sent to that address, which keeps your family&rsquo;s details safe.
+        </p>
+        <p className="mt-3 text-xs text-muted-foreground">No email after a few minutes? Check your spam folder, or request a call and we will help.</p>
+      </section>
+    );
+  }
 
   return (
     <form action={formAction} onFocusCapture={onFirstFocus} className="space-y-6" noValidate>

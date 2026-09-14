@@ -93,6 +93,9 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
       heardFrom: parsed.heardFrom || null,
       heardFromDetail: parsed.heardFromDetail || null,
       source: "walk_in",
+      // The desk has the family in front of it: what is typed here corrects
+      // the record, as it always has.
+      trusted: true,
     });
     created.id = result.applicationId;
 

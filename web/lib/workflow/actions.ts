@@ -7,7 +7,7 @@ import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/type
 import { getSettings } from "@/lib/settings";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
-import { statusAfterBooking, statusAfterVisitArrival } from "@/lib/workflow/states";
+import { bookingTrackNextAction, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
 import {
   commit,
   hoursBefore,
@@ -209,7 +209,7 @@ export async function onBookingCreated(
         summary: rescheduled ? `${bookingSummary(session, noun)} (moved)` : bookingSummary(session, noun),
         payload: { booking_id: booking.id, kind: "visit", rescheduled_from: opts.rescheduledFromId },
       },
-      resolveTaskTypes: ["callback"],
+      resolveTaskTypes: ["callback", "follow_up_no_show"],
       jobs: [
         emailJob(app.id, rescheduled ? bookingMovedTemplateKey(nounInput) : bookingConfirmedTemplateKey(nounInput), {
           suffix: booking.id,
@@ -316,12 +316,21 @@ export async function onCheckedIn(
   if (error) throw new WorkflowError(error.message, "database");
 
   const moved = booking.kind === "visit" ? statusAfterVisitArrival(app.status, app.requires_assessment) : null;
+  // A primary family who came to look around before applying: the visit is
+  // over, and what is next is the assessment. Without this the hub kept
+  // saying "Your next step is to visit the campus" after they had, and the
+  // booking page still offered them visits — the assessment could only be
+  // booked by staff. The status does not move (the visit was never the
+  // stage); only the next step does.
+  const visitBeforeAssessment =
+    booking.kind === "visit" && app.requires_assessment && app.status === "visit_booked";
 
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
-    newStatus: moved,
-    nextAction: moved ? "await_school_contact" : null,
+    newStatus: moved ?? (visitBeforeAssessment ? app.status : null),
+    nextAction: moved ? "await_school_contact" : visitBeforeAssessment ? "book_assessment" : null,
+    nextActionDueAt: visitBeforeAssessment ? hoursFromNow(48) : undefined,
     event: {
       type: "booking.checked_in",
       summary: booking.kind === "assessment" ? "Arrived for assessment" : "Arrived for visit",
@@ -335,7 +344,7 @@ export async function onCheckedIn(
 /** Staff marks a no-show. Opens a follow-up and invites the parent to rebook. */
 export async function onNoShow(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status" | "child_first_name">,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
   booking: Pick<BookingRow, "id" | "kind" | "status">,
   actor: Actor
 ): Promise<void> {
@@ -348,12 +357,27 @@ export async function onNoShow(
   const settings = await getSettings(admin);
 
   if (booking.kind === "visit") {
+    // Back to the start of the booking track only when the visit *was* the
+    // stage. A pre-school family's play date is booked from
+    // `awaiting_decision`, which has no way back to `new_enquiry`, and the
+    // old unconditional move threw "Illegal transition" at the person
+    // recording the no-show. Either way somebody rings them.
+    const moved = statusAfterCancellation(app.status);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
-      newStatus: "new_enquiry",
-      nextAction: "book_assessment",
-      event: { type: "booking.no_show", summary: "Did not attend visit", payload: { booking_id: booking.id } },
+      newStatus: moved,
+      nextAction: moved ? bookingTrackNextAction(app.requires_assessment) : null,
+      event: { type: "booking.no_show", summary: app.requires_assessment ? "Did not attend visit" : "Did not attend play date", payload: { booking_id: booking.id } },
+      tasks: [
+        {
+          type: "follow_up_no_show",
+          title: `Follow up missed ${app.requires_assessment ? "visit" : "play date"} — ${app.child_first_name}`,
+          details: "The family did not arrive. Call to find out whether they still want to come, and book a new time with them.",
+          priority: "normal",
+          dueAt: hoursFromNow(72),
+        },
+      ],
       audit: { action: "booking.no_show", entityType: "booking", entityId: booking.id },
       actor,
     });
@@ -397,11 +421,16 @@ export async function onNoShow(
 /** Parent or staff cancels a live booking without picking a new one. */
 export async function onBookingCancelled(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
   booking: Pick<BookingRow, "id" | "kind">,
   reason: string | null,
   actor: Actor
 ): Promise<void> {
+  // The status move is decided before anything is written: the cancellation
+  // used to be recorded first and the (sometimes illegal) transition
+  // attempted second, so a refused move left a cancelled booking with no
+  // timeline entry, no email and an error page for the parent.
+  const moved = statusAfterCancellation(app.status);
   const { error } = await admin
     .from("bookings")
     .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: reason })
@@ -409,26 +438,33 @@ export async function onBookingCancelled(
     .in("status", ["booked", "checked_in"]);
   if (error) throw new WorkflowError(error.message, "database");
   const settings = await getSettings(admin);
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
 
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
-    newStatus: "new_enquiry",
-    nextAction: "book_assessment",
-    nextActionDueAt: hoursFromNow(48),
+    newStatus: moved,
+    nextAction: moved ? bookingTrackNextAction(app.requires_assessment) : null,
+    nextActionDueAt: moved ? hoursFromNow(48) : undefined,
     event: {
       type: "booking.cancelled",
-      summary: `${booking.kind === "assessment" ? "Assessment" : "Visit"} booking cancelled`,
+      summary: `${noun.charAt(0).toUpperCase() + noun.slice(1)} booking cancelled`,
       payload: { booking_id: booking.id, reason },
     },
     jobs: [
-      // The parent is told, with the link to choose again; and reminded once if they have not.
+      // The parent is told, with the link to choose again; and reminded once
+      // if they have not — but only while the booking was the stage. A family
+      // waiting on a decision, or holding an offer, is not late for anything.
       emailJob(app.id, "booking_cancelled", { suffix: booking.id, bookingId: booking.id }),
-      emailJob(app.id, "rebook_nudge", {
-        suffix: booking.id,
-        runAfter: new Date(Date.now() + settings.rebookNudgeDays * 86_400_000),
-        precondition: { application_status: ["new_enquiry"], booking_none: true },
-      }),
+      ...(moved
+        ? [
+            emailJob(app.id, "rebook_nudge", {
+              suffix: booking.id,
+              runAfter: new Date(Date.now() + settings.rebookNudgeDays * 86_400_000),
+              precondition: { application_status: [moved], booking_none: true },
+            }),
+          ]
+        : []),
     ],
     audit: { action: "booking.cancelled", entityType: "booking", entityId: booking.id },
     actor,
@@ -486,6 +522,61 @@ export async function onRescheduled(
     { rescheduledFromId: oldBooking.id }
   );
   return newId;
+}
+
+/**
+ * Books a session for an application that may already hold a booking — the
+ * one door for the parent's picker and the staff "Book / Move to selected".
+ *
+ *   - No live booking: book it, and undo the row by hand if recording the
+ *     moment fails, because `book_session` has already committed it.
+ *   - A live booking of the same stage: move it (`onRescheduled`).
+ *   - A visit the family has already arrived for, followed by an assessment:
+ *     the visit *happened*, so it is completed rather than marked as moved,
+ *     and the assessment is a fresh booking with its own confirmation and
+ *     reminders. Before this, moving on from a look-around rewrote history:
+ *     the visit read as "rescheduled" and the parent could not book the
+ *     assessment at all, because the picker treated the checked-in visit as
+ *     the booking to change.
+ */
+export async function onSessionChosen(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
+  live: Pick<BookingRow, "id" | "kind" | "status"> | null,
+  session: Pick<SessionRow, "id" | "kind" | "starts_at">,
+  actor: Actor
+): Promise<string> {
+  if (live && !(live.kind === "visit" && live.status === "checked_in" && session.kind === "assessment")) {
+    return onRescheduled(admin, app, live, session.id, actor);
+  }
+  if (live) {
+    const { error } = await admin
+      .from("bookings")
+      .update({ status: "completed" })
+      .eq("id", live.id)
+      .eq("status", "checked_in");
+    if (error) throw new WorkflowError(error.message, "database");
+  }
+  const { data: bookingId, error } = await admin.rpc("book_session", {
+    p_application_id: app.id,
+    p_session_id: session.id,
+  });
+  if (error) throw new WorkflowError(error.message, "database");
+  try {
+    await onBookingCreated(admin, app, { id: bookingId, kind: session.kind }, session, actor);
+  } catch (e) {
+    // `book_session` has already committed the row; recording the moment is
+    // a second call. If that fails there is no transaction to roll back, so
+    // undo the booking by hand — otherwise the parent is told the booking
+    // failed and holds one anyway, and their next attempt hits `already_booked`.
+    await admin
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "The booking could not be recorded" })
+      .eq("id", bookingId)
+      .eq("status", "booked");
+    throw e;
+  }
+  return bookingId;
 }
 
 // ---------------------------------------------------------------------------

@@ -42,8 +42,12 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
   assessment_in_progress: ["assessment_completed", "assessment_booked"],
   // Sat, not yet decided — a real moment for a family to ask us to wait.
   assessment_completed: ["awaiting_decision", "deferred"],
-  awaiting_decision: ["staff_review", "approved", "waitlisted", "declined", "deferred"],
-  staff_review: ["approved", "waitlisted", "declined", "deferred"],
+  // `new_enquiry` from both: a child moved by staff from a pre-school class to
+  // Stage 1 (or from Reception to Stage 1 at Block 7) now has an assessment to
+  // book, and the only honest place for that is the start of the booking
+  // track. See `changeGrade`.
+  awaiting_decision: ["staff_review", "approved", "waitlisted", "declined", "deferred", "new_enquiry"],
+  staff_review: ["approved", "waitlisted", "declined", "deferred", "new_enquiry"],
   // Paused, not closed, and reversible in one click — a status a family cannot
   // come back from is the Withdraw it was invented to replace.
   //
@@ -144,6 +148,32 @@ export function statusAfterVisitArrival(
 ): ApplicationStatus | null {
   if (requiresAssessment) return null;
   return canTransition(from, "awaiting_decision") ? "awaiting_decision" : null;
+}
+
+/**
+ * Where cancelling (or missing) a booking leaves the application, or null to
+ * leave it alone.
+ *
+ * The booking is a stage of the funnel only while the application is waiting
+ * on it — `assessment_booked`, `visit_booked`, `no_show` — and then the family
+ * goes back to the start of the booking track. A pre-school family's play
+ * date is booked from `awaiting_decision`, and a primary family may book a
+ * look-around from `offer_sent`: neither of those is waiting on the booking,
+ * and neither may be sent back to `new_enquiry`. Until this existed, a parent
+ * cancelling a play date was shown "Illegal transition: awaiting_decision →
+ * new_enquiry" on an error page, with the booking already cancelled and no
+ * email, no timeline entry and no nudge to rebook — found on the 14 September
+ * 2026 walkthrough. Same shape as `statusAfterBooking`, for the same reason.
+ */
+const BOOKING_STAGES: ReadonlySet<ApplicationStatus> = new Set(["assessment_booked", "visit_booked", "no_show"]);
+
+export function statusAfterCancellation(from: ApplicationStatus): ApplicationStatus | null {
+  return BOOKING_STAGES.has(from) ? "new_enquiry" : null;
+}
+
+/** The next action for a family sent back to the start of the booking track. */
+export function bookingTrackNextAction(requiresAssessment: boolean): NextAction {
+  return requiresAssessment ? "book_assessment" : "await_school_contact";
 }
 
 export class IllegalTransitionError extends Error {

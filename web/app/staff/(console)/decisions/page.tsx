@@ -11,7 +11,7 @@ import { can } from "@/lib/permissions";
 import type { RuleResult } from "@/lib/rules/evaluate";
 import { requireStaff } from "@/lib/staff/session";
 import type { BenchmarkBand, Json } from "@/lib/supabase/types";
-import { recordDecision } from "../applications/[id]/actions";
+import { recordReviewOutcome } from "../applications/[id]/actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -104,7 +104,7 @@ export default async function DecisionsPage() {
                 ) : null}
 
                 {canDecide ? (
-                  <ActionForm action={recordDecision} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                  <ActionForm action={recordReviewOutcome} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3" confirm="Record this decision? It is audited, and a decline or waitlist is emailed to the parent once you press Send on the Offers & outcomes page.">
                     <input type="hidden" name="applicationId" value={a.id} />
                     <NativeSelect name="outcome" defaultValue="approved" className="h-9 w-40 md:h-9">
                       <option value="approved">Approve</option>

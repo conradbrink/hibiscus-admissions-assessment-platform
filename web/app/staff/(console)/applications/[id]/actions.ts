@@ -20,7 +20,6 @@ import { mintToken } from "@/lib/tokens";
 import { mobileNumber } from "@/lib/validation";
 import {
   onBookingCancelled,
-  onBookingCreated,
   onCallbackCompleted,
   onCheckedIn,
   onDeferralEnded,
@@ -28,12 +27,13 @@ import {
   onManualDecision,
   onNoShow,
   onOwnerAssigned,
-  onRescheduled,
+  onSessionChosen,
   onWithdrawn,
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
-import { isNextAction } from "@/lib/workflow/states";
+import { isNextAction, type NextAction } from "@/lib/workflow/states";
+import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
 
 /**
@@ -138,17 +138,16 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
     const parsed = idSchema.extend({ sessionId: z.guid() }).parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const booking = await loadLiveBooking(admin, parsed.applicationId);
-    if (booking) {
-      await onRescheduled(admin, app, booking, parsed.sessionId, ctx.actor);
-    } else {
-      const { data: bookingId, error } = await admin.rpc("book_session", {
-        p_application_id: app.id,
-        p_session_id: parsed.sessionId,
-      });
-      if (error) throw new Error(error.message);
-      const { data: session } = await admin.from("sessions").select("id, kind, starts_at").eq("id", parsed.sessionId).single();
-      if (!session) throw new Error("Session not found");
-      await onBookingCreated(admin, app, { id: bookingId, kind: session.kind }, session, ctx.actor);
+    const { data: session } = await admin.from("sessions").select("id, kind, starts_at").eq("id", parsed.sessionId).single();
+    if (!session) throw new Error("Session not found");
+    try {
+      await onSessionChosen(admin, app, booking, session, ctx.actor);
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("session_wrong_campus")) throw new Error("That session is at a different campus from the one the child applied to.");
+      if (msg.includes("session_full")) throw new Error("That session is full.");
+      if (msg.includes("grade_not_in_range")) throw new Error("That session is for a different age group.");
+      throw e;
     }
     drainSoon();
     done(parsed.applicationId);
@@ -221,6 +220,40 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
     // next sweep, so the child is on the Offers page when staff look.
     drainSoon();
     done(parsed.applicationId);
+  });
+}
+
+/**
+ * The review queue's answer: approve, waitlist or decline.
+ *
+ * `recordDecision` above is the applicant page's form, which offers Approve,
+ * Defer and Withdraw and refuses anything else by enum. The review queue at
+ * /staff/decisions kept offering Waitlist and Decline in its dropdown and
+ * posted them to that action, so both were refused with "Some of what was
+ * entered is not valid" — no applicant could be waitlisted or declined by a
+ * person anywhere in the console, and with no active ruleset that is every
+ * applicant. Found on the 14 September 2026 walkthrough.
+ *
+ * Every outcome here is an override of (or a stand-in for) the rules engine,
+ * so all three need `decisions.override`, and a reason, which is audited.
+ */
+export async function recordReviewOutcome(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("decisions.override");
+    const parsed = idSchema
+      .extend({
+        outcome: z.enum(["approved", "waitlisted", "declined"]),
+        reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    await onManualDecision(admin, app, parsed.outcome, parsed.reason, ctx.actor);
+    // An approval queues the offer draft; a waitlist or decline opens the
+    // "send outcome" task. Run the queue now so the Offers page is current.
+    drainSoon();
+    done(parsed.applicationId);
+    revalidatePath("/staff/decisions");
+    revalidatePath("/staff/offers");
   });
 }
 
@@ -504,26 +537,152 @@ export async function changeGrade(_: StaffActionState, formData: FormData): Prom
     if (!to) throw new Error("That stage does not exist.");
     if (!offered) throw new Error(`${to.name} is not taught at this campus. Change the campus first, or choose another stage.`);
 
-    const { error } = await admin.from("applications").update({ grade_id: parsed.gradeId }).eq("id", app.id);
+    const requires = await requiresAssessmentAt(admin, app.campus_id, parsed.gradeId);
+    const { error } = await admin
+      .from("applications")
+      .update({ grade_id: parsed.gradeId, requires_assessment: requires })
+      .eq("id", app.id);
     if (error) throw new Error(error.message);
 
+    const track = trackAfterFlagChange(app, requires);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
-      newStatus: null,
-      // The stage changes; where the application is in the pipeline does not.
-      // `next_action` is a plain string on the row and the engine wants its
-      // own union, so it is narrowed through the shared guard.
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      newStatus: track?.status ?? null,
+      // The stage changes; where the application is in the pipeline does not,
+      // unless the new stage adds or removes the assessment (see
+      // `trackAfterFlagChange`). `next_action` is a plain string on the row
+      // and the engine wants its own union, so it is narrowed through the
+      // shared guard.
+      nextAction: track?.nextAction ?? (isNextAction(app.next_action) ? app.next_action : null),
       event: {
         type: "application.grade_changed",
-        summary: `Stage changed from ${from?.name ?? "unknown"} to ${to.name}${parsed.reason ? ` — ${parsed.reason}` : ""}`,
-        payload: { from: from?.name ?? null, to: to.name, reason: parsed.reason ?? null },
+        summary: `Stage changed from ${from?.name ?? "unknown"} to ${to.name}${parsed.reason ? ` — ${parsed.reason}` : ""}${track?.note ?? ""}`,
+        payload: { from: from?.name ?? null, to: to.name, reason: parsed.reason ?? null, requires_assessment: requires },
       },
       audit: {
         action: "application.grade_changed",
-        before: { grade: from?.name ?? null },
-        after: { grade: to.name, reason: parsed.reason ?? null },
+        before: { grade: from?.name ?? null, requires_assessment: app.requires_assessment },
+        after: { grade: to.name, reason: parsed.reason ?? null, requires_assessment: requires },
+      },
+      actor: ctx.actor,
+    });
+    done(app.id);
+  });
+}
+
+/**
+ * Whether a class is assessed at a campus: the campus's own override, else
+ * the grade's rule. The same question `loadCatalogue` answers for the parent's
+ * grade step; asked again here because a stage changed by hand used to keep
+ * the flag it was born with, so a Reception child moved to Stage 1 at Block 7
+ * was never asked to sit the paper and a Stage 1 child moved to Reception
+ * was.
+ */
+async function requiresAssessmentAt(admin: ReturnType<typeof createAdminClient>, campusId: string, gradeId: string): Promise<boolean> {
+  const [{ data: link }, { data: grade }] = await Promise.all([
+    admin.from("campus_grades").select("requires_assessment").eq("campus_id", campusId).eq("grade_id", gradeId).maybeSingle(),
+    admin.from("grades").select("requires_assessment").eq("id", gradeId).maybeSingle(),
+  ]);
+  return link?.requires_assessment ?? grade?.requires_assessment ?? false;
+}
+
+/**
+ * Where a change of class puts the application when it changes whether the
+ * child sits an assessment. Only the two early resting states move: an
+ * unrouted or booking-track enquiry that no longer needs a sitting goes to
+ * the decision, and a child waiting on a decision who now needs one goes back
+ * to book it. Anything later — a sitting under way, an offer out — is left
+ * where it is for a person to sort out, and the flag alone changes.
+ */
+function trackAfterFlagChange(
+  app: Pick<ApplicationRow, "status" | "requires_assessment">,
+  requires: boolean
+): { status: ApplicationStatus; nextAction: NextAction; note: string } | null {
+  if (requires === app.requires_assessment) return null;
+  if (!requires && app.status === "new_enquiry") {
+    return { status: "awaiting_decision", nextAction: "await_school_contact", note: " — no assessment for this class; now waiting for a decision" };
+  }
+  if (requires && (app.status === "awaiting_decision" || app.status === "staff_review")) {
+    return { status: "new_enquiry", nextAction: "book_assessment", note: " — this class sits an assessment; the family can now book one" };
+  }
+  return null;
+}
+
+/**
+ * The campus a child is applying to, changed by hand.
+ *
+ * A family who chose the wrong campus, or moved house, could not be moved:
+ * `changeGrade` said "Change the campus first" and nothing did. Refused once
+ * an offer exists, because the letter, the fees and the bank details are the
+ * campus's; before that the campus, and with it the grade if the new campus
+ * does not teach the old one, the assessment flag, and the open tasks (which
+ * are what scope who sees the work) all follow. A live booking is at the old
+ * campus and has to be cancelled or moved first — a sitting cannot change
+ * building on its own.
+ */
+export async function changeCampus(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({ campusId: z.guid(), gradeId: z.union([z.guid(), z.literal("")]).optional(), reason: z.string().trim().max(300).optional() })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) return;
+    const offerStages: ApplicationStatus[] = [
+      "approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired", "offer_declined", "offer_accepted",
+      "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
+    ];
+    if (offerStages.includes(app.status)) {
+      throw new Error("The campus cannot change once a decision has been made: withdraw the offer first, or withdraw and re-enquire.");
+    }
+    // Through the caller's own client: a campus administrator may move a
+    // family only between campuses they can see.
+    const { data: allowed } = await ctx.supabase.from("v_accessible_campuses").select("id, name").eq("id", parsed.campusId).maybeSingle();
+    if (!allowed) throw new Error("You do not have access to that campus.");
+    const { data: live } = await admin
+      .from("bookings")
+      .select("id")
+      .eq("application_id", app.id)
+      .in("status", ["booked", "checked_in", "in_progress"])
+      .maybeSingle();
+    if (live) throw new Error("Cancel or move the booking first: it is at the current campus.");
+
+    const gradeId = parsed.gradeId || app.grade_id;
+    const [{ data: offered }, { data: to }, { data: fromCampus }, { data: grade }] = await Promise.all([
+      admin.from("campus_grades").select("grade_id").eq("campus_id", parsed.campusId).eq("grade_id", gradeId).eq("is_active", true).maybeSingle(),
+      admin.from("campuses").select("id, name").eq("id", parsed.campusId).maybeSingle(),
+      admin.from("campuses").select("id, name").eq("id", app.campus_id).maybeSingle(),
+      admin.from("grades").select("id, name").eq("id", gradeId).maybeSingle(),
+    ]);
+    if (!to) throw new Error("That campus does not exist.");
+    if (!offered || !grade) throw new Error(`${to.name} does not teach ${grade?.name ?? "that stage"}. Choose a stage it offers.`);
+
+    const requires = await requiresAssessmentAt(admin, parsed.campusId, gradeId);
+    const { error } = await admin
+      .from("applications")
+      .update({ campus_id: parsed.campusId, grade_id: gradeId, requires_assessment: requires })
+      .eq("id", app.id);
+    if (error) throw new Error(error.message);
+    // Open work follows the child: a task is scoped by its campus, and a task
+    // left behind at the old campus is one nobody at the new campus can see.
+    await admin.from("tasks").update({ campus_id: parsed.campusId }).eq("application_id", app.id).eq("status", "open");
+
+    const track = trackAfterFlagChange(app, requires);
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: track?.status ?? null,
+      nextAction: track?.nextAction ?? (isNextAction(app.next_action) ? app.next_action : null),
+      event: {
+        type: "application.campus_changed",
+        summary: `Campus changed from ${fromCampus?.name ?? "unknown"} to ${to.name}${gradeId !== app.grade_id ? ` (${grade.name})` : ""}${parsed.reason ? ` — ${parsed.reason}` : ""}${track?.note ?? ""}`,
+        payload: { from: fromCampus?.name ?? null, to: to.name, grade: grade.name, reason: parsed.reason ?? null, requires_assessment: requires },
+      },
+      audit: {
+        action: "application.campus_changed",
+        before: { campus_id: app.campus_id, grade_id: app.grade_id, requires_assessment: app.requires_assessment },
+        after: { campus_id: parsed.campusId, grade_id: gradeId, requires_assessment: requires, reason: parsed.reason ?? null },
       },
       actor: ctx.actor,
     });

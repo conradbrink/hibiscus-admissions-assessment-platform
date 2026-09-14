@@ -3206,12 +3206,15 @@ begin
           'Manna', 'Bah', date '2024-12-19',
           v_campus, v_grade, v_grade, v_intake, 'visit', 'website');
 
-      -- Second try, eighty-five seconds later: the surname corrected.
+      -- Second try, eighty-five seconds later: the surname corrected. The
+      -- parent is still in the browser that made the first enquiry, so the
+      -- form passes `p_trusted`: since case 66 an anonymous repeat edits
+      -- nothing on file and is sent a fresh link instead.
       select application_id, reference, created into v_app_b, v_ref_b, v_created_b
         from public.create_application(
           'Patience', 'Tester', v_email, v_email, '+26770000000', '+26770000000',
           'Manna', 'Charehwa', date '2024-12-19',
-          v_campus, v_grade, v_grade, v_intake, 'visit', 'website');
+          v_campus, v_grade, v_grade, v_intake, 'visit', 'website', p_trusted => true);
 
       if v_app_b is distinct from v_app_a then
         v_fail := v_fail || E'\n  - ' ||
@@ -3327,6 +3330,117 @@ begin
   -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
+  -- -------------------------------------------------------------------------
+  -- 66. An anonymous enquiry never edits a stranger's record
+  -- -------------------------------------------------------------------------
+  -- `create_application` is reached from the public form with nothing but an
+  -- email address to go on. Until 20260914110000 it overwrote the contact's
+  -- name and mobile with whatever the form said, and with the child's first
+  -- name and date of birth it handed back the family's existing application —
+  -- which the form then opened a session on. Anybody who knew a parent's
+  -- address could redirect their WhatsApp links or read their child's file.
+  --
+  -- Untrusted (the default): the contact row is byte-for-byte unchanged, the
+  -- existing application is found but not renamed, and a new child is added
+  -- without the contact changing. Trusted (staff, or a browser already holding
+  -- a session for this family): the corrections apply as they always did.
+  declare
+    v_contact uuid;
+    v_before text;
+    v_after text;
+    v_found uuid;
+    v_created boolean;
+    v_new uuid;
+  begin
+    perform pg_temp.service();
+    select application_id, contact_id into v_found, v_contact from public.create_application(
+      'Real','Parent','sec-parent-66@test.invalid','sec-parent-66@test.invalid','+26771000066','+26771000066',
+      'Amo','Real','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    select first_name || '|' || last_name || '|' || coalesce(mobile_normalised, '') into v_before
+      from public.contacts where id = v_contact;
+
+    -- A stranger with the email, the child's first name and date of birth.
+    select application_id, created into v_new, v_created from public.create_application(
+      'Evil','Stranger','sec-parent-66@test.invalid','sec-parent-66@test.invalid','+26771999999','+26771999999',
+      'Amo','Hijack','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    select first_name || '|' || last_name || '|' || coalesce(mobile_normalised, '') into v_after
+      from public.contacts where id = v_contact;
+    if v_after <> v_before then
+      v_fail := v_fail || E'\n  - ' || format('66: an anonymous enquiry rewrote the contact: %s → %s', v_before, v_after);
+    end if;
+    if v_new <> v_found or v_created then
+      v_fail := v_fail || E'\n  - ' || '66: the existing application was not the one found';
+    end if;
+    if (select child_last_name from public.applications where id = v_found) <> 'Real' then
+      v_fail := v_fail || E'\n  - ' || '66: an anonymous enquiry renamed the child';
+    end if;
+
+    -- A stranger with the email and a different child: added to the family,
+    -- contact still untouched.
+    select application_id, created into v_new, v_created from public.create_application(
+      'Evil','Stranger','sec-parent-66@test.invalid','sec-parent-66@test.invalid','+26771999999','+26771999999',
+      'Fake','Child','2015-01-01', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    select first_name || '|' || last_name || '|' || coalesce(mobile_normalised, '') into v_after
+      from public.contacts where id = v_contact;
+    if not v_created or v_new = v_found then
+      v_fail := v_fail || E'\n  - ' || '66: a second child was not added as a new application';
+    end if;
+    if v_after <> v_before then
+      v_fail := v_fail || E'\n  - ' || '66: adding a child rewrote the contact';
+    end if;
+
+    -- Control: the family itself (trusted) still corrects the spelling and the number.
+    select application_id into v_new from public.create_application(
+      'Real','Parent','sec-parent-66@test.invalid','sec-parent-66@test.invalid','+26771000067','+26771000067',
+      'Amo','Corrected','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment',
+      'website', null, null, null, null, true);
+    if v_new <> v_found then
+      v_fail := v_fail || E'\n  - ' || '66: control: the trusted enquiry did not find the application';
+    end if;
+    if (select child_last_name from public.applications where id = v_found) <> 'Corrected'
+       or (select mobile_normalised from public.contacts where id = v_contact) <> '+26771000067' then
+      v_fail := v_fail || E'\n  - ' || '66: control: a trusted enquiry no longer corrects the record';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 67. A booking cannot be made at another campus
+  -- -------------------------------------------------------------------------
+  -- `book_session` checked the grade band, the capacity and the clock and
+  -- never that the session was at the child's campus; the staff reschedule
+  -- form relied on it. Wrong campus is refused; the right one is a control.
+  declare
+    v_session uuid;
+    v_app uuid;
+    v_ok boolean := false;
+  begin
+    perform pg_temp.service();
+    insert into public.sessions (kind, campus_id, starts_at, ends_at, capacity, is_published, created_by)
+    values ('assessment', c_broadhurst, now() + interval '4 days', now() + interval '4 days 1 hour', 5, true, u_admin)
+    returning id into v_session;
+    select application_id into v_app from public.create_application(
+      'Sec','Parent','sec-parent-67@test.invalid','sec-parent-67@test.invalid',null,null,
+      'Child','Sixtyseven','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    begin
+      perform public.book_session(v_app, v_session);
+      v_fail := v_fail || E'\n  - ' || '67: a Block 7 child was booked into a Broadhurst session';
+    exception when others then
+      if sqlerrm not like '%session_wrong_campus%' then
+        v_fail := v_fail || E'\n  - ' || format('67: refused for the wrong reason: %s', sqlerrm);
+      end if;
+    end;
+    -- Control: the same child at their own campus books fine.
+    insert into public.sessions (kind, campus_id, starts_at, ends_at, capacity, is_published, created_by)
+    values ('assessment', c_block7, now() + interval '4 days', now() + interval '4 days 1 hour', 5, true, u_admin)
+    returning id into v_session;
+    begin
+      perform public.book_session(v_app, v_session);
+      v_ok := true;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || format('67: control: booking at the right campus was refused: %s', sqlerrm);
+    end;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

@@ -89,8 +89,8 @@ export default function JoinPage() {
         ))}
       </div>
       <p className="mt-8 text-sm leading-relaxed text-muted-foreground">
-        Not sure which to choose? Children joining Reception or above sit a short assessment; children
-        joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception do not. Whichever option you
+        Not sure which to choose? Children joining Stage 1 or above sit a short assessment; children
+        joining Nursery, Pre-Kindergarten, Kindergarten, Pre-Reception or Reception do not. Whichever option you
         start with, we will guide you to the right one.
       </p>
     </>

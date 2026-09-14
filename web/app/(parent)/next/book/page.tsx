@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { loadAvailableSlots } from "@/lib/enquiry";
 import { formatDateLong, formatTime, withinCutoff } from "@/lib/format-date";
+import { nextBookingKind } from "@/lib/booking/kind";
 import { bookingNoun } from "@/lib/booking/noun";
 import { getSettings } from "@/lib/settings";
 import { requireParentSession } from "@/lib/tokens/server";
@@ -25,8 +26,16 @@ export default async function BookPage() {
   // Unrouted enquiries confirm their grade first.
   if (app.status === "new_enquiry" && app.next_action === null) redirect("/next/grade");
 
-  const kind: "assessment" | "visit" =
-    app.requires_assessment && app.entry_route !== "visit" ? "assessment" : "visit";
+  // A family through the visit door books a look-around first, and once
+  // they have come, the assessment. Any attended visit counts, not only a
+  // live one: after a missed sitting the visit is long finished, and the
+  // family must still be offered the sitting again rather than a second visit.
+  const { data: attendedVisit } =
+    app.requires_assessment && app.entry_route === "visit"
+      ? await admin.from("bookings").select("id").eq("application_id", app.id).eq("kind", "visit").in("status", ["checked_in", "completed"]).limit(1).maybeSingle()
+      : { data: null };
+  const kind = nextBookingKind({ requiresAssessment: app.requires_assessment, entryRoute: app.entry_route, visitAttended: Boolean(attendedVisit) });
+  const visited = graph.booking?.kind === "visit" && graph.booking.status === "checked_in";
   // Pre-school parents who came through the assessment door can still book
   // a visit; the exempt track never offers an assessment.
   const effectiveKind = app.requires_assessment ? kind : "visit";
@@ -39,7 +48,9 @@ export default async function BookPage() {
     gradeSort: grade.sort_order,
   });
 
-  const changing = Boolean(graph.booking);
+  // A visit already attended is not the booking being changed: what follows
+  // it is a new booking of a different kind.
+  const changing = Boolean(graph.booking) && !(visited && effectiveKind === "assessment");
   const settings = await getSettings(admin);
   const locked = graph.booking ? withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours) : false;
   // After a no-show, name the session they missed so the page reads as a continuation, not a fresh start.
