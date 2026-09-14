@@ -33,7 +33,7 @@ export default async function DecisionsPage() {
 
   const [{ data: decisions }, { data: attempts }, { data: subjects }, { data: competencies }] = ids.length
     ? await Promise.all([
-        supabase.from("admission_decisions").select("*").in("application_id", ids).order("decided_at", { ascending: false }),
+        supabase.from("v_effective_decisions").select("*").in("application_id", ids).order("decided_at", { ascending: false }),
         supabase.from("attempts").select("id, application_id, status, marking_status").in("application_id", ids).order("created_at", { ascending: false }),
         supabase.from("subjects").select("id, name"),
         supabase.from("competencies").select("id, name"),

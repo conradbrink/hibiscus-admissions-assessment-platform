@@ -81,7 +81,7 @@ export async function ApplicantPhase2({
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
     supabase.from("attempts").select("*").eq("application_id", app.id).order("created_at", { ascending: false }),
     supabase.from("learning_profiles").select("*").eq("application_id", app.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("admission_decisions").select("*, staff_profiles(full_name)").eq("application_id", app.id).order("decided_at", { ascending: false }),
+    supabase.from("v_effective_decisions").select("*, staff_profiles(full_name)").eq("application_id", app.id).order("decided_at", { ascending: false }),
     can(permissions, "offers.read")
       ? supabase.from("offers").select("*").eq("application_id", app.id).order("created_at", { ascending: false })
       : Promise.resolve({ data: null }),

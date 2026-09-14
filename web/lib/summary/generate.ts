@@ -28,7 +28,7 @@ export async function loadSummaryInputs(client: SupabaseClient<Database>, applic
     client.from("application_events").select("type, occurred_at, summary").eq("application_id", applicationId).order("id", { ascending: true }).limit(300),
     client.from("bookings").select("session_id, kind, sessions(starts_at)").eq("application_id", applicationId).in("status", ["booked", "checked_in", "in_progress"]).limit(1).maybeSingle(),
     client.from("attempts").select("status, marking_status, submitted_at").eq("application_id", applicationId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    client.from("admission_decisions").select("final_outcome, decided_by, decided_at, override_reason").eq("application_id", applicationId).neq("final_outcome", "staff_review").order("decided_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("v_effective_decisions").select("final_outcome, decided_by, decided_at, override_reason").eq("application_id", applicationId).neq("final_outcome", "staff_review").order("decided_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("offers").select("status, expires_at, sent_at").eq("application_id", applicationId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("payment_requests").select("status, due_at, amount_minor, paid_minor, currency").eq("application_id", applicationId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("registrations").select("*").eq("application_id", applicationId).maybeSingle(),

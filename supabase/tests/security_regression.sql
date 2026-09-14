@@ -3283,6 +3283,48 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 65. A decision the state machine refused is not shown as a decision
+  -- -------------------------------------------------------------------------
+  -- `admission_decisions` is append-only and holds every attempt, including
+  -- the ones that wrote a row and then failed the transition — three of them
+  -- sat on one applicant reading as green approvals of a child who had not
+  -- been approved. `v_effective_decisions` is the difference, matched on the
+  -- timeline event that only a decision that took effect has.
+  declare
+    v_app uuid;
+    v_event bigint;
+    v_effective int;
+    v_t timestamptz := timestamptz '2019-03-04 09:00:00+00';
+  begin
+    select id into v_app from public.applications order by created_at limit 1;
+    if v_app is null then
+      v_fail := v_fail || E'\n  - ' || '65: no application to test the view against';
+    else
+      -- One that took effect: a row, and the event `commit` writes beside it.
+      insert into public.admission_decisions (application_id, computed_outcome, final_outcome, decided_by, decided_at)
+      values (v_app, 'approved', 'approved', 'staff', v_t);
+      insert into public.application_events (application_id, type, actor_type, summary, payload)
+      values (v_app, 'decision.made', 'system', 'Decision: approved', '{}'::jsonb)
+      returning id into v_event;
+      update public.application_events set occurred_at = v_t + interval '0.2 seconds' where id = v_event;
+
+      -- The orphan: a row with no event beside it, an hour clear of the real one.
+      insert into public.admission_decisions (application_id, computed_outcome, final_outcome, decided_by, decided_at)
+      values (v_app, 'approved', 'approved', 'staff', v_t + interval '1 hour');
+
+      select count(*) into v_effective
+        from public.v_effective_decisions
+       where application_id = v_app
+         and decided_at between v_t - interval '1 minute' and v_t + interval '2 hours';
+
+      if v_effective <> 1 then
+        v_fail := v_fail || E'\n  - ' ||
+          format('65: v_effective_decisions returned %s of the 2 rows; it must keep the one with a timeline event and drop the orphan', v_effective);
+      end if;
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then
