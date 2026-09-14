@@ -196,6 +196,8 @@ export type StaffInviteRow = {
   revoked_at: string | null;
   created_by: string | null;
   created_at: string;
+  /** An invitation sets a first password; a reset replaces one, and lapses. */
+  purpose: "invite" | "reset";
 };
 
 export type AuditLogRow = {
@@ -1756,7 +1758,7 @@ export type Database = {
       >;
       staff_invites: TableOf<
         StaffInviteRow,
-        "id" | "expires_at" | "accepted_at" | "revoked_at" | "created_by" | "created_at",
+        "id" | "expires_at" | "accepted_at" | "revoked_at" | "created_by" | "created_at" | "purpose",
         [
           Rel<"staff_invites_staff_id_fkey", "staff_id", "staff_profiles">,
           Rel<"staff_invites_created_by_fkey", "created_by", "staff_profiles">,

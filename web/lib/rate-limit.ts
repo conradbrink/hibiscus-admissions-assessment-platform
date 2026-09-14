@@ -40,6 +40,10 @@ export const LIMITS = {
   parentEmailChange: { bucket: "parent_email_change", limit: 5, windowSeconds: 3600 },
   /** Setting a password from an invitation, per address. */
   staffInvite: { bucket: "staff_invite", limit: 20, windowSeconds: 3600 },
+  /** Asking for a password reset link, per address. */
+  staffResetByIp: { bucket: "staff_reset_ip", limit: 5, windowSeconds: 3600 },
+  /** Asking for a reset, per email — one address cannot be used to flood a member of staff. */
+  staffResetByEmail: { bucket: "staff_reset_email", limit: 3, windowSeconds: 3600 },
   /** Typing a launch code on a lab computer, per address. Codes are single use; this stops guessing. */
   kioskCode: { bucket: "kiosk_code", limit: 20, windowSeconds: 600 },
   /** Autosaving answers, per attempt. Generous: a quick child answers a question every few seconds. */

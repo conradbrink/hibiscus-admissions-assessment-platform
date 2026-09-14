@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import type { PayState } from "@/app/(parent)/pay/actions";
 import { openExtrasRequest } from "@/lib/extras/requests";
-import { loadStudentOrder, loadStudentProcessingPayments, payerForFamily } from "@/lib/family/extras";
+import { loadStudentOrder, loadStudentPaymentAttempts, payerForFamily } from "@/lib/family/extras";
 import { familyClient } from "@/lib/family/scope";
 import { startCheckout } from "@/lib/payments/checkout";
 import { reconcilePayment } from "@/lib/payments/reconcile";
@@ -74,9 +74,9 @@ export async function checkExtrasPayment(studentId: string): Promise<PayState> {
   const session = await requireFamilySession();
   const admin = familyClient();
 
-  let processing;
+  let attempts;
   try {
-    processing = await loadStudentProcessingPayments(admin, session, studentId);
+    attempts = await loadStudentPaymentAttempts(admin, session, studentId);
   } catch {
     return { error: "That child is not on your family record." };
   }
@@ -84,13 +84,20 @@ export async function checkExtrasPayment(studentId: string): Promise<PayState> {
   const verdict = await enforceRateLimit(admin, LIMITS.paymentCheck, studentId);
   if (!verdict.ok) return { error: "Please wait a moment before checking again." };
 
-  for (const payment of processing) {
+  let paid = false;
+  for (const payment of attempts) {
     try {
-      await reconcilePayment(admin, payment, PARENT_ACTOR);
+      if ((await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true })) === "paid") {
+        paid = true;
+        break;
+      }
     } catch (e) {
       console.warn("[extras pay] check failed", payment.id, (e as Error).message);
       return { error: "We could not reach the payment provider just now. Please try again shortly." };
     }
+  }
+  if (!paid && !attempts.some((p) => p.status === "processing")) {
+    return { error: "The payment provider has no record of a completed payment for your last attempt. If you did pay, give it a few minutes and check again; otherwise you can pay below." };
   }
   redirect(`/family/extras/pay/${studentId}`);
 }

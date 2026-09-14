@@ -8,6 +8,7 @@ import {
 } from "@/lib/permissions";
 import { contentSecurityPolicy, newNonce } from "@/lib/security-headers";
 import { mfaOutcome, mfaPathAllowed, mfaRedirectPath } from "@/lib/staff/mfa";
+import { isStaffPublicPath } from "@/lib/staff/public-paths";
 
 /**
  * Two jobs, and they have different scopes.
@@ -75,15 +76,13 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLoginPage = matchesPrefix(pathname, "/staff/login");
-  // /staff/reset-password carries a recovery session established by the
-  // emailed link, so it must be exempt from the permission check below or a
-  // member of staff who forgot their password is bounced before they can set
-  // a new one.
-  const isPasswordResetPage =
-    matchesPrefix(pathname, "/staff/forgot-password") ||
-    matchesPrefix(pathname, "/staff/reset-password");
 
-  if (!user && !isLoginPage && !isPasswordResetPage) {
+  // The pages a person reaches *before* they have a session: signing in,
+  // asking for a reset, and the two that set a password from an emailed
+  // link. The list lives in one place (`lib/staff/public-paths.ts`) because
+  // this guard once knew three of the four and bounced every invited member
+  // of staff from their invitation to the sign-in form.
+  if (!user && !isStaffPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/staff/login";
     url.search = "";
@@ -108,7 +107,7 @@ export async function proxy(request: NextRequest) {
   // read is a few lines below: 503 and reload. Never a redirect to the verify
   // screen -- somebody with no factor would be stranded there, asked for a
   // code no app can produce.
-  if (user && !isLoginPage && !isPasswordResetPage) {
+  if (user && !isStaffPublicPath(pathname)) {
     const { data: settingRow, error: settingError } = await supabase
       .from("settings")
       .select("value")
@@ -139,7 +138,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (user && !isLoginPage && !isPasswordResetPage) {
+  if (user && !isStaffPublicPath(pathname)) {
     const { data: granted, error: permissionError } = await supabase.rpc(
       "my_permissions"
     );

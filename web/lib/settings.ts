@@ -37,6 +37,16 @@ export type Settings = {
   paymentDueDays: number;
   paymentReminderDaysBefore: number[];
   paymentVerifyMinutes: number;
+  /**
+   * How long we keep waiting on a checkout the parent started.
+   *
+   * Our own patience, not the gateway's: the hosted page stays open far
+   * longer, and a payment that lands after this window still settles when the
+   * notify arrives. Short on purpose — a parent who abandons the gateway page
+   * leaves a row that says "processing", and until this existed it said so for
+   * a full day.
+   */
+  paymentAttemptMinutes: number;
   registrationReminderDays: number[];
   /** Days after a submission with items outstanding before the parent is reminded. */
   documentsReminderDays: number;
@@ -87,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   paymentDueDays: 14,
   paymentReminderDaysBefore: [7, 2],
   paymentVerifyMinutes: 10,
+  paymentAttemptMinutes: 5,
   registrationReminderDays: [7, 14],
   documentsReminderDays: 2,
   autoEnrol: false,
@@ -137,6 +148,7 @@ const KEYS: Record<keyof Settings, string> = {
   paymentDueDays: "payment_due_days",
   paymentReminderDaysBefore: "payment_reminder_days_before",
   paymentVerifyMinutes: "payment_verify_minutes",
+  paymentAttemptMinutes: "payment_attempt_minutes",
   registrationReminderDays: "registration_reminder_days",
   documentsReminderDays: "documents_reminder_days",
   autoEnrol: "auto_enrol",
@@ -254,6 +266,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     paymentDueDays: asPositiveInt(map.get(KEYS.paymentDueDays), d.paymentDueDays),
     paymentReminderDaysBefore: asPositiveIntArray(map.get(KEYS.paymentReminderDaysBefore), d.paymentReminderDaysBefore),
     paymentVerifyMinutes: asPositiveInt(map.get(KEYS.paymentVerifyMinutes), d.paymentVerifyMinutes),
+    paymentAttemptMinutes: asPositiveInt(map.get(KEYS.paymentAttemptMinutes), d.paymentAttemptMinutes),
     registrationReminderDays: asPositiveIntArray(map.get(KEYS.registrationReminderDays), d.registrationReminderDays),
     documentsReminderDays: asPositiveInt(map.get(KEYS.documentsReminderDays), d.documentsReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),

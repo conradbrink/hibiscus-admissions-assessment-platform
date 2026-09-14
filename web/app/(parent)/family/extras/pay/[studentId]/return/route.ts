@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { loadStudentProcessingPayments, processingPaymentForStudent } from "@/lib/family/extras";
+import { loadStudentPaymentAttempts, paymentAttemptForStudent } from "@/lib/family/extras";
 import { familyClient } from "@/lib/family/scope";
+import { hintFirst } from "@/lib/payments/attempts";
 import { fieldMap, parseWire } from "@/lib/payments/paygate-wire";
 import { paymentProviderName } from "@/lib/payments/provider";
 import { reconcilePayment } from "@/lib/payments/reconcile";
@@ -25,18 +26,17 @@ export async function GET(request: Request, ctx: { params: Promise<{ studentId: 
   if (!session) redirect("/link?reason=payment_pending");
   const admin = familyClient();
 
-  let processing;
+  let attempts;
   try {
-    processing = await loadStudentProcessingPayments(admin, session, studentId);
+    attempts = await loadStudentPaymentAttempts(admin, session, studentId);
   } catch {
     redirect("/family/extras");
   }
 
   const hint = new URL(request.url).searchParams.get("TransactionToken");
-  const ordered = [...processing].sort((a, b) => (a.provider_ref === hint ? -1 : b.provider_ref === hint ? 1 : 0));
-  for (const payment of ordered) {
+  for (const payment of hintFirst(attempts, hint)) {
     try {
-      const outcome = await reconcilePayment(admin, payment, PARENT_ACTOR);
+      const outcome = await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true });
       if (outcome === "paid") break;
     } catch (e) {
       console.warn("[extras pay] return verify failed", payment.id, (e as Error).message);
@@ -58,10 +58,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ studentId:
     const admin = familyClient();
     // The posted reference has to name a payment for *this* child; one
     // belonging to another family matches nothing.
-    const payment = await processingPaymentForStudent(admin, studentId, m.PAY_REQUEST_ID ?? "");
+    const payment = await paymentAttemptForStudent(admin, studentId, m.PAY_REQUEST_ID ?? "");
     if (payment) {
       try {
-        await reconcilePayment(admin, payment, PARENT_ACTOR);
+        await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true });
       } catch (e) {
         console.warn("[extras pay] return verify failed", payment.id, (e as Error).message);
       }

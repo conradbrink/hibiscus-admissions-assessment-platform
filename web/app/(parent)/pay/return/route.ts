@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { drainSoon } from "@/lib/parent/actions";
+import { askable, ATTEMPT_STATUSES, hintFirst, recentAttemptsSince } from "@/lib/payments/attempts";
 import { reconcilePayment } from "@/lib/payments/reconcile";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readParentSession } from "@/lib/tokens/server";
@@ -13,24 +14,33 @@ export const dynamic = "force-dynamic";
 /**
  * Where the gateway sends the parent back. Nothing in the query string is
  * trusted: the gateway's transaction token is used only to pick which of
- * the application's processing payments to verify first, and must equal the
+ * the application's recent attempts to verify first, and must equal the
  * reference we stored. The verdict comes from asking the gateway.
+ *
+ * Every recent attempt, not only the processing ones, and asked with
+ * `revive`: a parent who took longer than our attempt window on their bank's
+ * screen comes back to a row we have already marked expired, and the payment
+ * they just made has to be found now, on this page, not by a sweep an hour
+ * on — the alternative is a page telling them nothing was charged.
  */
 export async function GET(request: Request): Promise<Response> {
   const session = await readParentSession();
   if (!session) redirect("/link?reason=payment_pending");
   const admin = createAdminClient();
   const hint = new URL(request.url).searchParams.get("TransactionToken");
-  const { data: processing } = await admin
+  const { data: attempts } = await admin
     .from("payments")
     .select("*")
     .eq("application_id", session.applicationId)
-    .eq("status", "processing")
-    .order("created_at", { ascending: false });
-  const ordered = [...(processing ?? [])].sort((a, b) => (a.provider_ref === hint ? -1 : b.provider_ref === hint ? 1 : 0));
-  for (const payment of ordered) {
+    .eq("method", "online")
+    .in("status", [...ATTEMPT_STATUSES])
+    .not("provider_ref", "is", null)
+    .gte("created_at", recentAttemptsSince())
+    .order("created_at", { ascending: false })
+    .limit(5);
+  for (const payment of hintFirst(attempts ?? [], hint)) {
     try {
-      const outcome = await reconcilePayment(admin, payment, PARENT_ACTOR);
+      const outcome = await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true });
       if (outcome === "paid") break;
     } catch (e) {
       console.warn("[pay] return verify failed", payment.id, (e as Error).message);
@@ -51,9 +61,9 @@ export async function POST(request: Request): Promise<Response> {
     const m = fieldMap(parseWire(await request.text()));
     const admin = createAdminClient();
     const { data: payment } = await admin.from("payments").select("*").eq("provider_ref", m.PAY_REQUEST_ID ?? "").maybeSingle();
-    if (payment && payment.status === "processing") {
+    if (payment && askable(payment)) {
       try {
-        await reconcilePayment(admin, payment, PARENT_ACTOR);
+        await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true });
       } catch (e) {
         console.warn("[pay] return verify failed", payment.id, (e as Error).message);
       }

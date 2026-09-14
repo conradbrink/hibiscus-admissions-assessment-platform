@@ -1,3 +1,5 @@
+import { STAFF_PUBLIC_PREFIXES } from "@/lib/staff/public-paths";
+
 /**
  * The second factor: who has to present one, and what they may reach until
  * they have.
@@ -103,7 +105,7 @@ export function mfaOutcome(state: MfaState): MfaOutcome {
 }
 
 /** Where somebody signs in, or recovers a password. Never gated on a factor. */
-export const MFA_EXEMPT_PREFIXES = ["/staff/login", "/staff/forgot-password", "/staff/reset-password"] as const;
+export const MFA_EXEMPT_PREFIXES = STAFF_PUBLIC_PREFIXES;
 
 /** The page that asks for the six digits. */
 export const MFA_VERIFY_PATH = "/staff/verify";

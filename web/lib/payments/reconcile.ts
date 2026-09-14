@@ -2,7 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { onExtrasPaid, onExtrasPaymentFailed } from "@/lib/extras/settle";
 import { amountMatches } from "@/lib/payments/amounts";
-import { getPaymentProvider, type VerifyResult } from "@/lib/payments/provider";
+import { CHECKOUT_TTL_HOURS, getPaymentProvider, type VerifyResult } from "@/lib/payments/provider";
 import { subjectKindOf } from "@/lib/payments/subject";
 import { getSettings } from "@/lib/settings";
 import type { Json, PaymentRow } from "@/lib/supabase/types";
@@ -21,9 +21,26 @@ import { onPaymentFailed, onPaymentVerified } from "@/lib/workflow/payment-actio
  * differ — an admission moves an application through the engine, an extras
  * order settles its own lines (`lib/extras/settle.ts`).
  */
-export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, actor: Actor = SYSTEM_ACTOR): Promise<"paid" | "pending" | "failed"> {
+export async function reconcilePayment(
+  admin: AdminClient,
+  payment: PaymentRow,
+  actor: Actor = SYSTEM_ACTOR,
+  opts: { revive?: boolean } = {}
+): Promise<"paid" | "pending" | "failed"> {
   if (payment.status === "succeeded") return "paid";
-  if (payment.status !== "processing" || !payment.provider_ref) return payment.status === "failed" || payment.status === "expired" ? "failed" : "pending";
+  // `revive` asks the gateway about a payment we have already given up on.
+  //
+  // Giving up is our own decision, taken on a timer (`expires_at`), and the
+  // parent may still have been on their bank's one-time-password screen when
+  // it fired. So the two prompts that mean "something happened at the gateway"
+  // — its notify post, and a member of staff pressing Check with gateway —
+  // ask again even on a failed or expired row. `onPaymentVerified` only
+  // refuses a row that already succeeded, so money that arrives late still
+  // settles and is never lost to a timer.
+  const revivable = opts.revive && (payment.status === "failed" || payment.status === "expired");
+  if ((payment.status !== "processing" && !revivable) || !payment.provider_ref) {
+    return payment.status === "failed" || payment.status === "expired" ? "failed" : "pending";
+  }
 
   const provider = await getPaymentProvider();
   let result: VerifyResult;
@@ -54,7 +71,10 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
   if (!request) throw new WorkflowError("payment's request missing", "database");
 
   const mismatch = `amount_mismatch: provider says ${result.amountMinor ?? "?"} ${result.currency ?? "?"}`;
-  const ourExpiry = payment.expires_at !== null && new Date(payment.expires_at).getTime() < Date.now();
+  // A revived row is past its window by definition — that is why it was
+  // given up on — so the expiry branch must not simply fail it again. The
+  // only outcome worth having here is the gateway saying it was paid.
+  const ourExpiry = !revivable && payment.expires_at !== null && new Date(payment.expires_at).getTime() < Date.now();
 
   if (subjectKindOf(payment) === "extras") {
     if (result.status === "paid") {
@@ -65,10 +85,11 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
       await onExtrasPaid(admin, request, payment, { approvalCode: result.approvalCode });
       return "paid";
     }
-    if (result.status === "failed" || result.status === "expired") {
+    if (!revivable && (result.status === "failed" || result.status === "expired")) {
       await onExtrasPaymentFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
       return "failed";
     }
+    if (revivable) return "failed";
     if (ourExpiry) {
       await onExtrasPaymentFailed(admin, request, payment, "expired");
       return "failed";
@@ -88,6 +109,10 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
     await onPaymentVerified(admin, app, request, payment, { approvalCode: result.approvalCode }, actor);
     return "paid";
   }
+  // A revived row is already failed, and the only thing worth acting on was a
+  // paid answer above. Falling through would re-run the failure side effects —
+  // the email, the follow-up task — on a family who has already had them.
+  if (revivable) return "failed";
   if (result.status === "failed" || result.status === "expired") {
     await onPaymentFailed(admin, app, request, payment, result.status === "expired" ? "expired" : "declined", actor);
     return "failed";
@@ -102,17 +127,27 @@ export async function reconcilePayment(admin: AdminClient, payment: PaymentRow, 
 
 /**
  * The sweep: every processing payment not checked within
- * payment_verify_minutes. A parent who paid and closed the browser is
+ * payment_verify_minutes, and every one past its attempt window whenever it
+ * was last checked — the window is a promise, and the sweep is what keeps it
+ * for a checkout with no verify job of its own (an extras order) or whose
+ * chain of verify jobs stopped. A parent who paid and closed the browser is
  * confirmed by this within minutes, without a webhook.
+ *
+ * Then the ones we gave up on. An expired attempt is asked about again, once
+ * an hour or so, for the length of the gateway's own checkout window: the
+ * parent who finished late and never came back to our page, on a gateway
+ * that does not notify us, is otherwise a payment nobody ever finds. A
+ * declined one is not asked again — that answer was the gateway's, not ours.
  */
 export async function reconcileProcessingPayments(admin: AdminClient): Promise<number> {
   const settings = await getSettings(admin);
-  const cutoff = new Date(Date.now() - settings.paymentVerifyMinutes * 60_000).toISOString();
+  const now = Date.now();
+  const cutoff = new Date(now - settings.paymentVerifyMinutes * 60_000).toISOString();
   const { data, error } = await admin
     .from("payments")
     .select("*")
     .eq("status", "processing")
-    .or(`last_verified_at.is.null,last_verified_at.lt.${cutoff}`)
+    .or(`last_verified_at.is.null,last_verified_at.lt.${cutoff},expires_at.lt.${new Date(now).toISOString()}`)
     .order("created_at", { ascending: true })
     .limit(50);
   if (error) throw new Error(error.message);
@@ -125,5 +160,29 @@ export async function reconcileProcessingPayments(admin: AdminClient): Promise<n
       console.warn("[payments] reconcile failed", payment.id, (e as Error).message);
     }
   }
+
+  const askAgainAfter = new Date(now - REVIVE_EVERY_MS).toISOString();
+  const { data: expired, error: eErr } = await admin
+    .from("payments")
+    .select("*")
+    .eq("status", "expired")
+    .eq("method", "online")
+    .not("provider_ref", "is", null)
+    .gte("created_at", new Date(now - CHECKOUT_TTL_HOURS * 3_600_000).toISOString())
+    .or(`last_verified_at.is.null,last_verified_at.lt.${askAgainAfter}`)
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (eErr) throw new Error(eErr.message);
+  for (const payment of expired ?? []) {
+    try {
+      await reconcilePayment(admin, payment, SYSTEM_ACTOR, { revive: true });
+      touched += 1;
+    } catch (e) {
+      console.warn("[payments] revive failed", payment.id, (e as Error).message);
+    }
+  }
   return touched;
 }
+
+/** How often the sweep asks the gateway about an attempt we gave up on. */
+const REVIVE_EVERY_MS = 60 * 60_000;
