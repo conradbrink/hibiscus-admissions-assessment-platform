@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { loadApplicationGraph } from "@/lib/applications";
 import { drainSoon } from "@/lib/parent/actions";
+import { ATTEMPT_STATUSES, recentAttemptsSince } from "@/lib/payments/attempts";
 import { startCheckout } from "@/lib/payments/checkout";
 import { reconcilePayment } from "@/lib/payments/reconcile";
 import { loadOpenPaymentRequest } from "@/lib/payments/requests";
@@ -61,24 +62,43 @@ export async function startOnlinePayment(): Promise<PayState> {
   redirect(redirectUrl);
 }
 
+/**
+ * "Check again". Every recent attempt is asked about, with `revive`, for the
+ * same reason the return route does: the parent pressing this may have
+ * finished paying after we stopped waiting, and the page they are on is
+ * telling them to pay again.
+ */
 export async function checkPayment(): Promise<PayState> {
   const { admin, graph } = await requestForSession();
   const verdict = await enforceRateLimit(admin, LIMITS.paymentCheck, graph.application.id);
   if (!verdict.ok) return { error: "Please wait a moment before checking again." };
-  const { data: processing } = await admin
+  const { data: attempts } = await admin
     .from("payments")
     .select("*")
     .eq("application_id", graph.application.id)
-    .eq("status", "processing")
-    .order("created_at", { ascending: false });
-  for (const payment of processing ?? []) {
+    .eq("method", "online")
+    .in("status", [...ATTEMPT_STATUSES])
+    .not("provider_ref", "is", null)
+    .gte("created_at", recentAttemptsSince())
+    .order("created_at", { ascending: false })
+    .limit(5);
+  let paid = false;
+  for (const payment of attempts ?? []) {
     try {
-      await reconcilePayment(admin, payment, PARENT_ACTOR);
+      if ((await reconcilePayment(admin, payment, PARENT_ACTOR, { revive: true })) === "paid") {
+        paid = true;
+        break;
+      }
     } catch (e) {
       console.warn("[pay] check failed", payment.id, (e as Error).message);
       return { error: "We could not reach the payment provider just now. Please try again shortly." };
     }
   }
   drainSoon();
+  // Nothing still in flight and nothing found: say so here, where the button
+  // is, rather than reloading a page that looks exactly as it did.
+  if (!paid && !(attempts ?? []).some((p) => p.status === "processing")) {
+    return { error: "The payment provider has no record of a completed payment for your last attempt. If you did pay, give it a few minutes and check again; otherwise you can pay below." };
+  }
   redirect("/pay");
 }

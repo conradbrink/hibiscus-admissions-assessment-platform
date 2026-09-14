@@ -29,13 +29,17 @@ export async function onPaymentStarted(
   request: PaymentRequestRow,
   payment: PaymentRow
 ): Promise<void> {
-  const settings = await getSettings(admin);
   await admin.from("payment_requests").update({ status: "processing" }).eq("id", request.id).in("status", ["required", "failed", "partially_paid"]);
+  // A minute, then the handler keeps asking until the attempt window closes.
+  // It used to be one check at ten minutes and no more: the job returned
+  // "done" whatever the gateway said, its idempotency key stopped a second
+  // one being queued, and a parent who abandoned the gateway page left a row
+  // reading "processing" until the 24-hour checkout expired.
   const verify: JobSpec = {
     type: "payment_verify",
-    payload: { payment_id: payment.id },
-    idempotencyKey: `payment_verify:${payment.id}`,
-    runAfter: new Date(Date.now() + settings.paymentVerifyMinutes * 60_000),
+    payload: { payment_id: payment.id, attempt: 1 },
+    idempotencyKey: `payment_verify:${payment.id}:1`,
+    runAfter: new Date(Date.now() + 60_000),
     precondition: { payment_id: payment.id, payment_status: ["processing"] },
   };
   const event = {
@@ -89,6 +93,18 @@ export async function onPaymentVerified(
     .select("id");
   if (!settled?.length) return;
 
+  // The application's status is read again now, after the row is ours, and
+  // not taken from the caller. The caller read it before asking the gateway,
+  // and in the seconds that took the attempt-window timer may have moved the
+  // application back to "payment required" (`onPaymentFailed`, below, on a
+  // row it then lost to the update above). A commit expecting the stale
+  // status would throw — leaving the money recorded and the application not
+  // moved, the one outcome worse than either side winning cleanly. Winning
+  // the row is what makes this the thread that settles; the status it settles
+  // from is whatever is true at that moment.
+  const { data: current } = await admin.from("applications").select("status").eq("id", app.id).single();
+  const status = current?.status ?? app.status;
+
   const paidMinor = Number(request.paid_minor) + Number(payment.amount_minor);
   const settledInFull = paidMinor >= Number(request.amount_minor);
   const { error } = await admin
@@ -129,7 +145,7 @@ export async function onPaymentVerified(
     return;
   }
 
-  if (app.status !== "payment_required" && app.status !== "payment_processing") {
+  if (status !== "payment_required" && status !== "payment_processing") {
     // Money for an application that is not waiting for money: withdrawn,
     // or already paid another way. Never silently absorbed.
     await commit(admin, {
@@ -139,13 +155,13 @@ export async function onPaymentVerified(
       nextAction: null,
       event: {
         type: "payment.received_unexpected",
-        summary: `Payment of ${amount} received while the application is ${app.status}`,
+        summary: `Payment of ${amount} received while the application is ${status}`,
         payload: { payment_id: payment.id, payment_request_id: request.id },
       },
       tasks: [
         {
           type: "payment_refund_review",
-          title: `${app.child_first_name}: payment received, application is ${app.status}`,
+          title: `${app.child_first_name}: payment received, application is ${status}`,
           details: `${amount} arrived by ${method} but the application is not awaiting payment. Decide whether to refund or apply it.`,
           priority: "high",
         },
@@ -161,7 +177,7 @@ export async function onPaymentVerified(
   await admin.from("registrations").upsert({ application_id: app.id }, { onConflict: "application_id", ignoreDuplicates: true });
   await commit(admin, {
     applicationId: app.id,
-    expectedStatus: app.status,
+    expectedStatus: status,
     newStatus: "paid",
     nextAction: "none",
     event: {
@@ -205,6 +221,28 @@ export async function onPaymentVerified(
   });
 }
 
+/** A wrong-amount payment is never "paid": this is the task that puts it in front of finance. */
+function reviewTask(childFirstName: string, reason: string): TaskSpec {
+  return {
+    type: "payment_review",
+    title: `${childFirstName}: payment amount does not match — finance to check`,
+    details: `The gateway reports a payment whose amount or currency differs from the request (${reason}). Check with the provider before recording anything.`,
+    priority: "high",
+  };
+}
+
+/**
+ * How long a "not completed" email waits after we give up on an attempt.
+ *
+ * Giving up is ours, on a timer, and a parent can still be on their bank's
+ * one-time-password screen when it fires. An email sent in the same breath
+ * would tell them it failed while it was succeeding — and a parent who
+ * believes that pays twice. So it waits, and is only sent if the attempt is
+ * still unpaid then (the precondition below); a payment that lands in the
+ * meantime settles, and the email is skipped.
+ */
+const NOT_COMPLETED_EMAIL_DELAY_MS = 10 * 60_000;
+
 /** The gateway said no, or never said yes in time. Back to "payment required" with a way to try again. */
 export async function onPaymentFailed(
   admin: AdminClient,
@@ -222,30 +260,62 @@ export async function onPaymentFailed(
     .eq("id", payment.id)
     .in("status", ["pending", "processing"])
     .select("id");
-  if (!changed?.length) return;
+  if (!changed?.length) {
+    // A row already failed or expired: one we gave up on and have since
+    // asked the gateway about again (`revive`). It is not failed twice — the
+    // family have had that email and the office that task. But a payment for
+    // the wrong amount is news whenever it arrives, and this is the only
+    // place it can be recorded; before, it was dropped here without a word.
+    if (opts.review && payment.status !== "succeeded") {
+      await admin.from("payments").update({ failure_reason: reason }).eq("id", payment.id).in("status", ["failed", "expired"]);
+      const { count } = await admin
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("application_id", app.id)
+        .eq("type", "payment_review")
+        .eq("status", "open");
+      if (!count) {
+        await commit(admin, {
+          applicationId: app.id,
+          expectedStatus: null,
+          newStatus: null,
+          nextAction: null,
+          event: {
+            type: "payment.review",
+            summary: `Gateway reports a payment for a different amount on an attempt we had given up on: ${reason}`,
+            payload: { payment_id: payment.id, payment_request_id: request.id, reason },
+          },
+          tasks: [reviewTask(app.child_first_name, reason)],
+          actor,
+        });
+      }
+    }
+    return;
+  }
   await admin.from("payment_requests").update({ status: "failed" }).eq("id", request.id).eq("status", "processing");
 
   const tasks: TaskSpec[] = [
     {
       type: "payment_failed_follow_up",
       title: `${app.child_first_name}: online payment not completed`,
-      details: `Reason: ${reason}. The parent has been emailed a link to try again; call if it happens twice.`,
+      details:
+        status === "expired"
+          ? "The gateway had not confirmed it within the attempt window. If it stays unpaid the parent is emailed a link to try again; a payment that lands late is still found by Check with gateway."
+          : `Reason: ${reason}. The parent has been emailed a link to try again; call if it happens twice.`,
       priority: "normal",
     },
   ];
-  if (opts.review) {
-    tasks.push({
-      type: "payment_review",
-      title: `${app.child_first_name}: payment amount does not match — finance to check`,
-      details: `The gateway reports a payment whose amount or currency differs from the request (${reason}). Check with the provider before recording anything.`,
-      priority: "high",
-    });
-  }
+  if (opts.review) tasks.push(reviewTask(app.child_first_name, reason));
   const jobs: JobSpec[] = [
     {
       type: "send_email",
       payload: { template_key: "payment_failed", links: ["payment"], payment_request_id: request.id },
       idempotencyKey: `email:${app.id}:payment_failed:${payment.id}`,
+      // Only while it is still true: the attempt still unpaid and the
+      // application still waiting. A payment that settles first, or a fresh
+      // attempt the parent has already started, makes this email a lie.
+      precondition: { payment_id: payment.id, payment_status: ["failed", "expired"], application_status: ["payment_required"] },
+      runAfter: status === "expired" ? new Date(Date.now() + NOT_COMPLETED_EMAIL_DELAY_MS) : undefined,
     },
   ];
   const event = {

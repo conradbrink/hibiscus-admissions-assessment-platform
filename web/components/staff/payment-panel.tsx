@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { formatDate, formatDateTime, hasStarted } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
-import { checkWithGateway, recordEft, recordRefund } from "@/app/staff/(console)/payments/actions";
+import { checkWithGateway, markNotCompleted, recordEft, recordRefund } from "@/app/staff/(console)/payments/actions";
 
 /**
  * One application's payment position, and finance's actions on it. Used by
@@ -79,8 +79,22 @@ export function PaymentPanel({
               <span className="ml-auto text-xs text-muted-foreground">{formatDateTime(p.updated_at)}</span>
               {p.failure_reason ? <span className="w-full text-xs text-destructive">{p.failure_reason}</span> : null}
               {p.note ? <span className="w-full text-xs text-muted-foreground">{p.note}</span> : null}
-              {canWrite && p.status === "processing" ? (
+              {canWrite && p.method === "online" && p.provider_ref && ["processing", "expired", "failed"].includes(p.status) ? (
+                // On a given-up row too — expired by the attempt window or
+                // marked not completed below — because that is exactly the row
+                // a late payment lands on, and this button is how it is found.
                 <ActionForm action={checkWithGateway} label="Check with gateway" size="xs" variant="outline">
+                  {idField}<input type="hidden" name="paymentId" value={p.id} />
+                </ActionForm>
+              ) : null}
+              {canWrite && p.status === "processing" && p.method === "online" ? (
+                <ActionForm
+                  action={markNotCompleted}
+                  label="Mark not completed"
+                  size="xs"
+                  variant="ghost"
+                  confirm="Stop waiting on this online attempt? The request reopens so a bank transfer can be recorded or the parent can try again. If the gateway later reports it paid, Check with gateway will still find it."
+                >
                   {idField}<input type="hidden" name="paymentId" value={p.id} />
                 </ActionForm>
               ) : null}

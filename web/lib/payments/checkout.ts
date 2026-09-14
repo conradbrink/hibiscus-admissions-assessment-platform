@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { getPaymentProvider, type CheckoutRequest } from "@/lib/payments/provider";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
+import { getSettings } from "@/lib/settings";
 import { WorkflowError } from "@/lib/workflow/engine";
 
 /**
@@ -78,9 +79,19 @@ export async function startCheckout(
     throw new WorkflowError("The payment provider could not start the payment. Please try again in a moment.", "database");
   }
 
+  // Our own patience, which is shorter than the gateway's. The hosted page
+  // stays open for hours — that is the gateway's business — but a row reading
+  // "processing" is the school's, and a parent who opens the page and walks
+  // away used to leave one there for a full day. `expires_at` is what
+  // `reconcilePayment` gives up on, so it is ours to set, clamped below
+  // whatever the provider returned rather than replacing it outright.
+  const settings = await getSettings(admin);
+  const ours = new Date(Date.now() + settings.paymentAttemptMinutes * 60_000);
+  const expiresAt = ours < checkout.expiresAt ? ours : checkout.expiresAt;
+
   const { data: processing, error: uErr } = await admin
     .from("payments")
-    .update({ status: "processing", company_ref: companyRef, provider_ref: checkout.providerRef, expires_at: checkout.expiresAt.toISOString() })
+    .update({ status: "processing", company_ref: companyRef, provider_ref: checkout.providerRef, expires_at: expiresAt.toISOString() })
     .eq("id", pending.id)
     .select("*")
     .single();

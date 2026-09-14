@@ -103,12 +103,30 @@ export async function onExtrasPaid(
 
   // Only the lines this request covered, so a line chosen after the request was
   // raised is not marked paid by a payment that never included it.
-  const { error: linesErr } = await admin
+  const { data: lines, error: linesErr } = await admin
     .from("student_optional_selections")
     .update({ status: "paid" })
     .eq("payment_request_id", request.id)
-    .eq("status", "selected");
+    .eq("status", "selected")
+    .select("id");
   if (linesErr) throw new WorkflowError(linesErr.message, "database");
+
+  if (!lines?.length) {
+    // Money, and nothing to mark paid with it. The usual way here: the
+    // attempt expired, `onExtrasPaymentFailed` released the lines back to the
+    // family, and the gateway then confirmed the payment after all — a parent
+    // who finished on their bank's screen after we had stopped waiting. The
+    // request now says paid, because the money is real; the order it was for
+    // has to be placed by a person, or the money sent back. Never silent: the
+    // family may already have paid for the same things again.
+    const name = await childName(admin, studentId);
+    await taskForStudent(admin, request, studentId, {
+      type: "extras_late_payment",
+      title: `${name}: extras paid, but the order had been released`,
+      details: `${formatMoney(Number(payment.amount_minor), payment.currency)} was confirmed by the gateway for an order whose lines were no longer held against this request — the attempt had expired, or the order changed. Nothing has been marked paid. Check the family's current selection: place the order by hand, or refund.`,
+      priority: "high",
+    });
+  }
 }
 
 /**
@@ -137,14 +155,30 @@ export async function onExtrasPaymentFailed(
     .eq("id", payment.id)
     .in("status", ["pending", "processing"])
     .select("id");
-  if (!changed?.length) return;
-
-  await admin.from("payment_requests").update({ status: "cancelled" }).eq("id", request.id).in("status", ["processing", "required"]);
-  await admin
-    .from("student_optional_selections")
-    .update({ payment_request_id: null })
-    .eq("payment_request_id", request.id)
-    .eq("status", "selected");
+  if (changed?.length) {
+    await admin.from("payment_requests").update({ status: "cancelled" }).eq("id", request.id).in("status", ["processing", "required"]);
+    await admin
+      .from("student_optional_selections")
+      .update({ payment_request_id: null })
+      .eq("payment_request_id", request.id)
+      .eq("status", "selected");
+  } else if (!opts.review || payment.status === "succeeded") {
+    // Already failed or expired and nothing new to say: a row we gave up on,
+    // asked about again, still not paid.
+    return;
+  } else {
+    // Given up on, asked again, and the gateway now reports money for the
+    // wrong amount. The order was released when we gave up; the news is the
+    // money, so the reason goes on the row and the task below is raised once.
+    await admin.from("payments").update({ failure_reason: reason }).eq("id", payment.id).in("status", ["failed", "expired"]);
+    const { count } = await admin
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", studentId)
+      .eq("type", "extras_payment_review")
+      .eq("status", "open");
+    if (count) return;
+  }
 
   if (opts.review) {
     // Money moved and it was not the amount asked for. Never silent, whatever

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Download } from "lucide-react";
+import { recentAttemptsSince } from "@/lib/payments/attempts";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { PageHeader } from "@/components/parent/page-header";
 import { CheckPaymentButton, PayOnlineButton } from "@/components/parent/pay-buttons";
@@ -39,6 +40,10 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
   const processing = (payments ?? []).find((p) => p.status === "processing") ?? null;
   const succeeded = (payments ?? []).filter((p) => p.status === "succeeded");
   const lastFailed = (payments ?? []).find((p) => p.status === "failed" || p.status === "expired") ?? null;
+  // An attempt we gave up on, recent enough that the gateway may still have an
+  // answer: the parent may have finished paying after we stopped waiting, and
+  // must be able to ask before being told to pay again.
+  const lateCheck = lastFailed !== null && lastFailed.status === "expired" && lastFailed.provider_ref !== null && lastFailed.created_at >= recentAttemptsSince();
   const settled = request.status === "paid";
   const canPay = app.status === "payment_required" && ["required", "failed", "partially_paid"].includes(request.status);
 
@@ -98,7 +103,14 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
         <p className="mt-5 rounded-2xl bg-warning/20 p-4 text-sm">The payment was cancelled before it completed. Nothing has been charged. You can try again below.</p>
       ) : null}
       {lastFailed && !processing && !settled && !sp.cancelled ? (
-        <p className="mt-5 rounded-2xl bg-warning/20 p-4 text-sm">The last online payment was not completed{lastFailed.failure_reason === "expired" ? " in time" : ""}. Nothing has been charged. You can try again below.</p>
+        lateCheck ? (
+          <section className="mt-5 rounded-2xl bg-warning/20 p-4 text-sm">
+            <p>We did not get confirmation of your last online payment in time. If you finished paying on the provider&rsquo;s page, check again before paying twice; otherwise you can try again below.</p>
+            <div className="mt-3"><CheckPaymentButton action={checkPayment} /></div>
+          </section>
+        ) : (
+          <p className="mt-5 rounded-2xl bg-warning/20 p-4 text-sm">The last online payment was not completed. Nothing has been charged. You can try again below.</p>
+        )
       ) : null}
 
       {canPay && !processing ? (

@@ -4,6 +4,7 @@ import { applicableItems, optionsOf, isOrderable, type ItemLike } from "@/lib/ex
 import { loadFamilyContacts, loadFamilyStudents, requireStudentInFamily, type FamilyStudent } from "@/lib/family/scope";
 import type { FamilySession } from "@/lib/tokens/session";
 import type { OptionalItemRow, PaymentRequestRow, PaymentRow, StudentOptionalSelectionRow } from "@/lib/supabase/types";
+import { ATTEMPT_STATUSES, recentAttemptsSince } from "@/lib/payments/attempts";
 
 /**
  * The extras a family may order, and what they have ordered, through the
@@ -208,8 +209,14 @@ export async function loadStudentOrder(
   return { student, outstanding, items: items ?? [], request, payments: payments ?? [] };
 }
 
-/** Every processing payment for this child, for the "check again" button. */
-export async function loadStudentProcessingPayments(
+/**
+ * This child's recent online attempts, for the return page and the "check
+ * again" button. Processing ones and the ones we gave up on alike: the parent
+ * who finished paying after our attempt window closed is holding a receipt
+ * for a row that reads expired, and it is found by asking again with
+ * `revive` (`lib/payments/attempts.ts`).
+ */
+export async function loadStudentPaymentAttempts(
   admin: AdminClient,
   session: FamilySession,
   studentId: string
@@ -219,8 +226,12 @@ export async function loadStudentProcessingPayments(
     .from("payments")
     .select("*")
     .eq("student_id", student.id)
-    .eq("status", "processing")
-    .order("created_at", { ascending: false });
+    .eq("method", "online")
+    .in("status", [...ATTEMPT_STATUSES])
+    .not("provider_ref", "is", null)
+    .gte("created_at", recentAttemptsSince())
+    .order("created_at", { ascending: false })
+    .limit(5);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -240,7 +251,7 @@ export async function payerForFamily(
 }
 
 /**
- * One processing payment, found by the reference the gateway posted back.
+ * One online attempt, found by the reference the gateway posted back.
  *
  * For the PayGate return, which arrives as a cross-site POST with no cookie:
  * there is no session to scope by, so the child named in the URL is what
@@ -248,7 +259,7 @@ export async function payerForFamily(
  * Kept here rather than in the route so `scope.test.ts` still holds — the
  * route has no business naming `payments` itself.
  */
-export async function processingPaymentForStudent(
+export async function paymentAttemptForStudent(
   admin: AdminClient,
   studentId: string,
   providerRef: string
@@ -259,7 +270,8 @@ export async function processingPaymentForStudent(
     .select("*")
     .eq("provider_ref", providerRef)
     .eq("student_id", studentId)
-    .eq("status", "processing")
+    .eq("method", "online")
+    .in("status", [...ATTEMPT_STATUSES])
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data;
