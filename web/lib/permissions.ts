@@ -1,3 +1,5 @@
+import { STAFF_PUBLIC_PREFIXES } from "@/lib/staff/public-paths";
+
 /**
  * What a member of staff may do, and which pages that lets them open.
  *
@@ -148,7 +150,10 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
 // The orientation belongs to everybody who can sign in, including a content
 // author who holds nothing else: it is how a person learns what the people
 // either side of them do.
-const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", "/staff/orientation"];
+// The public pages are here too: a person who *is* signed in and opens an
+// invitation or reset link (an administrator checking one, say) is shown the
+// page rather than "no access" for a permission nobody thought to map.
+const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", "/staff/orientation", ...STAFF_PUBLIC_PREFIXES];
 
 export function permissionForPath(pathname: string): PermissionCode | null {
   if (ALWAYS_ALLOWED.some((p) => matchesPrefix(pathname, p))) return null;

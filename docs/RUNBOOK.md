@@ -824,6 +824,17 @@ it up. If someone still cannot get in:
 To send a fresh one: **Settings → Staff**, find the person, **Resend
 invitation**. Anyone who has never signed in can be sent one.
 
+## Somebody forgot their password
+
+**Forgotten your password?** on the sign-in page. They type their email and
+we send a link — through our own templates and Resend, the same way an
+invitation goes, because Supabase's own reset email never reached anybody
+here. The link works once and lapses after an hour; asking again sends a
+fresh one and cancels the old. It also replaces an unused invitation, so
+someone who asks for a reset before ever setting a password simply sets it
+from the reset link instead. The page says the same thing whether or not the
+address is on the staff list.
+
 ## Somebody left, or joined
 
 `/staff/admin/staff`. Untick **Can sign in** to remove access at once —

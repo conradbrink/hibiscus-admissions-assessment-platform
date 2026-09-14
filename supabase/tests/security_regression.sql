@@ -1368,12 +1368,14 @@ begin
     -- The staff audience is a closed list: a parent template marked staff
     -- would be sent to a colleague's address with a parent's magic link in it.
     select count(*) into v_count from public.email_templates
-     where audience = 'staff' and key not in ('staff_digest', 'staff_invite');
+     where audience = 'staff' and key not in ('staff_digest', 'staff_invite', 'staff_password_reset');
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('39: a parent template is marked as staff'); end if;
-    -- Whatever a staff template links to, it is never a parent's link.
+    -- Whatever a staff template links to, it is never a parent's link. The
+    -- invitation and reset links are the staff member's own, minted on
+    -- staff_invites and never a parent's magic link.
     select count(*) into v_count from public.email_templates
      where audience = 'staff'
-       and exists (select 1 from unnest(allowed_variables) v where v like '%_link' and v not in ('console_link', 'invite_link'));
+       and exists (select 1 from unnest(allowed_variables) v where v like '%_link' and v not in ('console_link', 'invite_link', 'reset_link'));
     if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('39: a staff template carries a parent link'); end if;
   exception when others then
     v_fail := v_fail || E'\n  - ' || ('39: unexpected error: ' || sqlerrm);

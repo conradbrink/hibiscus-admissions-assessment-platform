@@ -70,7 +70,7 @@ describe("who has to present a second factor", () => {
 describe("what a person may reach before they have finished", () => {
   it("always lets somebody sign in or recover a password", () => {
     for (const outcome of ["ok", "verify", "enrol"] as const) {
-      for (const path of ["/staff/login", "/staff/forgot-password", "/staff/reset-password"]) {
+      for (const path of ["/staff/login", "/staff/forgot-password", "/staff/reset-password", "/staff/reset-password/token", "/staff/invite/token"]) {
         expect(mfaPathAllowed(outcome, path)).toBe(true);
       }
     }

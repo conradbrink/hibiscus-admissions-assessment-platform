@@ -15,8 +15,9 @@ deploy token lives in GitHub.
    in `supabase/migrations` is recorded.
 4. Create the first super administrator — see `supabase/README.md`.
 5. In Authentication → URL configuration, set the site URL to the production
-   domain and add `https://<domain>/staff/reset-password` to the redirect
-   allow-list. Invitations and password resets land there.
+   domain. Invitations and password resets are sent by the application through
+   its own templates and Resend — Supabase Auth's mailer is not used for
+   either, so nothing needs adding to the redirect allow-list for them.
 
 ### Vercel
 
