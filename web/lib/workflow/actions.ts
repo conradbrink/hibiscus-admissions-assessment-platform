@@ -7,7 +7,7 @@ import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/type
 import { getSettings } from "@/lib/settings";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
-import { statusAfterBooking } from "@/lib/workflow/states";
+import { statusAfterBooking, statusAfterVisitArrival } from "@/lib/workflow/states";
 import {
   commit,
   hoursBefore,
@@ -282,10 +282,22 @@ export async function onBookingCreated(
   });
 }
 
-/** Staff taps Check in. The booking moves; the application does not. */
+/**
+ * Staff taps Check in.
+ *
+ * For an assessment the application does not move: launching and marking
+ * carry it on from here.
+ *
+ * A visit or a play date has no such step, and until now nothing moved it
+ * either — so the family arrived, was met, and the application sat in
+ * `visit_booked`, which has no edge to a decision. Staff could not record
+ * what they had just decided in the room. Arriving is that step: it is the
+ * moment the school has met the child and has something to say, so it hands
+ * the application to whoever decides.
+ */
 export async function onCheckedIn(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
   booking: Pick<BookingRow, "id" | "kind" | "status">,
   actor: Actor
 ): Promise<void> {
@@ -303,11 +315,13 @@ export async function onCheckedIn(
     .eq("status", "booked");
   if (error) throw new WorkflowError(error.message, "database");
 
+  const moved = booking.kind === "visit" ? statusAfterVisitArrival(app.status, app.requires_assessment) : null;
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
-    newStatus: null,
-    nextAction: null,
+    newStatus: moved,
+    nextAction: moved ? "await_school_contact" : null,
     event: {
       type: "booking.checked_in",
       summary: booking.kind === "assessment" ? "Arrived for assessment" : "Arrived for visit",

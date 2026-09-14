@@ -3246,6 +3246,43 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
+  -- 64. Nobody below Stage 1 sits an assessment
+  -- -------------------------------------------------------------------------
+  -- Stage 1 (sort_order 60) is the first assessed year, at every campus. It is
+  -- asserted here rather than left to the migration because the flag is read by
+  -- a BEFORE INSERT trigger on every enquiry: get it wrong and a four-year-old
+  -- is routed to a sitting, which is a mistake the family notices before we do.
+  declare
+    v_wrong text;
+  begin
+    select string_agg(name || ' (' || sort_order || ')', ', ' order by sort_order)
+      into v_wrong
+      from public.grades
+     where sort_order < 60 and requires_assessment;
+    if v_wrong is not null then
+      v_fail := v_fail || E'\n  - ' ||
+        format('64: pre-school grades still require an assessment: %s', v_wrong);
+    end if;
+
+    -- The other half, so "nobody assesses at all" is never how this passes.
+    if not exists (select 1 from public.grades where sort_order >= 60 and requires_assessment) then
+      v_fail := v_fail || E'\n  - ' || '64: no grade requires an assessment at all';
+    end if;
+
+    -- A template banded wholly below Stage 1 exists for nobody: it is a paper
+    -- written for pre-school and can only be launched at a child who is not
+    -- meant to sit one. Bands that also reach Stage 1 and up are somebody's
+    -- paper and are left alone.
+    if exists (
+      select 1 from public.assessment_templates
+       where status = 'active' and grade_sort_max < 60
+    ) then
+      v_fail := v_fail || E'\n  - ' ||
+        '64: an active assessment template covers only pre-school grades';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
   -- Verdict. Raise either way so the transaction rolls back.
   -- -------------------------------------------------------------------------
   if v_fail <> '' then

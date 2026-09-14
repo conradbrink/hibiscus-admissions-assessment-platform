@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { templateProblems } from "@/lib/messaging/template-checks";
+import { saysAssessment, templateProblems } from "@/lib/messaging/template-checks";
 
 /**
  * These ran only in the browser until the save path broke on them: the
@@ -61,5 +61,37 @@ describe("templateProblems", () => {
 
   it("lets an inactive template rest without an id", () => {
     expect(templateProblems({ ...base, active: false })).toEqual([]);
+  });
+});
+
+describe("saysAssessment", () => {
+  it("catches the wording a pre-school parent was actually sent", () => {
+    expect(
+      saysAssessment("Hi {{1}}, {{2}}'s assessment at {{3}} is booked for {{4}} at {{5}}.")
+    ).toBe(true);
+  });
+
+  it("does not count a variable named after one", () => {
+    // `assessment_date` is a field name. The parent reads the date, not the
+    // word, so a template whose only "assess" is inside {{…}} is fine.
+    expect(saysAssessment("Hi {{parent_first_name}}, see you on {{assessment_date}} at {{assessment_time}}.")).toBe(false);
+  });
+
+  it("allows the approved wording that denies one", () => {
+    // Reassuring a family is the clearest way to serve the rule, and this is
+    // the exact sentence Meta approved on preschool_enquiry_received.
+    expect(saysAssessment("Pre-school children do not sit an assessment — our team will come back to you.")).toBe(false);
+    expect(saysAssessment("Your child does not sit an assessment.")).toBe(false);
+  });
+
+  it("still catches the word elsewhere in a template that denies one", () => {
+    expect(
+      saysAssessment("Pre-school children do not sit an assessment. Book the assessment here.")
+    ).toBe(true);
+  });
+
+  it("treats missing wording as safe", () => {
+    expect(saysAssessment(null)).toBe(false);
+    expect(saysAssessment("")).toBe(false);
   });
 });

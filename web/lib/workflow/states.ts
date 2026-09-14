@@ -83,6 +83,20 @@ export function canTransition(from: ApplicationStatus, to: ApplicationStatus): b
 }
 
 /**
+ * Whether a person may record an outcome from here.
+ *
+ * Asked of the graph rather than listed beside it. The profile page used to
+ * keep its own list, and the two drifted: it offered Approve from
+ * `new_enquiry`, `visit_booked` and `callback_requested`, none of which the
+ * graph allows. Staff met a family, formed a view, typed a reason, and got
+ * "Illegal transition" back — after the decision row had already been
+ * written. One source, so there is nothing left to keep in step.
+ */
+export function canBeDecided(status: ApplicationStatus): boolean {
+  return canTransition(status, "approved");
+}
+
+/**
  * Where a booking leaves the application, or null to leave it alone.
  *
  * Booking is a stage of the funnel only at the beginning of it. A family
@@ -104,6 +118,32 @@ export function statusAfterBooking(
 ): ApplicationStatus | null {
   const to: ApplicationStatus = kind === "visit" ? "visit_booked" : "assessment_booked";
   return canTransition(from, to) ? to : null;
+}
+
+/**
+ * Where arriving for a visit leaves the application, or null to leave it alone.
+ *
+ * Arriving is the pre-school track's equivalent of finishing an assessment:
+ * the school has met the child and has something to say, so the application
+ * moves to where a decision can be recorded. Without it a play date ended in
+ * `visit_booked`, which has no edge to `approved`, and staff who had just met
+ * the family were told "Illegal transition" when they tried to record it.
+ *
+ * Two reasons it can still be null, and both matter:
+ *
+ *   - The child sits an assessment. A primary family may book a look-around
+ *     visit through the visit door, and that visit is stored the same way as a
+ *     play date. Moving them on would walk them past the assessment they have
+ *     not sat.
+ *   - They are already past it — visiting with an offer in hand is not a
+ *     return to the decision. Same reasoning as `statusAfterBooking`.
+ */
+export function statusAfterVisitArrival(
+  from: ApplicationStatus,
+  requiresAssessment: boolean
+): ApplicationStatus | null {
+  if (requiresAssessment) return null;
+  return canTransition(from, "awaiting_decision") ? "awaiting_decision" : null;
 }
 
 export class IllegalTransitionError extends Error {

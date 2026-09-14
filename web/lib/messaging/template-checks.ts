@@ -21,6 +21,34 @@ import { placeholderCount } from "@/lib/messaging/meta-payload";
  * "whichever provider is sending" to check against.
  */
 
+/**
+ * Does this wording read the word "assessment" to somebody who is not sitting
+ * one?
+ *
+ * The twin of `pg_temp.says_assessment` in
+ * `supabase/tests/template_coverage.sql`, which guards the same rule across the
+ * whole template surface at build time. This one guards the send. A member of
+ * staff picking a template by hand had no such check, and a pre-school parent
+ * was sent "Brock's assessment at Phase 2 is booked" a second after the
+ * play-date confirmation she had already had.
+ *
+ * Placeholders come out first — a variable named `assessment_date` is not the
+ * parent reading the word. The denial is then stripped, narrowly and only in
+ * the phrasing the approved wording uses: saying a pre-school child does *not*
+ * sit an assessment is the clearest way to serve the rule this exists for, and
+ * a substring search cannot tell a denial from a claim. "The assessment"
+ * anywhere else in the same template still counts.
+ *
+ * Keep the two in step: a change here wants the same change there.
+ */
+export function saysAssessment(text: string | null | undefined): boolean {
+  return (text ?? "")
+    .replace(/\{\{[^}]*\}\}/g, "")
+    .replace(/(do|does)( not|es not|n't) sit an assessment/gi, "")
+    .toLowerCase()
+    .includes("assess");
+}
+
 export function templateProblems(input: {
   parameters: string[];
   bodyPreview: string;
