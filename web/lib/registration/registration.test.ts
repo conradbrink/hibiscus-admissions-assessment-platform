@@ -211,6 +211,21 @@ describe("schemas", () => {
     const rare = studentSchema.safeParse({ ...ok, homeLanguage: "Klingon" });
     expect(rare.success && rare.data.homeLanguage).toBe("Klingon");
   });
+  it("a single-guardian family can save the step with the second guardian's pick-lists untouched", () => {
+    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
+    // A native select posts "" when left on "Choose…". Every single-guardian
+    // family was refused here with three "Invalid option" errors on fields
+    // they never touched — the 14 September 2026 walkthrough.
+    const untouched = familySchema.safeParse({ primary, secondaryTitle: "", secondaryRelationship: "", secondaryGender: "", secondaryFirstName: "", secondaryLastName: "", secondaryEmail: "", secondaryMobile: "", secondaryPhone: "", secondaryAddress: "", secondaryNationality: "" });
+    expect(untouched.success).toBe(true);
+    if (untouched.success) expect(untouched.data.secondaryRelationship).toBeUndefined();
+    // A real second guardian still has to be complete.
+    const half = familySchema.safeParse({ primary, secondaryTitle: "", secondaryRelationship: "father", secondaryGender: "", secondaryFirstName: "Neo" });
+    expect(half.success).toBe(false);
+    // A value outside the list is still refused.
+    expect(familySchema.safeParse({ primary, secondaryTitle: "Sir" }).success).toBe(false);
+  });
+
   it("secondary guardian is all-or-nothing", () => {
     const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
     expect(familySchema.safeParse({ primary }).success).toBe(true);

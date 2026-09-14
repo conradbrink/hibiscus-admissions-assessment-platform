@@ -26,6 +26,7 @@ import {
   addNote,
   assignOwner,
   assignTask,
+  changeCampus,
   changeGrade,
   cancelBookingByStaff,
   checkIn,
@@ -62,7 +63,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const grade = one(app.grades);
   // The stages this campus actually teaches, for changing one by hand, and
   // what the date of birth suggested, so the two can be compared.
-  const [{ data: campusGradeRows }, { data: recommendedGrade }] = await Promise.all([
+  const [{ data: campusGradeRows }, { data: recommendedGrade }, { data: otherCampuses }, { data: allCampusGrades }] = await Promise.all([
     supabase
       .from("campus_grades")
       .select("grade_id, grades!inner(id, name, sort_order, is_active)")
@@ -71,7 +72,17 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     app.recommended_grade_id
       ? supabase.from("grades").select("id, name").eq("id", app.recommended_grade_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    // Only the campuses this person can see: a campus administrator moves a
+    // family between their own campuses and nowhere else.
+    supabase.from("v_accessible_campuses").select("id, name, is_active").eq("is_active", true).order("sort_order"),
+    supabase.from("campus_grades").select("campus_id, grade_id, grades!inner(name, sort_order, is_active)").eq("is_active", true),
   ]);
+  const gradesAt = (campusId: string) =>
+    (allCampusGrades ?? [])
+      .filter((r) => r.campus_id === campusId)
+      .map((r) => ({ id: r.grade_id, ...(one(r.grades) as { name: string; sort_order: number; is_active: boolean }) }))
+      .filter((g) => g.is_active)
+      .sort((a, b) => a.sort_order - b.sort_order);
   const campusGrades = (campusGradeRows ?? [])
     .map((r) => one(r.grades))
     .filter((g): g is { id: string; name: string; sort_order: number; is_active: boolean } => Boolean(g?.is_active))
@@ -90,6 +101,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     { data: staff },
     { data: upcoming },
     { data: tokens },
+    { data: callbackRequest },
   ] = await Promise.all([
     supabase.from("application_events").select("*").eq("application_id", id).order("id", { ascending: false }).limit(100),
     supabase
@@ -123,6 +135,10 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
       // published sessions behind it.
       .limit(200),
     supabase.from("access_tokens").select("purpose, expires_at, use_count, revoked_at, created_at").eq("application_id", id).order("created_at", { ascending: false }).limit(5),
+    // What the parent typed into "Best time to call" and the message box. It
+    // was stored from the first day and shown to nobody, so the person
+    // ringing back did not know the family had asked for after five.
+    supabase.from("callback_requests").select("preferred_time, message").eq("application_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const [summaryInputs, { data: storedSummary }, settings] = await Promise.all([
@@ -207,6 +223,12 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{t.title}</p>
                       {t.details ? <p className="mt-0.5 text-xs whitespace-pre-line text-muted-foreground">{t.details}</p> : null}
+                      {t.type === "callback" && callbackRequest ? (
+                        <p className="mt-0.5 text-xs whitespace-pre-line">
+                          Best time to call: {callbackRequest.preferred_time?.trim() || "not given"}
+                          {callbackRequest.message?.trim() ? ` · “${callbackRequest.message.trim()}”` : ""}
+                        </p>
+                      ) : null}
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {t.due_at ? `Due ${formatDateTime(t.due_at)}` : "No due date"} · {one(t.staff_profiles)?.full_name ?? "Unassigned"}
                       </p>
@@ -516,6 +538,29 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                 <span className="block text-xs">Age suggested {recommendedGrade.name}</span>
               ) : null}
             </p>
+            {/* The campus, changed by hand, before a decision. Bookings sit at
+                the old campus, so a live one has to be cancelled or moved
+                first; the action says so. The stage is chosen alongside it,
+                because two campuses rarely teach the same list. */}
+            {canWrite && !terminal && ["new_enquiry", "callback_requested", "visit_booked", "assessment_booked", "no_show", "assessment_completed", "awaiting_decision", "staff_review", "deferred", "waitlisted"].includes(app.status) && (otherCampuses ?? []).length > 1 ? (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-primary">Change campus</summary>
+                <ActionForm action={changeCampus} label="Move" variant="outline" size="sm" className="mt-2" confirm="Move this family to another campus? Open tasks move with them, and the stage must be one the new campus teaches.">
+                  {idField}
+                  <NativeSelect name="campusId" defaultValue={app.campus_id} aria-label="Campus">
+                    {(otherCampuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </NativeSelect>
+                  <NativeSelect name="gradeId" defaultValue="" aria-label="Stage at the new campus">
+                    <option value="">Keep {grade?.name} if the campus teaches it</option>
+                    {(otherCampuses ?? []).flatMap((c) => gradesAt(c.id).map((g) => <option key={`${c.id}:${g.id}`} value={g.id}>{c.name} · {g.name}</option>))}
+                  </NativeSelect>
+                  <Input name="reason" placeholder="Why (optional)" maxLength={300} />
+                  <p className="text-xs text-muted-foreground">
+                    Only before a decision. Cancel or move a live booking first; it is at the current campus.
+                  </p>
+                </ActionForm>
+              </details>
+            ) : null}
             {canWrite && app.status !== "enrolled" ? (
               <details className="mt-2">
                 <summary className="cursor-pointer text-xs text-primary">Change stage</summary>

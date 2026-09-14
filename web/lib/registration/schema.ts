@@ -12,6 +12,17 @@ import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 const text = (max: number) => z.string().trim().max(max);
 const required = (max: number, message: string) => z.string().trim().min(1, message).max(max);
 const optional = (max: number) => text(max).optional().transform((v) => (v ? v : null));
+/**
+ * A pick-list that may be left on "Choose…".
+ *
+ * A native select always posts its value, and an untouched one posts "".
+ * `z.enum(...).optional()` accepts a missing key and refuses an empty string,
+ * so every family with a single guardian was refused at the family step with
+ * three "Invalid option" errors on fields they had never touched — found on
+ * the 14 September 2026 walkthrough. Blank means not answered.
+ */
+const optionalEnum = <const T extends readonly [string, ...string[]]>(values: T) =>
+  z.preprocess((v) => (v === "" ? undefined : v), z.enum(values).optional());
 
 export const GENDERS = ["female", "male", "other", "undisclosed"] as const;
 /** The "current grade" answer for a child who has not started school. */
@@ -131,11 +142,11 @@ const emptyGuardian = (g: Record<string, unknown>) => Object.values(g).every((v)
 export const familySchema = z
   .object({
     primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
-    secondaryTitle: z.enum(TITLES).optional(),
+    secondaryTitle: optionalEnum(TITLES),
     secondaryFirstName: optional(80),
     secondaryLastName: optional(80),
-    secondaryRelationship: z.enum(RELATIONSHIPS).optional(),
-    secondaryGender: z.enum(GUARDIAN_GENDERS).optional(),
+    secondaryRelationship: optionalEnum(RELATIONSHIPS),
+    secondaryGender: optionalEnum(GUARDIAN_GENDERS),
     secondaryEmail: optional(160),
     secondaryMobile: optionalMobileNumber,
     secondaryPhone: optional(40),

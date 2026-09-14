@@ -26,6 +26,16 @@ export function AgreementsForm({
   const [state, formAction, pending] = useActionState(action, {});
   const f = state.fields ?? {};
   const signed = Object.values(accepted).find((a) => a.signatureDataUrl) ?? null;
+  // React resets every uncontrolled control when the action returns, so a
+  // refused signature or a mistyped name used to wipe all the ticks and the
+  // photographs answer, and the next submit was met with "Please tick to
+  // accept" on every agreement the parent had just accepted. When the action
+  // has handed the values back, they are what the boxes show; before the
+  // first submit it is what the family signed last time, if anything.
+  const answerOf = (key: string): "accepted" | "declined" | null => {
+    if (state.values) return state.values[`agree_${key}`] === "accepted" ? "accepted" : state.values[`agree_${key}`] === "declined" ? "declined" : null;
+    return accepted[key]?.decision ?? null;
+  };
   return (
     <form action={formAction} className="space-y-5" noValidate>
       {agreements.map((a) => (
@@ -48,18 +58,18 @@ export function AgreementsForm({
               <legend className="text-sm font-medium">Please choose one — you may say no, and it will not hold up your registration.</legend>
               <div className="mt-2 space-y-2">
                 <label className="flex items-start gap-3 text-sm">
-                  <input type="radio" name={`agree_${a.key}`} value="accepted" defaultChecked={accepted[a.key]?.decision === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
+                  <input type="radio" name={`agree_${a.key}`} value="accepted" defaultChecked={answerOf(a.key) === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
                   <span>Yes — my child may appear in the school&rsquo;s photographs and social media.</span>
                 </label>
                 <label className="flex items-start gap-3 text-sm">
-                  <input type="radio" name={`agree_${a.key}`} value="declined" defaultChecked={accepted[a.key]?.decision === "declined"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
+                  <input type="radio" name={`agree_${a.key}`} value="declined" defaultChecked={answerOf(a.key) === "declined"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" />
                   <span>No — please do not use photographs of my child.</span>
                 </label>
               </div>
             </fieldset>
           ) : (
             <label className="mt-3 flex items-start gap-3 text-sm">
-              <input type="checkbox" name={`agree_${a.key}`} value="accepted" defaultChecked={accepted[a.key]?.decision === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" aria-invalid={Boolean(f[`agree_${a.key}`])} />
+              <input type="checkbox" name={`agree_${a.key}`} value="accepted" defaultChecked={answerOf(a.key) === "accepted"} disabled={readOnly} className="mt-1 size-5 shrink-0 accent-primary" aria-invalid={Boolean(f[`agree_${a.key}`])} />
               <span>I have read and accept the {a.name}{a.required ? "" : " (optional)"}.</span>
             </label>
           )}

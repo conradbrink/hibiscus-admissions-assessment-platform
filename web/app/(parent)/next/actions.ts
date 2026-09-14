@@ -19,9 +19,8 @@ import { requireParentSession } from "@/lib/tokens/server";
 import { commit, PARENT_ACTOR } from "@/lib/workflow/engine";
 import {
   onBookingCancelled,
-  onBookingCreated,
   onEnquiryCreated,
-  onRescheduled,
+  onSessionChosen,
 } from "@/lib/workflow/actions";
 import { drainJobs } from "@/lib/workflow/jobs";
 
@@ -162,39 +161,15 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
   }
 
   try {
-    if (graph.booking) {
-      await onRescheduled(admin, app, graph.booking, target.id, actor);
-    } else {
-      const { data: bookingId, error } = await admin.rpc("book_session", {
-        p_application_id: app.id,
-        p_session_id: target.id,
-      });
-      if (error) throw error;
-      try {
-        await onBookingCreated(admin, app, { id: bookingId, kind: target.kind }, target, actor);
-      } catch (e) {
-        // `book_session` has already committed the row; recording the moment
-        // is a second call. If that fails there is no transaction to roll
-        // back, so undo the booking by hand — otherwise the parent is told
-        // the booking failed and holds one anyway, and their next attempt
-        // hits `already_booked`.
-        await admin
-          .from("bookings")
-          .update({
-            status: "cancelled",
-            cancelled_at: new Date().toISOString(),
-            cancel_reason: "The booking could not be recorded",
-          })
-          .eq("id", bookingId)
-          .eq("status", "booked");
-        throw e;
-      }
-    }
+    await onSessionChosen(admin, app, graph.booking, target, actor);
   } catch (e) {
     const msg = (e as Error).message ?? "";
     if (msg.includes("session_full")) return { error: "That time has just filled up. Please choose another." };
     if (msg.includes("session_in_past") || msg.includes("session_unavailable")) {
       return { error: "That time is no longer available. Please choose another." };
+    }
+    if (msg.includes("session_wrong_campus")) {
+      return { error: "That time is at a different campus. Please choose another." };
     }
     if (msg.includes("grade_not_in_range")) {
       return { error: "That session is for a different age group. Please choose another." };

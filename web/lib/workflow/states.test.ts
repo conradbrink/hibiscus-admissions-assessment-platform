@@ -11,7 +11,9 @@ import {
   STATUS_LABELS,
   STATUS_TONE,
   statusAfterBooking,
+  statusAfterCancellation,
   statusAfterVisitArrival,
+  bookingTrackNextAction,
   TERMINAL_STATUSES,
   TRANSITIONS,
 } from "@/lib/workflow/states";
@@ -232,5 +234,43 @@ describe("state machine", () => {
         );
       }
     });
+  });
+});
+
+describe("statusAfterCancellation", () => {
+  it("sends a family back to the start of the booking track only while the booking was the stage", () => {
+    expect(statusAfterCancellation("assessment_booked")).toBe("new_enquiry");
+    expect(statusAfterCancellation("visit_booked")).toBe("new_enquiry");
+    expect(statusAfterCancellation("no_show")).toBe("new_enquiry");
+  });
+
+  it("leaves a pre-school family waiting on a decision, and a family holding an offer, where they are", () => {
+    // The bug: a parent cancelling a play date was shown "Illegal transition:
+    // awaiting_decision → new_enquiry" with the booking already cancelled.
+    expect(statusAfterCancellation("awaiting_decision")).toBeNull();
+    expect(statusAfterCancellation("staff_review")).toBeNull();
+    expect(statusAfterCancellation("offer_sent")).toBeNull();
+    expect(statusAfterCancellation("payment_required")).toBeNull();
+    expect(statusAfterCancellation("new_enquiry")).toBeNull();
+    expect(statusAfterCancellation("callback_requested")).toBeNull();
+  });
+
+  it("never proposes a move the graph refuses", () => {
+    for (const s of Object.keys(TRANSITIONS) as ApplicationStatus[]) {
+      const to = statusAfterCancellation(s);
+      if (to) expect(canTransition(s, to)).toBe(true);
+    }
+  });
+
+  it("names the next step by whether the child sits an assessment", () => {
+    expect(bookingTrackNextAction(true)).toBe("book_assessment");
+    expect(bookingTrackNextAction(false)).toBe("await_school_contact");
+  });
+});
+
+describe("a change of class that adds or removes the assessment", () => {
+  it("can send a child waiting on a decision back to book the sitting", () => {
+    expect(canTransition("awaiting_decision", "new_enquiry")).toBe(true);
+    expect(canTransition("staff_review", "new_enquiry")).toBe(true);
   });
 });

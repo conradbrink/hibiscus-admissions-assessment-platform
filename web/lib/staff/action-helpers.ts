@@ -5,6 +5,7 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AuthCheckUnavailable, ForbiddenError, SecondFactorRequired, type StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow } from "@/lib/supabase/types";
+import { isStaleConflict, STALE_CONFLICT_MESSAGE } from "@/lib/staff/stale-conflict";
 import { WorkflowError } from "@/lib/workflow/engine";
 import { drainJobs } from "@/lib/workflow/jobs";
 
@@ -34,9 +35,10 @@ export async function guarded(fn: () => Promise<void>): Promise<StaffActionState
     }
     if (e instanceof AuthCheckUnavailable) return { error: e.message };
     if (e instanceof WorkflowError) {
-      if (e.code === "status_conflict") {
-        return { error: "This application changed while you were looking at it. Reload and try again." };
-      }
+      // Only the engine's own conflict gets the reload line; a precondition
+      // an action wrote for the person ("Accept or reject the documents
+      // first") is shown as written.
+      if (isStaleConflict(e)) return { error: STALE_CONFLICT_MESSAGE };
       return { error: e.message };
     }
     if (e instanceof ZodError) {

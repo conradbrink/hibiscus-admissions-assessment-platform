@@ -2770,6 +2770,8 @@ export type Database = {
           p_current_grade?: string | null;
           p_heard_from?: HeardFrom | null;
           p_heard_from_detail?: string | null;
+          /** Staff, or a parent whose session already names this family: may correct the contact and the child's name. */
+          p_trusted?: boolean;
         };
         Returns: {
           application_id: string;

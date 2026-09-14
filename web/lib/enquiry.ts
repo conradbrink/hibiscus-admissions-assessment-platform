@@ -113,6 +113,15 @@ export type EnquiryInput = {
    * of birth alone. Left out, the age recommendation decides.
    */
   gradeId?: string | null;
+  /**
+   * Whether the caller has proved they may act for this family: a member of
+   * staff, or a parent whose browser already holds a session for one of the
+   * family's applications. An anonymous form that names an address already
+   * on file is not, and then nothing that exists is edited — not the
+   * contact's name, not their number, not the child's spelling, not the
+   * WhatsApp opt-in. See `20260914110000_enquiry_form_never_edits_a_stranger`.
+   */
+  trusted?: boolean;
 };
 
 export type EnquiryResult = {
@@ -191,14 +200,16 @@ export async function createEnquiry(
     p_current_grade: input.currentGrade?.trim() || null,
     p_heard_from: input.heardFrom ?? null,
     p_heard_from_detail: input.heardFrom === "other" ? input.heardFromDetail?.trim() || null : null,
+    p_trusted: input.trusted ?? false,
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];
   if (!row) throw new Error("create_application returned nothing");
 
   // Opt-in is only ever switched on by the parent's own tick. A returning
-  // parent who leaves the box clear keeps whatever they chose before.
-  if (input.whatsappOptIn) {
+  // parent who leaves the box clear keeps whatever they chose before — and
+  // a stranger typing their address cannot switch it on for them.
+  if (input.whatsappOptIn && (row.created || input.trusted)) {
     await admin
       .from("contacts")
       .update({

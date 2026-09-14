@@ -841,6 +841,69 @@ the checklist.
   cancellation email, one `rebook_nudge` with a `booking_none` precondition,
   the online cutoff, and the missed session named on the page.
 
+### Learned on the end-to-end QA run (14 September 2026)
+
+Every parent door, every active campus, every stage and every staff role was
+walked in a headless browser against a local stack (Postgres with all the
+migrations replayed, PostgREST, a stub for auth and storage, `next dev` with
+the `dev` adapters). What it found, and the rule each one left behind:
+
+- **The enquiry form is an unauthenticated write, so it must never edit.**
+  `create_application` used to update the matching contact's name and
+  mobile from whatever the form said, and reuse the matching application
+  (same child, same date of birth) — so anyone who knew a family's email
+  address could rename the parent, change the number the offer goes to, and
+  be handed a session on the existing application. The function now takes
+  `p_trusted`, false by default: an untrusted repeat changes nothing on
+  file, adds a child when the child is new, and the parent is emailed a
+  fresh link instead of the stranger being let in. The join action decides
+  trust from the browser's own session (the same family correcting a
+  spelling keeps working), the walk-in form is always trusted, and a
+  matching child under an untrusted submission is *found*, not edited.
+- **A pause in a state graph is a move only where the graph allows it.**
+  A parent cancelling a pre-school play date, or staff marking one a
+  no-show, tried `awaiting_decision → new_enquiry`, which the graph refuses
+  — the booking was cancelled, the page crashed, and the family was left
+  with no booking and no status change. `statusAfterCancellation()` in
+  `lib/workflow/states.ts` answers "where does a cancellation leave this
+  application" from the graph, and every booking action asks it. The rule:
+  compute the move before writing anything, and unit-test that the helper
+  never proposes an edge `TRANSITIONS` lacks.
+- **`next_action` is not a stage.** The booking page offered a visit-door
+  family the sitting from day one because `next_action` was already
+  `book_assessment`; and before that it offered them visits for ever,
+  because only the door was consulted. `lib/booking/kind.ts` decides from
+  three facts — assessed grade, door, and whether a visit was attended —
+  and the attended visit is looked up in `bookings`, not inferred from the
+  one live booking, because after a missed sitting there is no live one.
+- **A server action module is not hot-reloaded for a new export.** Adding
+  `recordReviewOutcome` to an existing `actions.ts` and pointing a page at
+  it left the running `next dev` posting the *old* action id under the new
+  name for as long as it lived. Restart the dev server after adding a
+  server action; a walkthrough that says "still broken" after a fix should
+  check the action name in the dev log before looking at the code.
+- **React resets uncontrolled forms when the action returns.** The
+  agreements page kept its tick boxes on the server's last acceptance
+  rather than on what the parent had just posted, so a refused signature
+  wiped every tick and the next attempt failed on "please tick to accept".
+  Every field on a form with a server action seeds its default from
+  `state.values` when there is one — the registration steps did; the
+  agreements did not.
+- **What a parent typed must reach the person acting on it.** "Best time to
+  call" was stored in `callback_requests` and rendered nowhere.
+- **One error code, two meanings, and the person only ever sees one.** Every
+  `status_conflict` was replaced by "This application changed while you were
+  looking at it", so the sentences actions write for staff ("Accept or
+  reject the documents first: birth certificate") never reached them.
+  `lib/staff/stale-conflict.ts` keeps the reload line for the engine's own
+  conflict and lets every other message through. If a new precondition
+  needs its own words, write them in the throw; do not add a mapping.
+- **A test that clicks the first matching section approves the wrong
+  family.** Playwright's `locator("section", { hasText })` matches the
+  outer list as well as the card, and `.first()` is the list. `.last()` is
+  the card. Not a product bug, but it cost an hour and one stranger's
+  offer.
+
 ### One list, or it will drift (10 September 2026)
 
 The fee vocabulary lived in five places: the check constraint on `fee_lines.code`,
@@ -1063,6 +1126,21 @@ contradicts itself, the choice made is recorded and must be confirmed.
 
 ### What is untested, honestly
 
+- **What was exercised on 14 September 2026, in a browser, against a
+  local stack:** all four doors at every active campus; grade confirmation;
+  booking, rescheduling, cancellation, no-show and staff cancellation;
+  check-in, launch code, the kiosk sitting with autosave and refresh,
+  marking, the review queue (approve, waitlist, decline), offer approval
+  and sending, the offer page, the dev gateway (declined, then paid, and a
+  spoofed return URL), every registration step, uploads at the edges
+  (empty, 10 MB, 10 MB + 1, wrong bytes), agreements and signature,
+  document review and enrolment; defer, resume, withdraw, change of grade
+  and of campus; every staff role against every page; a parent against the
+  staff surfaces, another family's data and every pre-stage page; every
+  parent and staff page at 390 px; dashboard figures against the database.
+  The scripts live outside the repository; the fixes they found are pinned
+  by unit tests and by security suite cases 66 and 67. What follows is
+  still untested against real providers.
 - The **Anthropic adapter** has not been run against the live API. It is
   built on `client.messages.parse` with a Zod output format per the SDK's
   documentation; the validator and fallback are unit tested, so a wrong

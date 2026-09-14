@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import type { EnquiryFormState } from "@/components/parent/enquiry-form";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { normaliseEmail } from "@/lib/contacts";
 import { createEnquiry, loadCatalogue } from "@/lib/enquiry";
 import { funnelSessionKey } from "@/lib/funnel-session";
 import { recordFunnelStep } from "@/lib/funnel";
@@ -12,7 +13,7 @@ import { promotionForCode } from "@/lib/promotions/load";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { getSettings } from "@/lib/settings";
-import { startParentSession } from "@/lib/tokens/server";
+import { readParentSession, startParentSession } from "@/lib/tokens/server";
 import { callbackSchema, enquirySchema, fieldErrors } from "@/lib/validation";
 import { PARENT_ACTOR } from "@/lib/workflow/engine";
 import { onEnquiryCreated } from "@/lib/workflow/actions";
@@ -30,11 +31,36 @@ function elapsedFrom(t0: number | undefined): number | null {
 }
 
 /**
+ * Whether this browser may act for the family behind an email address.
+ *
+ * The form is anonymous, so the only proof it can offer is a parent session
+ * it already holds — the case the one-child-one-enquiry rule was written for:
+ * a parent who submits, sees the typo, and submits again a minute later. A
+ * stranger typing a family's address has no such cookie, and is not allowed to
+ * overwrite the parent's name or number, rename the child, or be handed the
+ * family's application. They get the link by email instead, which is what
+ * proves the address is theirs.
+ */
+async function trustedForContact(admin: ReturnType<typeof createAdminClient>, emailNormalised: string): Promise<boolean> {
+  const { data: contact } = await admin.from("contacts").select("id").eq("email_normalised", emailNormalised).maybeSingle();
+  if (!contact) return true; // Nobody to protect yet: a new family.
+  const session = await readParentSession();
+  if (!session) return false;
+  const { data: app } = await admin.from("applications").select("contact_id").eq("id", session.applicationId).maybeSingle();
+  return app?.contact_id === contact.id;
+}
+
+/**
  * The enquiry. Creates the application, starts the parent's session, and
  * sends them to the grade confirmation. Routing (which emails, which tasks)
  * happens on the *next* screen, once the grade is confirmed — see
  * `confirmGrade` in ../next/actions.ts. The callback route is the
  * exception: there is no grade step, so it routes immediately.
+ *
+ * An address already on file, from a browser holding no session for that
+ * family, is the one path that does not end in a session: the application is
+ * found (or a new child is added) and the link goes to the inbox. See
+ * `trustedForContact`.
  */
 export async function submitEnquiry(
   route: EntryRoute,
@@ -73,6 +99,8 @@ export async function submitEnquiry(
     promoCode = normaliseCode(parsed.data.promoCode);
   }
 
+  const trusted = await trustedForContact(admin, normaliseEmail(parsed.data.email));
+
   let result;
   try {
     result = await createEnquiry(admin, catalogue, {
@@ -89,6 +117,7 @@ export async function submitEnquiry(
       whatsappOptIn: parsed.data.whatsappOptIn === "1",
       heardFrom: parsed.data.heardFrom,
       heardFromDetail: parsed.data.heardFromDetail ?? null,
+      trusted,
     });
   } catch (e) {
     console.error("[enquiry] create failed", (e as Error).message);
@@ -101,8 +130,9 @@ export async function submitEnquiry(
 
   // Additional needs, if the family said so. Only ever set here, never
   // cleared by a later enquiry: a family that told us once should not have to
-  // tell us again. Staff are given a task when the grade is confirmed.
-  if (parsed.data.hasSpecialNeeds === "1") {
+  // tell us again. Staff are given a task when the grade is confirmed. An
+  // anonymous form does not write it onto an application it merely found.
+  if (parsed.data.hasSpecialNeeds === "1" && (result.created || trusted)) {
     await admin
       .from("applications")
       .update({
@@ -121,6 +151,27 @@ export async function submitEnquiry(
     gradeId: result.gradeId,
     elapsedMs: elapsedFrom(parsed.data.t0),
   });
+
+  if (!trusted) {
+    // The address is on file and this browser has not proved it is theirs.
+    // No session: the link goes to the inbox, and `/next` routes an unrouted
+    // enquiry to the grade step when it is opened. One email a minute,
+    // however often the form is pressed; the sweep routes the enquiry after
+    // ten minutes either way, so the family is never left without an email.
+    await admin.from("jobs").upsert(
+      {
+        type: "send_email",
+        payload: { template_key: "fresh_link" },
+        application_id: result.applicationId,
+        idempotency_key: `email:${result.applicationId}:fresh_link:${Math.floor(Date.now() / 60_000)}`,
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true }
+    );
+    after(async () => {
+      await drainJobs(createAdminClient()).catch((e) => console.error("[jobs] drain failed", e));
+    });
+    return { linkSent: { email: parsed.data.email.trim() }, values };
+  }
 
   const settings = await getSettings(admin);
   await startParentSession(result.applicationId, "next_step", settings.parentSessionMinutes);
