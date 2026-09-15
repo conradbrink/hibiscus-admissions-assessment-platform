@@ -126,12 +126,19 @@ export async function inviteStaff(_: StaffActionState, formData: FormData): Prom
       .from("staff_profiles")
       .upsert({ id: userId, full_name: p.fullName, email: p.email, is_active: true });
     if (pErr) throw new Error(pErr.message);
+    // Upserts, not inserts: inviting somebody a second time — because the
+    // first attempt sent no email — must not die on the roles the first
+    // attempt already saved. A role or campus they already hold is kept.
     if (roleIds.length) {
-      const { error: rErr } = await admin.from("staff_roles").insert(roleIds.map((role_id) => ({ staff_id: userId, role_id })));
+      const { error: rErr } = await admin
+        .from("staff_roles")
+        .upsert(roleIds.map((role_id) => ({ staff_id: userId, role_id })), { onConflict: "staff_id,role_id", ignoreDuplicates: true });
       if (rErr) throw new Error(rErr.message);
     }
     if (campusIds.length) {
-      await admin.from("staff_campuses").insert(campusIds.map((campus_id) => ({ staff_id: userId, campus_id })));
+      await admin
+        .from("staff_campuses")
+        .upsert(campusIds.map((campus_id) => ({ staff_id: userId, campus_id })), { onConflict: "staff_id,campus_id", ignoreDuplicates: true });
     }
     await sendInvite(admin, userId, ctx.profile.full_name, ctx.userId);
     await admin.from("audit_log").insert({
