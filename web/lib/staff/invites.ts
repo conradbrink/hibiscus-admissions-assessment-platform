@@ -81,9 +81,15 @@ export type InviteLookup =
  * scanner opening it first — costs nothing.
  */
 export async function findStaffInvite(admin: AdminClient, token: string): Promise<InviteLookup> {
+  // The join names its foreign key. `staff_invites` points at `staff_profiles`
+  // twice — the person invited and the person who invited them — and an
+  // unqualified `staff_profiles(...)` is refused by PostgREST as ambiguous
+  // (HTTP 300, no rows). Every invitation link ever opened answered "not
+  // recognised" for exactly this reason; nobody saw it because the route
+  // guard had bounced every visitor to the sign-in page before the page ran.
   const { data } = await admin
     .from("staff_invites")
-    .select("id, staff_id, accepted_at, revoked_at, expires_at, purpose, staff_profiles(full_name, email, is_active)")
+    .select("id, staff_id, accepted_at, revoked_at, expires_at, purpose, staff_profiles!staff_invites_staff_id_fkey(full_name, email, is_active)")
     .eq("token_hash", hashToken(token))
     .maybeSingle();
   if (!data) return { ok: false, reason: "unknown" };
