@@ -18,6 +18,9 @@ import { commit, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "
 
 const DAY = 86_400_000;
 
+/** How many times a settlement re-reads the application after a status conflict before giving up. */
+const SETTLE_ATTEMPTS = 3;
+
 function due(request: Pick<PaymentRequestRow, "due_at">): Date {
   return new Date(request.due_at);
 }
@@ -93,18 +96,6 @@ export async function onPaymentVerified(
     .select("id");
   if (!settled?.length) return;
 
-  // The application's status is read again now, after the row is ours, and
-  // not taken from the caller. The caller read it before asking the gateway,
-  // and in the seconds that took the attempt-window timer may have moved the
-  // application back to "payment required" (`onPaymentFailed`, below, on a
-  // row it then lost to the update above). A commit expecting the stale
-  // status would throw — leaving the money recorded and the application not
-  // moved, the one outcome worse than either side winning cleanly. Winning
-  // the row is what makes this the thread that settles; the status it settles
-  // from is whatever is true at that moment.
-  const { data: current } = await admin.from("applications").select("status").eq("id", app.id).single();
-  const status = current?.status ?? app.status;
-
   const paidMinor = Number(request.paid_minor) + Number(payment.amount_minor);
   const settledInFull = paidMinor >= Number(request.amount_minor);
   const { error } = await admin
@@ -145,50 +136,73 @@ export async function onPaymentVerified(
     return;
   }
 
-  if (status !== "payment_required" && status !== "payment_processing") {
-    // Money for an application that is not waiting for money: withdrawn,
-    // or already paid another way. Never silently absorbed.
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: null,
-      newStatus: null,
-      nextAction: null,
-      event: {
-        type: "payment.received_unexpected",
-        summary: `Payment of ${amount} received while the application is ${status}`,
-        payload: { payment_id: payment.id, payment_request_id: request.id },
-      },
-      tasks: [
-        {
-          type: "payment_refund_review",
-          title: `${app.child_first_name}: payment received, application is ${status}`,
-          details: `${amount} arrived by ${method} but the application is not awaiting payment. Decide whether to refund or apply it.`,
-          priority: "high",
-        },
-      ],
-      audit: { action: "payment.received", entityType: "payment", entityId: payment.id, after: { amount_minor: payment.amount_minor, method: payment.method, unexpected: true } },
-      actor,
-    });
-    return;
-  }
-
   const settings = await getSettings(admin);
   // The registration row exists from here so every later save is an update.
   await admin.from("registrations").upsert({ application_id: app.id }, { onConflict: "application_id", ignoreDuplicates: true });
-  await commit(admin, {
-    applicationId: app.id,
-    expectedStatus: status,
-    newStatus: "paid",
-    nextAction: "none",
-    event: {
-      type: "payment.confirmed",
-      summary: `Payment of ${amount} confirmed (${method})`,
-      payload: { payment_id: payment.id, payment_request_id: request.id, provider: payment.provider, provider_ref: payment.provider_ref, approval_code: result.approvalCode },
-    },
-    resolveTaskTypes: ["payment_overdue", "payment_failed_follow_up", "payment_review", "payment_shortfall"],
-    audit: { action: "payment.confirmed", entityType: "payment", entityId: payment.id, after: { amount_minor: payment.amount_minor, method: payment.method, provider: payment.provider } },
-    actor,
-  });
+
+  // The application's status is read here, after the row is ours, and not
+  // taken from the caller: the caller read it before asking the gateway, and
+  // in the seconds that took the attempt-window timer may have moved the
+  // application back to "payment required" (`onPaymentFailed`, on a row it
+  // then lost to the update above). Reading once is not enough either — the
+  // timer can land between this read and the commit, which then throws
+  // status_conflict with the money recorded and the application not moved,
+  // the one outcome worse than either side winning cleanly. So a conflict
+  // re-reads and tries again: winning the row is what makes this the thread
+  // that settles, and the only other writer moves the application between
+  // two statuses this commit accepts as its start.
+  for (let attempt = 1; ; attempt++) {
+    const { data: current } = await admin.from("applications").select("status").eq("id", app.id).single();
+    const status = current?.status ?? app.status;
+
+    if (status !== "payment_required" && status !== "payment_processing") {
+      // Money for an application that is not waiting for money: withdrawn,
+      // or already paid another way. Never silently absorbed.
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: null,
+        newStatus: null,
+        nextAction: null,
+        event: {
+          type: "payment.received_unexpected",
+          summary: `Payment of ${amount} received while the application is ${status}`,
+          payload: { payment_id: payment.id, payment_request_id: request.id },
+        },
+        tasks: [
+          {
+            type: "payment_refund_review",
+            title: `${app.child_first_name}: payment received, application is ${status}`,
+            details: `${amount} arrived by ${method} but the application is not awaiting payment. Decide whether to refund or apply it.`,
+            priority: "high",
+          },
+        ],
+        audit: { action: "payment.received", entityType: "payment", entityId: payment.id, after: { amount_minor: payment.amount_minor, method: payment.method, unexpected: true } },
+        actor,
+      });
+      return;
+    }
+
+    try {
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: status,
+        newStatus: "paid",
+        nextAction: "none",
+        event: {
+          type: "payment.confirmed",
+          summary: `Payment of ${amount} confirmed (${method})`,
+          payload: { payment_id: payment.id, payment_request_id: request.id, provider: payment.provider, provider_ref: payment.provider_ref, approval_code: result.approvalCode },
+        },
+        resolveTaskTypes: ["payment_overdue", "payment_failed_follow_up", "payment_review", "payment_shortfall"],
+        audit: { action: "payment.confirmed", entityType: "payment", entityId: payment.id, after: { amount_minor: payment.amount_minor, method: payment.method, provider: payment.provider } },
+        actor,
+      });
+      break;
+    } catch (e) {
+      if (e instanceof WorkflowError && e.code === "status_conflict" && attempt < SETTLE_ATTEMPTS) continue;
+      throw e;
+    }
+  }
 
   const jobs: JobSpec[] = [
     {
@@ -412,10 +426,20 @@ export async function onPaymentRefunded(
   if (error) throw new WorkflowError(error.message, "database");
   const { data: request } = await admin.from("payment_requests").select("*").eq("id", payment.payment_request_id).single();
   if (request) {
+    // The status follows what is still held against the amount asked, not
+    // merely whether anything is. Refunding the second of two payments for
+    // the same request — the double charge the attempt window can produce —
+    // leaves it paid in full, and it must say so, or the family loses their
+    // receipt and the office sees money outstanding that is not.
     const paidMinor = Math.max(0, Number(request.paid_minor) - Number(payment.amount_minor));
+    const stillPaid = paidMinor >= Number(request.amount_minor);
     await admin
       .from("payment_requests")
-      .update({ paid_minor: paidMinor, status: paidMinor > 0 ? "partially_paid" : "refunded", paid_at: null })
+      .update({
+        paid_minor: paidMinor,
+        status: stillPaid ? "paid" : paidMinor > 0 ? "partially_paid" : "refunded",
+        paid_at: stillPaid ? request.paid_at : null,
+      })
       .eq("id", request.id);
   }
   await commit(admin, {

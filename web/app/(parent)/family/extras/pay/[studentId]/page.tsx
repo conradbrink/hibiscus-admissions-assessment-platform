@@ -10,6 +10,7 @@ import { loadStudentOrder } from "@/lib/family/extras";
 import { familyClient } from "@/lib/family/scope";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
+import { lateAttemptOf } from "@/lib/payments/attempts";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { requestLines } from "@/lib/payments/requests";
 import { requireFamilySession } from "@/lib/tokens/server";
@@ -48,9 +49,16 @@ export default async function ExtrasPayPage({
     redirect("/family/extras");
   }
 
-  const { student, request, payments, outstanding, items } = order;
+  const { student, request: latest, payments, outstanding, items } = order;
   const name = student.preferred_name || student.legal_first_name;
   const reference = paymentReferenceFor(student.legal_first_name, student.legal_last_name);
+
+  // A cancelled request is one we gave up on — the attempt expired and the
+  // lines went back to the family — so for the figures it is as if there were
+  // none: the order is what they have chosen now, and Pay raises a fresh
+  // request over it. Its payments are still read, because the attempt that
+  // expired may have been paid after all, and that is asked about below.
+  const request = latest && latest.status !== "cancelled" ? latest : null;
 
   // Either the request's own copied lines, or — before one exists — the same
   // arithmetic over what is still unpaid.
@@ -72,6 +80,10 @@ export default async function ExtrasPayPage({
   const stillDue = totalMinor - paidMinor;
   const processing = payments.find((p) => p.status === "processing") ?? null;
   const lastFailed = payments.find((p) => p.status === "failed" || p.status === "expired") ?? null;
+  // Given up on, recently, with a reference at the gateway: the parent may
+  // have finished paying after we stopped waiting, and can ask before paying
+  // again.
+  const lateCheck = lateAttemptOf(payments) !== null;
   const settled = request?.status === "paid";
   const canPay = !request || ["required", "failed", "partially_paid"].includes(request.status);
 
@@ -140,9 +152,18 @@ export default async function ExtrasPayPage({
       ) : null}
 
       {lastFailed && !processing && !settled ? (
-        <p className="mt-4 text-sm text-muted-foreground">
-          The last attempt did not go through{lastFailed.failure_reason ? ` (${lastFailed.failure_reason})` : ""}. You can try again below.
-        </p>
+        lateCheck ? (
+          <section className="mt-4 rounded-2xl bg-warning/20 p-4 text-sm">
+            <p>We did not get confirmation of your last payment in time. If you finished paying on the provider&rsquo;s page, check again before paying twice; otherwise you can try again below.</p>
+            <div className="mt-3">
+              <CheckPaymentButton action={checkExtrasPayment.bind(null, student.id)} />
+            </div>
+          </section>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            The last attempt did not go through{lastFailed.failure_reason ? ` (${lastFailed.failure_reason})` : ""}. You can try again below.
+          </p>
+        )
       ) : null}
 
       {processing ? (

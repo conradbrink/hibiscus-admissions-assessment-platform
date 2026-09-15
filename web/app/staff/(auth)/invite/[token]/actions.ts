@@ -18,6 +18,7 @@ export async function acceptInvite(_: InviteState, formData: FormData): Promise<
   const token = String(formData.get("token") ?? "");
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
+  const purpose = formData.get("purpose") === "reset" ? "reset" : "invite";
   if (!token) return { error: "This invitation link is not recognised." };
   if (password !== confirm) return { error: "The two passwords do not match." };
 
@@ -26,7 +27,7 @@ export async function acceptInvite(_: InviteState, formData: FormData): Promise<
   const verdict = await enforceRateLimit(admin, LIMITS.staffInvite, ctx.ipHash ?? "unknown");
   if (!verdict.ok) return { error: "Too many attempts from this computer. Try again in a few minutes." };
 
-  const result = await acceptStaffInvite(admin, token, password);
+  const result = await acceptStaffInvite(admin, token, password, purpose);
   if (!result.ok) return { error: result.message };
 
   const supabase = await createClient();

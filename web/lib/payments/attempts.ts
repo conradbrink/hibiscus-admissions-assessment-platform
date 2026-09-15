@@ -1,6 +1,11 @@
-import "server-only";
-import { CHECKOUT_TTL_HOURS } from "@/lib/payments/provider";
 import type { PaymentRow } from "@/lib/supabase/types";
+
+/**
+ * How long a hosted checkout stays open at the gateway. Pure, and defined
+ * here rather than beside the providers, so the helpers below — and their
+ * tests — need nothing that only runs on the server.
+ */
+export const CHECKOUT_TTL_HOURS = 24;
 
 /**
  * Which online attempts a parent-facing check asks the gateway about.
@@ -30,6 +35,21 @@ export function recentAttemptsSince(now: number = Date.now()): string {
 /** Only an online attempt the gateway knows by reference can be asked about. */
 export function askable(payment: Pick<PaymentRow, "status" | "method" | "provider_ref">): boolean {
   return payment.method === "online" && payment.provider_ref !== null && ATTEMPT_STATUSES.includes(payment.status);
+}
+
+/**
+ * The attempt a parent can still usefully ask about: the newest one we gave
+ * up on that the gateway knows by reference, within its checkout window.
+ * Chosen over the newest failure of any kind, because a checkout the gateway
+ * refused to open (no reference, nothing to ask about) can come after it and
+ * must not hide the one that may have been paid.
+ */
+export function lateAttemptOf<T extends Pick<PaymentRow, "status" | "method" | "provider_ref" | "created_at">>(
+  payments: T[],
+  now: number = Date.now()
+): T | null {
+  const since = recentAttemptsSince(now);
+  return payments.find((p) => p.status === "expired" && p.method === "online" && p.provider_ref !== null && p.created_at >= since) ?? null;
 }
 
 /**
