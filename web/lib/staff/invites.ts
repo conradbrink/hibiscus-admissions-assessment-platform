@@ -107,10 +107,19 @@ export type AcceptResult = { ok: true; email: string } | { ok: false; message: s
  * Sets the password and spends the invitation, in that order, under a
  * conditional update so two simultaneous submissions cannot both win.
  */
-export async function acceptStaffInvite(admin: AdminClient, token: string, password: string): Promise<AcceptResult> {
+export async function acceptStaffInvite(
+  admin: AdminClient,
+  token: string,
+  password: string,
+  // Which page the form was on. A link that has lapsed between opening the
+  // page and pressing the button is refused here, and the refusal must read
+  // as the page does — a reset sends the person back to ask for a new link,
+  // an invitation to the office.
+  purpose: InvitePurpose = "invite"
+): Promise<AcceptResult> {
   if (password.length < MIN_PASSWORD) return { ok: false, message: `Use at least ${MIN_PASSWORD} characters.` };
   const found = await findStaffInvite(admin, token);
-  if (!found.ok) return { ok: false, message: reasonText(found.reason) };
+  if (!found.ok) return { ok: false, message: reasonText(found.reason, purpose) };
 
   const { data: spent, error: spendErr } = await admin
     .from("staff_invites")
@@ -121,7 +130,7 @@ export async function acceptStaffInvite(admin: AdminClient, token: string, passw
     .select("id")
     .maybeSingle();
   if (spendErr) return { ok: false, message: spendErr.message };
-  if (!spent) return { ok: false, message: reasonText("accepted") };
+  if (!spent) return { ok: false, message: reasonText("accepted", found.purpose) };
 
   const { error } = await admin.auth.admin.updateUserById(found.staffId, { password, email_confirm: true });
   if (error) {

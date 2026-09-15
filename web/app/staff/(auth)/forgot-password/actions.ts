@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { z } from "zod";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
@@ -26,12 +27,18 @@ export async function requestPasswordReset(_: ForgotPasswordState, formData: For
   const byEmail = await enforceRateLimit(admin, LIMITS.staffResetByEmail, email);
   if (!byEmail.ok) return { done: true };
 
-  try {
-    await requestStaffPasswordReset(admin, email);
-  } catch (e) {
-    // Logged, not shown: the person cannot act on it and the answer on the
-    // screen must not depend on whether the address is real.
-    console.error("[staff] password reset failed", e);
-  }
+  // After the response, not before it: minting a link and sending an email
+  // takes hundreds of milliseconds and an unknown address takes one query,
+  // and the difference would say from the sign-in page which addresses are
+  // on the staff list. The answer on the screen is the same either way, and
+  // now so is how long it takes to arrive. Failures are logged, not shown:
+  // the person cannot act on them.
+  after(async () => {
+    try {
+      await requestStaffPasswordReset(admin, email);
+    } catch (e) {
+      console.error("[staff] password reset failed", e);
+    }
+  });
   return { done: true };
 }
