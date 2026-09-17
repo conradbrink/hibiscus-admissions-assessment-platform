@@ -1,4 +1,5 @@
 import "server-only";
+import { startLabel } from "@/lib/start-month";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAiProvider } from "@/lib/ai/provider";
 import { parseMismatchFlags } from "@/lib/documents/compare";
@@ -82,7 +83,7 @@ export async function loadSummaryInputs(client: SupabaseClient<Database>, applic
     },
     campus: one(app.campuses)?.name ?? "",
     grade: one(app.grades)?.name ?? "",
-    intake: one(app.intakes)?.label ?? "",
+    intake: startLabel(app, { label: one(app.intakes)?.label ?? "" }),
     events: events.data ?? [],
     booking: bookingSession ? { starts_at: bookingSession.starts_at, kind: booking.data!.kind } : null,
     attempt: attempt.data ?? null,

@@ -12,6 +12,7 @@ import { feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { applyPromotionToOffer, approveOffer, generateOffer, removePromotionFromOffer, sendOutcome, withdrawOffer } from "./actions";
+import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -25,7 +26,7 @@ export default async function OffersPage() {
 
   const { data: apps } = await supabase
     .from("applications")
-    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label)")
+    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label)")
     .in("status", ["approved", "offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
@@ -59,7 +60,7 @@ export default async function OffersPage() {
     <div className="flex flex-wrap items-center gap-3">
       <div className="min-w-0 flex-1">
         <Link href={`/staff/applications/${a.id}`} className="font-semibold hover:underline">{a.child_first_name} {a.child_last_name}</Link>
-        <p className="text-xs text-muted-foreground">{one(a.grades)?.name} · {one(a.campuses)?.name} · {one(a.intakes)?.label} · {a.reference} · since {formatDateTime(a.status_changed_at)}</p>
+        <p className="text-xs text-muted-foreground">{one(a.grades)?.name} · {one(a.campuses)?.name} · {startLabel(a, { label: one(a.intakes)?.label ?? "" })} · {a.reference} · since {formatDateTime(a.status_changed_at)}</p>
       </div>
       <StatusBadge status={a.status} />
     </div>

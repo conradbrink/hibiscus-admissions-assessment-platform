@@ -25,6 +25,12 @@ export const FEE_CODES = [
   "registration",
   "admission",
   "tuition_month",
+  // Potchefstroom prices the month at two rates as well, and adds lunch for
+  // the older classes; the youngest have it in the price. Same shape as the
+  // term pair below: one line per code, a child placed on one of them.
+  "tuition_month_half",
+  "tuition_month_full",
+  "lunch_month",
   "tuition_term",
   // Pre-school is priced per term at two rates and a child is placed on one
   // of them. A schedule holds at most one line per code, so the two rates
@@ -41,6 +47,9 @@ const DEFAULTS: Record<FeeCode, { label: string; payableAtAcceptance: boolean }>
   registration: { label: "Application fee", payableAtAcceptance: true },
   admission: { label: "Admission fee", payableAtAcceptance: true },
   tuition_month: { label: "Tuition per month", payableAtAcceptance: false },
+  tuition_month_half: { label: "Tuition per month (half day)", payableAtAcceptance: false },
+  tuition_month_full: { label: "Tuition per month (full day)", payableAtAcceptance: false },
+  lunch_month: { label: "Lunch per month", payableAtAcceptance: false },
   tuition_term: { label: "Tuition per term", payableAtAcceptance: false },
   tuition_term_half: { label: "Tuition per term (half day)", payableAtAcceptance: false },
   tuition_term_full: { label: "Tuition per term (full day)", payableAtAcceptance: false },

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { FunnelT0Field } from "@/components/parent/funnel-beacon";
 import type { ActionState } from "@/app/(parent)/next/actions";
+import type { IntakeCadence, MonthChoice } from "@/lib/start-month";
 
 export type GradeConfirmProps = {
   childFirstName: string;
@@ -18,7 +19,11 @@ export type GradeConfirmProps = {
   /** The pre-school door: only classes that campus does not assess. */
   preschoolOnly?: boolean;
   intakes: Array<{ id: string; label: string }>;
-  initial: { campusId: string; gradeId: string; intakeId: string };
+  /** campus id → whether families join it by the term or by the month. */
+  cadence: Record<string, IntakeCadence>;
+  /** The months a family may choose at a campus that runs by the month. */
+  months: MonthChoice[];
+  initial: { campusId: string; gradeId: string; intakeId: string; startMonth: string | null };
   recommended: { gradeId: string; gradeName: string; ageOnCutoff: number } | null;
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
 };
@@ -129,16 +134,32 @@ export function GradeConfirmForm(props: GradeConfirmProps) {
         ) : null}
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="intakeId">Starting</Label>
-        <NativeSelect id="intakeId" name="intakeId" defaultValue={props.initial.intakeId}>
-          {props.intakes.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.label}
-            </option>
-          ))}
-        </NativeSelect>
-      </div>
+      {props.cadence[campusId] === "month" ? (
+        // Potch and Tlokweng take children in by the month. The term is
+        // worked out from the month on the server, never asked for here.
+        <div className="space-y-1.5">
+          <Label htmlFor="startMonth">Starting in</Label>
+          <NativeSelect id="startMonth" name="startMonth" defaultValue={props.initial.startMonth ?? props.months[0]?.value ?? ""}>
+            {props.months.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <p className="text-xs text-muted-foreground">This campus takes children in by the month, and fees are charged monthly.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor="intakeId">Starting</Label>
+          <NativeSelect id="intakeId" name="intakeId" defaultValue={props.initial.intakeId}>
+            {props.intakes.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      )}
 
       {state.error ? (
         <p role="alert" className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">

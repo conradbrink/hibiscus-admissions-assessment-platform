@@ -215,6 +215,14 @@ export type AuditLogRow = {
   occurred_at: string;
 };
 
+/**
+ * Whether families join a campus by the term or by the month. Potch CBD,
+ * Potch South and Bana Tlokweng run by the month: a child starts in October,
+ * is invoiced monthly, and the letter says "October 2026". Every other campus
+ * takes children in by the term. See lib/start-month.ts.
+ */
+export type IntakeCadence = "term" | "month";
+
 export type CampusRow = {
   id: string;
   code: string;
@@ -222,6 +230,7 @@ export type CampusRow = {
   descriptor: string | null;
   country: "BW" | "ZA";
   currency: "BWP" | "ZAR";
+  intake_cadence: IntakeCadence;
   address: string | null;
   /**
    * The two numbers a parent can reach this campus on, separately from the
@@ -373,6 +382,12 @@ export type ApplicationRow = {
   grade_id: string;
   recommended_grade_id: string | null;
   intake_id: string;
+  /**
+   * The month the child starts, at a campus that runs by the month: always
+   * the first of the month. Null at a termly campus, and on the monthly
+   * campuses' older applications, where the term stands in until staff set it.
+   */
+  start_month: string | null;
   requires_assessment: boolean;
   /** Pre-school only, and only once the school has decided. Null is normal. */
   day_pattern: DayPattern | null;
@@ -939,6 +954,9 @@ export type FeeCode =
   | "tuition_term_half"
   | "tuition_term_full"
   | "tuition_month"
+  | "tuition_month_half"
+  | "tuition_month_full"
+  | "lunch_month"
   | "stationery_annual";
 
 /**
@@ -1777,7 +1795,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "address" | "phone" | "whatsapp" | "maps_url" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "intake_cadence" | "address" | "phone" | "whatsapp" | "maps_url" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
       >;
       promotions: TableOf<
         PromotionRow,
@@ -1828,6 +1846,7 @@ export type Database = {
         | "current_school"
         | "current_grade"
         | "day_pattern"
+        | "start_month"
         | "status"
         | "status_changed_at"
         | "source"
@@ -2774,6 +2793,8 @@ export type Database = {
           p_heard_from_detail?: string | null;
           /** Staff, or a parent whose session already names this family: may correct the contact and the child's name. */
           p_trusted?: boolean;
+          /** The first of the month the child starts, at a campus that runs by the month. */
+          p_start_month?: string | null;
         };
         Returns: {
           application_id: string;

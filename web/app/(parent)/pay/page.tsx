@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { startLabel } from "@/lib/start-month";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Download } from "lucide-react";
@@ -52,7 +53,7 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
       <PageHeader
         eyebrow="Registration & admission fees"
         title={`${app.child_first_name} ${app.child_last_name}`}
-        description={`${graph.grade.name} at ${graph.campus.name}, starting ${graph.intake.label}. Reference ${app.reference}.`}
+        description={`${graph.grade.name} at ${graph.campus.name}, starting ${startLabel(graph.application, graph.intake)}. Reference ${app.reference}.`}
       />
 
       {settled ? (

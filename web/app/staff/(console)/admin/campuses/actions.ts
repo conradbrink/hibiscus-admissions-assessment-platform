@@ -12,6 +12,9 @@ const schema = z.object({
   descriptor: z.string().trim().max(120).optional(),
   country: z.enum(["BW", "ZA"]),
   currency: z.enum(["BWP", "ZAR"]),
+  // By the term or by the month: which question the forms ask, and what the
+  // letter names. See lib/start-month.ts.
+  intakeCadence: z.enum(["term", "month"]),
   address: z.string().trim().max(300).optional(),
   // Stored as typed. Botswana, South Africa and whoever comes next all write
   // a number differently, and a format this file invented would reject one
@@ -51,6 +54,7 @@ export async function saveCampus(_: StaffActionState, formData: FormData): Promi
         descriptor: p.descriptor || null,
         country: p.country,
         currency: p.currency,
+        intake_cadence: p.intakeCadence,
         address: p.address || null,
         phone: p.phone || null,
         whatsapp: p.whatsapp || null,

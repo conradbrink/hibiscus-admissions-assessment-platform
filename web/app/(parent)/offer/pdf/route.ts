@@ -29,6 +29,7 @@ export async function GET(): Promise<Response> {
     bodyHtml: offer.rendered_html,
     termsHtml: offer.terms_html,
     fees: offer.feeSnapshot,
+    dayPattern: graph.application.day_pattern,
     bankDetails: typeof (offer.variables as { bank_details?: unknown })?.bank_details === "string" ? ((offer.variables as { bank_details: string }).bank_details ?? null) : null,
     expiresOn: offer.expires_at ? formatDateLong(offer.expires_at) : null,
     sentOn: offer.sent_at ? formatDateLong(offer.sent_at) : null,

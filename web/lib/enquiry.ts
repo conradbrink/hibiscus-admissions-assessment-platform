@@ -5,6 +5,7 @@ import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
 import { parkingGrade, recommendGrade } from "@/lib/grades";
 import { offerableIntakes } from "@/lib/intakes";
+import { intakeForMonth, isMonthStart } from "@/lib/start-month";
 
 /**
  * What the funnel needs to render, and how it turns eight fields into an
@@ -94,6 +95,12 @@ export type EnquiryInput = {
   childDateOfBirth: string;
   campusId: string;
   intakeId: string | null;
+  /**
+   * The first of the month the child starts, at a campus that runs by the
+   * month (`campuses.intake_cadence`). The term is worked out from it. Ignored
+   * at a termly campus, where `intakeId` is the choice.
+   */
+  startMonth?: string | null;
   entryRoute: EntryRoute;
   currentSchool?: string | null;
   currentGrade?: string | null;
@@ -131,6 +138,7 @@ export type EnquiryResult = {
   gradeId: string;
   recommendedGradeId: string | null;
   intakeId: string;
+  startMonth: string | null;
 };
 
 /**
@@ -147,8 +155,13 @@ export async function createEnquiry(
   const campus = catalogue.campuses.find((c) => c.id === input.campusId);
   if (!campus) throw new Error("campus_not_found");
 
-  const intake =
-    catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0];
+  // A monthly campus takes the month and works the term out from it; a
+  // termly campus takes the term, or the first one open when none was chosen.
+  const startMonth = campus.intake_cadence === "month" && input.startMonth ? input.startMonth : null;
+  if (startMonth && !isMonthStart(startMonth)) throw new Error("bad_start_month");
+  const intake = startMonth
+    ? intakeForMonth(catalogue.intakes, startMonth)
+    : (catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0]);
   if (!intake) throw new Error("no_open_intake");
 
   // Recommend from the ladder this campus actually teaches. The two ladders
@@ -201,6 +214,7 @@ export async function createEnquiry(
     p_heard_from: input.heardFrom ?? null,
     p_heard_from_detail: input.heardFrom === "other" ? input.heardFromDetail?.trim() || null : null,
     p_trusted: input.trusted ?? false,
+    p_start_month: startMonth,
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];
@@ -230,6 +244,7 @@ export async function createEnquiry(
     gradeId,
     recommendedGradeId,
     intakeId: intake.id,
+    startMonth,
   };
 }
 

@@ -229,3 +229,71 @@ describe("feeLinesFor", () => {
     expect(feeLinesFor(fees, "full").filter((l) => l.payable_at_acceptance)).toHaveLength(1);
   });
 });
+
+describe("a campus that runs by the month", () => {
+  // Potch CBD and Potch South take children in by the month, price the month
+  // at two rates, and charge lunch separately for Grade RR and Grade R.
+  const potch: FeeLineRow[] = [
+    { id: "p1", schedule_id: "s", code: "registration", label: "Administration fee", amount_minor: 120_000, payable_at_acceptance: true, position: 1 },
+    { id: "p2", schedule_id: "s", code: "tuition_month_half", label: "Tuition per month (half day)", amount_minor: 240_000, payable_at_acceptance: false, position: 4 },
+    { id: "p3", schedule_id: "s", code: "tuition_month_full", label: "Tuition per month (full day)", amount_minor: 270_000, payable_at_acceptance: false, position: 5 },
+    { id: "p4", schedule_id: "s", code: "lunch_month", label: "Lunch per month", amount_minor: 50_000, payable_at_acceptance: false, position: 6 },
+  ];
+  const monthly = (extra: Record<string, unknown> = {}) =>
+    ({
+      ...graph,
+      application: { ...graph.application, start_month: "2026-10-01", day_pattern: null, ...extra },
+      campus: { name: "Potch CBD", currency: "ZAR" },
+      grade: { name: "Grade RR" },
+      intake: { label: "Term 3, 2026", starts_on: "2026-09-07" },
+    }) as typeof graph;
+  const on = (today: string, extra?: Record<string, unknown>) =>
+    buildOfferVariables(monthly(extra), snapshotFees({ currency: "ZAR" }, potch), { expiresAt: null, conditions: null, now: new Date(`${today}T09:00:00Z`) });
+
+  it("names the month the family chose, not the term counted underneath", () => {
+    const v = on("2026-09-17");
+    expect(v.intake).toBe("October 2026");
+    // ICU puts a comma after the weekday on some Node builds and not others.
+    expect(v.start_date).toMatch(/^Thursday,? 1 October 2026$/);
+    expect(v.by_month).toBe("yes");
+    expect(v.by_term).toBeNull();
+  });
+
+  it("is future tense until the first of the month, and past tense from it", () => {
+    expect(on("2026-09-30").intake_not_started).toBe("yes");
+    expect(on("2026-09-30").intake_started).toBeNull();
+    expect(on("2026-10-01").intake_started).toBe("yes");
+    expect(on("2026-10-01").intake_not_started).toBeNull();
+  });
+
+  it("quotes both monthly rates and the lunch until the day is decided", () => {
+    const v = on("2026-09-17");
+    expect(v.tuition_month).toBeNull();
+    expect(v.tuition_month_half).toBe("R 2,400.00");
+    expect(v.tuition_month_full).toBe("R 2,700.00");
+    expect(v.lunch_month).toBe("R 500.00");
+    expect(v.amount_due).toBe("R 1,200.00");
+  });
+
+  it("quotes the one rate the child is on once the school has said", () => {
+    const v = on("2026-09-17", { day_pattern: "full" });
+    expect(v.tuition_month).toBe("R 2,700.00");
+    expect(v.tuition_month_half).toBeNull();
+    expect(v.tuition_month_full).toBeNull();
+    expect(v.lunch_month).toBe("R 500.00");
+  });
+
+  it("keeps a termly campus on the term wording", () => {
+    const v = buildOfferVariables(graph, null, { expiresAt: null, conditions: null });
+    expect(v.intake).toBe("Term 1, 2027");
+    expect(v.by_term).toBe("yes");
+    expect(v.by_month).toBeNull();
+  });
+
+  it("drops the other monthly rate from what a reader sees, as it does the term rate", () => {
+    const snap = snapshotFees({ currency: "ZAR" }, potch);
+    expect(feeLinesFor(snap, "half").map((l) => l.code)).toEqual(["registration", "tuition_month_half", "lunch_month"]);
+    expect(feeLinesFor(snap, "full").map((l) => l.code)).toEqual(["registration", "tuition_month_full", "lunch_month"]);
+    expect(feeLinesFor(snap, null)).toHaveLength(4);
+  });
+});

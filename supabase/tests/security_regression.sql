@@ -3443,6 +3443,56 @@ begin
     end;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 68. A campus that runs by the month stores the month, and only a month
+  -- -------------------------------------------------------------------------
+  -- Potch and Tlokweng families join in a month. `create_application` takes
+  -- it, the column refuses anything but the first of a month, and the active
+  -- offer letter can word it — a letter that tells a Potch family "the term
+  -- starts on" is the bug this guards against.
+  declare
+    v_c uuid;
+    v_g uuid;
+    v_app uuid;
+    v_month date;
+    v_refused boolean := false;
+  begin
+    perform pg_temp.service();
+    select id into v_c from public.campuses where code = 'tlokweng';
+    select cg.grade_id into v_g from public.campus_grades cg where cg.campus_id = v_c and cg.is_active order by cg.grade_id limit 1;
+    if v_c is null or v_g is null then
+      v_fail := v_fail || E'\n  - ' || '68: Bana Tlokweng or a class it offers is missing from the seed';
+    else
+      if (select intake_cadence from public.campuses where id = v_c) <> 'month' then
+        v_fail := v_fail || E'\n  - ' || '68: Bana Tlokweng is not marked as taking children in by the month';
+      end if;
+      select application_id into v_app from public.create_application(
+        'Sec','Parent','sec-parent-68@test.invalid','sec-parent-68@test.invalid',null,null,
+        'Child','Sixtyeight','2023-04-15', v_c, v_g, v_g, i_intake, 'visit',
+        'website', null, null, null, null, false, date '2026-11-01');
+      select start_month into v_month from public.applications where id = v_app;
+      if v_month is distinct from date '2026-11-01' then
+        v_fail := v_fail || E'\n  - ' || format('68: the start month was not stored (%s)', v_month);
+      end if;
+      begin
+        update public.applications set start_month = date '2026-11-15' where id = v_app;
+      exception when check_violation then
+        v_refused := true;
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '68: a start month that is not the first of a month was accepted';
+      end if;
+      if not exists (
+        select 1 from public.offer_templates
+         where key = 'standard' and is_active
+           and body_html like '%{{#if by_month}}%'
+           and allowed_variables @> array['by_month', 'by_term', 'lunch_month', 'tuition_month_half', 'tuition_month_full']
+      ) then
+        v_fail := v_fail || E'\n  - ' || '68: the active offer letter cannot word a monthly start or the monthly rates';
+      end if;
+    end if;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

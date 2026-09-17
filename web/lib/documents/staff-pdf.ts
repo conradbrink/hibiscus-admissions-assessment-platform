@@ -1,4 +1,5 @@
 import "server-only";
+import { startLabel } from "@/lib/start-month";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import type { ApplicationGraph } from "@/lib/applications";
@@ -58,6 +59,7 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
         bodyHtml: offer.rendered_html,
         termsHtml: offer.terms_html,
         fees,
+        dayPattern: graph.application.day_pattern,
         bankDetails: typeof (offer.variables as { bank_details?: unknown })?.bank_details === "string" ? (offer.variables as { bank_details: string }).bank_details : null,
         expiresOn: offer.expires_at ? formatDateLong(offer.expires_at) : null,
         sentOn: offer.sent_at ? formatDateLong(offer.sent_at) : null,
@@ -182,7 +184,7 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
         studentName: nameOf(graph),
         gradeName: graph.grade.name,
         campusName: graph.campus.name,
-        intakeLabel: graph.intake.label,
+        intakeLabel: startLabel(graph.application, graph.intake),
         reference: ref,
         status: graph.application.status,
         submittedOn: r.submitted_at ? formatDateLong(r.submitted_at) : null,

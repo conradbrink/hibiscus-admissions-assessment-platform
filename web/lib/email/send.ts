@@ -1,4 +1,5 @@
 import "server-only";
+import { startsOn } from "@/lib/start-month";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { loadApplicationGraph, type ApplicationGraph } from "@/lib/applications";
@@ -140,7 +141,7 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     reference_to_use: paymentReferenceFor(application.child_first_name, application.child_last_name),
     assessed: application.requires_assessment ? "yes" : null,
     no_assessment: application.requires_assessment ? null : "yes",
-    start_date: formatDateLong(graph.intake.starts_on),
+    start_date: formatDateLong(startsOn(graph.application, graph.intake)),
   };
 }
 

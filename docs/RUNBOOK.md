@@ -255,16 +255,19 @@ following conditions". The wording of the standard conditions lives in
 
 ## Fees for a campus that charges by the month
 
-Most campuses quote a term. Potchefstroom quotes a month over eleven months,
-so its schedules carry **both**: a `Tuition per month` line and the year it
-adds up to. The offer letter prints whichever the schedule has — the monthly
-row first, because that is the figure a family budgets against.
+Most campuses quote a term. Potchefstroom and Bana Tlokweng quote a month.
+Tlokweng's schedules carry one `Tuition per month` line. Potch's carry two
+rates — `Tuition per month (half day)` and `(full day)` — and, for Grade RR
+and Grade R, a `Lunch per month` line; Babies to Juniors have lunch in the
+price. The offer letter prints whichever lines the schedule has, and once
+**Full or half day?** is set on the applicant it prints the one rate the
+child is on.
 
 **Settings → Fees**, choose the campus and year. A monthly line is invoiced,
 never payable on acceptance; only the administration, application and
-admission lines secure a place. If you change the monthly figure, change the
-annual line to match — nothing works it out for you, deliberately, because a
-school year is not always eleven months.
+admission lines secure a place. There is no annual line to keep in step: the
+letter quotes the month, and the family's year is however many months they
+attend.
 
 Potch is priced in Rand while every other campus is in Pula. That is per
 schedule and correct; be aware the card gateway has not been tested with ZAR.
@@ -750,9 +753,32 @@ from their applicant page.
 ## Adding an applicant by hand
 
 **Applicants → Add applicant.** For a family at the desk or on the telephone.
-Fill in the child, the parent, the campus and the start term; leave **Grade**
-on "Work it out from the date of birth" unless the family is transferring
-into a particular year, in which case choose it — the campus must teach it.
+Fill in the child, the parent, the campus and the start term — or, at Potch
+CBD, Potch South and Bana Tlokweng, the month the child starts, because those
+campuses take children in by the month (see below); leave **Grade** on "Work
+it out from the date of birth" unless the family is transferring into a
+particular year, in which case choose it — the campus must teach it.
+
+## Campuses that run by the month
+
+Potch CBD, Potch South and Bana Tlokweng do not take children in by the term.
+A family chooses the **month** the child starts — on the parent's grade step
+and on **Add applicant** — and that month is what the offer letter names
+("a place in our Grade R class at Potch CBD for October 2026"), what the
+enrolment starts on, and what the first-day emails count from. The term is
+still recorded underneath, worked out from the month, so capacity, the fee
+year and every report count the child where they belong.
+
+Which campuses work this way is set under **Settings → Campuses → Families
+join by the**. On an applicant whose campus runs by the month, the **Offer**
+tab has a **Starting month** box beside **Full or half day?**; older
+applications at those campuses have no month yet and the letter names the
+term until somebody sets one.
+
+Potch prices the month at two rates, half day and full day, with lunch in the
+price for Babies to Juniors and R500 a month on top for Grade RR and Grade R.
+Set **Full or half day?** on the applicant and the letter quotes that rate;
+until then it quotes both and asks the family which suits them.
 
 What it makes is an ordinary application: the same reference, the same first
 emails to the parent, the same link for them to carry on at home. Two things

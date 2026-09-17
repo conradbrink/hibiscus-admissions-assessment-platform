@@ -6,6 +6,8 @@ import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { HEARD_FROM_OPTIONS } from "@/lib/heard-from";
 import { offerableIntakes } from "@/lib/intakes";
+import { monthChoices } from "@/lib/start-month";
+import { PlacePicker } from "@/components/staff/place-picker";
 import { requireStaff } from "@/lib/staff/session";
 import { addApplicant } from "./actions";
 
@@ -20,7 +22,7 @@ export default async function NewApplicantPage() {
   const { supabase } = await requireStaff("applications.write");
   const today = new Date().toISOString().slice(0, 10);
   const [{ data: campuses }, { data: grades }, { data: intakes }, { data: offered }] = await Promise.all([
-    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
+    supabase.from("v_accessible_campuses").select("id, name, intake_cadence").order("sort_order"),
     supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order"),
     // Every open term, past starts included. `offerableIntakes` decides which
     // are still joinable — a date cutoff here quietly removed the term the
@@ -115,23 +117,11 @@ export default async function NewApplicantPage() {
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold">The place</legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="campusId">Campus</Label>
-                  <NativeSelect id="campusId" name="campusId" required defaultValue="">
-                    <option value="" disabled>Choose a campus</option>
-                    {(campuses ?? []).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </NativeSelect>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="intakeId">Starting</Label>
-                  <NativeSelect id="intakeId" name="intakeId" required defaultValue={joinable[0]?.id ?? ""}>
-                    {joinable.map((i) => (
-                      <option key={i.id} value={i.id}>{i.label}</option>
-                    ))}
-                  </NativeSelect>
-                </div>
+                <PlacePicker
+                  campuses={(campuses ?? []).map((c) => ({ id: c.id, name: c.name, cadence: c.intake_cadence }))}
+                  intakes={joinable.map((i) => ({ id: i.id, label: i.label }))}
+                  months={monthChoices(today)}
+                />
                 <div className="space-y-1">
                   <Label htmlFor="gradeId">Grade</Label>
                   <NativeSelect id="gradeId" name="gradeId" defaultValue="">
