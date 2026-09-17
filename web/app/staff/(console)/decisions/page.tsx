@@ -12,6 +12,7 @@ import type { RuleResult } from "@/lib/rules/evaluate";
 import { requireStaff } from "@/lib/staff/session";
 import type { BenchmarkBand, Json } from "@/lib/supabase/types";
 import { recordReviewOutcome } from "../applications/[id]/actions";
+import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -26,7 +27,7 @@ export default async function DecisionsPage() {
 
   const { data: apps } = await supabase
     .from("applications")
-    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name), intakes(label)")
+    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes(label)")
     .in("status", ["staff_review", "awaiting_decision"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
@@ -67,7 +68,7 @@ export default async function DecisionsPage() {
                   <div className="min-w-0 flex-1">
                     <Link href={`/staff/applications/${a.id}`} className="font-semibold hover:underline">{a.child_first_name} {a.child_last_name}</Link>
                     <p className="text-xs text-muted-foreground">
-                      {one(a.grades)?.name} · {one(a.campuses)?.name} · {one(a.intakes)?.label} · {a.reference} · waiting since {formatDateTime(a.status_changed_at)}
+                      {one(a.grades)?.name} · {one(a.campuses)?.name} · {startLabel(a, { label: one(a.intakes)?.label ?? "" })} · {a.reference} · waiting since {formatDateTime(a.status_changed_at)}
                     </p>
                   </div>
                   <StatusBadge status={a.status} />

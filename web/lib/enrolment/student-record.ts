@@ -1,4 +1,5 @@
 import type { ApplicationGraph } from "@/lib/applications";
+import { startLabel, startsOn } from "@/lib/start-month";
 import type { RegistrationBundle } from "@/lib/registration/load";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
 
@@ -61,8 +62,8 @@ export function buildStudentRecord(
       campus: graph.campus.name,
       campus_code: graph.campus.code,
       grade: graph.grade.name,
-      intake: graph.intake.label,
-      start_date: graph.intake.starts_on,
+      intake: startLabel(graph.application, graph.intake),
+      start_date: startsOn(graph.application, graph.intake),
     },
     student: {
       legal_first_name: r?.legal_first_name ?? graph.application.child_first_name,

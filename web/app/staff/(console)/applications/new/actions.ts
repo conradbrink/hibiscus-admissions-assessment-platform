@@ -8,6 +8,8 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import { createEnquiry, loadCatalogue } from "@/lib/enquiry";
 import { HEARD_FROM_KEYS } from "@/lib/heard-from";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { toSchoolDateString } from "@/lib/format-date";
+import { intakeForMonth, monthChoices } from "@/lib/start-month";
 import { drainSoon, guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -36,7 +38,10 @@ const schema = z.object({
   childLastName: z.string().trim().min(1, "Please give the child's last name").max(80),
   childDateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Please give the child's date of birth"),
   campusId: z.guid("Please choose a campus"),
-  intakeId: z.guid("Please choose a start term"),
+  // A term, or a month at a campus that takes children in by the month;
+  // which one applies is settled below, once the campus is known.
+  intakeId: z.guid().optional(),
+  startMonth: z.string().regex(/^\d{4}-\d{2}-01$/).optional(),
   gradeId: z.union([z.guid(), z.literal("")]).optional(),
   entryRoute: z.enum(["assessment", "visit", "callback"]),
   currentSchool: z.string().trim().max(160).optional().default(""),
@@ -69,7 +74,16 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
     if (!allowed) throw new Error("You do not have access to that campus.");
 
     const catalogue = await loadCatalogue(admin);
-    if (!catalogue.intakes.some((i) => i.id === parsed.intakeId)) {
+    const monthly = catalogue.campuses.find((c) => c.id === parsed.campusId)?.intake_cadence === "month";
+    if (monthly) {
+      const today = toSchoolDateString(new Date());
+      if (!parsed.startMonth || !monthChoices(today).some((m) => m.value === parsed.startMonth)) {
+        throw new Error("Choose the month the child starts.");
+      }
+      if (!intakeForMonth(catalogue.intakes, parsed.startMonth)) {
+        throw new Error("No open start term covers that month. Open the next year's terms under Settings → Intakes first.");
+      }
+    } else if (!parsed.intakeId || !catalogue.intakes.some((i) => i.id === parsed.intakeId)) {
       throw new Error("That start term is no longer open. Choose another.");
     }
     if (parsed.gradeId && !(catalogue.offered[parsed.campusId] ?? []).includes(parsed.gradeId)) {
@@ -85,7 +99,8 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
       childLastName: parsed.childLastName,
       childDateOfBirth: parsed.childDateOfBirth,
       campusId: parsed.campusId,
-      intakeId: parsed.intakeId,
+      intakeId: parsed.intakeId ?? null,
+      startMonth: monthly ? parsed.startMonth : null,
       gradeId: parsed.gradeId || null,
       entryRoute: parsed.entryRoute,
       currentSchool: parsed.currentSchool || null,

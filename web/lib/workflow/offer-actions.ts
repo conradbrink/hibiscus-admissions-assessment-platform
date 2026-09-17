@@ -1,4 +1,5 @@
 import "server-only";
+import { startLabel, startsOn } from "@/lib/start-month";
 import { createHash } from "node:crypto";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, Json, OfferRow } from "@/lib/supabase/types";
@@ -97,7 +98,7 @@ export async function onOfferDrafted(
     rendered_html: rendered.html,
     terms_html: rendered.terms,
     fees: (fees ?? {}) as unknown as Json,
-    start_date: graph.intake.starts_on,
+    start_date: startsOn(graph.application, graph.intake),
     conditions,
     promotion_id: promotion?.promo.id ?? null,
     status: fees ? "pending_approval" : "draft",
@@ -134,14 +135,14 @@ export async function onOfferDrafted(
       nextAction: "await_offer",
       event: {
         type: "offer.blocked",
-        summary: `Offer cannot be sent: no active fee schedule for ${graph.campus.name}, ${graph.grade.name}, ${graph.intake.label}`,
+        summary: `Offer cannot be sent: no active fee schedule for ${graph.campus.name}, ${graph.grade.name}, ${startLabel(graph.application, graph.intake)}`,
         payload: { offer_id: offerId },
       },
       tasks: [
         {
           type: "configure_fees",
           title: `Configure fees for ${graph.campus.name} — ${graph.grade.name}`,
-          details: `${app.child_first_name}'s offer is waiting on an active fee schedule for ${graph.intake.label}. Set it under Fees, then press Generate offer on the applicant.`,
+          details: `${app.child_first_name}'s offer is waiting on an active fee schedule for ${startLabel(graph.application, graph.intake)}. Set it under Fees, then press Generate offer on the applicant.`,
           priority: "high",
         },
       ],

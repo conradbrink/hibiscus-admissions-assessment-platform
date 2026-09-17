@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { loadCatalogue } from "@/lib/enquiry";
 import { ageOn } from "@/lib/grades";
+import { toSchoolDateString } from "@/lib/format-date";
+import { monthChoices } from "@/lib/start-month";
 import { requireParentSession } from "@/lib/tokens/server";
 import { confirmGrade } from "../actions";
 
@@ -61,7 +63,7 @@ export default async function GradePage({ searchParams }: { searchParams: Promis
         title={preschool ? "Confirm the pre-school class" : "Confirm the grade"}
         description={
           preschool
-            ? "Choose the class, campus and start term. Pre-school children do not sit an assessment."
+            ? "Choose the class, the campus and when your child starts. Pre-school children do not sit an assessment."
             : "Check these details and change anything that is not right."
         }
       />
@@ -77,7 +79,9 @@ export default async function GradePage({ searchParams }: { searchParams: Promis
         assessed={catalogue.assessed}
         preschoolOnly={preschool}
         intakes={catalogue.intakes.map((i) => ({ id: i.id, label: i.label }))}
-        initial={{ campusId: app.campus_id, gradeId: initialGradeId, intakeId: app.intake_id }}
+        cadence={Object.fromEntries(catalogue.campuses.map((c) => [c.id, c.intake_cadence]))}
+        months={monthChoices(toSchoolDateString(new Date()))}
+        initial={{ campusId: app.campus_id, gradeId: initialGradeId, intakeId: app.intake_id, startMonth: app.start_month }}
         recommended={
           recommendedShown && age !== null
             ? { gradeId: recommendedShown.id, gradeName: recommendedShown.name, ageOnCutoff: age }

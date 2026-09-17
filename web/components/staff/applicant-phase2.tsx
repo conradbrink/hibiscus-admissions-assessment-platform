@@ -24,7 +24,8 @@ import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
-import { checkIn, recordDecision, resumeDeferred, setDayPattern } from "@/app/staff/(console)/applications/[id]/actions";
+import { checkIn, recordDecision, resumeDeferred, setDayPattern, setStartMonth } from "@/app/staff/(console)/applications/[id]/actions";
+import { formatMonth, type MonthChoice } from "@/lib/start-month";
 
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
@@ -45,6 +46,7 @@ export async function ApplicantPhase2({
   sendWhatsApp,
   decision,
   dayPattern,
+  startMonth,
   booking,
 }: {
   supabase: StaffContext["supabase"];
@@ -75,7 +77,13 @@ export async function ApplicantPhase2({
    * for every grade that is not. It sits on the Offer tab because that is the
    * only thing it changes: which term fee the next letter quotes.
    */
-  dayPattern: { value: "half" | "full" | null; canSet: boolean } | null;
+  dayPattern: { value: "half" | "full" | null; canSet: boolean; unit: "term" | "month" } | null;
+  /**
+   * The month the child starts, at a campus that takes children in by the
+   * month (Potch, Tlokweng). Null at a termly campus. It is what the next
+   * letter names and what the first-day emails count from.
+   */
+  startMonth: { value: string | null; canSet: boolean; choices: MonthChoice[] } | null;
 }) {
   const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
@@ -344,6 +352,29 @@ export async function ApplicantPhase2({
         </TabsContent>
 
         <TabsContent value="offer" className="text-sm">
+          {startMonth ? (
+            <div className="mb-4 rounded-lg border border-border p-3">
+              <h3 className="font-semibold">Starting month</h3>
+              <p className="mt-1">{startMonth.value ? formatMonth(startMonth.value) : "Not chosen yet — the letter names the term until it is"}</p>
+              {startMonth.canSet ? (
+                <ActionForm action={setStartMonth} label="Save" variant="outline" size="sm" className="mt-2">
+                  {idField}
+                  <NativeSelect name="startMonth" defaultValue={startMonth.value ?? ""} aria-label="Starting month">
+                    <option value="">Not chosen yet</option>
+                    {startMonth.value && !startMonth.choices.some((c) => c.value === startMonth.value) ? (
+                      <option value={startMonth.value}>{formatMonth(startMonth.value)}</option>
+                    ) : null}
+                    {startMonth.choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </NativeSelect>
+                  <p className="text-xs text-muted-foreground">
+                    This campus takes children in by the month. The month is what the next offer letter names and what the
+                    first-day emails count from; the term underneath follows it. An offer already sent keeps what it was
+                    drafted with.
+                  </p>
+                </ActionForm>
+              ) : null}
+            </div>
+          ) : null}
           {dayPattern ? (
             <div className="mb-4 rounded-lg border border-border p-3">
               <h3 className="font-semibold">Full or half day?</h3>
@@ -359,9 +390,9 @@ export async function ApplicantPhase2({
                     <option value="full">Full day</option>
                   </NativeSelect>
                   <p className="text-xs text-muted-foreground">
-                    Decides which term fee the next offer letter quotes. While this is undecided the letter shows both
-                    rates and asks the family to confirm; either way, tuition is invoiced and is not payable to accept
-                    the offer. An offer already sent keeps the fees it was drafted with.
+                    Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next offer letter quotes. While this is
+                    undecided the letter shows both rates and asks the family to confirm; either way, tuition is invoiced
+                    and is not payable to accept the offer. An offer already sent keeps the fees it was drafted with.
                   </p>
                 </ActionForm>
               ) : null}

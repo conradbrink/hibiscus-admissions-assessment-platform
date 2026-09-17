@@ -14,13 +14,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { MobileInput } from "@/components/ui/mobile-input";
 import { bookingNounTitle } from "@/lib/booking/noun";
-import { formatDate, formatDateLong, formatDateTime, formatTime } from "@/lib/format-date";
+import { formatDate, formatDateLong, formatDateTime, formatTime, toSchoolDateString } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { canBeDecided, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
+import { monthChoices, startLabel } from "@/lib/start-month";
 import {
   addApplicantTask,
   addNote,
@@ -54,7 +55,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
 
   const { data: app } = await supabase
     .from("applications")
-    .select("*, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts!applications_contact_id_fkey(*), staff_profiles!applications_owner_staff_id_fkey(full_name)")
+    .select("*, campuses(name, intake_cadence), grades!applications_grade_id_fkey(name, sort_order), intakes(label), contacts!applications_contact_id_fkey(*), staff_profiles!applications_owner_staff_id_fkey(full_name)")
     .eq("id", id)
     .maybeSingle();
   if (!app) notFound();
@@ -174,7 +175,15 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   };
   // Half day or full day. It decides which term fee the letter quotes, so it
   // belongs with the letter rather than in a box of its own beside it.
-  const dayPattern = (grade?.sort_order ?? 999) <= 50 ? { value: app.day_pattern, canSet: canWrite } : null;
+  const dayPattern =
+    (grade?.sort_order ?? 999) <= 50
+      ? { value: app.day_pattern, canSet: canWrite, unit: campus?.intake_cadence === "month" ? ("month" as const) : ("term" as const) }
+      : null;
+  // The month the child starts, at a campus that runs by the month. Same
+  // place as the day pattern, for the same reason: the letter is what reads it.
+  const startMonth = campus?.intake_cadence === "month"
+    ? { value: app.start_month, canSet: canWrite, choices: monthChoices(toSchoolDateString(new Date())) }
+    : null;
   const eligibleSessions = (upcoming ?? []).filter(
     (s) =>
       s.kind === (app.requires_assessment ? "assessment" : "visit") &&
@@ -189,7 +198,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     <>
       <PageTitle
         title={`${app.child_first_name} ${app.child_last_name}`}
-        description={`${grade?.name} · ${campus?.name} · ${intake?.label} · ${app.reference}`}
+        description={`${grade?.name} · ${campus?.name} · ${startLabel(app, { label: intake?.label ?? "" })} · ${app.reference}`}
       >
         <StatusBadge status={app.status} />
       </PageTitle>
@@ -347,7 +356,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} booking={booking ? { status: booking.status } : null} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} startMonth={startMonth} booking={booking ? { status: booking.status } : null} />
 
           {/* Timeline */}
           <section className="surface">

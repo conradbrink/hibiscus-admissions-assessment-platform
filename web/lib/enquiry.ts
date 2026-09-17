@@ -5,6 +5,7 @@ import type { HeardFrom } from "@/lib/heard-from";
 import { normaliseEmail, normaliseMobile, tidyName } from "@/lib/contacts";
 import { parkingGrade, recommendGrade } from "@/lib/grades";
 import { offerableIntakes } from "@/lib/intakes";
+import { intakeForMonth, isMonthStart } from "@/lib/start-month";
 
 /**
  * What the funnel needs to render, and how it turns eight fields into an
@@ -23,7 +24,8 @@ export type FunnelCatalogue = {
    * Tlokweng, so the question cannot be answered by the grade alone.
    */
   assessed: Record<string, Record<string, boolean>>;
-  intakes: Array<IntakeRow & { age_cutoff_on: string }>;
+  /** `year_ends_on` is what stops a month being filed under a year it is not in. */
+  intakes: Array<IntakeRow & { age_cutoff_on: string; year_ends_on: string | null }>;
 };
 
 export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue> {
@@ -61,7 +63,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
   const intakes = offerableIntakes(
     dated.map((d) => ({ ...d, starts_on: d.row.starts_on, is_open: d.row.is_open })),
     today
-  ).map(({ row, age_cutoff_on }) => {
+  ).map(({ row, age_cutoff_on, year_ends_on }) => {
     const intake: IntakeRow = {
       id: row.id,
       academic_year_id: row.academic_year_id,
@@ -73,7 +75,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
-    return { ...intake, age_cutoff_on };
+    return { ...intake, age_cutoff_on, year_ends_on };
   });
   return {
     campuses: campusesRes.data ?? [],
@@ -94,6 +96,12 @@ export type EnquiryInput = {
   childDateOfBirth: string;
   campusId: string;
   intakeId: string | null;
+  /**
+   * The first of the month the child starts, at a campus that runs by the
+   * month (`campuses.intake_cadence`). The term is worked out from it. Ignored
+   * at a termly campus, where `intakeId` is the choice.
+   */
+  startMonth?: string | null;
   entryRoute: EntryRoute;
   currentSchool?: string | null;
   currentGrade?: string | null;
@@ -131,6 +139,7 @@ export type EnquiryResult = {
   gradeId: string;
   recommendedGradeId: string | null;
   intakeId: string;
+  startMonth: string | null;
 };
 
 /**
@@ -147,9 +156,14 @@ export async function createEnquiry(
   const campus = catalogue.campuses.find((c) => c.id === input.campusId);
   if (!campus) throw new Error("campus_not_found");
 
-  const intake =
-    catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0];
-  if (!intake) throw new Error("no_open_intake");
+  // A monthly campus takes the month and works the term out from it; a
+  // termly campus takes the term, or the first one open when none was chosen.
+  const startMonth = campus.intake_cadence === "month" && input.startMonth ? input.startMonth : null;
+  if (startMonth && !isMonthStart(startMonth)) throw new Error("bad_start_month");
+  const intake = startMonth
+    ? intakeForMonth(catalogue.intakes, startMonth)
+    : (catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0]);
+  if (!intake) throw new Error(startMonth ? "month_outside_open_years" : "no_open_intake");
 
   // Recommend from the ladder this campus actually teaches. The two ladders
   // share ages — a child turning four is Grade RR in Potchefstroom and
@@ -201,6 +215,7 @@ export async function createEnquiry(
     p_heard_from: input.heardFrom ?? null,
     p_heard_from_detail: input.heardFrom === "other" ? input.heardFromDetail?.trim() || null : null,
     p_trusted: input.trusted ?? false,
+    p_start_month: startMonth,
   });
   if (error) throw new Error(error.message);
   const row = data?.[0];
@@ -230,6 +245,7 @@ export async function createEnquiry(
     gradeId,
     recommendedGradeId,
     intakeId: intake.id,
+    startMonth,
   };
 }
 

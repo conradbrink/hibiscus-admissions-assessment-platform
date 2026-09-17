@@ -1,4 +1,5 @@
 import "server-only";
+import { startsOn } from "@/lib/start-month";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
 import type { RegistrationBundle } from "@/lib/registration/load";
@@ -103,7 +104,9 @@ export async function promoteToStudent(
         campus_id: app.campus_id,
         grade_id: app.grade_id,
         origin_application_id: app.id,
-        starts_on: graph.intake.starts_on,
+        // The first of the chosen month at a monthly campus; the term's
+        // first day elsewhere.
+        starts_on: startsOn(graph.application, graph.intake),
       },
       { onConflict: "student_id,academic_year_id" }
     )

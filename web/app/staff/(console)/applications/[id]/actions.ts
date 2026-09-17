@@ -12,6 +12,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
 import { saysAssessment } from "@/lib/messaging/template-checks";
 import { generateSummary } from "@/lib/summary/generate";
+import { loadCatalogue } from "@/lib/enquiry";
+import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
@@ -651,17 +653,21 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
     const gradeId = parsed.gradeId || app.grade_id;
     const [{ data: offered }, { data: to }, { data: fromCampus }, { data: grade }] = await Promise.all([
       admin.from("campus_grades").select("grade_id").eq("campus_id", parsed.campusId).eq("grade_id", gradeId).eq("is_active", true).maybeSingle(),
-      admin.from("campuses").select("id, name").eq("id", parsed.campusId).maybeSingle(),
+      admin.from("campuses").select("id, name, intake_cadence").eq("id", parsed.campusId).maybeSingle(),
       admin.from("campuses").select("id, name").eq("id", app.campus_id).maybeSingle(),
       admin.from("grades").select("id, name").eq("id", gradeId).maybeSingle(),
     ]);
     if (!to) throw new Error("That campus does not exist.");
+    const toCadence = to.intake_cadence;
     if (!offered || !grade) throw new Error(`${to.name} does not teach ${grade?.name ?? "that stage"}. Choose a stage it offers.`);
 
     const requires = await requiresAssessmentAt(admin, parsed.campusId, gradeId);
     const { error } = await admin
       .from("applications")
-      .update({ campus_id: parsed.campusId, grade_id: gradeId, requires_assessment: requires })
+      // A month belongs to a campus that runs by the month. Moving the child
+      // to a termly campus drops it, or the letter would tell that family the
+      // campus takes children in by the month.
+      .update({ campus_id: parsed.campusId, grade_id: gradeId, requires_assessment: requires, ...(toCadence === "month" ? {} : { start_month: null }) })
       .eq("id", app.id);
     if (error) throw new Error(error.message);
     // Open work follows the child: a task is scoped by its campus, and a task
@@ -973,6 +979,87 @@ export async function updateChildDetails(_: StaffActionState, formData: FormData
       actor: ctx.actor,
     });
     done(app.id);
+  });
+}
+
+/**
+ * The month a child starts, at a campus that takes children in by the month.
+ *
+ * Potch and Tlokweng families join in a month, not a term, and the letter
+ * names it. The term is still recorded underneath — the fee schedule belongs
+ * to an academic year and every report counts by term — so it follows the
+ * month here, worked out the same way the enquiry form works it out.
+ *
+ * Reversible to "not chosen", in which case the letter names the term again.
+ * An offer already sent keeps the wording it froze either way.
+ */
+export async function setStartMonth(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const parsed = idSchema
+      .extend({ startMonth: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-01$/, "Choose a month")]) })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const to = parsed.startMonth === "" ? null : parsed.startMonth;
+    if (to && !isMonthStart(to)) throw new Error("Choose a month.");
+    if (app.start_month === to) return;
+
+    const { data: campus } = await admin.from("campuses").select("intake_cadence").eq("id", app.campus_id).single();
+    if (campus?.intake_cadence !== "month") {
+      throw new Error("This campus takes children in by the term, so there is no starting month to set.");
+    }
+
+    // The month decides the term the application is counted under, which the
+    // fee schedule, the enrolment and the letter all hang off. Once an offer
+    // has left the building, moving it under the family would contradict what
+    // they were sent — and an offer already approved is re-rendered at
+    // approval with whatever the application says now, on the template it was
+    // drafted from, which for an older offer cannot word a month at all.
+    const { data: offer } = await admin
+      .from("offers")
+      .select("status")
+      .eq("application_id", app.id)
+      .in("status", ["pending_approval", "sent", "viewed", "expired", "accepted"])
+      .limit(1)
+      .maybeSingle();
+    if (offer) {
+      throw new Error(
+        "An offer has already gone to approval for this child, so the starting month cannot change here. Withdraw the offer, set the month, then generate it again."
+      );
+    }
+    const { data: enrolment } = await admin
+      .from("enrolments")
+      .select("id")
+      .eq("origin_application_id", app.id)
+      .limit(1)
+      .maybeSingle();
+    if (enrolment) throw new Error("This child is already enrolled, so the starting month is set. Ask the registrar to move the enrolment.");
+
+    const update: { start_month: string | null; intake_id?: string } = { start_month: to };
+    if (to) {
+      const catalogue = await loadCatalogue(admin);
+      const intake = intakeForMonth(catalogue.intakes, to);
+      if (!intake) throw new Error("No open start term covers that month. Open the next year's terms under Settings → Intakes first.");
+      update.intake_id = intake.id;
+    }
+    const { error } = await admin.from("applications").update(update).eq("id", app.id);
+    if (error) throw new Error(error.message);
+
+    const say = (v: string | null) => (v ? formatMonth(v) : "not chosen");
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "application.start_month_set",
+        summary: `Starting month ${say(app.start_month)} → ${say(to)}`,
+        payload: { from: app.start_month, to, intake_id: update.intake_id ?? app.intake_id },
+      },
+      audit: { action: "application.start_month_set", entityType: "application", entityId: app.id },
+      actor: ctx.actor,
+    });
+    revalidatePath(`/staff/applications/${app.id}`);
   });
 }
 

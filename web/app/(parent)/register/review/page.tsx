@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { startLabel } from "@/lib/start-month";
 import Link from "next/link";
 import { CheckCircle2, Circle } from "lucide-react";
 import { RegisterShell } from "@/components/parent/register/shell";
@@ -50,7 +51,7 @@ export default async function ReviewStep() {
           <Row label="Nationality" value={r?.nationality} />
           <Row label="Home language" value={r?.home_language} />
           <Row label="Identity" value={r?.identity_number ? `${r.identity_type ?? ""} ${r.identity_number}`.trim() : null} />
-          <Row label="Place" value={`${graph.grade.name}, ${graph.campus.name}, ${graph.intake.label}`} />
+          <Row label="Place" value={`${graph.grade.name}, ${graph.campus.name}, ${startLabel(graph.application, graph.intake)}`} />
         </dl>
         <dl className="surface p-4">
           <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Medical</p>

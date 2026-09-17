@@ -4,6 +4,7 @@ import { formatDateLong, toSchoolDateString } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { promotionVariables } from "@/lib/promotions/apply";
+import { startLabel, startsOn } from "@/lib/start-month";
 import type { DayPattern, FeeCode, FeeLineRow, FeeScheduleRow, OfferTemplateRow } from "@/lib/supabase/types";
 
 /**
@@ -60,8 +61,9 @@ export function snapshotFees(schedule: Pick<FeeScheduleRow, "currency">, lines: 
  */
 export function feeLinesFor(fees: FeeSnapshot, pattern: DayPattern | null): FeeSnapshot["lines"] {
   if (!pattern) return fees.lines;
-  const other: FeeCode = pattern === "full" ? "tuition_term_half" : "tuition_term_full";
-  return fees.lines.filter((l) => l.code !== other);
+  // The rate the child is not on, by the term and by the month alike.
+  const other: FeeCode[] = pattern === "full" ? ["tuition_term_half", "tuition_month_half"] : ["tuition_term_full", "tuition_month_full"];
+  return fees.lines.filter((l) => !other.includes(l.code));
 }
 
 /** Reads a stored `offers.fees` value back as a snapshot, or null for the empty placeholder. */
@@ -83,6 +85,11 @@ function termCodeFor(pattern: DayPattern | null): FeeCode {
   return pattern === "full" ? "tuition_term_full" : pattern === "half" ? "tuition_term_half" : "tuition_term";
 }
 
+/** The same choice for a campus priced by the month. */
+function monthCodeFor(pattern: DayPattern | null): FeeCode {
+  return pattern === "full" ? "tuition_month_full" : pattern === "half" ? "tuition_month_half" : "tuition_month";
+}
+
 export function buildOfferVariables(
   graph: Pick<ApplicationGraph, "application" | "contact" | "campus" | "grade" | "intake">,
   fees: FeeSnapshot | null,
@@ -90,6 +97,10 @@ export function buildOfferVariables(
 ): TemplateVariables {
   const { application, contact, campus, grade, intake } = graph;
   const now = opts.now ?? new Date();
+  // When the child starts. At a campus that runs by the month it is the month
+  // the family chose and the first day is the first of it; the term recorded
+  // underneath is for counting, and the letter never names it.
+  const begins = startsOn(application, intake);
   const line = (code: FeeCode) => {
     const l = fees?.lines.find((x) => x.code === code);
     if (!l || !fees) return null;
@@ -109,8 +120,14 @@ export function buildOfferVariables(
     campus_address: campus.address ?? null,
     campus_phone: campus.phone ?? null,
     grade: grade.name,
-    intake: intake.label,
-    start_date: formatDateLong(intake.starts_on),
+    intake: startLabel(application, intake),
+    start_date: formatDateLong(begins),
+    // Which sentence says when. A term has a first day the school names; a
+    // monthly campus has a month the fees run from. Two exclusive flags, as
+    // `assessed`/`no_assessment` are, because the template language has no
+    // {{else}}.
+    by_term: application.start_month ? null : "yes",
+    by_month: application.start_month ? "yes" : null,
     // The letter used to promise "we will email you everything you need
     // before Term 3 starts" to families joining a term that began a week
     // ago — Term 3 2026 started on 7 September and was still being offered
@@ -120,8 +137,8 @@ export function buildOfferVariables(
     // Two variables rather than one, because the template language has no
     // {{else}} — two guarded sentences with opposite conditions say the same
     // thing and cost one line of code instead of a parser change.
-    intake_not_started: intake.starts_on > todayInSchoolTime(now) ? "yes" : null,
-    intake_started: intake.starts_on > todayInSchoolTime(now) ? null : "yes",
+    intake_not_started: begins > todayInSchoolTime(now) ? "yes" : null,
+    intake_started: begins > todayInSchoolTime(now) ? null : "yes",
     offer_expiry_date: opts.expiresAt ? formatDateLong(opts.expiresAt) : null,
     application_reference: application.reference,
     // What to type into a banking app: the child's name, as the /pay page and
@@ -143,7 +160,11 @@ export function buildOfferVariables(
     tuition_term: line("tuition_term") ?? line(termCodeFor(application.day_pattern)),
     tuition_term_half: application.day_pattern ? null : line("tuition_term_half"),
     tuition_term_full: application.day_pattern ? null : line("tuition_term_full"),
-    tuition_month: line("tuition_month"),
+    // Potch prices the month the same two ways, with lunch as its own line.
+    tuition_month: line("tuition_month") ?? line(monthCodeFor(application.day_pattern)),
+    tuition_month_half: application.day_pattern ? null : line("tuition_month_half"),
+    tuition_month_full: application.day_pattern ? null : line("tuition_month_full"),
+    lunch_month: line("lunch_month"),
     stationery_annual: line("stationery_annual"),
     amount_due: fees ? formatMoney(fees.payable_at_acceptance_minor, fees.currency) : null,
     currency: fees?.currency ?? campus.currency,

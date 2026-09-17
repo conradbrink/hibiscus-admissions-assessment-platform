@@ -15,6 +15,7 @@ import { parseMismatchFlags } from "@/lib/documents/compare";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { DocumentReading } from "@/components/staff/document-reading";
 import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder, uploadDocumentForParent } from "../actions";
+import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -75,7 +76,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <PageTitle title={`${app.child_first_name} ${app.child_last_name}`} description={`${grade?.name} · ${one(app.campuses)?.name} · ${one(app.intakes)?.label} · ${app.reference} · `}>
+      <PageTitle title={`${app.child_first_name} ${app.child_last_name}`} description={`${grade?.name} · ${one(app.campuses)?.name} · ${startLabel(app, { label: one(app.intakes)?.label ?? "" })} · ${app.reference} · `}>
         <StatusBadge status={app.status} />
         {r ? <a href={`/staff/applications/${app.id}/pdf/registration`} target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline">Record (PDF)</a> : null}
         {(acceptances ?? []).length ? <a href={`/staff/applications/${app.id}/pdf/agreements`} target="_blank" rel="noopener" className="text-sm font-medium text-primary hover:underline">Signed agreements (PDF)</a> : null}

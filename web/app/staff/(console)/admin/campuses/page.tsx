@@ -33,6 +33,11 @@ export default async function CampusesPage() {
               <div className="sm:col-span-2"><span className="text-xs text-muted-foreground">Maps link (parents tap for directions; leave empty and the address stands alone)</span><Input name="mapsUrl" type="url" defaultValue={c.maps_url ?? ""} placeholder="https://maps.app.goo.gl/…" /></div>
               <p className="text-xs text-muted-foreground">Shown on the parent&rsquo;s pages and in the &ldquo;Talk to our admissions team&rdquo; message. Leave one empty and that way of reaching you is simply not offered.</p>
             </div>
+            <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[180px_1fr] sm:items-end">
+              <div><span className="text-xs text-muted-foreground">Families join by the</span>
+                <NativeSelect name="intakeCadence" defaultValue={c.intake_cadence}><option value="term">term</option><option value="month">month</option></NativeSelect></div>
+              <p className="text-xs text-muted-foreground">By the month: the enquiry form asks for a starting month instead of a term, the offer letter names that month, and fees are quoted per month. Potch CBD, Potch South and Bana Tlokweng run this way; the term is still recorded underneath for the figures.</p>
+            </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
               <div><span className="text-xs text-muted-foreground">Head of campus (signs the offer letter)</span><Input name="headName" defaultValue={c.head_name ?? ""} placeholder="Full name" /></div>
               <div><span className="text-xs text-muted-foreground">Title</span><Input name="headTitle" defaultValue={c.head_title ?? ""} placeholder="Head of School" /></div>

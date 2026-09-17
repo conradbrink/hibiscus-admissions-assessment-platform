@@ -9,6 +9,7 @@ import { loadApplicationGraph } from "@/lib/applications";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { feeLinesFor } from "@/lib/offers/snapshot";
+import { startLabel } from "@/lib/start-month";
 import { loadVisibleOffer } from "@/lib/offers/load";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireParentSession } from "@/lib/tokens/server";
@@ -39,7 +40,7 @@ export default async function OfferPage() {
       <PageHeader
         eyebrow="Offer of admission"
         title={`${graph.application.child_first_name} ${graph.application.child_last_name}`}
-        description={`${graph.grade.name} at ${graph.campus.name}, starting ${graph.intake.label}.`}
+        description={`${graph.grade.name} at ${graph.campus.name}, starting ${startLabel(graph.application, graph.intake)}.`}
       />
 
       {expired ? (

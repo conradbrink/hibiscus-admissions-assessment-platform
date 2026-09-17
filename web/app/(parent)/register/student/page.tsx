@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { startLabel } from "@/lib/start-month";
 import { RegisterShell } from "@/components/parent/register/shell";
 import { StudentForm } from "@/components/parent/register/student-form";
 import { DocumentUploader } from "@/components/parent/register/document-uploader";
@@ -31,7 +32,7 @@ export default async function StudentStep() {
   const flags = editable ? parseMismatchFlags(bundle.registration?.mismatch_flags) : [];
   const studentSaved = !!bundle.registration?.student_completed_at;
   return (
-    <RegisterShell step="student" title="About the student" description={`${graph.grade.name} at ${graph.campus.name}, starting ${graph.intake.label}. Grade and campus are set by the offer; tell us if they look wrong.`} readOnly={!editable}>
+    <RegisterShell step="student" title="About the student" description={`${graph.grade.name} at ${graph.campus.name}, starting ${startLabel(graph.application, graph.intake)}. Grade and campus are set by the offer; tell us if they look wrong.`} readOnly={!editable}>
       {flags.length ? (
         <div className="mb-5 rounded-2xl border border-warning/50 bg-warning/10 p-4 text-sm">
           <p className="font-semibold">Please check {flags.length === 1 ? "one detail" : "a few details"} against the document you uploaded</p>

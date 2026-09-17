@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { LetterFoot, Letterhead, SCHOOL_NAME, type LetterheadCampus } from "@/lib/documents/letterhead";
-import type { FeeSnapshot } from "@/lib/offers/snapshot";
+import { feeLinesFor, type FeeSnapshot } from "@/lib/offers/snapshot";
+import type { DayPattern } from "@/lib/supabase/types";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -124,6 +125,8 @@ export type OfferDocumentProps = {
   bodyHtml: string;
   termsHtml: string;
   fees: FeeSnapshot | null;
+  /** Half or full day, once the school has said: the other rate is left off the list. */
+  dayPattern?: DayPattern | null;
   /** The bank details the letter was rendered with, lines joined by " · " or newlines. */
   bankDetails: string | null;
   expiresOn: string | null;
@@ -165,10 +168,13 @@ function SignatureBlock({ signatory, campusName }: { signatory: Signatory; campu
 }
 
 /** The fees as the letter lists them: the amounts payable to accept, numbered; anything invoiced later beneath; the total in bold. */
-function FeeList({ fees }: { fees: FeeSnapshot | null }) {
+function FeeList({ fees, dayPattern }: { fees: FeeSnapshot | null; dayPattern: DayPattern | null }) {
   if (!fees) return null;
-  const upfront = fees.lines.filter((l) => l.payable_at_acceptance);
-  const later = fees.lines.filter((l) => !l.payable_at_acceptance);
+  // The rate the child is on, once the school has said; both until then —
+  // the same narrowing the web view and the applicant page apply.
+  const lines = feeLinesFor(fees, dayPattern);
+  const upfront = lines.filter((l) => l.payable_at_acceptance);
+  const later = lines.filter((l) => !l.payable_at_acceptance);
   return (
     <View style={s.list} wrap={false}>
       {upfront.map((l, i) => (
@@ -227,12 +233,12 @@ export function OfferDocument(p: OfferDocumentProps) {
           const { blocks, sign } = withSignatory(htmlToBlocks(p.bodyHtml, { dropLeadingHeading: "Offer of Admission" }), p.signatory);
           const placed = blocks.some((b) => b.kind === "fees");
           const out = blocks.map((b, i) => {
-            if (b.kind === "fees") return <FeeList key={i} fees={p.fees} />;
+            if (b.kind === "fees") return <FeeList key={i} fees={p.fees} dayPattern={p.dayPattern ?? null} />;
             if (b.kind === "bank") return <BankBlock key={i} details={p.bankDetails} reference={p.reference} />;
             if (b.kind === "heading") return <Text key={i} style={s.heading}>{b.text}</Text>;
             return <Text key={i} style={s.para}>{b.text}</Text>;
           });
-          if (!placed && p.fees) out.push(<FeeList key="fees" fees={p.fees} />);
+          if (!placed && p.fees) out.push(<FeeList key="fees" fees={p.fees} dayPattern={p.dayPattern ?? null} />);
           if (sign && p.signatory) out.push(<SignatureBlock key="sign" signatory={p.signatory} campusName={p.letterhead?.name ?? null} />);
           return out;
         })()}

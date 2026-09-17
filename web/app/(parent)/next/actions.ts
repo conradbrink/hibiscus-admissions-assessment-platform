@@ -14,7 +14,8 @@ import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { bookingNoun } from "@/lib/booking/noun";
 import { getSettings } from "@/lib/settings";
-import { withinCutoff } from "@/lib/format-date";
+import { toSchoolDateString, withinCutoff } from "@/lib/format-date";
+import { intakeForMonth, monthChoices } from "@/lib/start-month";
 import { requireParentSession } from "@/lib/tokens/server";
 import { commit, PARENT_ACTOR } from "@/lib/workflow/engine";
 import {
@@ -41,7 +42,10 @@ function drainSoon() {
 const confirmGradeSchema = z.object({
   gradeId: z.guid(),
   campusId: z.guid(),
-  intakeId: z.guid(),
+  // One or the other, by the campus: a term, or a month at a campus that
+  // takes children in by the month. Checked below, once the campus is known.
+  intakeId: z.guid().optional(),
+  startMonth: z.string().regex(/^\d{4}-\d{2}-01$/).optional(),
   t0: z.coerce.number().int().nonnegative().optional(),
 });
 
@@ -58,12 +62,30 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
 
   const admin = createAdminClient();
   const catalogue = await loadCatalogue(admin);
-  const { gradeId, campusId, intakeId } = parsed.data;
+  const { gradeId, campusId } = parsed.data;
   if (!(catalogue.offered[campusId] ?? []).includes(gradeId)) {
     return { error: "That campus does not offer that grade. Please choose another." };
   }
-  if (!catalogue.intakes.some((i) => i.id === intakeId)) {
-    return { error: "Please choose an open start term." };
+  const campus = catalogue.campuses.find((c) => c.id === campusId);
+  if (!campus) return { error: "Please choose a campus." };
+  // The term the application is counted under. At a monthly campus it
+  // follows the month the family chose; elsewhere it is the term they chose.
+  let intakeId: string;
+  let startMonth: string | null = null;
+  if (campus.intake_cadence === "month") {
+    const today = toSchoolDateString(new Date());
+    if (!parsed.data.startMonth || !monthChoices(today).some((m) => m.value === parsed.data.startMonth)) {
+      return { error: "Please choose the month your child starts." };
+    }
+    const intake = intakeForMonth(catalogue.intakes, parsed.data.startMonth);
+    if (!intake) return { error: "We are not taking applications that far ahead yet. Please choose an earlier month, or request a call." };
+    startMonth = parsed.data.startMonth;
+    intakeId = intake.id;
+  } else {
+    if (!parsed.data.intakeId || !catalogue.intakes.some((i) => i.id === parsed.data.intakeId)) {
+      return { error: "Please choose an open start term." };
+    }
+    intakeId = parsed.data.intakeId;
   }
 
   const graph = await loadApplicationGraph(admin, session.applicationId);
@@ -83,7 +105,7 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
 
   const { error } = await admin
     .from("applications")
-    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId, requires_assessment: requiresAssessment })
+    .update({ grade_id: gradeId, campus_id: campusId, intake_id: intakeId, start_month: startMonth, requires_assessment: requiresAssessment })
     .eq("id", app.id)
     .eq("status", "new_enquiry");
   if (error) return { error: "Could not save your choice. Please try again." };

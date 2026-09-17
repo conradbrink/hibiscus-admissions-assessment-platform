@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { startLabel } from "@/lib/start-month";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
@@ -40,7 +41,7 @@ export default async function NextPage() {
       <PageHeader
         eyebrow={`${app.child_first_name} ${app.child_last_name}`}
         title={`${grade.name} at ${campus.name}`}
-        description={`Starting ${intake.label}. Reference ${app.reference}.`}
+        description={`Starting ${startLabel(app, intake)}. Reference ${app.reference}.`}
       />
 
       <section
