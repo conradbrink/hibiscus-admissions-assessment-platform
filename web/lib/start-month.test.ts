@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMonth, intakeForMonth, isMonthStart, monthChoices, startLabel, startsOn } from "@/lib/start-month";
+import { firstSchoolDay, formatMonth, intakeForMonth, isMonthStart, monthChoices, startLabel, startsOn } from "@/lib/start-month";
 
 /** The school's real terms, as the funnel offers them in September 2026. */
 const t3_2026 = { id: "t3-2026", label: "Term 3, 2026", starts_on: "2026-09-07" };
@@ -65,6 +65,42 @@ describe("intakeForMonth", () => {
   it("is null when nothing is offered", () => {
     expect(intakeForMonth([], "2026-10-01")).toBeNull();
   });
+
+  it("refuses a month past the end of the year its term belongs to", () => {
+    // Only Term 3 2026 is open, and the 2026 year ends on 4 December. A
+    // family choosing August 2027 would otherwise be filed — and priced — in
+    // the 2026 fee year.
+    const only2026 = [{ ...t3_2026, year_ends_on: "2026-12-04" }];
+    expect(intakeForMonth(only2026, "2026-11-01")?.id).toBe("t3-2026");
+    expect(intakeForMonth(only2026, "2026-12-01")?.id).toBe("t3-2026");
+    expect(intakeForMonth(only2026, "2027-08-01")).toBeNull();
+  });
+
+  it("still books a month ahead into a year that has terms for it", () => {
+    const dated = [
+      { ...t3_2026, year_ends_on: "2026-12-04" },
+      { ...t1_2027, year_ends_on: "2027-12-03" },
+      { ...t2_2027, year_ends_on: "2027-12-03" },
+    ];
+    expect(intakeForMonth(dated, "2027-08-01")?.id).toBe("t2-2027");
+  });
+});
+
+describe("firstSchoolDay", () => {
+  it("keeps a weekday first of the month", () => {
+    // 1 October 2026 is a Thursday.
+    expect(firstSchoolDay("2026-10-01")).toBe("2026-10-01");
+  });
+
+  it("rolls a Sunday first to the Monday", () => {
+    // 1 November 2026 is a Sunday: nobody starts school that day.
+    expect(firstSchoolDay("2026-11-01")).toBe("2026-11-02");
+  });
+
+  it("rolls a Saturday first to the Monday", () => {
+    // 1 August 2026 is a Saturday.
+    expect(firstSchoolDay("2026-08-01")).toBe("2026-08-03");
+  });
 });
 
 describe("what a page calls the start", () => {
@@ -73,8 +109,10 @@ describe("what a page calls the start", () => {
     expect(startLabel({ start_month: null }, t3_2026)).toBe("Term 3, 2026");
   });
 
-  it("starts on the first of the month, or the first day of term", () => {
+  it("starts on the first school day of the month, or the first day of term", () => {
     expect(startsOn({ start_month: "2026-10-01" }, t3_2026)).toBe("2026-10-01");
+    // November 2026 opens on a Sunday, so the child's first day is the 2nd.
+    expect(startsOn({ start_month: "2026-11-01" }, t3_2026)).toBe("2026-11-02");
     expect(startsOn({ start_month: null }, t3_2026)).toBe("2026-09-07");
   });
 });

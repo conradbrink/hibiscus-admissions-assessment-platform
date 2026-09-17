@@ -67,14 +67,27 @@ export function monthChoices(today: string, count = 12): MonthChoice[] {
  * is Term 3, 2026; January 2027 is Term 1, 2027 (which starts on the 11th,
  * still inside January); December 2026 stays Term 3, 2026.
  *
- * Null only when nothing is offerable at all, which the caller already
- * refuses as "applications are not open".
+ * Null when nothing is offerable at all, and null when the month falls
+ * outside the academic year of the term it would otherwise be filed under.
+ * That second case is what stops a family choosing, say, August 2027 while
+ * only Term 3 2026 is open and having the child counted — and priced — in
+ * the 2026 fee year. Callers that pass `year_ends_on` get that guard;
+ * a caller with no year to hand keeps the older behaviour.
  */
-export function intakeForMonth<T extends { starts_on: string }>(intakes: readonly T[], month: string): T | null {
+export function intakeForMonth<T extends { starts_on: string; year_ends_on?: string | null }>(
+  intakes: readonly T[],
+  month: string
+): T | null {
   const sorted = [...intakes].sort((a, b) => a.starts_on.localeCompare(b.starts_on));
   const endOfMonth = `${month.slice(0, 7)}-31`;
   const begun = sorted.filter((i) => i.starts_on <= endOfMonth);
-  return begun.at(-1) ?? sorted[0] ?? null;
+  const chosen = begun.at(-1) ?? sorted[0] ?? null;
+  if (!chosen) return null;
+  // The month must fall inside that term's academic year. A month before the
+  // first open term is fine — the family is booking ahead into the year that
+  // term belongs to — so only the far end is refused.
+  if (chosen.year_ends_on && month > chosen.year_ends_on) return null;
+  return chosen;
 }
 
 /** What a page or letter calls the start: the month where one was chosen, the term otherwise. */
@@ -82,7 +95,30 @@ export function startLabel(application: { start_month: string | null }, intake: 
   return application.start_month ? formatMonth(application.start_month) : intake.label;
 }
 
-/** The day the child starts: the first of the chosen month, or the term's first day. */
+/**
+ * The first school day of a month: the 1st, or the Monday after it when the
+ * 1st falls on a weekend.
+ *
+ * The month is what the family chose and what the letter names; this is the
+ * day the child actually walks in, and it is what the first-day email, the
+ * enrolment record and the export all carry. "Your child's first day is
+ * Sunday 1 November" is the sentence this exists to stop.
+ */
+export function firstSchoolDay(month: string): string {
+  // Parsed as UTC noon so the weekday is the calendar one everywhere.
+  const d = new Date(`${month}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return month;
+  const shift = d.getUTCDay() === 0 ? 1 : d.getUTCDay() === 6 ? 2 : 0;
+  if (shift === 0) return month;
+  d.setUTCDate(d.getUTCDate() + shift);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The day the child starts: the first school day of the chosen month, or the
+ * term's first day. The school sets term dates on weekdays already, so the
+ * rolling only ever applies to a month.
+ */
 export function startsOn(application: { start_month: string | null }, intake: { starts_on: string }): string {
-  return application.start_month ?? intake.starts_on;
+  return application.start_month ? firstSchoolDay(application.start_month) : intake.starts_on;
 }

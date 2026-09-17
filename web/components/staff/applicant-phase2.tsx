@@ -77,7 +77,7 @@ export async function ApplicantPhase2({
    * for every grade that is not. It sits on the Offer tab because that is the
    * only thing it changes: which term fee the next letter quotes.
    */
-  dayPattern: { value: "half" | "full" | null; canSet: boolean } | null;
+  dayPattern: { value: "half" | "full" | null; canSet: boolean; unit: "term" | "month" } | null;
   /**
    * The month the child starts, at a campus that takes children in by the
    * month (Potch, Tlokweng). Null at a termly campus. It is what the next
@@ -390,9 +390,9 @@ export async function ApplicantPhase2({
                     <option value="full">Full day</option>
                   </NativeSelect>
                   <p className="text-xs text-muted-foreground">
-                    Decides which term fee the next offer letter quotes. While this is undecided the letter shows both
-                    rates and asks the family to confirm; either way, tuition is invoiced and is not payable to accept
-                    the offer. An offer already sent keeps the fees it was drafted with.
+                    Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next offer letter quotes. While this is
+                    undecided the letter shows both rates and asks the family to confirm; either way, tuition is invoiced
+                    and is not payable to accept the offer. An offer already sent keeps the fees it was drafted with.
                   </p>
                 </ActionForm>
               ) : null}

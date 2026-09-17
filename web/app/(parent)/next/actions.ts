@@ -78,7 +78,7 @@ export async function confirmGrade(_prev: ActionState, formData: FormData): Prom
       return { error: "Please choose the month your child starts." };
     }
     const intake = intakeForMonth(catalogue.intakes, parsed.data.startMonth);
-    if (!intake) return { error: "Applications are not open for that month. Please request a call." };
+    if (!intake) return { error: "We are not taking applications that far ahead yet. Please choose an earlier month, or request a call." };
     startMonth = parsed.data.startMonth;
     intakeId = intake.id;
   } else {

@@ -175,7 +175,10 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   };
   // Half day or full day. It decides which term fee the letter quotes, so it
   // belongs with the letter rather than in a box of its own beside it.
-  const dayPattern = (grade?.sort_order ?? 999) <= 50 ? { value: app.day_pattern, canSet: canWrite } : null;
+  const dayPattern =
+    (grade?.sort_order ?? 999) <= 50
+      ? { value: app.day_pattern, canSet: canWrite, unit: campus?.intake_cadence === "month" ? ("month" as const) : ("term" as const) }
+      : null;
   // The month the child starts, at a campus that runs by the month. Same
   // place as the day pattern, for the same reason: the letter is what reads it.
   const startMonth = campus?.intake_cadence === "month"

@@ -24,7 +24,8 @@ export type FunnelCatalogue = {
    * Tlokweng, so the question cannot be answered by the grade alone.
    */
   assessed: Record<string, Record<string, boolean>>;
-  intakes: Array<IntakeRow & { age_cutoff_on: string }>;
+  /** `year_ends_on` is what stops a month being filed under a year it is not in. */
+  intakes: Array<IntakeRow & { age_cutoff_on: string; year_ends_on: string | null }>;
 };
 
 export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue> {
@@ -62,7 +63,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
   const intakes = offerableIntakes(
     dated.map((d) => ({ ...d, starts_on: d.row.starts_on, is_open: d.row.is_open })),
     today
-  ).map(({ row, age_cutoff_on }) => {
+  ).map(({ row, age_cutoff_on, year_ends_on }) => {
     const intake: IntakeRow = {
       id: row.id,
       academic_year_id: row.academic_year_id,
@@ -74,7 +75,7 @@ export async function loadCatalogue(admin: AdminClient): Promise<FunnelCatalogue
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
-    return { ...intake, age_cutoff_on };
+    return { ...intake, age_cutoff_on, year_ends_on };
   });
   return {
     campuses: campusesRes.data ?? [],
@@ -162,7 +163,7 @@ export async function createEnquiry(
   const intake = startMonth
     ? intakeForMonth(catalogue.intakes, startMonth)
     : (catalogue.intakes.find((i) => i.id === input.intakeId) ?? catalogue.intakes[0]);
-  if (!intake) throw new Error("no_open_intake");
+  if (!intake) throw new Error(startMonth ? "month_outside_open_years" : "no_open_intake");
 
   // Recommend from the ladder this campus actually teaches. The two ladders
   // share ages — a child turning four is Grade RR in Potchefstroom and

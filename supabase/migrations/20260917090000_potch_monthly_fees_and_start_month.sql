@@ -47,12 +47,18 @@ alter table public.fee_lines add constraint fee_lines_code_check
 -- Potch's schedules were created in the console rather than by a migration,
 -- so a database rebuilt from migrations has none and these two statements
 -- touch nothing there; the vocabulary above is what the replay proves.
+-- Scoped to the three bands the insert below refills. A Potch schedule on
+-- some other band (an "any grade" one, say) would otherwise be stripped of
+-- its only tuition line and refill nothing, and an offer drafted against an
+-- empty schedule is blocked rather than sent — the failure
+-- `20260904193400_offers.sql` calls "no active fee schedule".
 delete from public.fee_lines l
  using public.fee_schedules s
   join public.campuses c on c.id = s.campus_id
  where l.schedule_id = s.id
    and c.code in ('potch', 'potch_south')
    and s.status = 'active'
+   and (s.grade_sort_min, s.grade_sort_max) in ((1, 3), (4, 4), (5, 5))
    and l.code in ('tuition_month', 'tuition_annual');
 
 insert into public.fee_lines (schedule_id, code, label, amount_minor, payable_at_acceptance, position)
@@ -300,7 +306,14 @@ select
     '{{#if tuition_term_half}}<p>Half day and full day are both available. Tell the school which suits you and we will confirm the term fee; nothing above needs to be paid to accept this offer.</p>{{/if}}',
     '{{#if tuition_term_half}}<p>Half day and full day are both available. Tell the school which suits you and we will confirm the term fee; nothing above needs to be paid to accept this offer.</p>{{/if}}{{#if tuition_month_half}}<p>Half day and full day are both available. Tell the school which suits you and we will confirm the monthly fee. The monthly fee is invoiced and is not part of the amount to pay now.</p>{{/if}}'
   ),
-  t.terms_html,
+  -- The terms said "The school invoices tuition each term" under every
+  -- letter, including one whose body now says the fees are invoiced monthly.
+  -- Guarded the same way the body is, so the two agree.
+  replace(
+    t.terms_html,
+    'The school invoices tuition each term, following its published fee schedule and payment options.',
+    '{{#if by_term}}The school invoices tuition each term, following its published fee schedule and payment options.{{/if}}{{#if by_month}}The school invoices tuition each month, following its published fee schedule and payment options.{{/if}}'
+  ),
   (select array(select distinct v from unnest(t.allowed_variables || array['by_term', 'by_month', 'tuition_month_half', 'tuition_month_full', 'lunch_month']) as v order by v)),
   true
 from public.offer_templates t
@@ -316,6 +329,7 @@ update public.offer_templates set is_active = true, updated_at = now()
 do $$
 declare
   v_body text;
+  v_terms text;
 begin
   select body_html into v_body from public.offer_templates where key = 'standard' and version = 9;
   if v_body is null then
@@ -329,5 +343,16 @@ begin
   end if;
   if position('before {{student_first_name}} starts.' in v_body) = 0 then
     raise exception 'offer template v9 still says "before the term begins"';
+  end if;
+  -- The paragraph that explains the two monthly rates are a choice. Its own
+  -- string, because every other check here is already satisfied by the fee
+  -- rows above and would pass with this paragraph missing — which is how a
+  -- family would be sent two monthly charges and no sentence saying why.
+  if position('confirm the monthly fee' in v_body) = 0 then
+    raise exception 'offer template v9 lists both monthly rates without saying they are a choice';
+  end if;
+  select terms_html into v_terms from public.offer_templates where key = 'standard' and version = 9;
+  if position('{{#if by_month}}The school invoices tuition each month' in coalesce(v_terms, '')) = 0 then
+    raise exception 'offer template v9 terms still invoice every family by the term';
   end if;
 end $$;

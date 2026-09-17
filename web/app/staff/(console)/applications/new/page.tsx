@@ -6,6 +6,7 @@ import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { HEARD_FROM_OPTIONS } from "@/lib/heard-from";
 import { offerableIntakes } from "@/lib/intakes";
+import { toSchoolDateString } from "@/lib/format-date";
 import { monthChoices } from "@/lib/start-month";
 import { PlacePicker } from "@/components/staff/place-picker";
 import { requireStaff } from "@/lib/staff/session";
@@ -20,7 +21,7 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  */
 export default async function NewApplicantPage() {
   const { supabase } = await requireStaff("applications.write");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toSchoolDateString(new Date());
   const [{ data: campuses }, { data: grades }, { data: intakes }, { data: offered }] = await Promise.all([
     supabase.from("v_accessible_campuses").select("id, name, intake_cadence").order("sort_order"),
     supabase.from("grades").select("id, name, sort_order").eq("is_active", true).order("sort_order"),

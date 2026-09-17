@@ -81,7 +81,7 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
         throw new Error("Choose the month the child starts.");
       }
       if (!intakeForMonth(catalogue.intakes, parsed.startMonth)) {
-        throw new Error("No start term is open for that month. Open one under Settings → Intakes first.");
+        throw new Error("No open start term covers that month. Open the next year's terms under Settings → Intakes first.");
       }
     } else if (!parsed.intakeId || !catalogue.intakes.some((i) => i.id === parsed.intakeId)) {
       throw new Error("That start term is no longer open. Choose another.");
