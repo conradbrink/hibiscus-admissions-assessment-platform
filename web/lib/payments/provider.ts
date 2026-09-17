@@ -46,8 +46,7 @@ export interface PaymentProvider {
   verify(providerRef: string): Promise<VerifyResult>;
 }
 
-/** How long a hosted checkout stays open. */
-export const CHECKOUT_TTL_HOURS = 24;
+export { CHECKOUT_TTL_HOURS } from "@/lib/payments/attempts";
 
 export function paymentProviderName(): "dev" | "dpo" | "paygate" {
   const which = process.env.PAYMENT_PROVIDER ?? "dev";

@@ -34,6 +34,7 @@ export function ChoosePassword({ token, lookup, purpose }: { token: string; look
   return (
     <ActionForm action={acceptInvite} label={lookup.purpose === "reset" ? "Save my password and sign in" : "Set my password and sign in"} size="lg" className="space-y-4 surface p-6">
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="purpose" value={purpose} />
       <div>
         <h1 className="text-lg font-semibold">{lookup.purpose === "reset" ? `Choose a new password, ${firstName}` : `Welcome, ${firstName}`}</h1>
         <p className="mt-1 text-sm text-muted-foreground">

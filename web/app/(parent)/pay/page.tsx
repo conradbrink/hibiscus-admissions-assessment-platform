@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Download } from "lucide-react";
-import { recentAttemptsSince } from "@/lib/payments/attempts";
+import { lateAttemptOf } from "@/lib/payments/attempts";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { PageHeader } from "@/components/parent/page-header";
 import { CheckPaymentButton, PayOnlineButton } from "@/components/parent/pay-buttons";
@@ -43,7 +43,7 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
   // An attempt we gave up on, recent enough that the gateway may still have an
   // answer: the parent may have finished paying after we stopped waiting, and
   // must be able to ask before being told to pay again.
-  const lateCheck = lastFailed !== null && lastFailed.status === "expired" && lastFailed.provider_ref !== null && lastFailed.created_at >= recentAttemptsSince();
+  const lateCheck = lateAttemptOf(payments ?? []) !== null;
   const settled = request.status === "paid";
   const canPay = app.status === "payment_required" && ["required", "failed", "partially_paid"].includes(request.status);
 
