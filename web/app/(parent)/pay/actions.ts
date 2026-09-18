@@ -5,6 +5,8 @@ import { loadApplicationGraph } from "@/lib/applications";
 import { drainSoon } from "@/lib/parent/actions";
 import { ATTEMPT_STATUSES, recentAttemptsSince } from "@/lib/payments/attempts";
 import { startCheckout } from "@/lib/payments/checkout";
+import { canPayOnline, transferOnlyReason } from "@/lib/payments/online";
+import { paymentProviderName } from "@/lib/payments/provider";
 import { reconcilePayment } from "@/lib/payments/reconcile";
 import { loadOpenPaymentRequest } from "@/lib/payments/requests";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -36,6 +38,9 @@ export async function startOnlinePayment(): Promise<PayState> {
   if (!request) return { error: "There is nothing to pay right now." };
   if (graph.application.status !== "payment_required") {
     return { error: graph.application.status === "payment_processing" ? "A payment is already being confirmed. Use Check again below." : "This application is not waiting for a payment." };
+  }
+  if (!canPayOnline(paymentProviderName(), request.currency)) {
+    return { error: transferOnlyReason(request.currency) };
   }
   const verdict = await enforceRateLimit(admin, LIMITS.paymentStart, graph.application.id);
   if (!verdict.ok) return { error: "Please wait a moment before trying again." };

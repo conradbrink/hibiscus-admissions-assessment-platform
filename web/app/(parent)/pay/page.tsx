@@ -4,6 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCircle2, Download } from "lucide-react";
 import { lateAttemptOf } from "@/lib/payments/attempts";
+import { canPayOnline } from "@/lib/payments/online";
+import { paymentProviderName } from "@/lib/payments/provider";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { PageHeader } from "@/components/parent/page-header";
 import { CheckPaymentButton, PayOnlineButton } from "@/components/parent/pay-buttons";
@@ -47,6 +49,10 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
   const lateCheck = lateAttemptOf(payments ?? []) !== null;
   const settled = request.status === "paid";
   const canPay = app.status === "payment_required" && ["required", "failed", "partially_paid"].includes(request.status);
+  // Potchefstroom charges in Rand and the school's gateway is Botswana's, so
+  // those families are asked for a transfer rather than sent to a card page
+  // that cannot take their money.
+  const onlineAvailable = canPayOnline(paymentProviderName(), request.currency);
 
   return (
     <>
@@ -115,20 +121,37 @@ export default async function PayPage({ searchParams }: { searchParams: Promise<
       ) : null}
 
       {canPay && !processing ? (
-        <section className="mt-5 space-y-4">
-          <div className="rounded-2xl border-2 border-primary bg-card p-5">
-            <p className="text-xs font-semibold tracking-wide text-primary uppercase">Pay online</p>
-            <p className="mt-1 text-sm text-muted-foreground">Card or instant EFT on our payment provider&rsquo;s secure page. We never see your card details.</p>
-            <div className="mt-4"><PayOnlineButton action={startOnlinePayment} label={`Pay ${formatMoney(outstanding, request.currency)} securely online`} /></div>
-          </div>
-          {bank ? (
-            <details className="surface p-5 text-sm">
-              <summary className="cursor-pointer font-semibold">Pay by bank transfer instead</summary>
-              <p className="mt-2 whitespace-pre-line">{bank.body_text}</p>
-              <p className="mt-3">Please use the reference <strong>{paymentReferenceFor(app.child_first_name, app.child_last_name)}</strong> — your child&rsquo;s name — so we can match your payment. We will email a receipt once it reaches us; this can take a working day or two.</p>
-            </details>
-          ) : null}
-        </section>
+        onlineAvailable ? (
+          <section className="mt-5 space-y-4">
+            <div className="rounded-2xl border-2 border-primary bg-card p-5">
+              <p className="text-xs font-semibold tracking-wide text-primary uppercase">Pay online</p>
+              <p className="mt-1 text-sm text-muted-foreground">Card or instant EFT on our payment provider&rsquo;s secure page. We never see your card details.</p>
+              <div className="mt-4"><PayOnlineButton action={startOnlinePayment} label={`Pay ${formatMoney(outstanding, request.currency)} securely online`} /></div>
+            </div>
+            {bank ? (
+              <details className="surface p-5 text-sm">
+                <summary className="cursor-pointer font-semibold">Pay by bank transfer instead</summary>
+                <p className="mt-2 whitespace-pre-line">{bank.body_text}</p>
+                <p className="mt-3">Please use the reference <strong>{paymentReferenceFor(app.child_first_name, app.child_last_name)}</strong> — your child&rsquo;s name — so we can match your payment. We will email a receipt once it reaches us; this can take a working day or two.</p>
+              </details>
+            ) : null}
+          </section>
+        ) : (
+          // No card page for this currency, so the transfer is the way to pay
+          // and is shown open rather than folded away behind a summary.
+          <section className="mt-5 rounded-2xl border-2 border-primary bg-card p-5 text-sm">
+            <p className="text-xs font-semibold tracking-wide text-primary uppercase">Pay by bank transfer</p>
+            {bank ? (
+              <>
+                <p className="mt-2 whitespace-pre-line">{bank.body_text}</p>
+                <p className="mt-3">Please use the reference <strong>{paymentReferenceFor(app.child_first_name, app.child_last_name)}</strong> — your child&rsquo;s name — so we can match your payment.</p>
+                <p className="mt-3 text-muted-foreground">Send proof of payment to the admissions office. We will email a receipt once it reaches us; this can take a working day or two, and {app.child_first_name}&rsquo;s place is held meanwhile.</p>
+              </>
+            ) : (
+              <p className="mt-2">Please contact the admissions office for the account details, and quote the reference <strong>{paymentReferenceFor(app.child_first_name, app.child_last_name)}</strong>.</p>
+            )}
+          </section>
+        )
       ) : null}
 
       <p className="mt-6 text-sm"><Link href="/offer" className="font-medium text-primary underline underline-offset-2">View the offer</Link> · <Link href="/next" className="font-medium text-primary underline underline-offset-2">Back to your application</Link></p>

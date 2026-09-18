@@ -6,6 +6,8 @@ import { openExtrasRequest } from "@/lib/extras/requests";
 import { loadStudentOrder, loadStudentPaymentAttempts, payerForFamily } from "@/lib/family/extras";
 import { familyClient } from "@/lib/family/scope";
 import { startCheckout } from "@/lib/payments/checkout";
+import { canPayOnline, transferOnlyReason } from "@/lib/payments/online";
+import { paymentProviderName } from "@/lib/payments/provider";
 import { reconcilePayment } from "@/lib/payments/reconcile";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -39,6 +41,14 @@ export async function startExtrasPayment(studentId: string): Promise<PayState> {
 
   const verdict = await enforceRateLimit(admin, LIMITS.paymentStart, order.student.id);
   if (!verdict.ok) return { error: "Please wait a moment before trying again." };
+  // The order's own currency, which for a Potchefstroom family is Rand and
+  // has no gateway behind it yet. Checked here when a request already exists
+  // so no pointless one is raised; a first-time payer is caught by the same
+  // rule inside `startCheckout`, whose message this action already surfaces.
+  const currency = order.request?.currency ?? null;
+  if (currency && !canPayOnline(paymentProviderName(), currency)) {
+    return { error: transferOnlyReason(currency) };
+  }
 
   let redirectUrl: string;
   try {
