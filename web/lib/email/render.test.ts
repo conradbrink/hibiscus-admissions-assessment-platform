@@ -65,6 +65,40 @@ describe("template rendering", () => {
     const without = renderHtml(t, { amount_due: "P 7,500.00", payment_link: "x", bank_details: null, application_reference: "HBS-1" }, allowed);
     expect(without).toBe("<p>Pay P 7,500.00</p>");
   });
+  it("offers the card button or the bank details, never both wordings", () => {
+    // The shape the three payment emails take from 20260918120000. `pay_online`
+    // and `transfer_only` are exclusive mirrors, and each arm nests the
+    // bank-details block inside itself — the case that would break if the
+    // renderer stopped resolving inner blocks first.
+    const allowed = ["payment_link", "bank_details", "pay_online", "transfer_only"];
+    const t =
+      "{{#if pay_online}}<p><a href=\"{{payment_link}}\">Pay securely online</a></p>" +
+      "{{#if bank_details}}<p>Or pay by bank transfer:</p><p>{{bank_details}}</p>{{/if}}{{/if}}" +
+      "{{#if transfer_only}}{{#if bank_details}}<p>Please pay by bank transfer:</p><p>{{bank_details}}</p>{{/if}}" +
+      "<p><a href=\"{{payment_link}}\">See what is due</a></p>{{/if}}";
+    const bank = { payment_link: "https://pay", bank_details: "FNB POTCH" };
+
+    const online = renderHtml(t, { ...bank, pay_online: "yes", transfer_only: null }, allowed);
+    expect(online).toContain("Pay securely online");
+    expect(online).toContain("Or pay by bank transfer:");
+    expect(online).not.toContain("Please pay by bank transfer:");
+    expect(online).not.toContain("See what is due");
+
+    const transfer = renderHtml(t, { ...bank, pay_online: null, transfer_only: "yes" }, allowed);
+    expect(transfer).not.toContain("Pay securely online");
+    expect(transfer).toContain("Please pay by bank transfer:");
+    expect(transfer).toContain("FNB POTCH");
+    // The link still goes, because it is also where the balance is shown.
+    expect(transfer).toContain("See what is due");
+  });
+  it("still says something when a transfer-only campus has no bank details on file", () => {
+    const allowed = ["payment_link", "bank_details", "pay_online", "transfer_only"];
+    const t =
+      "{{#if transfer_only}}{{#if bank_details}}<p>Please pay by bank transfer:</p>{{/if}}" +
+      "<p><a href=\"{{payment_link}}\">See what is due</a></p>{{/if}}";
+    const out = renderHtml(t, { payment_link: "https://pay", bank_details: null, pay_online: null, transfer_only: "yes" }, allowed);
+    expect(out).toBe("<p><a href=\"https://pay\">See what is due</a></p>");
+  });
   it("lists missing documents only when there are any", () => {
     const allowed = ["missing_documents"];
     expect(renderText("{{#if missing_documents}}Still needed: {{missing_documents}}{{/if}}", { missing_documents: "Birth certificate" }, allowed)).toBe("Still needed: Birth certificate");

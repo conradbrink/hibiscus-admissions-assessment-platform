@@ -679,7 +679,9 @@ the checklist.
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
-  set, the payment page offers online payment only.
+  set, the payment page offers online payment only — except where no gateway
+  takes the currency, below, where bank details are the only way to pay and
+  the page says so.
 - **Agreements**: the four 2026 documents are seeded from the PDFs the
   school supplied. When a document is revised, publish the new wording at
   `/staff/admin/agreements` and replace the PDF (see the runbook).
@@ -687,6 +689,28 @@ the checklist.
   certificate, vaccination card, school report and transfer certificate from
   Stage 1, optional medical documentation); edit at
   `/staff/admin/document-requirements`.
+
+### Which currencies can be paid online
+
+`PAYMENT_PROVIDER` is one global setting and the school's gateway is arranged
+in Botswana, settling in Pula. Potchefstroom is in South Africa and charges in
+Rand, and no South African gateway has been arranged yet.
+
+`lib/payments/online.ts` holds the map of gateway to currencies it can take.
+A currency that is not listed is not offered: the parent payment pages show
+the campus's bank details instead of the card button, `startOnlinePayment`
+and `startCheckout` both refuse the request, and the three payment emails
+(`offer_accepted_pay`, `payment_reminder`, `payment_failed`) swap their
+"Pay securely online" wording for the transfer instructions, on the
+`pay_online` / `transfer_only` variables `paymentExtras` computes from the
+request's own currency.
+
+Nothing about this is per-campus. The day a South African gateway exists and
+has been tested, add `ZAR` to that provider's row and every one of those
+surfaces offers the card button again — no migration, no campus flag.
+
+A currency listed there is a claim that money will actually arrive in the
+school's account. Do not add one before the account exists.
 
 ### Three things the code deliberately does not invent
 

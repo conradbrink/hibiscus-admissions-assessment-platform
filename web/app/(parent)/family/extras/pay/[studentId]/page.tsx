@@ -11,6 +11,8 @@ import { familyClient } from "@/lib/family/scope";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { lateAttemptOf } from "@/lib/payments/attempts";
+import { canPayOnline, transferOnlyReason } from "@/lib/payments/online";
+import { paymentProviderName } from "@/lib/payments/provider";
 import { paymentReferenceFor } from "@/lib/payments/reference";
 import { requestLines } from "@/lib/payments/requests";
 import { requireFamilySession } from "@/lib/tokens/server";
@@ -177,13 +179,24 @@ export default async function ExtrasPayPage({
           </div>
         </section>
       ) : canPay && stillDue > 0 ? (
-        <section className="mt-5">
-          <PayOnlineButton action={startExtrasPayment.bind(null, student.id)} label={`Pay ${formatMoney(stillDue, currency)}`} />
-          <p className="mt-3 text-xs text-muted-foreground">
-            You will be taken to the payment provider&rsquo;s own secure page. We never see or store your card details. If you would
-            rather pay by transfer, use the reference <strong>{reference}</strong> and tell the office.
-          </p>
-        </section>
+        canPayOnline(paymentProviderName(), currency) ? (
+          <section className="mt-5">
+            <PayOnlineButton action={startExtrasPayment.bind(null, student.id)} label={`Pay ${formatMoney(stillDue, currency)}`} />
+            <p className="mt-3 text-xs text-muted-foreground">
+              You will be taken to the payment provider&rsquo;s own secure page. We never see or store your card details. If you would
+              rather pay by transfer, use the reference <strong>{reference}</strong> and tell the office.
+            </p>
+          </section>
+        ) : (
+          <section className="mt-5 surface p-5 text-sm">
+            <p className="font-semibold">Pay by bank transfer</p>
+            <p className="mt-1 text-muted-foreground">{transferOnlyReason(currency)}</p>
+            <p className="mt-3">
+              Use the reference <strong>{reference}</strong> and tell the office once you have paid, and we will mark the order
+              as settled.
+            </p>
+          </section>
+        )
       ) : null}
 
       <div className="mt-6">

@@ -18,6 +18,8 @@ import { createElement, type ReactElement } from "react";
 import { logoUrlFor } from "@/lib/documents/letterhead";
 import { ReceiptDocument } from "@/lib/documents/receipt-pdf";
 import { loadBankInstructions, requestLines } from "@/lib/payments/requests";
+import { canPayOnline } from "@/lib/payments/online";
+import { paymentProviderName } from "@/lib/payments/provider";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { promotionLines, type PromotionFeeSnapshot } from "@/lib/promotions/apply";
 
@@ -55,6 +57,12 @@ export type EmailExtras = {
   amountDue?: string | null;
   paymentDueDate?: string | null;
   bankDetails?: string | null;
+  /**
+   * Whether the configured gateway can take this request's currency. Absent
+   * where there is no request to ask about, which reads as "yes": nothing is
+   * hidden on a guess.
+   */
+  payOnline?: boolean;
   amountPaid?: string | null;
   paymentReference?: string | null;
   paymentDate?: string | null;
@@ -130,6 +138,15 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     promotion_text: extras.promotionText ?? null,
     outstanding_items: extras.outstandingItems ?? null,
     all_received: extras.allReceived ? "yes" : null,
+    // Can this family pay by card at all? The school's gateway settles in
+    // Pula; Potchefstroom charges in Rand and no South African gateway is
+    // arranged, so a Rand checkout is refused (`lib/payments/online.ts`) and
+    // an email offering "Pay securely online" sends that parent to a page
+    // with no card button. Mirrors, not a negation, because the template
+    // language has {{#if}} and no {{#unless}}; exclusive, and both null only
+    // where there is no request, where the safe reading is the old one.
+    pay_online: extras.payOnline === false ? null : "yes",
+    transfer_only: extras.payOnline === false ? "yes" : null,
     // Did this child sit an assessment? The template language has {{#if}} and
     // no {{#unless}} (lib/email/render.ts), so the mirror is a second
     // variable rather than a negation — the shape `all_received` already uses.
@@ -217,6 +234,10 @@ export async function paymentExtras(
     out.amountDue = formatMoney(Number(request.amount_minor) - Number(request.paid_minor), request.currency);
     const bank = await loadBankInstructions(admin, { currency: request.currency, campusId: graph.application.campus_id });
     out.bankDetails = bank?.body_text ?? null;
+    // Read from the request's own currency, so the wording follows the campus
+    // without a per-campus rule: the day a South African gateway is added to
+    // GATEWAY_CURRENCIES these emails offer the card button again.
+    out.payOnline = canPayOnline(paymentProviderName(), request.currency);
   }
   if (payment && payment.status === "succeeded") {
     out.amountPaid = formatMoney(Number(payment.amount_minor), payment.currency);

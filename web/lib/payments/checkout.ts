@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
-import { getPaymentProvider, type CheckoutRequest } from "@/lib/payments/provider";
+import { canPayOnline, transferOnlyReason } from "@/lib/payments/online";
+import { getPaymentProvider, paymentProviderName, type CheckoutRequest } from "@/lib/payments/provider";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
 import { WorkflowError } from "@/lib/workflow/engine";
@@ -41,6 +42,14 @@ export async function startCheckout(
   }
   const outstanding = Number(request.amount_minor) - Number(request.paid_minor);
   if (outstanding <= 0) throw new WorkflowError("Nothing is outstanding on this request", "status_conflict");
+
+  // The last line of defence. Both pay pages hide the button for a currency
+  // the gateway cannot take, but a stale tab or a direct post would otherwise
+  // open a checkout in Rand on a Pula gateway and leave a pending payment row
+  // behind it.
+  if (!canPayOnline(paymentProviderName(), request.currency)) {
+    throw new WorkflowError(transferOnlyReason(request.currency), "status_conflict");
+  }
 
   const provider = await getPaymentProvider();
   const { data: pending, error } = await admin
