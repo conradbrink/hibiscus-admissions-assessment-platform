@@ -82,6 +82,7 @@ export async function registerFamilyForEvent(
   if (!error) return;
   if (error.message.includes("event_full")) throw new Error("This event is full.");
   if (error.message.includes("registration_closed")) throw new Error("Registration for this event has closed.");
+  if (error.message.includes("registration_finalized")) throw new Error("This event has already taken place.");
   if (error.message.includes("event_not_found")) throw new NotInFamilyError("event");
   throw new Error(error.message);
 }

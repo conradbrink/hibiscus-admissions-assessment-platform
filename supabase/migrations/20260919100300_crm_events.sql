@@ -241,6 +241,11 @@ begin
   end if;
 
   if v_existing_id is not null then
+    -- What the school recorded on the day stands; a tap afterwards does not
+    -- turn "attended" or "did not come" back into "coming".
+    if v_existing_status in ('attended', 'no_show') then
+      raise exception 'registration_finalized';
+    end if;
     update public.crm_event_registrations
        set status = 'registered', guests = v_guests, note = p_note
      where id = v_existing_id;
