@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, SquareCheck } from "lucide-react";
 import { initials } from "@/components/staff/initials";
 import { formatDate } from "@/lib/format-date";
 
@@ -8,7 +8,23 @@ import { formatDate } from "@/lib/format-date";
  * lands on the applicants list, the bell with the number of open tasks
  * assigned to this person, and who is signed in.
  */
-export function StaffTopbar({ name, email, openTasks }: { name: string; email: string; openTasks: number }) {
+export function StaffTopbar({
+  name,
+  email,
+  openTasks,
+  search = { action: "/staff/applications", placeholder: "Find an applicant" },
+  tasksHref = "/staff/tasks?mine=1",
+  notifications,
+}: {
+  name: string;
+  email: string;
+  openTasks: number;
+  /** Where the search box lands; the CRM's searches everything. */
+  search?: { action: string; placeholder: string };
+  tasksHref?: string;
+  /** The CRM's bell: unread notices and where they are read. */
+  notifications?: { unread: number; href: string };
+}) {
   const first = (name || email).split(/[\s@]/)[0];
   return (
     <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -17,18 +33,26 @@ export function StaffTopbar({ name, email, openTasks }: { name: string; email: s
         <p className="text-xs text-muted-foreground">{formatDate(new Date())}</p>
       </div>
       <div className="flex items-center gap-2">
-        <form action="/staff/applications" method="get" role="search" className="relative hidden sm:block">
+        <form action={search.action} method="get" role="search" className="relative hidden sm:block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <input
             name="q"
             type="search"
-            placeholder="Find an applicant"
-            aria-label="Find an applicant"
+            placeholder={search.placeholder}
+            aria-label={search.placeholder}
             className="h-9 w-56 rounded-full border border-border/70 bg-card pr-3 pl-9 text-sm shadow-soft outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/40"
           />
         </form>
-        <Link href="/staff/tasks?mine=1" aria-label={`${openTasks} open tasks assigned to you`} className="relative flex size-9 items-center justify-center rounded-full border border-border/70 bg-card shadow-soft hover:bg-muted">
-          <Bell className="size-4 text-muted-foreground" aria-hidden />
+        {notifications ? (
+          <Link href={notifications.href} aria-label={`${notifications.unread} unread notifications`} className="relative flex size-9 items-center justify-center rounded-full border border-border/70 bg-card shadow-soft hover:bg-muted">
+            <Bell className="size-4 text-muted-foreground" aria-hidden />
+            {notifications.unread > 0 ? (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{notifications.unread}</span>
+            ) : null}
+          </Link>
+        ) : null}
+        <Link href={tasksHref} aria-label={`${openTasks} open tasks assigned to you`} className="relative flex size-9 items-center justify-center rounded-full border border-border/70 bg-card shadow-soft hover:bg-muted">
+          <SquareCheck className="size-4 text-muted-foreground" aria-hidden />
           {openTasks > 0 ? (
             <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{openTasks}</span>
           ) : null}

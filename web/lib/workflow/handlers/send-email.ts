@@ -26,6 +26,8 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     student_id?: string | null;
     family_link?: FamilyLinkPurpose | null;
     variables?: Record<string, string | null>;
+    /** A CRM automation asking for the WhatsApp half alone: no email goes. */
+    whatsapp_only?: boolean;
   };
   if (!payload.template_key) {
     return { outcome: "failed", error: "send_email job missing template_key", retryable: false };
@@ -34,6 +36,23 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
   // A family moment: the re-enrolment ask and everything after it. One job
   // type, so the drain's backoff, idempotency and the WhatsApp companion are
   // the same machinery for both halves of the product.
+  if (payload.family_id && payload.whatsapp_only) {
+    // The one caller that wants the companion without the email: an
+    // automation whose author chose WhatsApp. Every rule of the family
+    // sender still holds — template, opt-in, the switch.
+    const result = await sendFamilyMessage(admin, {
+      familyId: payload.family_id,
+      studentId: payload.student_id ?? null,
+      templateKey: payload.template_key,
+      idempotencyKey: `whatsapp:${job.idempotency_key}`,
+      variables: payload.variables ?? {},
+      link: payload.family_link ?? null,
+    });
+    if (result.status === "sent") return { outcome: "done" };
+    if (result.status === "skipped") return { outcome: "skipped", reason: result.reason };
+    return { outcome: "failed", error: result.error, retryable: result.retryable };
+  }
+
   if (payload.family_id) {
     const result = await sendFamilyEmail(admin, {
       familyId: payload.family_id,

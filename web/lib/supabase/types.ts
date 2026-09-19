@@ -209,6 +209,8 @@ export type AuditLogRow = {
   entity_type: string;
   entity_id: string | null;
   application_id: string | null;
+  /** A CRM row about a family, readable when the family is. */
+  family_id: string | null;
   before: Json | null;
   after: Json | null;
   ip_hash: string | null;
@@ -361,6 +363,21 @@ export type ContactRow = {
   family_code: string | null;
   /** The family row that code names. `family_code` stays the external value. */
   family_id: string | null;
+  relationship: GuardianRelationship;
+  /** Marketing consent per channel, apart from the updates opt-in above. */
+  marketing_email_consent: boolean;
+  marketing_email_consent_at: string | null;
+  marketing_whatsapp_consent: boolean;
+  marketing_whatsapp_consent_at: string | null;
+  sms_consent: boolean;
+  sms_consent_at: string | null;
+  consent_source: "enquiry" | "registration" | "staff" | "reply" | "import" | "unsubscribe" | null;
+  unsubscribed_at: string | null;
+  /** The token in every marketing email's unsubscribe link. */
+  unsubscribe_token: string;
+  preferred_channel: ContactChannel | null;
+  notes: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -1381,9 +1398,45 @@ export type FamilyRow = {
   /** Set when two halves of one family were merged; this row is the loser. */
   merged_into_id: string | null;
   notes: string | null;
+  /** The CRM's relationship fields (20260919100000_crm_core). */
+  campus_id: string | null;
+  primary_contact_id: string | null;
+  secondary_contact_id: string | null;
+  preferred_channel: ContactChannel | null;
+  preferred_language: string | null;
+  /** One key from lib/heard-from.ts, copied from the first application. */
+  lead_source: string | null;
+  lead_source_detail: string | null;
+  lifecycle_stage: LifecycleStage;
+  lifecycle_changed_at: string;
+  /** True once a person set the stage by hand; the sync then leaves it. */
+  lifecycle_manual: boolean;
+  assigned_staff_id: string | null;
+  last_contact_at: string | null;
+  next_follow_up_at: string | null;
+  tags: string[];
+  is_active: boolean;
+  referred_by_family_id: string | null;
+  referral_note: string | null;
+  source: "admissions" | "staff" | "import";
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type ContactChannel = "email" | "whatsapp" | "phone" | "sms";
+
+export type LifecycleStage =
+  | "new_enquiry"
+  | "qualified"
+  | "applicant"
+  | "assessment"
+  | "offer"
+  | "onboarding"
+  | "active"
+  | "reenrolment"
+  | "alumni"
+  | "inactive";
 
 export type StudentStatus = "onboarding" | "active" | "on_leave" | "left" | "graduated";
 
@@ -1668,9 +1721,12 @@ export type MessageRow = {
   read_at: string | null;
   received_at: string | null;
   /** What caused this message: the drain, a person, a family moment, the parent. */
-  trigger_source: "companion" | "manual" | "family" | "inbound" | null;
+  trigger_source: "companion" | "manual" | "family" | "inbound" | "campaign" | null;
   /** The member of staff who sent it by hand. Null for anything automatic. */
   sent_by: string | null;
+  /** When a member of staff opened this reply in the CRM inbox. Not the provider's read receipt. */
+  crm_read_at: string | null;
+  crm_read_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1694,6 +1750,10 @@ export type MessageEventRow = {
   recorded_at: string;
 };
 
+export type OptionalItemCategory =
+  | "stationery" | "transport" | "lunch" | "aftercare" | "uniform"
+  | "activity" | "holiday_programme" | "extra_lessons" | "trip" | "other";
+
 /** Something a family may buy alongside a place, priced per campus. */
 export type OptionalItemRow = {
   id: string;
@@ -1701,7 +1761,7 @@ export type OptionalItemRow = {
   code: string;
   label: string;
   description: string | null;
-  category: "stationery" | "transport" | "lunch" | "aftercare" | "uniform" | "other";
+  category: OptionalItemCategory;
   amount_minor: number;
   currency: "BWP" | "ZAR";
   grade_sort_min: number | null;
@@ -1741,6 +1801,335 @@ export type StudentJourneyMessageRow = {
   student_id: string;
   step: "welcome" | "outstanding" | "first_day" | "first_week";
   sent_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// The CRM (20260919100000 to 20260919100500)
+// ---------------------------------------------------------------------------
+
+export type CrmTriggerEventRow = {
+  id: number;
+  type: string;
+  family_id: string | null;
+  student_id: string | null;
+  application_id: string | null;
+  payload: Json;
+  occurred_at: string;
+  processed_at: string | null;
+  outcome: "done" | "nothing" | "failed" | null;
+  error: string | null;
+};
+
+export type CrmNoteRow = {
+  id: string;
+  family_id: string | null;
+  student_id: string | null;
+  opportunity_id: string | null;
+  task_id: string | null;
+  campaign_id: string | null;
+  author_staff_id: string;
+  body: string;
+  is_private: boolean;
+  is_pinned: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OpportunityCategory = "activity" | "service" | "programme" | "enrolment" | "other";
+
+export type OpportunityTypeRow = {
+  code: string;
+  name: string;
+  description: string | null;
+  category: OpportunityCategory;
+  default_value_minor: number | null;
+  /** The optional_items code that means "the family took it up". */
+  optional_item_code: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OpportunityRuleRow = {
+  code: string;
+  name: string;
+  description: string | null;
+  type_code: string;
+  conditions: Json;
+  estimated_value_minor: number | null;
+  is_active: boolean;
+  sort_order: number;
+  last_run_at: string | null;
+  last_run_created: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OpportunityStatus = "identified" | "contacted" | "interested" | "registered" | "lost";
+
+export type OpportunityRow = {
+  id: string;
+  family_id: string;
+  student_id: string | null;
+  type_code: string;
+  campus_id: string;
+  estimated_value_minor: number | null;
+  actual_value_minor: number | null;
+  currency: string;
+  status: OpportunityStatus;
+  assigned_staff_id: string | null;
+  source: "rule" | "staff" | "automation";
+  rule_code: string | null;
+  last_contact_at: string | null;
+  next_action: string | null;
+  next_action_at: string | null;
+  lost_reason: string | null;
+  notes: string | null;
+  contacted_at: string | null;
+  interested_at: string | null;
+  registered_at: string | null;
+  lost_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SegmentRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  campus_id: string | null;
+  rules: Json;
+  match_count: number | null;
+  counted_at: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CampaignChannel = "email" | "whatsapp" | "both";
+export type CampaignCategory = "general" | "promotion" | "event" | "reenrolment" | "fee_notice" | "policy" | "announcement";
+export type CampaignStatus = "draft" | "pending_approval" | "approved" | "scheduled" | "sending" | "sent" | "paused" | "cancelled";
+
+export type CampaignRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  campus_id: string | null;
+  segment_id: string | null;
+  event_id: string | null;
+  channel: CampaignChannel;
+  category: CampaignCategory;
+  email_subject: string | null;
+  email_body_html: string | null;
+  email_body_text: string | null;
+  message_template_key: string | null;
+  whatsapp_variables: Json;
+  status: CampaignStatus;
+  scheduled_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_by: string | null;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  approval_note: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  prepared_at: string | null;
+  recipients_total: number | null;
+  recipients_email: number | null;
+  recipients_whatsapp: number | null;
+  excluded_count: number | null;
+  exclusions: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CampaignRecipientStatus = "pending" | "excluded" | "sent" | "skipped" | "failed";
+
+export type CampaignRecipientRow = {
+  id: string;
+  campaign_id: string;
+  family_id: string;
+  contact_id: string;
+  student_id: string | null;
+  channel: "email" | "whatsapp";
+  status: CampaignRecipientStatus;
+  exclusion_reason: string | null;
+  email_message_id: string | null;
+  message_id: string | null;
+  sent_at: string | null;
+  error: string | null;
+  created_at: string;
+};
+
+export type CrmEventKind = "open_day" | "robotics_makeathon" | "parent_meeting" | "sports_day" | "information_session" | "holiday_programme" | "other";
+
+export type CrmEventRow = {
+  id: string;
+  name: string;
+  kind: CrmEventKind;
+  campus_id: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  location: string | null;
+  description: string | null;
+  capacity: number | null;
+  registration_open: boolean;
+  staff_id: string | null;
+  is_cancelled: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EventRegistrationStatus = "invited" | "registered" | "attended" | "no_show" | "cancelled";
+
+export type CrmEventRegistrationRow = {
+  id: string;
+  event_id: string;
+  family_id: string;
+  student_id: string | null;
+  contact_id: string | null;
+  status: EventRegistrationStatus;
+  source: "staff" | "parent" | "campaign";
+  campaign_id: string | null;
+  guests: number;
+  note: string | null;
+  registered_at: string | null;
+  attended_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutomationTrigger =
+  | "family.created" | "enquiry.created" | "application.status_changed" | "family.lifecycle_changed"
+  | "student.enrolled" | "student.status_changed" | "reenrolment.opened" | "reenrolment.asked" | "reenrolment.answered"
+  | "opportunity.created" | "opportunity.status_changed" | "event.registered" | "event.attended";
+
+export type AutomationRow = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  trigger_type: AutomationTrigger;
+  conditions: Json;
+  actions: Json;
+  is_active: boolean;
+  sort_order: number;
+  last_run_at: string | null;
+  run_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutomationRunRow = {
+  id: number;
+  automation_id: string;
+  trigger_event_id: number | null;
+  family_id: string | null;
+  status: "done" | "skipped" | "failed";
+  log: Json;
+  error: string | null;
+  ran_at: string;
+};
+
+export type NotificationKind =
+  | "enquiry" | "task_assigned" | "task_overdue" | "whatsapp_reply" | "email_reply"
+  | "campaign_approval_requested" | "campaign_approved" | "campaign_rejected" | "campaign_sent"
+  | "opportunity_created" | "family_activity" | "import_finished" | "other";
+
+export type NotificationRow = {
+  id: string;
+  staff_id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string | null;
+  href: string | null;
+  family_id: string | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+export type CrmImportRow = {
+  id: string;
+  kind: "families" | "contacts";
+  filename: string;
+  campus_id: string | null;
+  status: "previewed" | "committed" | "cancelled";
+  total_rows: number;
+  valid_rows: number;
+  duplicate_rows: number;
+  error_rows: number;
+  imported_rows: number;
+  skipped_rows: number;
+  created_by: string;
+  committed_at: string | null;
+  created_at: string;
+};
+
+export type CrmImportLineRow = {
+  id: number;
+  import_id: string;
+  row_no: number;
+  data: Json;
+  status: "valid" | "duplicate" | "error" | "imported" | "skipped";
+  message: string | null;
+  duplicate_family_id: string | null;
+  family_id: string | null;
+  contact_id: string | null;
+  created_at: string;
+};
+
+/** One row of v_crm_family_facts: a live family with everything a list or a rule asks about. */
+export type CrmFamilyFactsRow = {
+  family_id: string;
+  family_code: string;
+  display_name: string | null;
+  campus_id: string | null;
+  campus_name: string | null;
+  lifecycle_stage: LifecycleStage;
+  lifecycle_manual: boolean;
+  assigned_staff_id: string | null;
+  lead_source: string | null;
+  tags: string[];
+  preferred_channel: ContactChannel | null;
+  last_contact_at: string | null;
+  next_follow_up_at: string | null;
+  created_at: string;
+  is_active: boolean;
+  referred_by_family_id: string | null;
+  primary_contact_id: string | null;
+  primary_first_name: string | null;
+  primary_last_name: string | null;
+  primary_email: string | null;
+  primary_mobile: string | null;
+  primary_mobile_normalised: string | null;
+  primary_whatsapp_opt_in: boolean | null;
+  primary_marketing_email_consent: boolean | null;
+  primary_marketing_whatsapp_consent: boolean | null;
+  primary_sms_consent: boolean | null;
+  student_count: number;
+  enrolled_count: number;
+  grade_sorts: number[];
+  grade_ids: string[];
+  student_campus_ids: string[];
+  student_ids: string[];
+  student_statuses: string[];
+  registered_item_codes: string[];
+  open_opportunity_types: string[];
+  open_opportunity_count: number;
+  reenrolment_outstanding: number;
+  application_count: number;
+  open_application_count: number;
+  latest_application_status: ApplicationStatus | null;
+  open_task_count: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -1788,6 +2177,7 @@ export type Database = {
         | "actor_label"
         | "entity_id"
         | "application_id"
+        | "family_id"
         | "before"
         | "after"
         | "ip_hash"
@@ -1837,7 +2227,13 @@ export type Database = {
         "updated_by",
         [Rel<"settings_updated_by_fkey", "updated_by", "staff_profiles">]
       >;
-      contacts: TableOf<ContactRow, "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source" | "family_code">;
+      contacts: TableOf<
+        ContactRow,
+        | "mobile" | "mobile_normalised" | "whatsapp_opt_in" | "whatsapp_opt_in_at" | "whatsapp_opt_out_at" | "whatsapp_opt_in_source" | "family_code"
+        | "family_id" | "relationship" | "marketing_email_consent" | "marketing_email_consent_at" | "marketing_whatsapp_consent" | "marketing_whatsapp_consent_at"
+        | "sms_consent" | "sms_consent_at" | "consent_source" | "unsubscribed_at" | "unsubscribe_token" | "preferred_channel" | "notes" | "is_active",
+        [Rel<"contacts_family_id_fkey", "family_id", "families">]
+      >;
       reference_counters: TableOf<ReferenceCounterRow, "next_value">;
       applications: TableOf<
         ApplicationRow,
@@ -2393,8 +2789,20 @@ export type Database = {
       >;
       families: TableOf<
         FamilyRow,
-        "display_name" | "home_address" | "external_ref" | "merged_into_id" | "notes",
-        [Rel<"families_merged_into_id_fkey", "merged_into_id", "families">]
+        | "display_name" | "home_address" | "external_ref" | "merged_into_id" | "notes"
+        | "campus_id" | "primary_contact_id" | "secondary_contact_id" | "preferred_channel" | "preferred_language"
+        | "lead_source" | "lead_source_detail" | "lifecycle_stage" | "lifecycle_changed_at" | "lifecycle_manual"
+        | "assigned_staff_id" | "last_contact_at" | "next_follow_up_at" | "tags" | "is_active"
+        | "referred_by_family_id" | "referral_note" | "source" | "created_by",
+        [
+          Rel<"families_merged_into_id_fkey", "merged_into_id", "families">,
+          Rel<"families_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"families_primary_contact_id_fkey", "primary_contact_id", "contacts">,
+          Rel<"families_secondary_contact_id_fkey", "secondary_contact_id", "contacts">,
+          Rel<"families_assigned_staff_id_fkey", "assigned_staff_id", "staff_profiles">,
+          Rel<"families_referred_by_family_id_fkey", "referred_by_family_id", "families">,
+          Rel<"families_created_by_fkey", "created_by", "staff_profiles">,
+        ]
       >;
       students: TableOf<
         StudentRow,
@@ -2499,7 +2907,7 @@ export type Database = {
         | "application_id" | "family_id" | "student_id"
         | "contact_id" | "channel" | "template_key" | "to_normalised" | "from_normalised" | "provider_message_id" | "status"
         | "rendered_text" | "error" | "idempotency_key" | "email_message_id" | "sent_at" | "delivered_at" | "read_at" | "received_at"
-        | "trigger_source" | "sent_by",
+        | "trigger_source" | "sent_by" | "crm_read_at" | "crm_read_by",
         [
           Rel<"messages_application_id_fkey", "application_id", "applications">,
           Rel<"messages_contact_id_fkey", "contact_id", "contacts">,
@@ -2542,8 +2950,151 @@ export type Database = {
           Rel<"application_summaries_generated_by_fkey", "generated_by", "staff_profiles">,
         ]
       >;
+      crm_trigger_events: TableOf<
+        CrmTriggerEventRow,
+        "family_id" | "student_id" | "application_id" | "payload" | "occurred_at" | "processed_at" | "outcome" | "error",
+        [
+          Rel<"crm_trigger_events_family_id_fkey", "family_id", "families">,
+          Rel<"crm_trigger_events_student_id_fkey", "student_id", "students">,
+          Rel<"crm_trigger_events_application_id_fkey", "application_id", "applications">,
+        ]
+      >;
+      crm_notes: TableOf<
+        CrmNoteRow,
+        "family_id" | "student_id" | "opportunity_id" | "task_id" | "campaign_id" | "is_private" | "is_pinned",
+        [
+          Rel<"crm_notes_family_id_fkey", "family_id", "families">,
+          Rel<"crm_notes_student_id_fkey", "student_id", "students">,
+          Rel<"crm_notes_opportunity_id_fkey", "opportunity_id", "opportunities">,
+          Rel<"crm_notes_task_id_fkey", "task_id", "tasks">,
+          Rel<"crm_notes_campaign_id_fkey", "campaign_id", "campaigns">,
+          Rel<"crm_notes_author_staff_id_fkey", "author_staff_id", "staff_profiles">,
+        ]
+      >;
+      opportunity_types: TableOf<OpportunityTypeRow, "description" | "category" | "default_value_minor" | "optional_item_code" | "sort_order" | "is_active">;
+      opportunity_rules: TableOf<
+        OpportunityRuleRow,
+        "description" | "conditions" | "estimated_value_minor" | "is_active" | "sort_order" | "last_run_at" | "last_run_created",
+        [Rel<"opportunity_rules_type_code_fkey", "type_code", "opportunity_types">]
+      >;
+      opportunities: TableOf<
+        OpportunityRow,
+        | "student_id" | "estimated_value_minor" | "actual_value_minor" | "currency" | "status" | "assigned_staff_id" | "source" | "rule_code"
+        | "last_contact_at" | "next_action" | "next_action_at" | "lost_reason" | "notes" | "contacted_at" | "interested_at" | "registered_at" | "lost_at" | "created_by",
+        [
+          Rel<"opportunities_family_id_fkey", "family_id", "families">,
+          Rel<"opportunities_student_id_fkey", "student_id", "students">,
+          Rel<"opportunities_type_code_fkey", "type_code", "opportunity_types">,
+          Rel<"opportunities_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"opportunities_assigned_staff_id_fkey", "assigned_staff_id", "staff_profiles">,
+          Rel<"opportunities_rule_code_fkey", "rule_code", "opportunity_rules">,
+          Rel<"opportunities_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      segments: TableOf<
+        SegmentRow,
+        "description" | "campus_id" | "rules" | "match_count" | "counted_at" | "is_active" | "created_by",
+        [
+          Rel<"segments_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"segments_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      campaigns: TableOf<
+        CampaignRow,
+        | "description" | "campus_id" | "segment_id" | "event_id" | "category" | "email_subject" | "email_body_html" | "email_body_text"
+        | "message_template_key" | "whatsapp_variables" | "status" | "scheduled_at" | "started_at" | "finished_at" | "created_by"
+        | "submitted_by" | "submitted_at" | "approved_by" | "approved_at" | "approval_note" | "rejected_by" | "rejected_at" | "rejection_reason"
+        | "prepared_at" | "recipients_total" | "recipients_email" | "recipients_whatsapp" | "excluded_count" | "exclusions",
+        [
+          Rel<"campaigns_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"campaigns_segment_id_fkey", "segment_id", "segments">,
+          Rel<"campaigns_event_id_fkey", "event_id", "crm_events">,
+          Rel<"campaigns_message_template_key_fkey", "message_template_key", "message_templates">,
+          Rel<"campaigns_created_by_fkey", "created_by", "staff_profiles">,
+          Rel<"campaigns_submitted_by_fkey", "submitted_by", "staff_profiles">,
+          Rel<"campaigns_approved_by_fkey", "approved_by", "staff_profiles">,
+          Rel<"campaigns_rejected_by_fkey", "rejected_by", "staff_profiles">,
+        ]
+      >;
+      campaign_recipients: TableOf<
+        CampaignRecipientRow,
+        "student_id" | "status" | "exclusion_reason" | "email_message_id" | "message_id" | "sent_at" | "error",
+        [
+          Rel<"campaign_recipients_campaign_id_fkey", "campaign_id", "campaigns">,
+          Rel<"campaign_recipients_family_id_fkey", "family_id", "families">,
+          Rel<"campaign_recipients_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"campaign_recipients_student_id_fkey", "student_id", "students">,
+          Rel<"campaign_recipients_email_message_id_fkey", "email_message_id", "email_messages">,
+          Rel<"campaign_recipients_message_id_fkey", "message_id", "messages">,
+        ]
+      >;
+      crm_events: TableOf<
+        CrmEventRow,
+        "kind" | "campus_id" | "ends_at" | "location" | "description" | "capacity" | "registration_open" | "staff_id" | "is_cancelled" | "created_by",
+        [
+          Rel<"crm_events_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"crm_events_staff_id_fkey", "staff_id", "staff_profiles">,
+          Rel<"crm_events_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      crm_event_registrations: TableOf<
+        CrmEventRegistrationRow,
+        "student_id" | "contact_id" | "status" | "source" | "campaign_id" | "guests" | "note" | "registered_at" | "attended_at",
+        [
+          Rel<"crm_event_registrations_event_id_fkey", "event_id", "crm_events">,
+          Rel<"crm_event_registrations_family_id_fkey", "family_id", "families">,
+          Rel<"crm_event_registrations_student_id_fkey", "student_id", "students">,
+          Rel<"crm_event_registrations_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"crm_event_registrations_campaign_id_fkey", "campaign_id", "campaigns">,
+        ]
+      >;
+      automations: TableOf<
+        AutomationRow,
+        "description" | "conditions" | "actions" | "is_active" | "sort_order" | "last_run_at" | "run_count" | "created_by",
+        [Rel<"automations_created_by_fkey", "created_by", "staff_profiles">]
+      >;
+      automation_runs: TableOf<
+        AutomationRunRow,
+        "trigger_event_id" | "family_id" | "log" | "error" | "ran_at",
+        [
+          Rel<"automation_runs_automation_id_fkey", "automation_id", "automations">,
+          Rel<"automation_runs_trigger_event_id_fkey", "trigger_event_id", "crm_trigger_events">,
+          Rel<"automation_runs_family_id_fkey", "family_id", "families">,
+        ]
+      >;
+      notifications: TableOf<
+        NotificationRow,
+        "body" | "href" | "family_id" | "read_at",
+        [
+          Rel<"notifications_staff_id_fkey", "staff_id", "staff_profiles">,
+          Rel<"notifications_family_id_fkey", "family_id", "families">,
+        ]
+      >;
+      crm_imports: TableOf<
+        CrmImportRow,
+        "campus_id" | "status" | "total_rows" | "valid_rows" | "duplicate_rows" | "error_rows" | "imported_rows" | "skipped_rows" | "committed_at",
+        [
+          Rel<"crm_imports_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"crm_imports_created_by_fkey", "created_by", "staff_profiles">,
+        ]
+      >;
+      crm_import_rows: TableOf<
+        CrmImportLineRow,
+        "message" | "duplicate_family_id" | "family_id" | "contact_id",
+        [
+          Rel<"crm_import_rows_import_id_fkey", "import_id", "crm_imports">,
+          Rel<"crm_import_rows_duplicate_family_id_fkey", "duplicate_family_id", "families">,
+          Rel<"crm_import_rows_family_id_fkey", "family_id", "families">,
+          Rel<"crm_import_rows_contact_id_fkey", "contact_id", "contacts">,
+        ]
+      >;
     };
     Views: {
+      /** One row per live family with everything a list, a rule or a campaign asks about. */
+      v_crm_family_facts: {
+        Row: CrmFamilyFactsRow;
+        Relationships: [];
+      };
       /**
        * Decisions that actually moved the application, matched to their
        * timeline event. Read this wherever a decision is shown or summarised:
@@ -2654,6 +3205,51 @@ export type Database = {
       };
     };
     Functions: {
+      crm_search: {
+        Args: { p_q: string; p_limit?: number };
+        Returns: { kind: "family" | "contact" | "student" | "applicant"; id: string; title: string; subtitle: string; href: string }[];
+      };
+      crm_register_family_for_event: {
+        Args: { p_event_id: string; p_family_id: string; p_student_id: string | null; p_contact_id: string | null; p_guests: number; p_note: string | null };
+        Returns: string;
+      };
+      crm_unsubscribe_email: {
+        Args: { p_token: string; p_ip_hash?: string | null };
+        Returns: boolean;
+      };
+      crm_find_duplicates: {
+        Args: { p_email?: string | null; p_mobile_normalised?: string | null; p_last_name?: string | null; p_first_name?: string | null; p_child_first_name?: string | null };
+        Returns: { family_id: string; family_code: string; display_name: string | null; campus_name: string | null; reason: string; contact_name: string; contact_email: string }[];
+      };
+      crm_create_family: {
+        Args: {
+          p_display_name: string; p_campus_id: string; p_first_name: string; p_last_name: string; p_email: string;
+          p_mobile: string | null; p_mobile_normalised: string | null; p_relationship?: string; p_lead_source?: string | null;
+          p_lead_source_detail?: string | null; p_preferred_channel?: string | null; p_preferred_language?: string | null;
+          p_home_address?: string | null; p_notes?: string | null; p_tags?: string[]; p_assigned_staff_id?: string | null;
+          p_referred_by_family_id?: string | null; p_marketing_email?: boolean; p_marketing_whatsapp?: boolean; p_sms?: boolean; p_whatsapp_opt_in?: boolean;
+        };
+        Returns: string;
+      };
+      crm_merge_families: { Args: { p_loser_id: string; p_survivor_id: string }; Returns: undefined };
+      crm_sync_family: { Args: { p_family_id: string }; Returns: undefined };
+      crm_compute_lifecycle: { Args: { p_family_id: string }; Returns: LifecycleStage };
+      crm_family_of_application: { Args: { p_application_id: string }; Returns: string | null };
+      can_access_family: { Args: { p_family_id: string }; Returns: boolean };
+      can_edit_family: { Args: { p_family_id: string }; Returns: boolean };
+      crm_dashboard_counts: { Args: { p_campus_id?: string | null }; Returns: Json };
+      crm_opportunity_summary: {
+        Args: { p_campus_id?: string | null };
+        Returns: {
+          type_code: string; type_name: string; currency: string; total: number; identified: number; contacted: number;
+          interested: number; registered: number; lost: number; potential_value_minor: number; actual_value_minor: number;
+        }[];
+      };
+      crm_campaign_stats: { Args: { p_campaign_id: string }; Returns: Json };
+      crm_lead_source_report: {
+        Args: { p_campus_id?: string | null; p_from?: string | null };
+        Returns: { lead_source: string; families: number; enquiries: number; offers: number; enrolled: number }[];
+      };
       publish_agreement_template: {
         Args: { p_key: string; p_name: string; p_description: string | null; p_body_html: string; p_required: boolean; p_document_url?: string | null };
         Returns: string;

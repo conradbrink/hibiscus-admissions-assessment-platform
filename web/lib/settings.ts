@@ -73,6 +73,16 @@ export type Settings = {
   autoVisitDurationMinutes: number;
   autoSessionCapacity: number;
   aiAutoMarkEnabled: boolean;
+  /** Every campaign needs a second person's approval before it can be scheduled or sent. */
+  crmCampaignApprovalRequired: boolean;
+  /** Run the CRM automations from the drain. Off until the school switches it on. */
+  crmAutomationsEnabled: boolean;
+  /** Identify marketing opportunities from the active rules once a day. */
+  crmOpportunityEngineEnabled: boolean;
+  /** Days after a new enquiry by which the family should have been contacted. */
+  crmFollowUpDays: number;
+  /** Days without contact after which a family counts as "no response". */
+  crmStaleContactDays: number;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -124,6 +134,11 @@ export const DEFAULT_SETTINGS: Settings = {
   autoVisitDurationMinutes: 60,
   autoSessionCapacity: 6,
   aiAutoMarkEnabled: true,
+  crmCampaignApprovalRequired: true,
+  crmAutomationsEnabled: false,
+  crmOpportunityEngineEnabled: false,
+  crmFollowUpDays: 3,
+  crmStaleContactDays: 30,
 };
 
 const KEYS: Record<keyof Settings, string> = {
@@ -172,6 +187,11 @@ const KEYS: Record<keyof Settings, string> = {
   autoVisitDurationMinutes: "auto_visit_duration_minutes",
   autoSessionCapacity: "auto_session_capacity",
   aiAutoMarkEnabled: "ai_auto_mark_enabled",
+  crmCampaignApprovalRequired: "crm_campaign_approval_required",
+  crmAutomationsEnabled: "crm_automations_enabled",
+  crmOpportunityEngineEnabled: "crm_opportunity_engine_enabled",
+  crmFollowUpDays: "crm_follow_up_days",
+  crmStaleContactDays: "crm_stale_contact_days",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -291,5 +311,10 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     autoVisitDurationMinutes: asPositiveInt(map.get(KEYS.autoVisitDurationMinutes), d.autoVisitDurationMinutes),
     autoSessionCapacity: asPositiveInt(map.get(KEYS.autoSessionCapacity), d.autoSessionCapacity),
     aiAutoMarkEnabled: asBoolean(map.get(KEYS.aiAutoMarkEnabled), d.aiAutoMarkEnabled),
+    crmCampaignApprovalRequired: asBoolean(map.get(KEYS.crmCampaignApprovalRequired), d.crmCampaignApprovalRequired),
+    crmAutomationsEnabled: asBoolean(map.get(KEYS.crmAutomationsEnabled), d.crmAutomationsEnabled),
+    crmOpportunityEngineEnabled: asBoolean(map.get(KEYS.crmOpportunityEngineEnabled), d.crmOpportunityEngineEnabled),
+    crmFollowUpDays: asPositiveInt(map.get(KEYS.crmFollowUpDays), d.crmFollowUpDays),
+    crmStaleContactDays: asPositiveInt(map.get(KEYS.crmStaleContactDays), d.crmStaleContactDays),
   };
 }

@@ -10,6 +10,10 @@ import { anonymiseExpired } from "@/lib/workflow/automation/retention";
 import { ensureWeekdaySessions } from "@/lib/workflow/automation/sessions";
 import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
 import { pruneDrainRuns, pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
+import { processTriggerEvents } from "@/lib/crm/automations/engine";
+import { sweepScheduledCampaigns } from "@/lib/crm/campaigns/send";
+import { pruneImportRows } from "@/lib/crm/import";
+import { sweepOpportunities } from "@/lib/crm/opportunities/engine";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,6 +105,34 @@ export async function GET(request: Request) {
     digests_queued: digests,
     sessions_created: sessionsCreated,
   };
+  // The CRM. The automations read the outbox every drain and are gated by
+  // their own switch; the opportunity engine runs once a day behind its
+  // own; a scheduled campaign whose time has come queues its first batch.
+  // Each is logged and none stops the others, like the Phase 4 sweeps above.
+  const automations = await processTriggerEvents(admin).catch((e) => {
+    console.error("[crm automations] sweep failed", e);
+    return { events: -1, fired: -1, skipped: -1, failed: -1 };
+  });
+  const opportunities = await sweepOpportunities(admin).catch((e) => {
+    console.error("[crm opportunities] sweep failed", e);
+    return { ran: false, created: -1, converted: -1, rules: -1 };
+  });
+  const campaignsQueued = await sweepScheduledCampaigns(admin).catch((e) => {
+    console.error("[crm campaigns] sweep failed", e);
+    return -1;
+  });
+  const importRowsPruned = await pruneImportRows(admin).catch((e) => {
+    console.error("[crm import] prune failed", e);
+    return -1;
+  });
+  Object.assign(detail, {
+    crm_automation_events: automations.events,
+    crm_automations_fired: automations.fired,
+    crm_opportunities_created: opportunities.created,
+    crm_opportunities_converted: opportunities.converted,
+    crm_campaigns_queued: campaignsQueued,
+    crm_import_rows_pruned: importRowsPruned,
+  });
   const summary = await drainJobs(admin, 50, { source: "schedule", detail });
   const [pruned, prunedRuns] = await Promise.all([pruneRateLimits(admin), pruneDrainRuns(admin)]);
   return Response.json({

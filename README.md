@@ -33,6 +33,8 @@ only where judgement is needed.
 | `web/lib/messaging/` | The WhatsApp seam: Meta Cloud API adapter, a dev adapter, the companion sender, replies |
 | `web/lib/summary/`, `web/lib/analytics/` | Applicant facts and flags with optional validated prose; the funnel, breakdown and forecast arithmetic |
 | `web/lib/workflow/automation/` | Waitlist promotion, data retention, the morning digest, and the pure rules behind them |
+| `web/lib/crm/` | The CRM: the lifecycle rule, segment rules and recipient planning (consent), campaign rendering and sending, the opportunity and automation engines, the family timeline, CSV import, notifications, global search |
+| `web/app/staff/(crm)/crm/` | `/staff/crm`: the CRM console, a second product on the same staff session and permissions |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
 | `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only. `secondary_intake_2026.sql`: the school's Form 1–4 English and Mathematics intake papers, loaded once on the live project |
@@ -91,7 +93,14 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
   on its own.
 - **Every school's team sees its own school.** Campus scoping is in the
   policies, fails closed for campus-scoped roles, and binds staff actions as
-  well as pages.
+  well as pages. A family is reached through `can_access_family()`: a child,
+  an application or the family's own campus, any of which the caller may see.
+- **A campaign is never sent by the person who wrote it.** Approval is a
+  second person (`crm.campaigns.approve`), a fee, policy or group-wide notice
+  needs `crm.campaigns.approve_sensitive`, the wording is locked once approved,
+  and only the job drain moves a campaign to "sending". Marketing goes only to
+  a contact who consented on that channel; a service notice ignores marketing
+  consent but still needs WhatsApp updates on.
 - **The AI never decides an outcome.** Admission outcomes come from the
   rules engine or a person. The AI writes the learning-profile narrative over
   numbers the code computed, and a validator rejects any sentence that adds

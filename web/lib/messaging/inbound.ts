@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { recordMessageEvent } from "@/lib/messaging/audit";
+import { notifyStaff } from "@/lib/crm/notifications";
 import { ownerForStudent } from "@/lib/onboarding/owner";
 import { resolveStatus } from "@/lib/messaging/delivery";
 import { isOptIn, isOptOut } from "@/lib/messaging/meta-payload";
@@ -103,13 +104,25 @@ async function studentForContact(
   };
 }
 
+/** Whether the application's timeline already records this message's event. */
+async function hasMessageEvent(admin: AdminClient, applicationId: string, type: string, messageId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("application_events")
+    .select("id")
+    .eq("application_id", applicationId)
+    .eq("type", type)
+    .contains("payload", { message_id: messageId })
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
 /**
  * One reply. Exported so the development outbox can simulate a parent
  * replying without a webhook; the path is identical.
  */
 export async function handleReply(admin: AdminClient, from: string, text: string, providerMessageId: string, occurredAt: Date): Promise<ReplyOutcome> {
   if (!from) return "unknown";
-  const { data: contact } = await admin.from("contacts").select("id, first_name, last_name").eq("mobile_normalised", from).maybeSingle();
+  const { data: contact } = await admin.from("contacts").select("id, first_name, last_name, family_id").eq("mobile_normalised", from).maybeSingle();
   if (!contact) return "unknown";
 
   const { data: apps } = await admin
@@ -118,21 +131,24 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false })
     .limit(10);
-  const app = (apps ?? []).find((a) => !TERMINAL_STATUSES.has(a.status)) ?? apps?.[0];
-  if (!app) return "unknown";
+  const app = (apps ?? []).find((a) => !TERMINAL_STATUSES.has(a.status)) ?? apps?.[0] ?? null;
+  // A parent the CRM knows and admissions does not (typed in at the desk,
+  // imported, a second parent added later) has no application to hang the
+  // reply on. Their message is still kept, against the family.
+  if (!app && !contact.family_id) return "unknown";
 
   // A family whose application is finished has usually enrolled, and their
   // reply is about the child at school — not about an admissions record that
   // closed months ago. The onboarding messages invite a reply, so this is the
   // path most of them come back on.
-  const liveStudent = TERMINAL_STATUSES.has(app.status) ? await studentForContact(admin, contact.id) : null;
+  const liveStudent = !app || TERMINAL_STATUSES.has(app.status) ? await studentForContact(admin, contact.id) : null;
 
   const body = text.trim().slice(0, INBOUND_TEXT_LIMIT);
   const { data: inserted } = await admin
     .from("messages")
     .upsert(
       {
-        application_id: app.id,
+        application_id: app?.id ?? null,
         contact_id: contact.id,
         direction: "in",
         from_normalised: from,
@@ -142,51 +158,89 @@ export async function handleReply(admin: AdminClient, from: string, text: string
         rendered_text: body,
         received_at: occurredAt.toISOString(),
         trigger_source: "inbound",
-        family_id: liveStudent?.family_id ?? null,
+        family_id: liveStudent?.family_id ?? contact.family_id ?? null,
         student_id: liveStudent?.id ?? null,
       },
       { onConflict: "provider_message_id", ignoreDuplicates: true }
     )
     .select("id")
     .maybeSingle();
-  if (!inserted) return "duplicate";
-  await recordMessageEvent(admin, {
-    messageId: inserted.id,
-    status: "received",
-    source: "webhook",
-    providerStatus: "message.inbound",
-    occurredAt,
-  });
+  // A retry of a message already stored is a duplicate, unless it carries a
+  // consent command: the first attempt may have stored the row and then
+  // failed to apply the STOP, and the provider's retry is how it gets applied.
+  const consentCommand = isOptOut(body) || isOptIn(body);
+  if (!inserted && !consentCommand) return "duplicate";
+  const stored = inserted ?? (await admin.from("messages").select("id").eq("provider_message_id", providerMessageId).maybeSingle()).data;
+  if (!stored) return "duplicate";
+  if (inserted) {
+    await recordMessageEvent(admin, {
+      messageId: inserted.id,
+      status: "received",
+      source: "webhook",
+      providerStatus: "message.inbound",
+      occurredAt,
+    });
+  }
 
   if (isOptOut(body)) {
-    await admin.from("contacts").update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }).eq("id", contact.id);
+    // STOP means stop: the updates opt-in and the marketing consent go
+    // together, because a parent who says it once should not be asked to
+    // say it twice.
+    const { error: consentError } = await admin
+      .from("contacts")
+      .update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString(), marketing_whatsapp_consent: false, consent_source: "reply" })
+      .eq("id", contact.id);
+    // Recording "opted out" over a consent that did not change would leave
+    // the parent still on the list. The webhook retries.
+    if (consentError) throw new Error(consentError.message);
+    if (!app) return "opt_out";
+    // On a retry the event may already be there (the first attempt failed
+    // after writing it); written once, never twice.
+    if (!inserted && (await hasMessageEvent(admin, app.id, "messaging.opted_out", stored.id))) return "opt_out";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
       newStatus: null,
       nextAction: null,
-      event: { type: "messaging.opted_out", summary: "Parent replied STOP on WhatsApp; no more messages", payload: { message_id: inserted.id } },
+      event: { type: "messaging.opted_out", summary: "Parent replied STOP on WhatsApp; no more messages", payload: { message_id: stored.id } },
       actor: SYSTEM_ACTOR,
     });
     return "opt_out";
   }
   if (isOptIn(body)) {
-    await admin
+    const { error: consentError } = await admin
       .from("contacts")
       .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "reply", whatsapp_opt_out_at: null })
       .eq("id", contact.id);
+    if (consentError) throw new Error(consentError.message);
+    if (!app) return "opt_in";
+    if (!inserted && (await hasMessageEvent(admin, app.id, "messaging.opted_in", stored.id))) return "opt_in";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
       newStatus: null,
       nextAction: null,
-      event: { type: "messaging.opted_in", summary: "Parent replied START on WhatsApp; messages resume", payload: { message_id: inserted.id } },
+      event: { type: "messaging.opted_in", summary: "Parent replied START on WhatsApp; messages resume", payload: { message_id: stored.id } },
       actor: SYSTEM_ACTOR,
     });
     return "opt_in";
   }
 
   const details = `“${body.slice(0, 300)}”\n\nReply by phone or email; a WhatsApp reply can only be one of the approved templates.`;
+
+  // The CRM inbox shows the reply either way; the person who looks after
+  // the family is told it is there.
+  {
+    const { data: fam } = await admin.from("contacts").select("family_id, families!contacts_family_id_fkey(assigned_staff_id)").eq("id", contact.id).maybeSingle();
+    const family = Array.isArray(fam?.families) ? fam?.families[0] : fam?.families;
+    await notifyStaff(admin, family?.assigned_staff_id, {
+      kind: "whatsapp_reply",
+      title: `${contact.first_name} ${contact.last_name} replied on WhatsApp`,
+      body: body.slice(0, 140),
+      href: `/staff/crm/whatsapp?contact=${contact.id}`,
+      familyId: fam?.family_id ?? null,
+    });
+  }
 
   if (liveStudent) {
     // The child is at the school, so the work belongs to whoever is looking
@@ -203,12 +257,17 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     });
   }
 
+  if (!app) {
+    // No admissions record to write the event on: the notification above
+    // and the inbox are where this reply lives.
+    return liveStudent ? "task" : "unknown";
+  }
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: null,
     newStatus: null,
     nextAction: null,
-    event: { type: "message.received", summary: "Parent replied on WhatsApp", payload: { message_id: inserted.id } },
+    event: { type: "message.received", summary: "Parent replied on WhatsApp", payload: { message_id: stored.id } },
     // When the child is enrolled the task above already exists; a second one
     // on the old application would be the same message, twice, in two places.
     tasks: liveStudent

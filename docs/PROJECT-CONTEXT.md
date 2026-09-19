@@ -676,6 +676,70 @@ recording a transfer against one is a later change), and an order is **never
 chased** — no reminder, no dunning, and it never makes a family look behind on
 the checklist.
 
+### The CRM (19 September 2026) — a second product on the same rows
+
+`/staff/crm` is the CRM the school asked for, built as a section of this
+application rather than a system beside it. The sidebar's "Switch to
+HIBISCUS CRM" link is the whole hand-over: the same staff session, the same
+`permissions` table (seven new `crm.*` codes, three new roles: marketing,
+reception, teacher), the same `families`, `contacts`, `students`, `tasks`,
+`messages`, `email_messages` and `audit_log` rows. Nothing is copied.
+
+- **Family-centric.** `families` gains a campus, a computed lifecycle stage
+  (`crm_sync_family()`, ten stages from new enquiry to alumni and inactive,
+  driven by triggers on applications, students and re-enrolment), lead
+  source, tags, an assignee, a follow-up date and "last contact" stamped by
+  every message either way. A family typed in at the desk goes through
+  `crm_create_family()`; the duplicate check (`crm_find_duplicates()`) runs
+  before it and offers use-existing, merge or create-anyway.
+  `crm_merge_families()` moves everything onto the survivor and keeps its
+  code. `can_access_family()` is how every CRM table scopes to a campus.
+- **Family 360.** One page: contacts with consent per channel, children from
+  the register, applications, opportunities, tasks, events, notes (private
+  or shared) and a merged timeline from every log (`lib/crm/timeline.ts`).
+- **Communications.** The WhatsApp inbox is `messages` read by family, with
+  replies as approved templates through the same `sendFamilyMessage`; email
+  history is `email_messages`. Every send is stored with channel, sender,
+  recipient, family and status, and the delivery trail is what the provider
+  reported, nothing more.
+- **Campaigns.** A seven-step builder over a dynamic segment
+  (`lib/crm/segments.ts`: rules applied as PostgREST filters, one shape
+  post-filtered), a recipient plan with every exclusion counted by reason
+  (`lib/crm/recipients.ts`), and the state machine in
+  `campaigns_guard_transition`: draft → pending approval → approved →
+  scheduled → sending → sent, with pause and cancel. The author cannot
+  approve their own; fee, policy and group-wide notices need
+  `crm.campaigns.approve_sensitive`; the wording is locked once approved;
+  only the drain says "sending". Marketing email carries an unsubscribe link
+  whatever the author wrote (`/unsubscribe/[token]`); STOP on WhatsApp
+  withdraws marketing consent as well as updates.
+- **Opportunities.** Types (robotics, swimming, aftercare, transport, an
+  additional enrolment…) with a value and a catalogue code; rules in JSON
+  evaluated by `lib/crm/opportunities/rules.ts` and swept daily by the drain
+  when `crm_opportunity_engine_enabled` is on; a pipeline board and a
+  summary that never adds pula to rand.
+- **Events** with registration tracking, invitations from a segment, and a
+  parent-facing `/family/dates` page where a family registers itself.
+- **Automations**: trigger → conditions → actions, from the
+  `crm_trigger_events` outbox, each run logged in `automation_runs`. Six
+  are seeded and every one ships off, as does the engine setting.
+- **Analytics, reports and export** (CSV of families, contacts,
+  opportunities, campaigns, events, lead sources), **global search**
+  (`crm_search()` under the caller's rights), **notifications** (own rows
+  only), and **CSV import** with preview, validation, in-file and
+  on-file duplicate detection and a confirmation step. Students are not
+  imported: a child joins the register through enrolment.
+- Security suite cases 69 to 76 attack the campus scoping of families,
+  notes, opportunities, campaigns, events, imports, the sealed outbox, the
+  own-only notifications, self-approval, the sensitive approval, the
+  engine-only statuses and the merge. Unit tests pin the lifecycle rule,
+  segment rules, recipient consent, the opportunity and automation rules,
+  the CSV reader and the campaign renderer.
+
+What it deliberately does not do: capture email replies (the provider seam
+has no inbound email), send free-text WhatsApp, or let a person set a
+lifecycle stage without marking it manual.
+
 ### Three more things the school owns
 
 - **Bank details** for transfers: `/staff/admin/fees`, per currency. Until
