@@ -8,6 +8,8 @@ import { EVENT_KIND_LABELS } from "@/lib/crm/labels";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
+import { isUuid } from "@/lib/uuid";
+
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -17,7 +19,8 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const past = sp.when === "past";
   let q = supabase.from("crm_events").select("*, campuses(name), staff_profiles!crm_events_staff_id_fkey(full_name)").order("starts_at", { ascending: !past }).limit(100);
   q = past ? q.lt("starts_at", new Date().toISOString()) : q.gte("starts_at", new Date(new Date().getTime() - 6 * 3_600_000).toISOString());
-  if (sp.campus) q = q.or(`campus_id.is.null,campus_id.eq.${sp.campus}`);
+  // Straight from the URL and into an `or()` filter, so only a uuid may pass.
+  if (isUuid(sp.campus)) q = q.or(`campus_id.is.null,campus_id.eq.${sp.campus}`);
   const [{ data: events }, { data: campuses }] = await Promise.all([q, supabase.from("v_accessible_campuses").select("id, name").order("sort_order")]);
   const ids = (events ?? []).map((e) => e.id);
   const { data: regs } = ids.length ? await supabase.from("crm_event_registrations").select("event_id, status, guests").in("event_id", ids) : { data: [] };

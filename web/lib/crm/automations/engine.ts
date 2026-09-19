@@ -50,8 +50,8 @@ export async function processTriggerEvents(admin: AdminClient, now: Date = new D
     const ev: TriggerEvent = { id: raw.id, type: raw.type, family_id: raw.family_id, student_id: raw.student_id, application_id: raw.application_id, payload: (raw.payload ?? {}) as Record<string, Json | undefined> };
     let outcome: "done" | "nothing" | "failed" = "nothing";
     let lastError: string | null = null;
+    const familyStage = ev.family_id ? (await admin.from("families").select("lifecycle_stage").eq("id", ev.family_id).maybeSingle()).data?.lifecycle_stage ?? null : null;
     for (const automation of byTrigger.get(ev.type) ?? []) {
-      const familyStage = ev.family_id ? (await admin.from("families").select("lifecycle_stage").eq("id", ev.family_id).maybeSingle()).data?.lifecycle_stage ?? null : null;
       if (!conditionsMatch(parseConditions(automation.conditions), ev, familyStage)) {
         await admin.from("automation_runs").insert({ automation_id: automation.id, trigger_event_id: ev.id, family_id: ev.family_id, status: "skipped", log: [{ note: "conditions did not match" }] });
         sweep.skipped += 1;

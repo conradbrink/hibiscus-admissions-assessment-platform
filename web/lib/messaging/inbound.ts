@@ -110,7 +110,7 @@ async function studentForContact(
  */
 export async function handleReply(admin: AdminClient, from: string, text: string, providerMessageId: string, occurredAt: Date): Promise<ReplyOutcome> {
   if (!from) return "unknown";
-  const { data: contact } = await admin.from("contacts").select("id, first_name, last_name").eq("mobile_normalised", from).maybeSingle();
+  const { data: contact } = await admin.from("contacts").select("id, first_name, last_name, family_id").eq("mobile_normalised", from).maybeSingle();
   if (!contact) return "unknown";
 
   const { data: apps } = await admin
@@ -119,21 +119,24 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false })
     .limit(10);
-  const app = (apps ?? []).find((a) => !TERMINAL_STATUSES.has(a.status)) ?? apps?.[0];
-  if (!app) return "unknown";
+  const app = (apps ?? []).find((a) => !TERMINAL_STATUSES.has(a.status)) ?? apps?.[0] ?? null;
+  // A parent the CRM knows and admissions does not (typed in at the desk,
+  // imported, a second parent added later) has no application to hang the
+  // reply on. Their message is still kept, against the family.
+  if (!app && !contact.family_id) return "unknown";
 
   // A family whose application is finished has usually enrolled, and their
   // reply is about the child at school — not about an admissions record that
   // closed months ago. The onboarding messages invite a reply, so this is the
   // path most of them come back on.
-  const liveStudent = TERMINAL_STATUSES.has(app.status) ? await studentForContact(admin, contact.id) : null;
+  const liveStudent = !app || TERMINAL_STATUSES.has(app.status) ? await studentForContact(admin, contact.id) : null;
 
   const body = text.trim().slice(0, INBOUND_TEXT_LIMIT);
   const { data: inserted } = await admin
     .from("messages")
     .upsert(
       {
-        application_id: app.id,
+        application_id: app?.id ?? null,
         contact_id: contact.id,
         direction: "in",
         from_normalised: from,
@@ -143,7 +146,7 @@ export async function handleReply(admin: AdminClient, from: string, text: string
         rendered_text: body,
         received_at: occurredAt.toISOString(),
         trigger_source: "inbound",
-        family_id: liveStudent?.family_id ?? null,
+        family_id: liveStudent?.family_id ?? contact.family_id ?? null,
         student_id: liveStudent?.id ?? null,
       },
       { onConflict: "provider_message_id", ignoreDuplicates: true }
@@ -163,10 +166,14 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     // STOP means stop: the updates opt-in and the marketing consent go
     // together, because a parent who says it once should not be asked to
     // say it twice.
-    await admin
+    const { error: consentError } = await admin
       .from("contacts")
       .update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString(), marketing_whatsapp_consent: false, consent_source: "reply" })
       .eq("id", contact.id);
+    // Recording "opted out" over a consent that did not change would leave
+    // the parent still on the list. The webhook retries.
+    if (consentError) throw new Error(consentError.message);
+    if (!app) return "opt_out";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -178,10 +185,12 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     return "opt_out";
   }
   if (isOptIn(body)) {
-    await admin
+    const { error: consentError } = await admin
       .from("contacts")
       .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "reply", whatsapp_opt_out_at: null })
       .eq("id", contact.id);
+    if (consentError) throw new Error(consentError.message);
+    if (!app) return "opt_in";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -224,6 +233,11 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     });
   }
 
+  if (!app) {
+    // No admissions record to write the event on: the notification above
+    // and the inbox are where this reply lives.
+    return liveStudent ? "task" : "unknown";
+  }
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: null,

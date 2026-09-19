@@ -76,16 +76,16 @@ export async function listConversations(supabase: Client, opts: { q?: string; un
 }
 
 export async function loadConversation(supabase: Client, contactId: string) {
-  const [{ data: contact }, { data: messages }, { data: events }] = await Promise.all([
+  const [{ data: contact }, { data: messages }] = await Promise.all([
     supabase
       .from("contacts")
       .select("*, families!contacts_family_id_fkey(id, display_name, family_code, campus_id)")
       .eq("id", contactId)
       .maybeSingle(),
     supabase.from("messages").select("*").eq("contact_id", contactId).order("created_at"),
-    supabase.from("message_events").select("*").order("id"),
   ]);
   if (!contact) return null;
-  const ids = new Set((messages ?? []).map((m) => m.id));
-  return { contact, messages: messages ?? [], events: (events ?? []).filter((e) => ids.has(e.message_id)) };
+  const ids = (messages ?? []).map((m) => m.id);
+  const { data: events } = ids.length ? await supabase.from("message_events").select("*").in("message_id", ids).order("id") : { data: [] };
+  return { contact, messages: messages ?? [], events: events ?? [] };
 }

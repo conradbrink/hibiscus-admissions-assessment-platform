@@ -9,6 +9,9 @@ import type { Actor } from "@/lib/workflow/engine";
 
 type Client = SupabaseClient<Database>;
 
+/** Duplicate lookups in flight at once during a preview. */
+const LOOKUP_BATCH = 10;
+
 /**
  * Importing families and parents from a spreadsheet, in two steps.
  *
@@ -46,49 +49,70 @@ export async function previewImport(
   let valid = 0;
   let duplicates = 0;
   let errors = 0;
-  const rows: Array<{ import_id: string; row_no: number; data: Json; status: "valid" | "duplicate" | "error"; message: string | null; duplicate_family_id: string | null }> = [];
+  type Row = { import_id: string; row_no: number; data: Json; status: "valid" | "duplicate" | "error"; message: string | null; duplicate_family_id: string | null };
+  const rows: Array<Row | null> = new Array(verdicts.length).fill(null);
+  const candidates: number[] = [];
   for (let i = 0; i < verdicts.length; i++) {
     const v = verdicts[i];
     if (missing.length) {
       errors += 1;
-      rows.push({ import_id: imp.id, row_no: i + 1, data: { cells: table.rows[i] } as Json, status: "error", message: `The file has no ${missing.join(", ")} column.`, duplicate_family_id: null });
+      rows[i] = { import_id: imp.id, row_no: i + 1, data: { cells: table.rows[i] } as Json, status: "error", message: `The file has no ${missing.join(", ")} column.`, duplicate_family_id: null };
       continue;
     }
     if (!v.ok) {
       errors += 1;
-      rows.push({ import_id: imp.id, row_no: i + 1, data: { cells: table.rows[i] } as Json, status: "error", message: v.errors.join(" "), duplicate_family_id: null });
+      rows[i] = { import_id: imp.id, row_no: i + 1, data: { cells: table.rows[i] } as Json, status: "error", message: v.errors.join(" "), duplicate_family_id: null };
       continue;
     }
     const inFile = within.get(i);
     if (inFile) {
       duplicates += 1;
-      rows.push({ import_id: imp.id, row_no: i + 1, data: v.record as unknown as Json, status: "duplicate", message: inFile, duplicate_family_id: null });
+      rows[i] = { import_id: imp.id, row_no: i + 1, data: v.record as unknown as Json, status: "duplicate", message: inFile, duplicate_family_id: null };
       continue;
     }
-    const { data: matches } = await staff.rpc("crm_find_duplicates", {
-      p_email: v.record.email,
-      p_mobile_normalised: v.record.mobile_normalised,
-      p_last_name: v.record.last_name,
-      p_first_name: v.record.first_name,
-    });
-    const match = matches?.[0];
-    if (match) {
-      duplicates += 1;
-      rows.push({
-        import_id: imp.id,
-        row_no: i + 1,
-        data: v.record as unknown as Json,
-        status: "duplicate",
-        message: `${match.reason}: ${match.contact_name} (${match.family_code}${match.campus_name ? `, ${match.campus_name}` : ""}).`,
-        duplicate_family_id: match.family_id,
-      });
-      continue;
-    }
-    valid += 1;
-    rows.push({ import_id: imp.id, row_no: i + 1, data: v.record as unknown as Json, status: "valid", message: v.warnings.length ? v.warnings.join(" ") : null, duplicate_family_id: null });
+    candidates.push(i);
   }
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error: rErr } = await staff.from("crm_import_rows").insert(rows.slice(i, i + 500));
+  // The lookup is one call per row; a 2 MB file is thousands of rows, so
+  // they go in batches of concurrent calls rather than one after another.
+  for (let b = 0; b < candidates.length; b += LOOKUP_BATCH) {
+    const batch = candidates.slice(b, b + LOOKUP_BATCH);
+    const found = await Promise.all(
+      batch.map(async (i) => {
+        const v = verdicts[i];
+        if (!v.ok) return null;
+        const { data: matches, error: lookupError } = await staff.rpc("crm_find_duplicates", {
+          p_email: v.record.email,
+          p_mobile_normalised: v.record.mobile_normalised,
+          p_last_name: v.record.last_name,
+          p_first_name: v.record.first_name,
+        });
+        if (lookupError) throw new Error(lookupError.message);
+        return matches?.[0] ?? null;
+      })
+    );
+    batch.forEach((i, k) => {
+      const v = verdicts[i];
+      if (!v.ok) return;
+      const match = found[k];
+      if (match) {
+        duplicates += 1;
+        rows[i] = {
+          import_id: imp.id,
+          row_no: i + 1,
+          data: v.record as unknown as Json,
+          status: "duplicate",
+          message: `${match.reason}: ${match.contact_name} (${match.family_code}${match.campus_name ? `, ${match.campus_name}` : ""}).`,
+          duplicate_family_id: match.family_id,
+        };
+        return;
+      }
+      valid += 1;
+      rows[i] = { import_id: imp.id, row_no: i + 1, data: v.record as unknown as Json, status: "valid", message: v.warnings.length ? v.warnings.join(" ") : null, duplicate_family_id: null };
+    });
+  }
+  const judged = rows.filter((r): r is Row => r !== null);
+  for (let i = 0; i < judged.length; i += 500) {
+    const { error: rErr } = await staff.from("crm_import_rows").insert(judged.slice(i, i + 500));
     if (rErr) throw new Error(rErr.message);
   }
   await staff.from("crm_imports").update({ valid_rows: valid, duplicate_rows: duplicates, error_rows: errors }).eq("id", imp.id);

@@ -3800,7 +3800,7 @@ begin
       if v_count = 0 then
         v_fail := v_fail || E'\n  - ' || '71 control: staff cannot read the opportunity rules';
       end if;
-      update public.opportunity_rules set is_active = true where code = 'robotics_stage4_7';
+      update public.opportunity_rules set is_active = true where code = 'robotics_stage_4_to_7';
       if found then
         v_fail := v_fail || E'\n  - ' || '71: admissions staff switched an opportunity rule on';
       end if;
@@ -4052,6 +4052,9 @@ begin
     perform pg_temp.service();
 
     -- The engine's own functions are not callable over RPC.
+    if has_function_privilege('authenticated', 'public.crm_compute_lifecycle(uuid)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '73: crm_compute_lifecycle is callable by a signed-in user, who could read a stranger''s stage';
+    end if;
     if has_function_privilege('authenticated', 'public.crm_sync_family(uuid)', 'execute') then
       v_fail := v_fail || E'\n  - ' || '73: crm_sync_family is callable by a signed-in user';
     end if;

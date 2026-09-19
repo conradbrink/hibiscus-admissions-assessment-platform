@@ -563,8 +563,9 @@ as $$
   end
 $$;
 
-revoke execute on function public.crm_compute_lifecycle(uuid) from public, anon;
-grant execute on function public.crm_compute_lifecycle(uuid) to authenticated;
+-- Security definer and unscoped: it is crm_sync_family()'s to call, and a
+-- signed-in person could otherwise read the stage of a family they may not see.
+revoke execute on function public.crm_compute_lifecycle(uuid) from public, anon, authenticated;
 
 -- Brings one family up to date: its campus, its stage, and its lead source
 -- where none was recorded. Writes the outbox and the audit log only when the

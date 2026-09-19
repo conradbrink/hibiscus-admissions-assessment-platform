@@ -9,6 +9,8 @@ import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+// What a datetime-local input submits; toIso() appends the zone to it.
+const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const opt = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 const KINDS = ["open_day", "robotics_makeathon", "parent_meeting", "sports_day", "information_session", "holiday_programme", "other"] as const;
 
@@ -16,8 +18,8 @@ const eventSchema = z.object({
   name: z.string().trim().min(1, "Give the event a name.").max(160),
   kind: z.enum(KINDS).default("other"),
   campusId: opt(60),
-  startsAt: z.string().min(1, "When does it start?"),
-  endsAt: opt(40),
+  startsAt: z.string().regex(LOCAL_DATETIME, "Choose a start date and time."),
+  endsAt: z.string().regex(LOCAL_DATETIME).optional().or(z.literal("")),
   location: opt(200),
   description: opt(2000),
   capacity: opt(10),
@@ -97,6 +99,11 @@ export async function registerFamily(_: StaffActionState, formData: FormData): P
   return guarded(async () => {
     const ctx = await requireStaffAction("crm.write");
     const p = z.object({ eventId: z.guid(), familyId: z.guid(), studentId: z.string().optional(), status: z.enum(["invited", "registered"]).default("registered"), guests: z.coerce.number().int().min(0).max(20).default(0) }).parse(Object.fromEntries(formData));
+    if (p.studentId) {
+      // The form offers the family's children, but the id is the browser's to send.
+      const { data: student } = await ctx.supabase.from("students").select("id").eq("id", p.studentId).eq("family_id", p.familyId).maybeSingle();
+      if (!student) throw new Error("That child is not one of this family's.");
+    }
     const { data: contact } = await ctx.supabase.from("contacts").select("id").eq("family_id", p.familyId).order("created_at").limit(1).maybeSingle();
     const { error } = await ctx.supabase.from("crm_event_registrations").insert({
       event_id: p.eventId,

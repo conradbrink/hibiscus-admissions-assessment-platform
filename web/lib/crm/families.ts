@@ -30,6 +30,8 @@ export async function loadFamilyProfile(supabase: Client, familyId: string) {
   if (error) throw new Error(error.message);
   if (!family) return null;
 
+  // The two message logs are keyed by contact as well as by family; one read of the ids serves both.
+  const contactIds = await contactIdList(supabase, familyId);
   const [
     { data: contacts },
     { data: students },
@@ -69,13 +71,13 @@ export async function loadFamilyProfile(supabase: Client, familyId: string) {
     supabase
       .from("email_messages")
       .select("id, subject, template_key, status, sent_at, opened_at, clicked_at, created_at, to_email, contact_id, application_id, family_id")
-      .or(`family_id.eq.${familyId},contact_id.in.(${await contactIdList(supabase, familyId)})`)
+      .or(`family_id.eq.${familyId},contact_id.in.(${contactIds})`)
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
       .from("messages")
       .select("*")
-      .or(`family_id.eq.${familyId},contact_id.in.(${await contactIdList(supabase, familyId)})`)
+      .or(`family_id.eq.${familyId},contact_id.in.(${contactIds})`)
       .order("created_at", { ascending: false })
       .limit(100),
     supabase

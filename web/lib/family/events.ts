@@ -28,10 +28,14 @@ export async function loadFamilyEvents(admin: AdminClient, session: FamilySessio
   if (error) throw new Error(error.message);
   const ids = (events ?? []).map((e) => e.id);
   if (!ids.length) return [];
-  const [{ data: mine }, { data: counts }] = await Promise.all([
+  const [{ data: mine, error: mineError }, { data: counts, error: countsError }] = await Promise.all([
     admin.from("crm_event_registrations").select("*").eq("family_id", session.familyId).in("event_id", ids),
     admin.from("crm_event_registrations").select("event_id, guests").in("event_id", ids).in("status", ["registered", "attended"]),
   ]);
+  // A count that failed would read as an empty event, and a full one would
+  // take another family.
+  if (mineError) throw new Error(mineError.message);
+  if (countsError) throw new Error(countsError.message);
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
   const registeredCount = new Map<string, number>();
   for (const c of counts ?? []) registeredCount.set(c.event_id, (registeredCount.get(c.event_id) ?? 0) + 1 + c.guests);
@@ -66,31 +70,37 @@ export async function registerFamilyForEvent(
   if (input.studentId) await requireStudentInFamily(admin, session, input.studentId);
 
   const contact = (await admin.from("contacts").select("id").eq("family_id", session.familyId).order("created_at").limit(1).maybeSingle()).data;
-  const { error } = await admin.from("crm_event_registrations").upsert(
-    {
-      event_id: input.eventId,
-      family_id: session.familyId,
-      student_id: input.studentId,
-      contact_id: contact?.id ?? null,
-      status: "registered",
-      source: "parent",
-      guests: Math.max(0, Math.min(10, input.guests)),
-      note: input.note,
-    },
-    { onConflict: "event_id,family_id,student_id", ignoreDuplicates: false }
-  );
-  if (error) {
-    // The unique index is on an expression PostgREST cannot name, so a
-    // second registration arrives as a conflict: update the row instead.
-    if (error.code === "23505" || error.code === "42P10") {
-      let q = admin.from("crm_event_registrations").update({ status: "registered", guests: input.guests, note: input.note }).eq("event_id", input.eventId).eq("family_id", session.familyId);
-      q = input.studentId ? q.eq("student_id", input.studentId) : q.is("student_id", null);
-      const { error: uErr } = await q;
-      if (uErr) throw new Error(uErr.message);
-      return;
-    }
-    throw new Error(error.message);
-  }
+  const guests = Math.max(0, Math.min(10, input.guests));
+
+  // One row per family per child (or per family, when no child is named):
+  // the unique index is on an expression PostgREST cannot name in an
+  // upsert, so this is update-then-insert, and an insert that loses a race
+  // to a second tap goes round once more.
+  const updateExisting = async (): Promise<boolean> => {
+    let q = admin
+      .from("crm_event_registrations")
+      .update({ status: "registered", guests, note: input.note })
+      .eq("event_id", input.eventId)
+      .eq("family_id", session.familyId);
+    q = input.studentId ? q.eq("student_id", input.studentId) : q.is("student_id", null);
+    const { data, error } = await q.select("id");
+    if (error) throw new Error(error.message);
+    return (data ?? []).length > 0;
+  };
+  if (await updateExisting()) return;
+  const { error } = await admin.from("crm_event_registrations").insert({
+    event_id: input.eventId,
+    family_id: session.familyId,
+    student_id: input.studentId,
+    contact_id: contact?.id ?? null,
+    status: "registered",
+    source: "parent",
+    guests,
+    note: input.note,
+  });
+  if (!error) return;
+  if (error.code === "23505" && (await updateExisting())) return;
+  throw new Error(error.message);
 }
 
 /** The family changes its mind. Only its own row. */

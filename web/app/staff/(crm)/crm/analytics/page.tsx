@@ -7,6 +7,8 @@ import { daysAgoDateString } from "@/lib/format-date";
 import { heardFromLabel } from "@/lib/heard-from";
 import { formatMoney } from "@/lib/money";
 import { requireStaff } from "@/lib/staff/session";
+import { isUuid } from "@/lib/uuid";
+
 
 function Tile({ label, value, hint, href }: { label: string; value: string | number; hint?: string; href?: string }) {
   const body = (<><p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>{hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}</>);
@@ -24,7 +26,8 @@ type Counts = { families_total?: number; families_active?: number; families_new_
 export default async function CrmAnalyticsPage({ searchParams }: { searchParams: Promise<{ campus?: string; days?: string }> }) {
   const sp = await searchParams;
   const { supabase } = await requireStaff("analytics.read");
-  const campus = sp.campus || null;
+  // Straight from the URL and into an `or()` filter, so only a uuid may pass.
+  const campus = isUuid(sp.campus) ? sp.campus : null;
   const days = [30, 90, 180, 365].includes(Number(sp.days)) ? Number(sp.days) : 90;
   const since = `${daysAgoDateString(days)}T00:00:00+02:00`;
 

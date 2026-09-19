@@ -51,8 +51,11 @@ export async function cancelImport(_: StaffActionState, formData: FormData): Pro
   const result = await guarded(async () => {
     const ctx = await requireStaffAction("crm.import");
     const { importId } = z.object({ importId: z.guid() }).parse(Object.fromEntries(formData));
-    const { error } = await ctx.supabase.from("crm_imports").update({ status: "cancelled" }).eq("id", importId).eq("status", "previewed");
+    const { data: cancelled, error } = await ctx.supabase.from("crm_imports").update({ status: "cancelled" }).eq("id", importId).eq("status", "previewed").select("id").maybeSingle();
     if (error) throw new Error(error.message);
+    // A committed import's rows are the record of what was written; only a
+    // preview that was really cancelled loses its rows.
+    if (!cancelled) throw new Error("That import is no longer waiting for a decision.");
     await createAdminClient().from("crm_import_rows").delete().eq("import_id", importId);
   });
   if (result.ok) redirect("/staff/crm/import");
