@@ -68,6 +68,7 @@ change.
 | `…20260919100300_crm_events` (19 Sep) | `crm_events` and `crm_event_registrations` (one per family per event, staff or parent or campaign as the source); `campaigns.event_id` |
 | `…20260919100400_crm_automations` (19 Sep) | `automations` (six seeded, all off) and `automation_runs`; the `crm_welcome_family` email and WhatsApp templates |
 | `…20260919100500_crm_notifications_search` (19 Sep) | `notifications` (own rows only, written by the system), `messages.crm_read_at`, `crm_imports`/`crm_import_rows`, `crm_search()`, `crm_find_duplicates()`, `crm_merge_families()`, `crm_dashboard_counts()`, `crm_lead_source_report()`. Security suite cases 69 to 76 |
+| `…20260919110000_crm_family_facts_tasks_once` (19 Sep) | `v_crm_family_facts` counts a family's open tasks from one grouped subquery instead of a per-family lateral that called `crm_family_of_application()` for every open task; the Families list and `crm_dashboard_counts()` had been reaching the API's 8-second statement timeout |
 
 ## Rules for new migrations
 
