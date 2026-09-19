@@ -175,3 +175,81 @@ create policy crm_event_registrations_update on public.crm_event_registrations
     and exists (select 1 from public.crm_events e where e.id = crm_event_registrations.event_id)
     and (select public.can_access_family(family_id))
   );
+
+-- ---------------------------------------------------------------------------
+-- A family registering itself, atomically
+-- ---------------------------------------------------------------------------
+
+-- The capacity check and the write in one transaction, with the event row
+-- locked, so two families tapping "we are coming" for the last seat cannot
+-- both read one seat left. Replaces the row for the same child (or the
+-- family's own row) rather than adding a second, and counts the seats that
+-- row held so a family changing its guests is not refused its own place.
+-- Service role only: the parent holds no database session, and the page
+-- has already checked the event is one the family may see and the child is
+-- theirs.
+create or replace function public.crm_register_family_for_event(
+  p_event_id uuid,
+  p_family_id uuid,
+  p_student_id uuid,
+  p_contact_id uuid,
+  p_guests int,
+  p_note text
+)
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_capacity int;
+  v_open boolean;
+  v_cancelled boolean;
+  v_existing_id uuid;
+  v_existing_status text;
+  v_existing_guests int;
+  v_taken int;
+  v_guests int := greatest(0, least(10, coalesce(p_guests, 0)));
+begin
+  select capacity, registration_open, is_cancelled
+    into v_capacity, v_open, v_cancelled
+    from public.crm_events
+   where id = p_event_id
+   for update;
+  if not found or v_cancelled then
+    raise exception 'event_not_found';
+  end if;
+  if not v_open then
+    raise exception 'registration_closed';
+  end if;
+
+  select id, status, guests into v_existing_id, v_existing_status, v_existing_guests
+    from public.crm_event_registrations
+   where event_id = p_event_id
+     and family_id = p_family_id
+     and coalesce(student_id, family_id) = coalesce(p_student_id, p_family_id);
+
+  if v_capacity is not null then
+    select coalesce(sum(1 + guests), 0) into v_taken
+      from public.crm_event_registrations
+     where event_id = p_event_id
+       and status in ('registered', 'attended')
+       and (v_existing_id is null or id <> v_existing_id);
+    if v_taken + 1 + v_guests > v_capacity then
+      raise exception 'event_full';
+    end if;
+  end if;
+
+  if v_existing_id is not null then
+    update public.crm_event_registrations
+       set status = 'registered', guests = v_guests, note = p_note
+     where id = v_existing_id;
+    return 'updated';
+  end if;
+  insert into public.crm_event_registrations (event_id, family_id, student_id, contact_id, status, source, guests, note)
+  values (p_event_id, p_family_id, p_student_id, p_contact_id, 'registered', 'parent', v_guests, p_note);
+  return 'inserted';
+end;
+$$;
+
+revoke execute on function public.crm_register_family_for_event(uuid, uuid, uuid, uuid, int, text) from public, anon, authenticated;

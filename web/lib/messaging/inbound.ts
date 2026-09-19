@@ -104,6 +104,18 @@ async function studentForContact(
   };
 }
 
+/** Whether the application's timeline already records this message's event. */
+async function hasMessageEvent(admin: AdminClient, applicationId: string, type: string, messageId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("application_events")
+    .select("id")
+    .eq("application_id", applicationId)
+    .eq("type", type)
+    .contains("payload", { message_id: messageId })
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
 /**
  * One reply. Exported so the development outbox can simulate a parent
  * replying without a webhook; the path is identical.
@@ -181,7 +193,10 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     // Recording "opted out" over a consent that did not change would leave
     // the parent still on the list. The webhook retries.
     if (consentError) throw new Error(consentError.message);
-    if (!app || !inserted) return "opt_out";
+    if (!app) return "opt_out";
+    // On a retry the event may already be there (the first attempt failed
+    // after writing it); written once, never twice.
+    if (!inserted && (await hasMessageEvent(admin, app.id, "messaging.opted_out", stored.id))) return "opt_out";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -198,7 +213,8 @@ export async function handleReply(admin: AdminClient, from: string, text: string
       .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "reply", whatsapp_opt_out_at: null })
       .eq("id", contact.id);
     if (consentError) throw new Error(consentError.message);
-    if (!app || !inserted) return "opt_in";
+    if (!app) return "opt_in";
+    if (!inserted && (await hasMessageEvent(admin, app.id, "messaging.opted_in", stored.id))) return "opt_in";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,

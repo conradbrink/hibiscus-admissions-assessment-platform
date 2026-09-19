@@ -3209,6 +3209,10 @@ export type Database = {
         Args: { p_q: string; p_limit?: number };
         Returns: { kind: "family" | "contact" | "student" | "applicant"; id: string; title: string; subtitle: string; href: string }[];
       };
+      crm_register_family_for_event: {
+        Args: { p_event_id: string; p_family_id: string; p_student_id: string | null; p_contact_id: string | null; p_guests: number; p_note: string | null };
+        Returns: string;
+      };
       crm_unsubscribe_email: {
         Args: { p_token: string; p_ip_hash?: string | null };
         Returns: boolean;

@@ -4063,6 +4063,10 @@ begin
     if exists (select 1 from pg_proc where oid = 'public.crm_family_of_application(uuid)'::regprocedure and prosecdef) then
       v_fail := v_fail || E'\n  - ' || '73: crm_family_of_application runs as its owner';
     end if;
+    if has_function_privilege('authenticated', 'public.crm_register_family_for_event(uuid, uuid, uuid, uuid, int, text)', 'execute')
+       or has_function_privilege('anon', 'public.crm_register_family_for_event(uuid, uuid, uuid, uuid, int, text)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '73: crm_register_family_for_event is callable by a signed-in or anonymous user';
+    end if;
     if has_function_privilege('authenticated', 'public.crm_unsubscribe_email(text, text)', 'execute')
        or has_function_privilege('anon', 'public.crm_unsubscribe_email(text, text)', 'execute') then
       v_fail := v_fail || E'\n  - ' || '73: crm_unsubscribe_email is callable by a signed-in or anonymous user';

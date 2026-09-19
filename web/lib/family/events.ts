@@ -65,50 +65,24 @@ export async function registerFamilyForEvent(
   if (!event) throw new NotInFamilyError("event");
   if (!event.registration_open) throw new Error("Registration for this event has closed.");
   if (input.studentId) await requireStudentInFamily(admin, session, input.studentId);
-  const guests = Math.max(0, Math.min(10, input.guests));
-
-  // The seats this request needs, net of the row it would replace: the one
-  // for this child (or the family's own), and only while that row holds
-  // seats. A cancelled row holds none; a sibling's row is not this one.
-  let existingQ = admin.from("crm_event_registrations").select("id, status, guests").eq("event_id", input.eventId).eq("family_id", session.familyId);
-  existingQ = input.studentId ? existingQ.eq("student_id", input.studentId) : existingQ.is("student_id", null);
-  const { data: existing, error: existingError } = await existingQ.maybeSingle();
-  if (existingError) throw new Error(existingError.message);
-  const held = existing && (existing.status === "registered" || existing.status === "attended") ? 1 + existing.guests : 0;
-  if (event.capacity !== null && event.registered_count - held + 1 + guests > event.capacity) {
-    throw new Error("This event is full.");
-  }
-
   const contact = (await admin.from("contacts").select("id").eq("family_id", session.familyId).order("created_at").limit(1).maybeSingle()).data;
 
-  // One row per family per child (or per family, when no child is named):
-  // the unique index is on an expression PostgREST cannot name in an
-  // upsert, so this is update-then-insert, and an insert that loses a race
-  // to a second tap goes round once more.
-  const updateExisting = async (): Promise<boolean> => {
-    let q = admin
-      .from("crm_event_registrations")
-      .update({ status: "registered", guests, note: input.note })
-      .eq("event_id", input.eventId)
-      .eq("family_id", session.familyId);
-    q = input.studentId ? q.eq("student_id", input.studentId) : q.is("student_id", null);
-    const { data, error } = await q.select("id");
-    if (error) throw new Error(error.message);
-    return (data ?? []).length > 0;
-  };
-  if (await updateExisting()) return;
-  const { error } = await admin.from("crm_event_registrations").insert({
-    event_id: input.eventId,
-    family_id: session.familyId,
-    student_id: input.studentId,
-    contact_id: contact?.id ?? null,
-    status: "registered",
-    source: "parent",
-    guests,
-    note: input.note,
+  // The capacity check and the write are one transaction in the database,
+  // with the event row locked: two families tapping for the last seat
+  // cannot both read one seat left. It replaces this family's row for the
+  // same child rather than adding a second.
+  const { error } = await admin.rpc("crm_register_family_for_event", {
+    p_event_id: input.eventId,
+    p_family_id: session.familyId,
+    p_student_id: input.studentId,
+    p_contact_id: contact?.id ?? null,
+    p_guests: Math.max(0, Math.min(10, input.guests)),
+    p_note: input.note,
   });
   if (!error) return;
-  if (error.code === "23505" && (await updateExisting())) return;
+  if (error.message.includes("event_full")) throw new Error("This event is full.");
+  if (error.message.includes("registration_closed")) throw new Error("Registration for this event has closed.");
+  if (error.message.includes("event_not_found")) throw new NotInFamilyError("event");
   throw new Error(error.message);
 }
 
