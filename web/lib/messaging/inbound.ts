@@ -1,6 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { recordMessageEvent } from "@/lib/messaging/audit";
+import { notifyStaff } from "@/lib/crm/notifications";
 import { ownerForStudent } from "@/lib/onboarding/owner";
 import { resolveStatus } from "@/lib/messaging/delivery";
 import { isOptIn, isOptOut } from "@/lib/messaging/meta-payload";
@@ -159,7 +160,13 @@ export async function handleReply(admin: AdminClient, from: string, text: string
   });
 
   if (isOptOut(body)) {
-    await admin.from("contacts").update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString() }).eq("id", contact.id);
+    // STOP means stop: the updates opt-in and the marketing consent go
+    // together, because a parent who says it once should not be asked to
+    // say it twice.
+    await admin
+      .from("contacts")
+      .update({ whatsapp_opt_in: false, whatsapp_opt_out_at: new Date().toISOString(), marketing_whatsapp_consent: false, consent_source: "reply" })
+      .eq("id", contact.id);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -187,6 +194,20 @@ export async function handleReply(admin: AdminClient, from: string, text: string
   }
 
   const details = `“${body.slice(0, 300)}”\n\nReply by phone or email; a WhatsApp reply can only be one of the approved templates.`;
+
+  // The CRM inbox shows the reply either way; the person who looks after
+  // the family is told it is there.
+  {
+    const { data: fam } = await admin.from("contacts").select("family_id, families!contacts_family_id_fkey(assigned_staff_id)").eq("id", contact.id).maybeSingle();
+    const family = Array.isArray(fam?.families) ? fam?.families[0] : fam?.families;
+    await notifyStaff(admin, family?.assigned_staff_id, {
+      kind: "whatsapp_reply",
+      title: `${contact.first_name} ${contact.last_name} replied on WhatsApp`,
+      body: body.slice(0, 140),
+      href: `/staff/crm/whatsapp?contact=${contact.id}`,
+      familyId: fam?.family_id ?? null,
+    });
+  }
 
   if (liveStudent) {
     // The child is at the school, so the work belongs to whoever is looking

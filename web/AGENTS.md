@@ -192,6 +192,34 @@ every one of those checks.
 (`applications_refuse_anonymise_enrolled`). If a new CRM table holds personal
 data, it belongs in the retention story before it ships, not after.
 
+## The CRM reads the same families
+
+`/staff/crm` is a second product on the same staff session, the same
+`permissions` table and the same rows: `families`, `contacts`, `students`,
+`tasks`, `messages`, `email_messages`, `audit_log`. It adds columns and tables
+around them, never a copy. When you touch it:
+
+- A family is reachable through `can_access_family()` (a child, an
+  application or the family's own campus) and editable through
+  `can_edit_family()`; every CRM table that names a family asks one of those
+  rather than joining campuses itself. A family typed in at the desk goes
+  through `crm_create_family()`, which stamps the campus and the author.
+- The lifecycle stage is computed by `crm_sync_family()` from what admissions
+  and the register already record, and `lib/crm/lifecycle.ts` is the same
+  rule for the tests. Nobody types a stage unless `lifecycle_manual` is set.
+- `crm_trigger_events` is the outbox: triggers write it, the job drain reads
+  it, staff never see it. An automation runs from there and only while
+  `crm_automations_enabled` is on; every one ships switched off.
+- A campaign's recipients are planned by `lib/crm/recipients.ts` from consent
+  on the contact, frozen in `campaign_recipients` with the reason for every
+  exclusion, and sent through the same `sendEmail`/`sendFamilyMessage` paths
+  as everything else. The unsubscribe link is appended to every marketing
+  email by the sender, whatever the author wrote. `campaigns_guard_transition`
+  is where the approval rules live; the screens only present them.
+- WhatsApp in the CRM is the same approved-template rule as everywhere else:
+  a campaign names a `message_templates` key, an inbox reply is a template
+  too, and there is no free-text send.
+
 ## Snapshots, not references
 
 An attempt sits a frozen form (`form_questions`), an offer is the HTML and

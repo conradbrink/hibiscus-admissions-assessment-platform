@@ -1,7 +1,8 @@
 import {
   ChartColumn, Blocks, BookOpen, Building2, CalendarDays, CalendarOff, SquareCheck, ClipboardCheck, Columns3, CreditCard,
   Download, FilePenLine, FileText, FolderCheck, GraduationCap, Inbox, LayoutDashboard, ListChecks, Mail, MessageCircle,
-  ListTodo, Compass, PenLine, RefreshCw, Scale, BadgePercent, ScrollText, School, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog, type LucideIcon,
+  ListTodo, Compass, PenLine, RefreshCw, Scale, BadgePercent, ScrollText, School, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog,
+  HeartHandshake, Contact, Sparkles, CalendarHeart, MessagesSquare, Megaphone, Filter, Workflow, FileBarChart, Milestone, Tag, Signpost, BadgeCheck, Upload, type LucideIcon,
 } from "lucide-react";
 import type { NavIcon } from "@/components/staff/nav-items";
 
@@ -47,4 +48,19 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   outbox: Send,
   jobs: Inbox,
   orientation: Compass,
+  families: HeartHandshake,
+  contacts: Contact,
+  opportunities: Sparkles,
+  events: CalendarHeart,
+  inbox: MessagesSquare,
+  campaigns: Megaphone,
+  segments: Filter,
+  automations: Workflow,
+  reports: FileBarChart,
+  lifecycle: Milestone,
+  tags: Tag,
+  leadSources: Signpost,
+  approvals: BadgeCheck,
+  import: Upload,
+  crm: HeartHandshake,
 };

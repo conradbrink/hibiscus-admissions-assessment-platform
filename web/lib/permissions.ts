@@ -46,6 +46,17 @@ export const PERMISSION_CODES = [
   "students.write",
   /** Opening a round reaches every family at a campus at once. */
   "reenrolment.write",
+  /** The CRM: families, contacts, opportunities, communications. */
+  "crm.read",
+  "crm.write",
+  /** Segments and campaigns, up to submitting one for approval. */
+  "crm.campaigns.write",
+  /** Sign off a campaign before it is sent. */
+  "crm.campaigns.approve",
+  /** Sign off fee, policy and group-wide campaigns. */
+  "crm.campaigns.approve_sensitive",
+  "crm.export",
+  "crm.import",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -76,6 +87,13 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "students.read": "View students, families and the school year",
   "students.write": "Edit a student, a family and an enrolment",
   "reenrolment.write": "Open and close a re-enrolment round",
+  "crm.read": "View the CRM: families, contacts, opportunities and communications",
+  "crm.write": "Edit families and contacts, add notes, create opportunities and events",
+  "crm.campaigns.write": "Create segments and campaigns and submit them for approval",
+  "crm.campaigns.approve": "Approve a campaign before it is sent",
+  "crm.campaigns.approve_sensitive": "Approve fee, policy and group-wide campaigns",
+  "crm.export": "Export CRM lists and reports",
+  "crm.import": "Import families and contacts from a file",
 };
 
 export type PermissionSet = ReadonlySet<string>;
@@ -127,6 +145,24 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/benchmarks", "assessments.author"],
   ["/staff/admin/competencies", "assessments.author"],
   ["/staff/admin", "applications.read"],
+  // The CRM. Read is the floor; the longer prefixes name the write, the
+  // approval and the file work, and the two analytics pages share the
+  // admissions permission because the figures are the same families.
+  ["/staff/crm/settings/opportunity-types", "settings.write"],
+  ["/staff/crm/settings/opportunity-rules", "settings.write"],
+  ["/staff/crm/settings/approvals", "settings.write"],
+  ["/staff/crm/settings/email", "settings.write"],
+  ["/staff/crm/settings/whatsapp", "settings.write"],
+  ["/staff/crm/settings", "crm.read"],
+  ["/staff/crm/families/new", "crm.write"],
+  ["/staff/crm/segments/new", "crm.campaigns.write"],
+  ["/staff/crm/campaigns/new", "crm.campaigns.write"],
+  ["/staff/crm/events/new", "crm.write"],
+  ["/staff/crm/import", "crm.import"],
+  ["/staff/crm/reports", "crm.export"],
+  ["/staff/crm/analytics", "analytics.read"],
+  ["/staff/crm/students", "students.read"],
+  ["/staff/crm", "crm.read"],
   ["/staff/analytics/export", "data.export"],
   ["/staff/analytics", "analytics.read"],
   ["/staff/enrolment", "data.export"],
@@ -180,6 +216,7 @@ export function canAccessPath(permissions: PermissionSet, pathname: string): boo
 export function homeFor(permissions: PermissionSet): string {
   const candidates = [
     "/staff",
+    "/staff/crm",
     "/staff/assessments/today",
     "/staff/payments",
     "/staff/students",

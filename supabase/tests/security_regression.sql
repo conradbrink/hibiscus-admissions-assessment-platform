@@ -3493,6 +3493,809 @@ begin
     end if;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 69. A family is campus-scoped, whichever way in
+  --
+  -- The CRM reads families directly, not through an application, so
+  -- `can_access_family` has three arms: a child, an application, or the
+  -- family's own campus. A manager scoped to Broadhurst must reach nothing
+  -- of a Block 7 family through any of them, and must reach their own.
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam_b7 uuid;
+    v_fam_bh uuid;
+    v_new uuid;
+    v_code text;
+    v_updated int;
+  begin
+    perform pg_temp.service();
+    select family_id into v_fam_b7 from public.students where id = crm_student_block7;
+    select family_id into v_fam_bh from public.students where id = crm_student_broadhurst;
+    if v_fam_b7 is null or v_fam_bh is null then
+      v_fail := v_fail || E'\n  - ' || '69: the fixtures have no family to test with';
+    end if;
+    if (select campus_id from public.families where id = v_fam_b7) is distinct from c_block7 then
+      v_fail := v_fail || E'\n  - ' || '69: crm_sync_family did not give the Block 7 family its campus';
+    end if;
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.families where id = v_fam_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '69: a Broadhurst manager read a Block 7 family';
+      end if;
+      select count(*) into v_count from public.contacts where family_id = v_fam_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '69: a Broadhurst manager read a Block 7 family''s contacts';
+      end if;
+      select count(*) into v_count from public.v_crm_family_facts where family_id = v_fam_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '69: the facts view showed a Block 7 family to a Broadhurst manager';
+      end if;
+      select count(*) into v_count from public.crm_search('Parent', 50) where kind = 'family' and id = v_fam_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '69: global search returned a Block 7 family to a Broadhurst manager';
+      end if;
+      with attempt as (update public.families set display_name = 'Reached' where id = v_fam_b7 returning 1)
+      select count(*) into v_updated from attempt;
+      if v_updated > 0 then
+        v_fail := v_fail || E'\n  - ' || '69: a Broadhurst manager renamed a Block 7 family';
+      end if;
+      -- Controls.
+      select count(*) into v_count from public.families where id = v_fam_bh;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '69 control: the manager cannot read their own campus''s family';
+      end if;
+      select count(*) into v_count from public.v_crm_family_facts where family_id = v_fam_bh;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '69 control: the facts view hides the manager''s own family';
+      end if;
+      with allowed as (update public.families set display_name = 'Nearby' where id = v_fam_bh returning 1)
+      select count(*) into v_updated from allowed;
+      if v_updated = 0 then
+        v_fail := v_fail || E'\n  - ' || '69 control: the manager cannot edit their own campus''s family';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('69: reading families failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Somebody with no role at all sees no family whatever the arm.
+    begin
+      perform pg_temp.impersonate(u_noroles);
+      select count(*) into v_count from public.families;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '69: a person with no roles can read families';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('69: the no-roles read failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Typing a family in: at your campus, as yourself, and never twice for
+    -- one email.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      begin
+        select public.crm_create_family('Sixtynine', c_block7, 'Sec', 'Sixtynine', 'sec-69-b7@test.invalid', null, null) into v_new;
+        v_fail := v_fail || E'\n  - ' || '69: a Broadhurst manager created a family at Block 7';
+      exception when others then
+        if sqlerrm not like '%campus_not_allowed%' then
+          v_fail := v_fail || E'\n  - ' || ('69: the Block 7 create was refused by "' || sqlerrm || '" rather than the campus check');
+        end if;
+      end;
+      select public.crm_create_family('Sixtynine', c_broadhurst, 'Sec', 'Sixtynine', 'sec-69@test.invalid', '71 000 069', '+26771000069') into v_new;
+      select family_code into v_code from public.families where id = v_new;
+      if v_code is null then
+        v_fail := v_fail || E'\n  - ' || '69 control: the manager could not create a family at their own campus';
+      elsif (select count(*) from public.contacts where family_id = v_new and family_code = v_code) <> 1 then
+        v_fail := v_fail || E'\n  - ' || '69: the new family''s contact does not carry the family''s code';
+      elsif (select created_by from public.families where id = v_new) is distinct from u_campus_mgr then
+        v_fail := v_fail || E'\n  - ' || '69: the new family is not stamped with who created it';
+      end if;
+      begin
+        perform public.crm_create_family('Again', c_broadhurst, 'Sec', 'Again', 'SEC-69@test.invalid', null, null);
+        v_fail := v_fail || E'\n  - ' || '69: the same email made a second family';
+      exception when others then
+        if sqlerrm not like '%contact_email_exists%' then
+          v_fail := v_fail || E'\n  - ' || ('69: the duplicate was refused by "' || sqlerrm || '" rather than the email check');
+        end if;
+      end;
+      -- A direct insert stamped as somebody else is refused by the policy.
+      begin
+        insert into public.families (family_code, display_name, campus_id, created_by)
+        values ('HBS-SEC69', 'Forged', c_broadhurst, u_admin);
+        v_fail := v_fail || E'\n  - ' || '69: a family was inserted in another person''s name';
+      exception
+        when insufficient_privilege then null;
+        when others then
+          if sqlerrm not like '%row-level security%' then
+            v_fail := v_fail || E'\n  - ' || ('69: the forged insert was refused by "' || sqlerrm || '" rather than RLS');
+          end if;
+      end;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('69: creating a family failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Read-only CRM access (finance) may not type a family in.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.crm_create_family('Finance', c_broadhurst, 'Sec', 'Finance', 'sec-69-fin@test.invalid', null, null);
+      v_fail := v_fail || E'\n  - ' || '69: finance created a family with crm.read alone';
+    exception when others then
+      if sqlerrm not like '%permission_denied%' then
+        v_fail := v_fail || E'\n  - ' || ('69: the finance create was refused by "' || sqlerrm || '" rather than the permission');
+      end if;
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 70. A private note is for its author and whoever may edit the family
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam_bh uuid;
+    v_private uuid;
+    v_public uuid;
+  begin
+    perform pg_temp.service();
+    select family_id into v_fam_bh from public.students where id = crm_student_broadhurst;
+    insert into public.crm_notes (family_id, author_staff_id, body, is_private) values (v_fam_bh, u_staff, 'Private sec note', true) returning id into v_private;
+    insert into public.crm_notes (family_id, author_staff_id, body, is_private) values (v_fam_bh, u_staff, 'Shared sec note', false) returning id into v_public;
+
+    -- Finance reads the CRM but cannot edit a family, so the private note is
+    -- not theirs to read; the shared one is.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      select count(*) into v_count from public.crm_notes where id = v_private;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '70: a read-only CRM user read a private note';
+      end if;
+      select count(*) into v_count from public.crm_notes where id = v_public;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '70 control: a read-only CRM user cannot read a shared note';
+      end if;
+      insert into public.crm_notes (family_id, author_staff_id, body) values (v_fam_bh, u_finance, 'Finance wrote');
+      v_fail := v_fail || E'\n  - ' || '70: a read-only CRM user added a note';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('70: refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- The Broadhurst manager may edit the family, so the private note is
+    -- theirs to read; a note in the author's name is not theirs to write.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.crm_notes where id = v_private;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '70 control: whoever may edit the family cannot read its private note';
+      end if;
+      with attempt as (update public.crm_notes set body = 'Edited by someone else' where id = v_public returning 1)
+      select count(*) into v_count from attempt;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '70: a note was edited by somebody other than its author';
+      end if;
+      insert into public.crm_notes (family_id, author_staff_id, body) values (v_fam_bh, u_staff, 'Forged');
+      v_fail := v_fail || E'\n  - ' || '70: a note was written in another person''s name';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('70: the forged note was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- A note about nothing, or about two things, is refused by the table.
+    begin
+      insert into public.crm_notes (author_staff_id, body) values (u_staff, 'About nothing');
+      v_fail := v_fail || E'\n  - ' || '70: a note with no subject was accepted';
+    exception when check_violation then null;
+      when others then
+        v_fail := v_fail || E'\n  - ' || ('70: the no-subject note failed with "' || sqlerrm || '"');
+    end;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 71. An opportunity follows its campus, and a person cannot forge the engine
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam_b7 uuid;
+    v_fam_bh uuid;
+    v_opp_b7 uuid;
+    v_opp_bh uuid;
+    v_currency text;
+  begin
+    perform pg_temp.service();
+    select family_id into v_fam_b7 from public.students where id = crm_student_block7;
+    select family_id into v_fam_bh from public.students where id = crm_student_broadhurst;
+    insert into public.opportunities (family_id, student_id, type_code, campus_id, source, rule_code)
+    values (v_fam_b7, crm_student_block7, 'robotics', c_block7, 'rule', null) returning id into v_opp_b7;
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.opportunities where id = v_opp_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '71: a Broadhurst manager read a Block 7 opportunity';
+      end if;
+      with attempt as (update public.opportunities set status = 'lost' where id = v_opp_b7 returning 1)
+      select count(*) into v_count from attempt;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '71: a Broadhurst manager moved a Block 7 opportunity';
+      end if;
+      select count(*) into v_count from public.crm_opportunity_summary(null) where total > 0;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '71: the opportunity dashboard counted another campus''s row';
+      end if;
+      -- Their own: a staff-found opportunity in their own name.
+      insert into public.opportunities (family_id, type_code, campus_id, source, created_by)
+      values (v_fam_bh, 'swimming', c_broadhurst, 'staff', u_campus_mgr) returning id into v_opp_bh;
+      select currency into v_currency from public.opportunities where id = v_opp_bh;
+      if v_currency is distinct from (select currency from public.campuses where id = c_broadhurst) then
+        v_fail := v_fail || E'\n  - ' || '71: the opportunity did not take its campus''s currency';
+      end if;
+      if (select estimated_value_minor from public.opportunities where id = v_opp_bh) is distinct from (select default_value_minor from public.opportunity_types where code = 'swimming') then
+        v_fail := v_fail || E'\n  - ' || '71: the opportunity did not take the type''s default value';
+      end if;
+      update public.opportunities set status = 'contacted' where id = v_opp_bh;
+      if (select contacted_at from public.opportunities where id = v_opp_bh) is null then
+        v_fail := v_fail || E'\n  - ' || '71 control: moving an opportunity did not stamp the time';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('71: the opportunity round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Forgeries: one claiming to be the engine's, one at the wrong campus,
+    -- one in somebody else's name.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.opportunities (family_id, type_code, campus_id, source, created_by)
+      values (v_fam_bh, 'swimming', c_broadhurst, 'rule', u_campus_mgr);
+      v_fail := v_fail || E'\n  - ' || '71: a person inserted an opportunity as the rule engine';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('71: the engine forgery was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.opportunities (family_id, type_code, campus_id, source, created_by)
+      values (v_fam_b7, 'swimming', c_block7, 'staff', u_campus_mgr);
+      v_fail := v_fail || E'\n  - ' || '71: a Broadhurst manager created an opportunity at Block 7';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('71: the other-campus insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      insert into public.opportunities (family_id, type_code, campus_id, source, created_by)
+      values (v_fam_bh, 'swimming', c_broadhurst, 'staff', u_finance);
+      v_fail := v_fail || E'\n  - ' || '71: finance created an opportunity with crm.read alone';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('71: the finance insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- The rules and types are settings; staff read them and do not edit them.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.opportunity_rules;
+      if v_count = 0 then
+        v_fail := v_fail || E'\n  - ' || '71 control: staff cannot read the opportunity rules';
+      end if;
+      update public.opportunity_rules set is_active = true where code = 'robotics_stage4_7';
+      if found then
+        v_fail := v_fail || E'\n  - ' || '71: admissions staff switched an opportunity rule on';
+      end if;
+      if exists (select 1 from public.opportunity_rules where is_active) then
+        v_fail := v_fail || E'\n  - ' || '71: an opportunity rule ships switched on';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('71: the rules read failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 72. A campaign: two pairs of eyes, a third for the sensitive kind, and
+  --     only the engine says "sending"
+  -- -------------------------------------------------------------------------
+  declare
+    v_camp uuid;
+    v_fee uuid;
+    v_b7 uuid;
+    v_refused boolean;
+  begin
+    -- A Block 7 campaign the Broadhurst manager must not see.
+    perform pg_temp.service();
+    insert into public.campaigns (name, campus_id, channel, category, email_subject, email_body_html, email_body_text, created_by)
+    values ('Sec Block 7', c_block7, 'email', 'general', 's', '<p>b</p>', 'b', u_admin) returning id into v_b7;
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.campaigns where id = v_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '72: a Broadhurst manager read a Block 7 campaign';
+      end if;
+
+      -- Born a draft, as the author.
+      begin
+        insert into public.campaigns (name, campus_id, channel, category, status, email_subject, email_body_html, email_body_text, created_by)
+        values ('Sec approved at birth', c_broadhurst, 'email', 'general', 'approved', 's', '<p>b</p>', 'b', u_campus_mgr);
+        v_fail := v_fail || E'\n  - ' || '72: a campaign was created already approved';
+      exception
+        when insufficient_privilege then null;
+        when others then
+          if sqlerrm not like '%row-level security%' then
+            v_fail := v_fail || E'\n  - ' || ('72: the approved-at-birth insert was refused by "' || sqlerrm || '" rather than RLS');
+          end if;
+      end;
+      insert into public.campaigns (name, campus_id, channel, category, email_subject, email_body_html, email_body_text, created_by)
+      values ('Sec campaign', c_broadhurst, 'email', 'general', 'Hello {{parent_first_name}}', '<p>b</p>', 'b', u_campus_mgr) returning id into v_camp;
+      update public.campaigns set status = 'pending_approval' where id = v_camp;
+      if (select submitted_by from public.campaigns where id = v_camp) is distinct from u_campus_mgr then
+        v_fail := v_fail || E'\n  - ' || '72: submitting did not record who submitted';
+      end if;
+
+      -- The author holds crm.campaigns.approve and still may not approve
+      -- their own.
+      v_refused := false;
+      begin
+        update public.campaigns set status = 'approved' where id = v_camp;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_self_approval%';
+        if not v_refused then
+          v_fail := v_fail || E'\n  - ' || ('72: self-approval was refused by "' || sqlerrm || '" rather than the guard');
+          v_refused := true;
+        end if;
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '72: an author approved their own campaign';
+      end if;
+
+      -- Nor may anyone say it is being sent.
+      v_refused := false;
+      begin
+        update public.campaigns set status = 'sending' where id = v_camp;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_status_engine_only%';
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '72: a person moved a campaign to sending';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('72: the author''s round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A second pair of eyes approves it; the wording is then locked.
+    begin
+      perform pg_temp.impersonate(u_management);
+      update public.campaigns set status = 'approved' where id = v_camp;
+      if (select approved_by from public.campaigns where id = v_camp) is distinct from u_management then
+        v_fail := v_fail || E'\n  - ' || '72 control: management could not approve, or the approver was not recorded';
+      end if;
+      v_refused := false;
+      begin
+        update public.campaigns set email_body_html = '<p>changed after approval</p>' where id = v_camp;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_locked%';
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '72: an approved campaign''s wording was changed';
+      end if;
+      v_refused := false;
+      begin
+        update public.campaigns set status = 'scheduled' where id = v_camp;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_needs_a_time%';
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '72: a campaign was scheduled without a time';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('72: the approver''s round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A fee notice needs the sensitive approval: the manager has approve
+    -- and not approve_sensitive, management has both.
+    insert into public.campaigns (name, campus_id, channel, category, status, email_subject, email_body_html, email_body_text, created_by)
+    values ('Sec fee notice', c_broadhurst, 'email', 'fee_notice', 'pending_approval', 's', '<p>b</p>', 'b', u_staff) returning id into v_fee;
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      v_refused := false;
+      begin
+        update public.campaigns set status = 'approved' where id = v_fee;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_needs_sensitive_approval%';
+        if not v_refused then
+          v_fail := v_fail || E'\n  - ' || ('72: the fee notice was refused by "' || sqlerrm || '" rather than the sensitive guard');
+          v_refused := true;
+        end if;
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '72: a fee notice was approved without the sensitive permission';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('72: the sensitive round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_management);
+      update public.campaigns set status = 'approved' where id = v_fee;
+      if (select status from public.campaigns where id = v_fee) <> 'approved' then
+        v_fail := v_fail || E'\n  - ' || '72 control: management could not approve the fee notice';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('72 control: management''s fee approval failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Read-only CRM access writes no campaign; the list of recipients is
+    -- the engine's to write.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      insert into public.campaigns (name, campus_id, channel, category, email_subject, email_body_html, email_body_text, created_by)
+      values ('Sec finance', c_broadhurst, 'email', 'general', 's', '<p>b</p>', 'b', u_finance);
+      v_fail := v_fail || E'\n  - ' || '72: finance created a campaign with crm.read alone';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('72: the finance insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_admin);
+      insert into public.campaign_recipients (campaign_id, family_id, contact_id, channel)
+      select v_camp, s.family_id, c.id, 'email' from public.students s join public.contacts c on c.family_id = s.family_id where s.id = crm_student_broadhurst limit 1;
+      v_fail := v_fail || E'\n  - ' || '72: a person wrote a campaign''s recipient list by hand';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('72: the recipient insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- And the engine itself may.
+    update public.campaigns set status = 'sending', started_at = now() where id = v_camp;
+    if (select status from public.campaigns where id = v_camp) <> 'sending' then
+      v_fail := v_fail || E'\n  - ' || '72 control: the service role cannot mark a campaign sending';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 73. The outbox is sealed, and a notification is its reader's alone
+  -- -------------------------------------------------------------------------
+  declare
+    v_note uuid;
+  begin
+    perform pg_temp.service();
+    if (select count(*) from public.crm_trigger_events) = 0 then
+      v_fail := v_fail || E'\n  - ' || '73: the outbox is empty after a family was created, so the triggers did not write';
+    end if;
+    insert into public.notifications (staff_id, kind, title) values (u_staff, 'other', 'Sec notification') returning id into v_note;
+
+    begin
+      perform pg_temp.impersonate(u_admin);
+      select count(*) into v_count from public.crm_trigger_events;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '73: an administrator read the outbox';
+      end if;
+      select count(*) into v_count from public.notifications where id = v_note;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '73: an administrator read another person''s notification';
+      end if;
+      insert into public.crm_trigger_events (type, payload) values ('forged', '{}'::jsonb);
+      v_fail := v_fail || E'\n  - ' || '73: a person wrote to the outbox';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('73: the outbox write was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.notifications where id = v_note;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '73 control: a person cannot read their own notification';
+      end if;
+      update public.notifications set read_at = now() where id = v_note;
+      if (select read_at from public.notifications where id = v_note) is null then
+        v_fail := v_fail || E'\n  - ' || '73 control: a person cannot mark their own notification read';
+      end if;
+      update public.notifications set staff_id = u_admin where id = v_note;
+      v_fail := v_fail || E'\n  - ' || '73: a notification was handed to somebody else';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('73: the hand-over was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_staff);
+      insert into public.notifications (staff_id, kind, title) values (u_admin, 'other', 'Forged');
+      v_fail := v_fail || E'\n  - ' || '73: a person wrote a notification to somebody else';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('73: the forged notification was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- The engine's own functions are not callable over RPC.
+    if has_function_privilege('authenticated', 'public.crm_sync_family(uuid)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '73: crm_sync_family is callable by a signed-in user';
+    end if;
+    -- The facts view calls this under the caller; as a definer it would map
+    -- any application to its family for anyone who could guess the id.
+    if exists (select 1 from pg_proc where oid = 'public.crm_family_of_application(uuid)'::regprocedure and prosecdef) then
+      v_fail := v_fail || E'\n  - ' || '73: crm_family_of_application runs as its owner';
+    end if;
+    if has_function_privilege('anon', 'public.crm_search(text, int)', 'execute')
+       or has_function_privilege('anon', 'public.crm_merge_families(uuid, uuid)', 'execute')
+       or has_function_privilege('anon', 'public.crm_create_family(text, uuid, text, text, text, text, text, text, text, text, text, text, text, text, text[], uuid, uuid, boolean, boolean, boolean, boolean)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '73: a CRM function is callable anonymously';
+    end if;
+    -- And every automation ships switched off.
+    if exists (select 1 from public.automations where is_active) then
+      v_fail := v_fail || E'\n  - ' || '73: an automation ships switched on';
+    end if;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 74. An event is campus-scoped, and a registration names a family you may see
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam_b7 uuid;
+    v_fam_bh uuid;
+    v_ev_b7 uuid;
+    v_ev_bh uuid;
+  begin
+    perform pg_temp.service();
+    select family_id into v_fam_b7 from public.students where id = crm_student_block7;
+    select family_id into v_fam_bh from public.students where id = crm_student_broadhurst;
+    insert into public.crm_events (name, kind, campus_id, starts_at, created_by)
+    values ('Sec Block 7 open day', 'open_day', c_block7, now() + interval '10 days', u_admin) returning id into v_ev_b7;
+    insert into public.crm_event_registrations (event_id, family_id, source) values (v_ev_b7, v_fam_b7, 'staff');
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.crm_events where id = v_ev_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '74: a Broadhurst manager read a Block 7 event';
+      end if;
+      select count(*) into v_count from public.crm_event_registrations where event_id = v_ev_b7;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '74: a Broadhurst manager read a Block 7 event''s registrations';
+      end if;
+      insert into public.crm_events (name, kind, campus_id, starts_at, created_by)
+      values ('Sec Broadhurst open day', 'open_day', c_broadhurst, now() + interval '10 days', u_campus_mgr) returning id into v_ev_bh;
+      insert into public.crm_event_registrations (event_id, family_id, source) values (v_ev_bh, v_fam_bh, 'staff');
+      if (select count(*) from public.crm_event_registrations where event_id = v_ev_bh) <> 1 then
+        v_fail := v_fail || E'\n  - ' || '74 control: the manager cannot register their own family';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('74: the manager''s own event failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A family at the other campus is not theirs to register. (Its own
+    -- block: a refusal rolls the block back, and the event must survive.)
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.crm_event_registrations (event_id, family_id, source) values (v_ev_bh, v_fam_b7, 'staff');
+      v_fail := v_fail || E'\n  - ' || '74: a Block 7 family was registered by a Broadhurst manager';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('74: refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- A registration claiming to be the parent's own is not a person's to write.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      if v_ev_bh is null then
+        raise exception 'SUITE BROKEN: case 74 lost its event';
+      end if;
+      insert into public.crm_event_registrations (event_id, family_id, source)
+      select v_ev_bh, f.id, 'parent' from public.families f where f.display_name = 'Sixtynine' and f.campus_id = c_broadhurst;
+      v_fail := v_fail || E'\n  - ' || '74: staff registered a family as though the parent had';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' and sqlerrm not like '%duplicate key%' then
+          v_fail := v_fail || E'\n  - ' || ('74: the parent forgery was refused by "' || sqlerrm || '" rather than RLS');
+        elsif sqlerrm like '%duplicate key%' then
+          v_fail := v_fail || E'\n  - ' || '74: the parent forgery reached the unique index, so the policy let it through';
+        end if;
+    end;
+    perform pg_temp.service();
+
+    -- Nobody may create an event in somebody else's name.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.crm_events (name, kind, campus_id, starts_at, created_by)
+      values ('Forged', 'other', c_broadhurst, now() + interval '1 day', u_admin);
+      v_fail := v_fail || E'\n  - ' || '74: an event was created in another person''s name';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('74: the forged event was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 75. Merging two families: who may, across which campuses, and what moves
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam_b7 uuid;
+    v_fam_bh uuid;
+    v_loser uuid;
+    v_code text;
+    v_refused boolean;
+  begin
+    perform pg_temp.service();
+    select family_id into v_fam_b7 from public.students where id = crm_student_block7;
+    select family_id into v_fam_bh from public.students where id = crm_student_broadhurst;
+    select id into v_loser from public.families where display_name = 'Sixtynine' and campus_id = c_broadhurst;
+    if v_loser is null then
+      v_fail := v_fail || E'\n  - ' || '75: case 69''s family is missing';
+    end if;
+
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.crm_merge_families(v_loser, v_fam_bh);
+      v_fail := v_fail || E'\n  - ' || '75: finance merged two families with crm.read alone';
+    exception when others then
+      if sqlerrm not like '%permission_denied%' then
+        v_fail := v_fail || E'\n  - ' || ('75: finance was refused by "' || sqlerrm || '" rather than the permission');
+      end if;
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      perform public.crm_merge_families(v_fam_b7, v_fam_bh);
+      v_fail := v_fail || E'\n  - ' || '75: a Broadhurst manager merged a Block 7 family into one of theirs';
+    exception when others then
+      if sqlerrm not like '%family_not_allowed%' then
+        v_fail := v_fail || E'\n  - ' || ('75: the cross-campus merge was refused by "' || sqlerrm || '" rather than the family check');
+      end if;
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select family_code into v_code from public.families where id = v_fam_bh;
+      perform public.crm_merge_families(v_loser, v_fam_bh);
+      if (select merged_into_id from public.families where id = v_loser) is distinct from v_fam_bh then
+        v_fail := v_fail || E'\n  - ' || '75 control: the merge did not mark the loser';
+      end if;
+      if exists (select 1 from public.contacts where family_id = v_loser) then
+        v_fail := v_fail || E'\n  - ' || '75: a contact stayed with the merged-away family';
+      end if;
+      if exists (select 1 from public.contacts where family_id = v_fam_bh and family_code <> v_code) then
+        v_fail := v_fail || E'\n  - ' || '75: a moved contact kept the old family code';
+      end if;
+      if not exists (select 1 from public.audit_log where action = 'family.merged' and family_id = v_fam_bh) then
+        v_fail := v_fail || E'\n  - ' || '75: the merge left no audit line';
+      end if;
+      v_refused := false;
+      begin
+        perform public.crm_merge_families(v_fam_bh, v_loser);
+      exception when others then
+        v_refused := sqlerrm like '%survivor_not_live%';
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '75: a family was merged into one already merged away';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('75: the merge failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 76. An import is its uploader's, at their campus, until an admin looks
+  -- -------------------------------------------------------------------------
+  declare
+    v_imp uuid;
+  begin
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.crm_imports (kind, filename, campus_id, created_by)
+      values ('families', 'sec.csv', c_block7, u_campus_mgr);
+      v_fail := v_fail || E'\n  - ' || '76: a Broadhurst manager started an import into Block 7';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('76: the other-campus import was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.crm_imports (kind, filename, campus_id, created_by)
+      values ('families', 'sec.csv', c_broadhurst, u_campus_mgr) returning id into v_imp;
+      insert into public.crm_import_rows (import_id, row_no, status, data) values (v_imp, 1, 'valid', '{}'::jsonb);
+      if (select count(*) from public.crm_import_rows where import_id = v_imp) <> 1 then
+        v_fail := v_fail || E'\n  - ' || '76 control: the uploader cannot read their own import''s rows';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('76 control: the import failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Somebody who may edit families but not import sees nothing of it;
+    -- an administrator sees it.
+    begin
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.crm_imports where id = v_imp;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '76: admissions staff read an import without crm.import';
+      end if;
+      select count(*) into v_count from public.crm_import_rows where import_id = v_imp;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '76: admissions staff read an import''s rows without crm.import';
+      end if;
+      insert into public.crm_imports (kind, filename, created_by) values ('families', 'sec2.csv', u_staff);
+      v_fail := v_fail || E'\n  - ' || '76: admissions staff started an import without crm.import';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('76: refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_admin);
+      select count(*) into v_count from public.crm_imports where id = v_imp;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '76 control: an administrator cannot see an import';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('76 control: the admin read failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

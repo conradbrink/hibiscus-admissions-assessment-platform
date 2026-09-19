@@ -17,7 +17,10 @@ export type NavIcon =
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
-  | "orientation";
+  | "orientation"
+  // The CRM's rail and settings hub.
+  | "families" | "contacts" | "opportunities" | "events" | "inbox" | "campaigns" | "segments" | "automations"
+  | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm";
 
 export type NavItem = {
   href: string;

@@ -16,6 +16,7 @@ import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/o
 import { paymentOverdueHandler, paymentVerifyHandler } from "@/lib/workflow/handlers/payments";
 import { autoEnrolHandler } from "@/lib/workflow/handlers/registration";
 import { sendEmailHandler } from "@/lib/workflow/handlers/send-email";
+import { sendCampaignHandler } from "@/lib/crm/campaigns/send";
 
 /**
  * The job registry. One entry per job type; the drain looks up `job.type`
@@ -48,4 +49,5 @@ export const HANDLERS: Record<string, Handler> = {
   auto_enrol: autoEnrolHandler,
   document_extract: documentExtractHandler,
   staff_digest: staffDigestHandler,
+  send_campaign: sendCampaignHandler,
 };

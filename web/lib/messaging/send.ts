@@ -241,6 +241,14 @@ export type SendFamilyMessageOptions = {
   variables: Record<string, string | null>;
   /** Which family link the button carries, when the template has one. */
   link?: "family" | "onboarding" | "reenrolment" | "checkin" | "event" | null;
+  /**
+   * What caused it. `family` is a family moment the engine sends (the
+   * re-enrolment ask); `campaign` is a bulk send; `manual` is a member of
+   * staff pressing Send in the CRM inbox, who is then named in `actorId`.
+   */
+  trigger?: "family" | "campaign" | "manual";
+  actorId?: string | null;
+  actorLabel?: string | null;
 };
 
 /**
@@ -298,13 +306,14 @@ export async function sendFamilyMessage(
           error: reason,
           idempotency_key: opts.idempotencyKey,
           email_message_id: opts.emailMessageId ?? null,
-          trigger_source: "family",
+          trigger_source: opts.trigger ?? "family",
+          sent_by: opts.actorId ?? null,
         },
         { onConflict: "idempotency_key", ignoreDuplicates: true }
       )
       .select("id")
       .maybeSingle();
-    if (row) await recordMessageEvent(admin, { messageId: row.id, status: "skipped", source: "system", detail: reason });
+    if (row) await recordMessageEvent(admin, { messageId: row.id, status: "skipped", source: opts.trigger === "manual" ? "staff" : "system", actorId: opts.actorId ?? null, actorLabel: opts.actorLabel ?? null, detail: reason });
     return { status: "skipped", reason };
   };
 
@@ -348,7 +357,8 @@ export async function sendFamilyMessage(
         rendered_text: rendered,
         idempotency_key: opts.idempotencyKey,
         email_message_id: opts.emailMessageId ?? null,
-        trigger_source: "family",
+        trigger_source: opts.trigger ?? "family",
+        sent_by: opts.actorId ?? null,
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true }
     )
@@ -357,7 +367,14 @@ export async function sendFamilyMessage(
   if (mErr) return { status: "failed", error: mErr.message, retryable: true };
   // The key already existed: an earlier attempt got this far. Never twice.
   if (!message) return { status: "skipped", reason: "already sent" };
-  await recordMessageEvent(admin, { messageId: message.id, status: "queued", source: "system", detail: "Queued beside the family email" });
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "queued",
+    source: opts.trigger === "manual" ? "staff" : "system",
+    actorId: opts.actorId ?? null,
+    actorLabel: opts.actorLabel ?? null,
+    detail: opts.trigger === "manual" ? "Sent by hand from the CRM" : opts.trigger === "campaign" ? "Queued by a campaign" : "Queued beside the family email",
+  });
 
   const result = await provider.sendTemplate({
     to: contact.mobile_normalised,
