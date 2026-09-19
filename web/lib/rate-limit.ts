@@ -76,12 +76,17 @@ export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
  * Consumes quota. Fails **open** on a counting error: losing the ability to
  * count is a worse reason to stop parents enquiring than letting a handful
  * through un-counted. The failure is logged.
+ *
+ * `strict` fails **closed** instead, for an action whose only guard is the
+ * quota: a public link that changes a record, where "try again shortly" is
+ * the better failure.
  */
 export async function enforceRateLimit(
   admin: AdminClient,
   limit: Limit,
   subject: string,
-  cost = 1
+  cost = 1,
+  opts: { strict?: boolean } = {}
 ): Promise<Verdict> {
   const { data, error } = await admin.rpc("consume_rate_limit", {
     p_bucket: limit.bucket,
@@ -92,7 +97,7 @@ export async function enforceRateLimit(
   });
   if (error) {
     console.error(`[rate-limit] ${limit.bucket} could not be counted: ${error.message}`);
-    return { ok: true };
+    return opts.strict ? { ok: false, retryAfterSeconds: 30 } : { ok: true };
   }
   const v = data as { allowed: boolean; remaining: number; retry_after_seconds: number };
   if (v.allowed) return { ok: true };

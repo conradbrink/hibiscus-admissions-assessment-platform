@@ -50,7 +50,9 @@ export async function processTriggerEvents(admin: AdminClient, now: Date = new D
     const ev: TriggerEvent = { id: raw.id, type: raw.type, family_id: raw.family_id, student_id: raw.student_id, application_id: raw.application_id, payload: (raw.payload ?? {}) as Record<string, Json | undefined> };
     let outcome: "done" | "nothing" | "failed" = "nothing";
     let lastError: string | null = null;
-    const familyStage = ev.family_id ? (await admin.from("families").select("lifecycle_stage").eq("id", ev.family_id).maybeSingle()).data?.lifecycle_stage ?? null : null;
+    // Read once per event, and kept current: an automation that sets the
+    // stage changes what the next one's conditions see.
+    let familyStage = ev.family_id ? (await admin.from("families").select("lifecycle_stage").eq("id", ev.family_id).maybeSingle()).data?.lifecycle_stage ?? null : null;
     for (const automation of byTrigger.get(ev.type) ?? []) {
       if (!conditionsMatch(parseConditions(automation.conditions), ev, familyStage)) {
         await admin.from("automation_runs").insert({ automation_id: automation.id, trigger_event_id: ev.id, family_id: ev.family_id, status: "skipped", log: [{ note: "conditions did not match" }] });
@@ -69,6 +71,7 @@ export async function processTriggerEvents(admin: AdminClient, now: Date = new D
         for (const action of parsed.actions) {
           const line = await runAction(admin, ev, automation, action, now);
           log.push(line);
+          if (action.type === "set_lifecycle" && ev.family_id && isLifecycleStage(action.stage)) familyStage = action.stage;
         }
         await admin.from("automation_runs").insert({ automation_id: automation.id, trigger_event_id: ev.id, family_id: ev.family_id, status: "done", log });
         await admin.from("automations").update({ last_run_at: now.toISOString(), run_count: automation.run_count + 1 }).eq("id", automation.id);

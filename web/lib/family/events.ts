@@ -64,13 +64,22 @@ export async function registerFamilyForEvent(
   const event = events.find((e) => e.id === input.eventId);
   if (!event) throw new NotInFamilyError("event");
   if (!event.registration_open) throw new Error("Registration for this event has closed.");
-  if (event.capacity !== null && event.registered_count + 1 + input.guests > event.capacity && !event.registration) {
+  if (input.studentId) await requireStudentInFamily(admin, session, input.studentId);
+  const guests = Math.max(0, Math.min(10, input.guests));
+
+  // The seats this request needs, net of the row it would replace: the one
+  // for this child (or the family's own), and only while that row holds
+  // seats. A cancelled row holds none; a sibling's row is not this one.
+  let existingQ = admin.from("crm_event_registrations").select("id, status, guests").eq("event_id", input.eventId).eq("family_id", session.familyId);
+  existingQ = input.studentId ? existingQ.eq("student_id", input.studentId) : existingQ.is("student_id", null);
+  const { data: existing, error: existingError } = await existingQ.maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+  const held = existing && (existing.status === "registered" || existing.status === "attended") ? 1 + existing.guests : 0;
+  if (event.capacity !== null && event.registered_count - held + 1 + guests > event.capacity) {
     throw new Error("This event is full.");
   }
-  if (input.studentId) await requireStudentInFamily(admin, session, input.studentId);
 
   const contact = (await admin.from("contacts").select("id").eq("family_id", session.familyId).order("created_at").limit(1).maybeSingle()).data;
-  const guests = Math.max(0, Math.min(10, input.guests));
 
   // One row per family per child (or per family, when no child is named):
   // the unique index is on an expression PostgREST cannot name in an

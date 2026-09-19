@@ -19,26 +19,15 @@ export async function confirmUnsubscribe(_prev: UnsubscribeState, formData: Form
   if (!TOKEN.test(token)) return { error: "We could not find that link." };
   const admin = createAdminClient();
   const ctx = await requestContext();
-  const verdict = await enforceRateLimit(admin, LIMITS.tokenResolve, ctx.ipHash ?? "unknown");
+  // Strict: the quota is this action's only guard, so a counter that cannot
+  // count closes the door rather than opening it.
+  const verdict = await enforceRateLimit(admin, LIMITS.tokenResolve, ctx.ipHash ?? "unknown", 1, { strict: true });
   if (!verdict.ok) return { error: "Too many requests arrived at once. Please try again shortly." };
 
-  const { data, error } = await admin
-    .from("contacts")
-    .update({ marketing_email_consent: false, unsubscribed_at: new Date().toISOString(), consent_source: "unsubscribe" })
-    .eq("unsubscribe_token", token)
-    .select("id, family_id")
-    .maybeSingle();
+  // The consent change and its audit line are one transaction in the
+  // database, so neither can exist without the other.
+  const { data: found, error } = await admin.rpc("crm_unsubscribe_email", { p_token: token, p_ip_hash: ctx.ipHash ?? null });
   if (error) return { error: "We could not save that. Please try again." };
-  if (!data) return { error: "We could not find that link." };
-  await admin.from("audit_log").insert({
-    actor_type: "parent",
-    actor_label: "Parent (via link)",
-    action: "consent.unsubscribed",
-    entity_type: "contact",
-    entity_id: data.id,
-    family_id: data.family_id,
-    after: { marketing_email_consent: false },
-    ip_hash: ctx.ipHash,
-  });
+  if (!found) return { error: "We could not find that link." };
   return { done: true };
 }

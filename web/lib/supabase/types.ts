@@ -3209,6 +3209,10 @@ export type Database = {
         Args: { p_q: string; p_limit?: number };
         Returns: { kind: "family" | "contact" | "student" | "applicant"; id: string; title: string; subtitle: string; href: string }[];
       };
+      crm_unsubscribe_email: {
+        Args: { p_token: string; p_ip_hash?: string | null };
+        Returns: boolean;
+      };
       crm_find_duplicates: {
         Args: { p_email?: string | null; p_mobile_normalised?: string | null; p_last_name?: string | null; p_first_name?: string | null; p_child_first_name?: string | null };
         Returns: { family_id: string; family_code: string; display_name: string | null; campus_name: string | null; reason: string; contact_name: string; contact_email: string }[];

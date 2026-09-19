@@ -519,3 +519,42 @@ $$;
 
 revoke execute on function public.crm_lead_source_report(uuid, timestamptz) from public, anon;
 grant execute on function public.crm_lead_source_report(uuid, timestamptz) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Stopping marketing email, from the link at the foot of every such email
+-- ---------------------------------------------------------------------------
+
+-- The consent change and its audit line in one transaction: a parent who
+-- stopped is always on record as having stopped, and never half so. The
+-- token is random and never the contact's id. Service role only: the page
+-- that calls it holds no session, and the token is the whole proof.
+create or replace function public.crm_unsubscribe_email(p_token text, p_ip_hash text default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_contact uuid;
+  v_family uuid;
+begin
+  if p_token is null or p_token !~ '^[a-f0-9]{32}$' then
+    return false;
+  end if;
+  update public.contacts
+     set marketing_email_consent = false,
+         unsubscribed_at = coalesce(unsubscribed_at, now()),
+         consent_source = 'unsubscribe'
+   where unsubscribe_token = p_token
+  returning id, family_id into v_contact, v_family;
+  if v_contact is null then
+    return false;
+  end if;
+  insert into public.audit_log (actor_type, actor_label, action, entity_type, entity_id, family_id, after, ip_hash)
+  values ('parent', 'Parent (via link)', 'consent.unsubscribed', 'contact', v_contact, v_family,
+          jsonb_build_object('marketing_email_consent', false), p_ip_hash);
+  return true;
+end;
+$$;
+
+revoke execute on function public.crm_unsubscribe_email(text, text) from public, anon, authenticated;

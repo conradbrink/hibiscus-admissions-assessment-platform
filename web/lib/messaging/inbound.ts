@@ -153,14 +153,22 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     )
     .select("id")
     .maybeSingle();
-  if (!inserted) return "duplicate";
-  await recordMessageEvent(admin, {
-    messageId: inserted.id,
-    status: "received",
-    source: "webhook",
-    providerStatus: "message.inbound",
-    occurredAt,
-  });
+  // A retry of a message already stored is a duplicate, unless it carries a
+  // consent command: the first attempt may have stored the row and then
+  // failed to apply the STOP, and the provider's retry is how it gets applied.
+  const consentCommand = isOptOut(body) || isOptIn(body);
+  if (!inserted && !consentCommand) return "duplicate";
+  const stored = inserted ?? (await admin.from("messages").select("id").eq("provider_message_id", providerMessageId).maybeSingle()).data;
+  if (!stored) return "duplicate";
+  if (inserted) {
+    await recordMessageEvent(admin, {
+      messageId: inserted.id,
+      status: "received",
+      source: "webhook",
+      providerStatus: "message.inbound",
+      occurredAt,
+    });
+  }
 
   if (isOptOut(body)) {
     // STOP means stop: the updates opt-in and the marketing consent go
@@ -173,13 +181,13 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     // Recording "opted out" over a consent that did not change would leave
     // the parent still on the list. The webhook retries.
     if (consentError) throw new Error(consentError.message);
-    if (!app) return "opt_out";
+    if (!app || !inserted) return "opt_out";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
       newStatus: null,
       nextAction: null,
-      event: { type: "messaging.opted_out", summary: "Parent replied STOP on WhatsApp; no more messages", payload: { message_id: inserted.id } },
+      event: { type: "messaging.opted_out", summary: "Parent replied STOP on WhatsApp; no more messages", payload: { message_id: stored.id } },
       actor: SYSTEM_ACTOR,
     });
     return "opt_out";
@@ -190,13 +198,13 @@ export async function handleReply(admin: AdminClient, from: string, text: string
       .update({ whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString(), whatsapp_opt_in_source: "reply", whatsapp_opt_out_at: null })
       .eq("id", contact.id);
     if (consentError) throw new Error(consentError.message);
-    if (!app) return "opt_in";
+    if (!app || !inserted) return "opt_in";
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
       newStatus: null,
       nextAction: null,
-      event: { type: "messaging.opted_in", summary: "Parent replied START on WhatsApp; messages resume", payload: { message_id: inserted.id } },
+      event: { type: "messaging.opted_in", summary: "Parent replied START on WhatsApp; messages resume", payload: { message_id: stored.id } },
       actor: SYSTEM_ACTOR,
     });
     return "opt_in";
@@ -243,7 +251,7 @@ export async function handleReply(admin: AdminClient, from: string, text: string
     expectedStatus: null,
     newStatus: null,
     nextAction: null,
-    event: { type: "message.received", summary: "Parent replied on WhatsApp", payload: { message_id: inserted.id } },
+    event: { type: "message.received", summary: "Parent replied on WhatsApp", payload: { message_id: stored.id } },
     // When the child is enrolled the task above already exists; a second one
     // on the old application would be the same message, twice, in two places.
     tasks: liveStudent
