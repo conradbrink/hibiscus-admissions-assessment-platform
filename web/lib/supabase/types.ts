@@ -582,6 +582,23 @@ export type DrainRunRow = {
   detail: Json | null;
 };
 
+export type TrialWeekStatus = "invited" | "confirmed" | "attended" | "no_show" | "cancelled";
+
+/** A pre-school family's free trial week: offered from the review queue, then what came of it. */
+export type TrialWeekRow = {
+  id: string;
+  application_id: string;
+  campus_id: string;
+  starts_on: string;
+  ends_on: string;
+  status: TrialWeekStatus;
+  note: string | null;
+  outcome_note: string | null;
+  invited_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SessionRow = {
   id: string;
   kind: SessionKind;
@@ -2057,9 +2074,12 @@ export type NotificationRow = {
   created_at: string;
 };
 
+/** A spreadsheet of families or parents in our columns, or one of Ed-admin's two files. */
+export type CrmImportKind = "families" | "contacts" | "ed_admin_parents" | "ed_admin_students";
+
 export type CrmImportRow = {
   id: string;
-  kind: "families" | "contacts";
+  kind: CrmImportKind;
   filename: string;
   campus_id: string | null;
   status: "previewed" | "committed" | "cancelled";
@@ -2084,6 +2104,8 @@ export type CrmImportLineRow = {
   duplicate_family_id: string | null;
   family_id: string | null;
   contact_id: string | null;
+  /** The child this row wrote, on an Ed-admin students import. */
+  student_id: string | null;
   created_at: string;
 };
 
@@ -2345,6 +2367,15 @@ export type Database = {
       drain_runs: TableOf<
         DrainRunRow,
         "id" | "ran_at" | "claimed" | "done" | "skipped" | "failed" | "duration_ms" | "detail"
+      >;
+      trial_weeks: TableOf<
+        TrialWeekRow,
+        "status" | "note" | "outcome_note" | "invited_by",
+        [
+          Rel<"trial_weeks_application_id_fkey", "application_id", "applications">,
+          Rel<"trial_weeks_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"trial_weeks_invited_by_fkey", "invited_by", "staff_profiles">,
+        ]
       >;
       sessions: TableOf<
         SessionRow,
@@ -3080,12 +3111,13 @@ export type Database = {
       >;
       crm_import_rows: TableOf<
         CrmImportLineRow,
-        "message" | "duplicate_family_id" | "family_id" | "contact_id",
+        "message" | "duplicate_family_id" | "family_id" | "contact_id" | "student_id",
         [
           Rel<"crm_import_rows_import_id_fkey", "import_id", "crm_imports">,
           Rel<"crm_import_rows_duplicate_family_id_fkey", "duplicate_family_id", "families">,
           Rel<"crm_import_rows_family_id_fkey", "family_id", "families">,
           Rel<"crm_import_rows_contact_id_fkey", "contact_id", "contacts">,
+          Rel<"crm_import_rows_student_id_fkey", "student_id", "students">,
         ]
       >;
     };
@@ -3228,6 +3260,8 @@ export type Database = {
           p_lead_source_detail?: string | null; p_preferred_channel?: string | null; p_preferred_language?: string | null;
           p_home_address?: string | null; p_notes?: string | null; p_tags?: string[]; p_assigned_staff_id?: string | null;
           p_referred_by_family_id?: string | null; p_marketing_email?: boolean; p_marketing_whatsapp?: boolean; p_sms?: boolean; p_whatsapp_opt_in?: boolean;
+          /** Ed-admin's family code, kept as the family's own; absent, the next code is minted. */
+          p_family_code?: string | null;
         };
         Returns: string;
       };

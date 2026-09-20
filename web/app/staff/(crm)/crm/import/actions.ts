@@ -4,23 +4,33 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
+import { commitEdAdminParents, commitEdAdminStudents, previewEdAdminParents, previewEdAdminStudents } from "@/lib/crm/ed-admin-import-server";
 import { commitImport, previewImport } from "@/lib/crm/import";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_BYTES = 5 * 1024 * 1024;
+const KINDS = ["families", "contacts", "ed_admin_parents", "ed_admin_students"] as const;
 
 export async function uploadImport(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   let importId: string | null = null;
   const result = await guarded(async () => {
     const ctx = await requireStaffAction("crm.import");
     const file = formData.get("file");
-    const kind = String(formData.get("kind") ?? "families");
+    const kindRaw = String(formData.get("kind") ?? "families");
+    const kind = KINDS.find((k) => k === kindRaw);
     const campusId = String(formData.get("campusId") ?? "") || null;
-    if (!(file instanceof File) || file.size === 0) throw new Error("Choose a CSV file.");
-    if (file.size > MAX_BYTES) throw new Error("The file is larger than 2 MB. Split it.");
-    if (kind !== "families" && kind !== "contacts") throw new Error("Choose what the file holds.");
+    if (!(file instanceof File) || file.size === 0) throw new Error("Choose a file.");
+    if (file.size > MAX_BYTES) throw new Error("The file is larger than 5 MB. Split it.");
+    if (!kind) throw new Error("Choose what the file holds.");
+    if (kind === "ed_admin_parents" || kind === "ed_admin_students") {
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const preview = kind === "ed_admin_parents" ? previewEdAdminParents : previewEdAdminStudents;
+      const summary = await preview(ctx.supabase, ctx.userId, { filename: file.name, bytes, campusId });
+      importId = summary.importId;
+      return;
+    }
     const text = await file.text();
     const summary = await previewImport(ctx.supabase, ctx.userId, { kind, filename: file.name, text, campusId });
     importId = summary.importId;
@@ -41,9 +51,16 @@ export async function confirmImport(_: StaffActionState, formData: FormData): Pr
       if (v === "existing") useExisting.add(Number(m[1]));
       if (v === "create") createAnyway.add(Number(m[1]));
     }
-    await commitImport(ctx.supabase, createAdminClient(), ctx.actor, p.importId, { useExisting, createAnyway, defaultCampusId: p.defaultCampusId || null });
+    const { data: imp } = await ctx.supabase.from("crm_imports").select("kind").eq("id", p.importId).maybeSingle();
+    if (!imp) throw new Error("That import is no longer there.");
+    const admin = createAdminClient();
+    const choices = { useExisting, createAnyway, defaultCampusId: p.defaultCampusId || null };
+    if (imp.kind === "ed_admin_parents") await commitEdAdminParents(ctx.supabase, admin, ctx.actor, p.importId, choices);
+    else if (imp.kind === "ed_admin_students") await commitEdAdminStudents(ctx.supabase, admin, ctx.actor, p.importId, choices);
+    else await commitImport(ctx.supabase, admin, ctx.actor, p.importId, choices);
     revalidatePath(`/staff/crm/import/${p.importId}`);
     revalidatePath("/staff/crm/families");
+    revalidatePath("/staff/crm/students");
   });
 }
 

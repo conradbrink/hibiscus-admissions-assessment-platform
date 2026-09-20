@@ -13,6 +13,7 @@ export async function sendWhatsAppHandler(admin: AdminClient, job: JobRow): Prom
     payment_request_id?: string | null;
     payment_id?: string | null;
     missing_documents?: string | null;
+    variables?: Record<string, string | null> | null;
   };
   if (!payload.template_key || !job.application_id) {
     return { outcome: "failed", error: "send_whatsapp job missing template_key or application", retryable: false };
@@ -26,6 +27,7 @@ export async function sendWhatsAppHandler(admin: AdminClient, job: JobRow): Prom
     paymentRequestId: payload.payment_request_id ?? null,
     paymentId: payload.payment_id ?? null,
     missingDocuments: payload.missing_documents ?? null,
+    variables: payload.variables ?? undefined,
     trigger: "companion",
   });
   if (result.status === "sent") return { outcome: "done" };

@@ -181,6 +181,12 @@ export type SendTemplatedOptions = {
   mismatchDetails?: string | null;
   outstandingItems?: string | null;
   allReceived?: boolean;
+  /**
+   * Values the moment itself knows and the graph does not: the dates of a
+   * trial week, say. Laid over the graph's variables, never under them, so a
+   * caller cannot rename the parent.
+   */
+  variables?: Record<string, string | null>;
 };
 
 /**
@@ -451,7 +457,7 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
     links[purpose] = minted.url;
   }
 
-  const vars = buildVariables(graph, links, extras);
+  const vars = { ...buildVariables(graph, links, extras), ...(opts.variables ?? {}) };
 
   const attachments: EmailAttachment[] = [];
   if (opts.templateKey === "payment_received" && pay.receipt) {

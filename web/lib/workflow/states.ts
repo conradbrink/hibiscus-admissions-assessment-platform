@@ -297,6 +297,7 @@ export const NEXT_ACTION_KEYS = [
   "attend_visit",
   "await_callback",
   "await_school_contact",
+  "attend_trial_week",
   "await_deferred_date",
   "await_results",
   "await_decision",
@@ -356,6 +357,15 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
     parentDetail: "Our admissions team is reviewing availability and will be in touch shortly.",
     parentCta: null,
     staffLabel: "Review pre-school enquiry",
+  },
+  // The pre-schools' free week: the child comes each morning, and the
+  // decision follows. The dates are in the invitation email; the parent
+  // confirms by replying to it, so there is no button here.
+  attend_trial_week: {
+    parentTitle: "Your next step is the free trial week.",
+    parentDetail: "The dates are in our email. Come to reception each morning and give your name; a teacher will take you both through.",
+    parentCta: null,
+    staffLabel: "Free trial week",
   },
   await_deferred_date: {
     parentTitle: "No action required.",

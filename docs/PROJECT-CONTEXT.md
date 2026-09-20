@@ -726,9 +726,16 @@ reception, teacher), the same `families`, `contacts`, `students`, `tasks`,
 - **Analytics, reports and export** (CSV of families, contacts,
   opportunities, campaigns, events, lead sources), **global search**
   (`crm_search()` under the caller's rights), **notifications** (own rows
-  only), and **CSV import** with preview, validation, in-file and
-  on-file duplicate detection and a confirmation step. Students are not
-  imported: a child joins the register through enrolment.
+  only), and **import** with preview, validation, in-file and on-file
+  duplicate detection and a confirmation step. Two shapes are read: the
+  school's other system's own exports (`lib/crm/ed-admin-import.ts`: the
+  Parents workbook, one family per family code with its guardians as
+  contacts, the family keeping Ed-admin's code as its own; then the
+  Students sheet, one child per row at the campus and stage its Ed-admin
+  grade name maps to, enrolled in the current year, an existing child
+  offered as an update), and a plain CSV in our own columns. The Ed-admin
+  students file is the only way a child enters the register other than
+  enrolment, because it is the register the school already keeps.
 - Security suite cases 69 to 76 attack the campus scoping of families,
   notes, opportunities, campaigns, events, imports, the sealed outbox, the
   own-only notifications, self-approval, the sensitive approval, the
@@ -739,6 +746,20 @@ reception, teacher), the same `families`, `contacts`, `students`, `tasks`,
 What it deliberately does not do: capture email replies (the provider seam
 has no inbound email), send free-text WhatsApp, or let a person set a
 lifecycle stage without marking it manual.
+
+### The pre-schools' free trial week
+
+A child joining Nursery to Pre-Reception sits no assessment, and the
+pre-schools like the family to try a week before anybody decides. On the
+review queue, a pre-school enquiry carries **Invite to a free trial week**:
+a Monday (the Friday follows), an optional line for the parent, and the
+family is emailed the dates (`trial_week_invitation`, with a WhatsApp
+companion once approved). The application stays where it is, its next
+action reads "free trial week" until the week is over, a task asks somebody
+to see it through, and the family is tagged `free-trial-week` in the CRM.
+Afterwards the queue records confirmed, attended, did not come or cancelled,
+and the decision is taken as before with the week behind it
+(`lib/workflow/trial-week.ts`, `trial_weeks`).
 
 ### Three more things the school owns
 
@@ -1203,10 +1224,15 @@ contradicts itself, the choice made is recorded and must be confirmed.
     the anonymised row keeps status, dates, campus and grade for the
     analytics. Confirm both against the school's DPA/POPIA policy before
     switching `retention_enabled` on.
-17. **Ed-admin's import format.** The export columns are a best guess at a
-    student import; get Ed-admin's actual template and set the columns under
-    Set up → Export columns. An HTTP adapter is a second implementation of
-    `StudentManagementSystem` once the API is known.
+17. **Ed-admin's formats.** The export writes Ed-admin's own templates
+    (`Admissions_Student.xlsx`, the Parents workbook) and the CRM import
+    reads the same shapes back, so the two are checked against each other
+    (`lib/crm/ed-admin-import.test.ts`). What is still a guess is Ed-admin's
+    Status vocabulary beyond `Current`: a graduate or a leaver is read off
+    the word, anything else is refused with a message, so if their export
+    uses other words the importer's `studentStatusFrom` is where they go.
+    An HTTP adapter is a second implementation of `StudentManagementSystem`
+    once the API is known.
 13. **Generated Supabase types** to replace the hand-maintained file (now
     1,500 lines).
 14. **Playwright smoke test** of the funnel on a phone viewport, timed, and

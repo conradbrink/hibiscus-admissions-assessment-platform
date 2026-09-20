@@ -4073,7 +4073,7 @@ begin
     end if;
     if has_function_privilege('anon', 'public.crm_search(text, int)', 'execute')
        or has_function_privilege('anon', 'public.crm_merge_families(uuid, uuid)', 'execute')
-       or has_function_privilege('anon', 'public.crm_create_family(text, uuid, text, text, text, text, text, text, text, text, text, text, text, text, text[], uuid, uuid, boolean, boolean, boolean, boolean)', 'execute') then
+       or has_function_privilege('anon', 'public.crm_create_family(text, uuid, text, text, text, text, text, text, text, text, text, text, text, text, text[], uuid, uuid, boolean, boolean, boolean, boolean, text)', 'execute') then
       v_fail := v_fail || E'\n  - ' || '73: a CRM function is callable anonymously';
     end if;
     -- And every automation ships switched off.
@@ -4305,6 +4305,131 @@ begin
       v_fail := v_fail || E'\n  - ' || ('76 control: the admin read failed: ' || sqlerrm);
     end;
     perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 77. A family imported from Ed-admin keeps Ed-admin's code, once
+  -- -------------------------------------------------------------------------
+  declare
+    v_fam uuid;
+    v_ext text;
+    v_code text;
+  begin
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select public.crm_create_family('Edadmin', c_broadhurst, 'Sec', 'Edadmin', 'sec-77@test.invalid', null, null, p_family_code => 'sec77a')
+        into v_fam;
+      select family_code into v_code from public.families where id = v_fam;
+      select external_ref into v_ext from public.families where id = v_fam;
+      if v_code is distinct from 'SEC77A' then
+        v_fail := v_fail || E'\n  - ' || ('77: the imported family did not keep the code it was given (' || coalesce(v_code, 'null') || ')');
+      end if;
+      if v_ext is distinct from 'SEC77A' then
+        v_fail := v_fail || E'\n  - ' || '77: the imported family does not record the code as its Ed-admin reference';
+      end if;
+      if (select count(*) from public.contacts where family_id = v_fam and family_code = 'SEC77A') <> 1 then
+        v_fail := v_fail || E'\n  - ' || '77: the imported family''s contact does not carry the same code';
+      end if;
+      if (select source from public.families where id = v_fam) is distinct from 'import' then
+        v_fail := v_fail || E'\n  - ' || '77: the imported family is not marked as imported';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('77 control: the import create failed: ' || sqlerrm);
+    end;
+    -- The same code a second time is refused, whichever family holds it.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      perform public.crm_create_family('Edadmin', c_broadhurst, 'Sec', 'Twice', 'sec-77-b@test.invalid', null, null, p_family_code => 'SEC77A');
+      v_fail := v_fail || E'\n  - ' || '77: the same Ed-admin code made a second live family';
+    exception when others then
+      if sqlerrm not like '%family_code_exists%' then
+        v_fail := v_fail || E'\n  - ' || ('77: the repeated code was refused by "' || sqlerrm || '" rather than the code check');
+      end if;
+    end;
+    -- A code that is not a code (spaces, punctuation) is refused rather than stored.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      perform public.crm_create_family('Edadmin', c_broadhurst, 'Sec', 'Odd', 'sec-77-c@test.invalid', null, null, p_family_code => 'not a code!');
+      v_fail := v_fail || E'\n  - ' || '77: a malformed family code was accepted';
+    exception when others then
+      if sqlerrm not like '%family_code_invalid%' then
+        v_fail := v_fail || E'\n  - ' || ('77: the malformed code was refused by "' || sqlerrm || '" rather than the code check');
+      end if;
+    end;
+    -- Without a code, the next one is minted as before.
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select public.crm_create_family('Edadmin', c_broadhurst, 'Sec', 'Minted', 'sec-77-d@test.invalid', null, null) into v_fam;
+      if (select family_code from public.families where id = v_fam) is null
+         or (select external_ref from public.families where id = v_fam) is not null
+         or (select source from public.families where id = v_fam) is distinct from 'staff' then
+        v_fail := v_fail || E'\n  - ' || '77 control: a family typed in without a code changed shape';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('77 control: the plain create failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- 78. A trial week is read at its own campus, and written by nobody's hand
+  -- -------------------------------------------------------------------------
+  declare
+    v_trial uuid;
+  begin
+    perform pg_temp.service();
+    insert into public.trial_weeks (application_id, campus_id, starts_on, ends_on, invited_by)
+    values (app_broadhurst, c_broadhurst, current_date + 7, current_date + 11, u_admin)
+    returning id into v_trial;
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      select count(*) into v_count from public.trial_weeks where id = v_trial;
+      if v_count <> 1 then
+        v_fail := v_fail || E'\n  - ' || '78 control: a Broadhurst manager cannot see a Broadhurst trial week';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('78 control: the read failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    -- Somebody with no roles sees nothing; a manager cannot write one.
+    begin
+      perform pg_temp.impersonate(u_noroles);
+      select count(*) into v_count from public.trial_weeks where id = v_trial;
+      if v_count <> 0 then
+        v_fail := v_fail || E'\n  - ' || '78: a person with no roles read a trial week';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('78: the no-roles read failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      update public.trial_weeks set status = 'attended' where id = v_trial;
+      if (select status from public.trial_weeks where id = v_trial) = 'attended' then
+        v_fail := v_fail || E'\n  - ' || '78: a manager changed a trial week by hand';
+      end if;
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('78: the hand update was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.trial_weeks (application_id, campus_id, starts_on, ends_on)
+      values (app_broadhurst, c_broadhurst, current_date + 14, current_date + 18);
+      v_fail := v_fail || E'\n  - ' || '78: a manager offered a trial week outside the review queue';
+    exception
+      when insufficient_privilege then null;
+      when others then
+        if sqlerrm not like '%row-level security%' then
+          v_fail := v_fail || E'\n  - ' || ('78: the hand insert was refused by "' || sqlerrm || '" rather than RLS');
+        end if;
+    end;
+    perform pg_temp.service();
+    delete from public.trial_weeks where id = v_trial;
   end;
 
   if v_fail <> '' then

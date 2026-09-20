@@ -188,6 +188,16 @@ write it. And `students` has no insert policy: a child is created by
 a person already checked. Typing one straight into the register would skip
 every one of those checks.
 
+The one other writer is the Ed-admin students import
+(`lib/crm/ed-admin-import-server.ts`): the register the school already keeps
+in its other system, read from that system's own export, previewed row by
+row and confirmed by a person with `crm.import`, written under the service
+role only for campuses the uploader may see. It goes through the same
+`enrolments` row, so the trigger above still owns the placement. Parents
+come in from the same system's Parents workbook through `crm_create_family`,
+keeping Ed-admin's family code as the family's own (`p_family_code`), because
+that code is what the two files share and what the school bills by.
+
 `anonymise_application()` refuses an application a student was enrolled from
 (`applications_refuse_anonymise_enrolled`). If a new CRM table holds personal
 data, it belongs in the retention story before it ships, not after.
