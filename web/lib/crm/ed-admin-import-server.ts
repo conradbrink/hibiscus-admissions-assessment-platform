@@ -74,24 +74,25 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
 type FamilyHit = { id: string; family_code: string; display_name: string | null; campus_id: string | null; how: string };
 
 /**
- * Which family here a code names: our own code first (a family that
- * started here and was exported), then the Ed-admin reference an earlier
- * import recorded, then the code an older contact carries. Through the
+ * Which family here a code names. The Ed-admin reference an earlier import
+ * recorded comes first, because it says outright "this is that family in
+ * Ed-admin"; then our own code (a family that started here and was
+ * exported under it); then the code an older contact carries. Through the
  * caller's client, so a family they may not see is not offered.
  */
 async function familiesByCode(staff: Client, codes: readonly string[]): Promise<Map<string, FamilyHit>> {
   const out = new Map<string, FamilyHit>();
   const wanted = [...new Set(codes.map((c) => c.toUpperCase()))];
   for (const batch of chunks(wanted, IN_BATCH)) {
-    const { data: byCode, error: e1 } = await staff.from("families").select("id, family_code, display_name, campus_id").in("family_code", batch).is("merged_into_id", null);
+    const { data: byRef, error: e1 } = await staff.from("families").select("id, family_code, display_name, campus_id, external_ref").in("external_ref", batch).is("merged_into_id", null);
     if (e1) throw new Error(e1.message);
-    for (const f of byCode ?? []) if (!out.has(f.family_code.toUpperCase())) out.set(f.family_code.toUpperCase(), { ...f, how: "the family code" });
-    const { data: byRef, error: e2 } = await staff.from("families").select("id, family_code, display_name, campus_id, external_ref").in("external_ref", batch).is("merged_into_id", null);
-    if (e2) throw new Error(e2.message);
     for (const f of byRef ?? []) {
       const key = (f.external_ref ?? "").toUpperCase();
       if (key && !out.has(key)) out.set(key, { id: f.id, family_code: f.family_code, display_name: f.display_name, campus_id: f.campus_id, how: "its Ed-admin reference" });
     }
+    const { data: byCode, error: e2 } = await staff.from("families").select("id, family_code, display_name, campus_id").in("family_code", batch).is("merged_into_id", null);
+    if (e2) throw new Error(e2.message);
+    for (const f of byCode ?? []) if (!out.has(f.family_code.toUpperCase())) out.set(f.family_code.toUpperCase(), { ...f, how: "the family code" });
     const left = batch.filter((c) => !out.has(c));
     if (!left.length) continue;
     const { data: contacts, error: e3 } = await staff.from("contacts").select("family_code, families!contacts_family_id_fkey(id, family_code, display_name, campus_id, merged_into_id)").in("family_code", left);
@@ -283,6 +284,11 @@ export async function commitEdAdminParents(
       }
       if (!campusId) throw new Error("Choose the campus these families belong to. Their children's grades will move each family to the right campus once the students file is imported.");
       if (!primary?.email) throw new Error("No guardian with an email address.");
+      // "Create anyway" on a code another family already carries as its own:
+      // the new family gets the next minted code, and keeps the Ed-admin code
+      // as its reference so the students file still finds it (the reference
+      // is looked up before our own codes, above).
+      const codeTaken = row.status === "duplicate" && (record.matched_how === "the family code" || record.matched_how === "a parent's family code");
       const { data: familyId, error } = await staff.rpc("crm_create_family", {
         p_display_name: record.family_name,
         p_campus_id: campusId,
@@ -295,13 +301,14 @@ export async function commitEdAdminParents(
         p_preferred_language: record.home_language,
         p_home_address: record.address,
         p_notes: record.notes,
-        p_family_code: record.family_code,
+        p_family_code: codeTaken ? null : record.family_code,
       });
       if (error) {
         if (error.message.includes("family_code_exists")) throw new Error(`Family code ${record.family_code} is already in use here.`);
         if (error.message.includes("contact_email_exists")) throw new Error(`${primary.email} already belongs to a contact here.`);
         throw new Error(error.message);
       }
+      if (codeTaken) await admin.from("families").update({ external_ref: record.family_code, source: "import" }).eq("id", familyId);
       const primaryContact = await staff.from("contacts").select("id").eq("family_id", familyId).eq("email_normalised", primary.email_normalised ?? "").maybeSingle();
       let secondaryId: string | null = null;
       for (const g of record.guardians) {

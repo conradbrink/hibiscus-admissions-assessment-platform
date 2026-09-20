@@ -23,6 +23,16 @@ const LOCAL_HEADER = 0x04034b50;
 const CENTRAL_HEADER = 0x02014b50;
 const END_OF_CENTRAL = 0x06054b50;
 
+/**
+ * How big one unpacked part may be. A records export of a few thousand rows
+ * is a few megabytes of XML; a part claiming more than this is not a
+ * workbook anyone made in Excel, and a deflate stream that would inflate
+ * past it is stopped at the limit rather than in memory.
+ */
+export const MAX_PART_BYTES = 64 * 1024 * 1024;
+/** And all of them together. */
+export const MAX_WORKBOOK_BYTES = 128 * 1024 * 1024;
+
 /** The members of a zip, by name. Stored and deflated entries only, which is all a workbook uses. */
 export function unzip(file: Buffer): Map<string, Buffer> {
   if (file.length < 22) throw new Error("This is not a workbook.");
@@ -37,16 +47,20 @@ export function unzip(file: Buffer): Map<string, Buffer> {
   const count = file.readUInt16LE(end + 10);
   let p = file.readUInt32LE(end + 16);
   const out = new Map<string, Buffer>();
+  let total = 0;
   for (let n = 0; n < count; n++) {
     if (p + 46 > file.length || file.readUInt32LE(p) !== CENTRAL_HEADER) throw new Error("This workbook is damaged.");
     const method = file.readUInt16LE(p + 10);
     const compressed = file.readUInt32LE(p + 20);
+    const uncompressed = file.readUInt32LE(p + 24);
     const nameLen = file.readUInt16LE(p + 28);
     const extraLen = file.readUInt16LE(p + 30);
     const commentLen = file.readUInt16LE(p + 32);
     const offset = file.readUInt32LE(p + 42);
     const name = file.subarray(p + 46, p + 46 + nameLen).toString("utf8");
     p += 46 + nameLen + extraLen + commentLen;
+    total += uncompressed;
+    if (uncompressed > MAX_PART_BYTES || total > MAX_WORKBOOK_BYTES) throw new Error(`Part "${name}" is too large for this reader.`);
 
     if (offset + 30 > file.length || file.readUInt32LE(offset) !== LOCAL_HEADER) throw new Error("This workbook is damaged.");
     const localName = file.readUInt16LE(offset + 26);
@@ -54,7 +68,9 @@ export function unzip(file: Buffer): Map<string, Buffer> {
     const start = offset + 30 + localName + localExtra;
     const data = file.subarray(start, start + compressed);
     if (method === 0) out.set(name, Buffer.from(data));
-    else if (method === 8) out.set(name, inflateRawSync(data));
+    // The header's own size claim is checked above; this is the limit that
+    // holds when the claim lies.
+    else if (method === 8) out.set(name, inflateRawSync(data, { maxOutputLength: MAX_PART_BYTES }));
     else throw new Error(`Part "${name}" is compressed in a way this reader does not know.`);
   }
   return out;

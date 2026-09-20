@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkbook, zipEntries } from "@/lib/enrolment/xlsx";
-import { columnIndex, looksLikeWorkbook, readWorkbook, serialToIsoDate, unzip } from "@/lib/xlsx-read";
+import { deflateRawSync } from "node:zlib";
+import { columnIndex, looksLikeWorkbook, MAX_PART_BYTES, readWorkbook, serialToIsoDate, unzip } from "@/lib/xlsx-read";
 
 /** A workbook the way Excel writes one: shared strings, a date-styled number, a formula's cached value. */
 function excelStyleWorkbook(): Buffer {
@@ -71,6 +72,24 @@ describe("readWorkbook", () => {
   it("refuses something that is not a workbook", () => {
     expect(() => readWorkbook(Buffer.from("first_name,last_name\nAnna,Brink\n"))).toThrow(/not a workbook/);
     expect(looksLikeWorkbook(Buffer.from("first_name,last_name"))).toBe(false);
+  });
+
+  it("refuses a part that claims, or would inflate to, more than the cap", () => {
+    const file = buildWorkbook([{ name: "S", headers: ["a"], rows: [["b"]] }]);
+    // The central directory's uncompressed-size field for the first entry.
+    const central = file.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    const lying = Buffer.from(file);
+    lying.writeUInt32LE(MAX_PART_BYTES + 1, central + 24);
+    expect(() => unzip(lying)).toThrow(/too large/);
+
+    // A stream of zeros compresses a thousandfold; the header claims a small
+    // size, so only the inflater's own limit can stop it.
+    const bomb = deflateRawSync(Buffer.alloc(MAX_PART_BYTES + 1024));
+    const zipped = zipEntries([{ name: "xl/workbook.xml", data: Buffer.alloc(MAX_PART_BYTES + 1024) }]);
+    const bombCentral = zipped.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    zipped.writeUInt32LE(16, bombCentral + 24);
+    expect(bomb.length).toBeLessThan(1024 * 1024);
+    expect(() => unzip(zipped)).toThrow();
   });
 
   it("unzips what the writer zipped, byte for byte", () => {

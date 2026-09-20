@@ -21,11 +21,11 @@ describe("trial week dates", () => {
     expect(trialWeekDates("2026-10-12", "2026-10-14", today)).toEqual({ ok: true, dates: { startsOn: "2026-10-12", endsOn: "2026-10-14" } });
     // The week running now is still on: today falls inside it.
     expect(trialWeekDates("2026-09-14", "2026-09-25", today).ok).toBe(true);
-    expect(trialWeekDates("", null, today)).toMatchObject({ ok: false, error: /Choose the Monday/ });
+    expect(trialWeekDates("", null, today)).toMatchObject({ ok: false, error: expect.stringMatching(/Choose the Monday/) });
     expect(trialWeekDates("2026-02-30", null, today)).toMatchObject({ ok: false });
-    expect(trialWeekDates("2026-10-12", "2026-10-09", today)).toMatchObject({ ok: false, error: /cannot end before/ });
-    expect(trialWeekDates("2026-10-12", "2026-11-12", today)).toMatchObject({ ok: false, error: /two at most/ });
-    expect(trialWeekDates("2026-09-07", null, today)).toMatchObject({ ok: false, error: /already passed/ });
+    expect(trialWeekDates("2026-10-12", "2026-10-09", today)).toMatchObject({ ok: false, error: expect.stringMatching(/cannot end before/) });
+    expect(trialWeekDates("2026-10-12", "2026-11-12", today)).toMatchObject({ ok: false, error: expect.stringMatching(/two at most/) });
+    expect(trialWeekDates("2026-09-07", null, today)).toMatchObject({ ok: false, error: expect.stringMatching(/already passed/) });
   });
 
   it("writes the week out the way a parent reads it", () => {
