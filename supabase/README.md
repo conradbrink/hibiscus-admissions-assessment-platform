@@ -69,6 +69,8 @@ change.
 | `…20260919100400_crm_automations` (19 Sep) | `automations` (six seeded, all off) and `automation_runs`; the `crm_welcome_family` email and WhatsApp templates |
 | `…20260919100500_crm_notifications_search` (19 Sep) | `notifications` (own rows only, written by the system), `messages.crm_read_at`, `crm_imports`/`crm_import_rows`, `crm_search()`, `crm_find_duplicates()`, `crm_merge_families()`, `crm_dashboard_counts()`, `crm_lead_source_report()`. Security suite cases 69 to 76 |
 | `…20260919110000_crm_family_facts_tasks_once` (19 Sep) | `v_crm_family_facts` counts a family's open tasks from one grouped subquery instead of a per-family lateral that called `crm_family_of_application()` for every open task; the Families list and `crm_dashboard_counts()` had been reaching the API's 8-second statement timeout |
+| `…20260920100000_crm_ed_admin_import` (20 Sep) | The Ed-admin import: `crm_imports.kind` gains `ed_admin_parents` and `ed_admin_students`, `crm_import_rows.student_id`, an index on `families.external_ref`; `crm_create_family()` takes an optional `p_family_code` so a family imported from Ed-admin keeps Ed-admin's code as its own (refused if a live family already has it). Security suite case 77 |
+| `…20260920110000_preschool_trial_week` (20 Sep) | `trial_weeks`: the pre-schools' free trial week, offered from the review queue while the application waits for a decision (readable with the application, written only by the queue's own action); the `trial_week_invitation` email and its inactive WhatsApp companion. Security suite case 78 |
 
 ## Rules for new migrations
 

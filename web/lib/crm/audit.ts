@@ -14,7 +14,7 @@ import type { Actor } from "@/lib/workflow/engine";
  */
 export type CrmAudit = {
   action: string;
-  entityType: "family" | "contact" | "opportunity" | "campaign" | "segment" | "event" | "event_registration" | "automation" | "note" | "task" | "import" | "consent";
+  entityType: "family" | "contact" | "opportunity" | "campaign" | "segment" | "event" | "event_registration" | "automation" | "note" | "task" | "import" | "consent" | "student";
   entityId?: string | null;
   familyId?: string | null;
   before?: Json;

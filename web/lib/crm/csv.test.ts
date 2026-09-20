@@ -12,7 +12,7 @@ describe("parseCsv", () => {
   });
   it("handles a newline inside quotes and an empty file", () => {
     expect(parseCsv('a,b\n1,"x\ny"').rows).toEqual([["1", "x\ny"]]);
-    expect(parseCsv("")).toEqual({ headers: [], rows: [] });
+    expect(parseCsv("")).toEqual({ headers: [], rawHeaders: [], rows: [] });
   });
 });
 

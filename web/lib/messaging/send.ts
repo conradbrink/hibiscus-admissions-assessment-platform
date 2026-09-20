@@ -34,6 +34,8 @@ export type SendCompanionOptions = {
   paymentRequestId?: string | null;
   paymentId?: string | null;
   missingDocuments?: string | null;
+  /** The email's own extra values (a trial week's dates), so both channels say the same. */
+  variables?: Record<string, string | null>;
   /** Who asked: the job drain after an email, or a member of staff by hand. */
   trigger: "companion" | "manual";
   /** The member of staff who pressed Send, when one did. For the audit trail. */
@@ -128,7 +130,7 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
     else links[purpose as LinkPurpose] = minted.url;
   }
 
-  const vars = buildVariables(graph, links, extras);
+  const vars = { ...buildVariables(graph, links, extras), ...(opts.variables ?? {}) };
   const params = template.parameters.map((name) => {
     const v = vars[name];
     return sanitiseParam(v === null || v === undefined ? "" : String(v));

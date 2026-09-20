@@ -101,6 +101,7 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     mismatchDetails: payload.mismatch_details ?? null,
     outstandingItems: payload.outstanding_items ?? null,
     allReceived: payload.all_received ?? false,
+    variables: payload.variables ?? undefined,
   });
   if (result.status === "sent") {
     // The WhatsApp companion of this moment: one job, keyed on the email's
@@ -120,6 +121,7 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
             payment_request_id: payload.payment_request_id ?? null,
             payment_id: payload.payment_id ?? null,
             missing_documents: payload.missing_documents ?? null,
+            variables: payload.variables ?? null,
           },
         },
       ]);

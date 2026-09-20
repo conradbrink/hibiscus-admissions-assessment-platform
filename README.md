@@ -33,7 +33,7 @@ only where judgement is needed.
 | `web/lib/messaging/` | The WhatsApp seam: Meta Cloud API adapter, a dev adapter, the companion sender, replies |
 | `web/lib/summary/`, `web/lib/analytics/` | Applicant facts and flags with optional validated prose; the funnel, breakdown and forecast arithmetic |
 | `web/lib/workflow/automation/` | Waitlist promotion, data retention, the morning digest, and the pure rules behind them |
-| `web/lib/crm/` | The CRM: the lifecycle rule, segment rules and recipient planning (consent), campaign rendering and sending, the opportunity and automation engines, the family timeline, CSV import, notifications, global search |
+| `web/lib/crm/` | The CRM: the lifecycle rule, segment rules and recipient planning (consent), campaign rendering and sending, the opportunity and automation engines, the family timeline, the Ed-admin and CSV imports, notifications, global search |
 | `web/app/staff/(crm)/crm/` | `/staff/crm`: the CRM console, a second product on the same staff session and permissions |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |

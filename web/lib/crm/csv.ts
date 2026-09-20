@@ -12,7 +12,8 @@ import { HEARD_FROM_KEYS } from "@/lib/heard-from";
  * tested; the import itself is in `import.ts`.
  */
 
-export type CsvTable = { headers: string[]; rows: string[][] };
+/** `headers` are normalised (snake_case); `rawHeaders` are the file's own, for a reader that matches them itself. */
+export type CsvTable = { headers: string[]; rawHeaders: string[]; rows: string[][] };
 
 export function parseCsv(text: string): CsvTable {
   const src = text.replace(/^﻿/, "");
@@ -48,8 +49,9 @@ export function parseCsv(text: string): CsvTable {
     rows.push(row);
   }
   const nonEmpty = rows.filter((r) => r.some((c) => c.trim() !== ""));
-  const headers = (nonEmpty.shift() ?? []).map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""));
-  return { headers, rows: nonEmpty };
+  const rawHeaders = (nonEmpty.shift() ?? []).map((h) => h.trim());
+  const headers = rawHeaders.map((h) => h.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""));
+  return { headers, rawHeaders, rows: nonEmpty };
 }
 
 /** The columns an import may carry. Anything else is ignored and reported. */
