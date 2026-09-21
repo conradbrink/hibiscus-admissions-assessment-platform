@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { InboundEvent, OutboundTemplateMessage } from "@/lib/messaging/provider";
+import type { InboundEvent, OutboundTemplateMessage, OutboundTextMessage } from "@/lib/messaging/provider";
 
 /**
  * The pure half of the Meta WhatsApp Cloud API adapter: building the request
@@ -34,6 +34,13 @@ export function toWaId(e164: string): string {
 export function fromWaId(waId: string): string {
   const digits = waId.replace(/\D/g, "");
   return digits ? `+${digits}` : "";
+}
+
+/** Free text: Meta's simplest message, for answering inside the 24-hour window. */
+export function buildTextPayload(message: OutboundTextMessage): Record<string, unknown> {
+  const body = message.text.trim();
+  if (!body) throw new Error("WhatsApp will not send an empty message.");
+  return { messaging_product: "whatsapp", to: message.to, type: "text", text: { body, preview_url: false } };
 }
 
 export function buildTemplatePayload(message: OutboundTemplateMessage): Record<string, unknown> {

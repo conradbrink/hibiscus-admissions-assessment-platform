@@ -1,6 +1,9 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { recordMessageEvent } from "@/lib/messaging/audit";
+import { autoReplyFor } from "@/lib/messaging/auto-reply";
+import { getMessagingProvider } from "@/lib/messaging/provider";
+import { getSettings } from "@/lib/settings";
 import { notifyStaff } from "@/lib/crm/notifications";
 import { ownerForStudent } from "@/lib/onboarding/owner";
 import { resolveStatus } from "@/lib/messaging/delivery";
@@ -18,6 +21,9 @@ import { TERMINAL_STATUSES } from "@/lib/workflow/states";
  */
 
 export const INBOUND_TEXT_LIMIT = 1000;
+
+/** The `messages.template_key` an automatic reply is filed under. */
+export const AUTO_REPLY_KEY = "auto_reply";
 
 export type InboundSummary = { statuses: number; replies: number; optOuts: number; optIns: number; unknown: number };
 
@@ -120,6 +126,117 @@ async function hasMessageEvent(admin: AdminClient, applicationId: string, type: 
  * One reply. Exported so the development outbox can simulate a parent
  * replying without a webhook; the path is identical.
  */
+/**
+ * Answer a parent who has written to the line that only sends updates.
+ *
+ * Everything that matters has already happened by the time this runs: the
+ * message is stored, the staff are notified, the task exists. So nothing
+ * here may throw — a provider that is down, a number that has left WhatsApp,
+ * a campus with no manned number are all reasons not to answer, never
+ * reasons to drop the parent's message on the floor. Each is written to the
+ * trail against the message that prompted it, because an automatic reply
+ * that silently does not happen looks exactly like one that was never built.
+ */
+async function sendAutoReply(
+  admin: AdminClient,
+  opts: {
+    contactId: string;
+    to: string;
+    campusId: string | null;
+    applicationId: string | null;
+    familyId: string | null;
+    studentId: string | null;
+    inboundMessageId: string;
+  }
+): Promise<void> {
+  try {
+    const settings = await getSettings(admin);
+    // The channel being off is the school's decision about every message,
+    // this one included.
+    if (!settings.whatsappEnabled) return;
+
+    const { data: campus } = opts.campusId
+      ? await admin.from("campuses").select("whatsapp, phone").eq("id", opts.campusId).maybeSingle()
+      : { data: null };
+
+    // The last one we sent this parent, for the cooldown.
+    const { data: last } = await admin
+      .from("messages")
+      .select("created_at")
+      .eq("contact_id", opts.contactId)
+      .eq("direction", "out")
+      .eq("template_key", AUTO_REPLY_KEY)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const decision = autoReplyFor({
+      enabled: settings.whatsappAutoReplyEnabled,
+      template: settings.whatsappAutoReplyText,
+      whatsapp: campus?.whatsapp ?? null,
+      phone: campus?.phone ?? null,
+      isConsentCommand: false,
+      lastRepliedAt: last?.created_at ? new Date(last.created_at) : null,
+      now: new Date(),
+    });
+    if (!decision.send) {
+      await recordMessageEvent(admin, {
+        messageId: opts.inboundMessageId,
+        status: "skipped",
+        source: "send",
+        detail: `no automatic reply: ${decision.reason}`,
+      });
+      return;
+    }
+
+    // Recorded before it is sent, and keyed on the message being answered, so
+    // a webhook delivered twice cannot answer the same parent twice.
+    const { data: row } = await admin
+      .from("messages")
+      .upsert(
+        {
+          application_id: opts.applicationId,
+          contact_id: opts.contactId,
+          direction: "out",
+          channel: "whatsapp",
+          template_key: AUTO_REPLY_KEY,
+          to_normalised: opts.to,
+          provider: "whatsapp",
+          status: "queued",
+          rendered_text: decision.text,
+          idempotency_key: `auto_reply:${opts.inboundMessageId}`,
+          trigger_source: "inbound",
+          family_id: opts.familyId,
+          student_id: opts.studentId,
+        },
+        { onConflict: "idempotency_key", ignoreDuplicates: true }
+      )
+      .select("id")
+      .maybeSingle();
+    if (!row) return; // already answered this message
+
+    const provider = await getMessagingProvider();
+    const result = await provider.sendText({
+      to: opts.to,
+      text: decision.text,
+      idempotencyKey: `auto_reply:${opts.inboundMessageId}`,
+    });
+    if (result.ok) {
+      await admin
+        .from("messages")
+        .update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() })
+        .eq("id", row.id);
+      await recordMessageEvent(admin, { messageId: row.id, status: "sent", source: "send" });
+    } else {
+      await admin.from("messages").update({ status: "failed", error: result.error }).eq("id", row.id);
+      await recordMessageEvent(admin, { messageId: row.id, status: "failed", source: "send", detail: result.error });
+    }
+  } catch (e) {
+    // Never the parent's problem. The message and the task are already safe.
+    console.warn(`[whatsapp] automatic reply not sent: ${(e as Error).message}`);
+  }
+}
+
 export async function handleReply(admin: AdminClient, from: string, text: string, providerMessageId: string, occurredAt: Date): Promise<ReplyOutcome> {
   if (!from) return "unknown";
   const { data: contact } = await admin.from("contacts").select("id, first_name, last_name, family_id").eq("mobile_normalised", from).maybeSingle();
@@ -127,7 +244,7 @@ export async function handleReply(admin: AdminClient, from: string, text: string
 
   const { data: apps } = await admin
     .from("applications")
-    .select("id, status, child_first_name, reference")
+    .select("id, status, child_first_name, reference, campus_id")
     .eq("contact_id", contact.id)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -256,6 +373,16 @@ export async function handleReply(admin: AdminClient, from: string, text: string
       priority: "normal",
     });
   }
+
+  await sendAutoReply(admin, {
+    contactId: contact.id,
+    to: from,
+    campusId: app?.campus_id ?? liveStudent?.campus_id ?? null,
+    applicationId: app?.id ?? null,
+    familyId: liveStudent?.family_id ?? contact.family_id ?? null,
+    studentId: liveStudent?.id ?? null,
+    inboundMessageId: stored.id,
+  });
 
   if (!app) {
     // No admissions record to write the event on: the notification above

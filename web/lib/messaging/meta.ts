@@ -1,6 +1,6 @@
 import "server-only";
-import { buildTemplatePayload, parseSendError, parseSendResponse, parseWebhook, verifySignature } from "@/lib/messaging/meta-payload";
-import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, SendResult } from "@/lib/messaging/provider";
+import { buildTemplatePayload, buildTextPayload, parseSendError, parseSendResponse, parseWebhook, verifySignature } from "@/lib/messaging/meta-payload";
+import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, OutboundTextMessage, SendResult } from "@/lib/messaging/provider";
 
 /**
  * Meta's WhatsApp Cloud API, over plain fetch. One endpoint to send, one
@@ -33,6 +33,19 @@ export class MetaWhatsAppProvider implements MessagingProvider {
   }
 
   async sendTemplate(message: OutboundTemplateMessage): Promise<SendResult> {
+    return this.post(buildTemplatePayload(message));
+  }
+
+  /** Free text, for answering a parent inside their own 24-hour window. */
+  async sendText(message: OutboundTextMessage): Promise<SendResult> {
+    try {
+      return await this.post(buildTextPayload(message));
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, retryable: false };
+    }
+  }
+
+  private async post(payload: Record<string, unknown>): Promise<SendResult> {
     let response: Response;
     try {
       response = await fetch(`${this.apiUrl}/${this.phoneNumberId}/messages`, {
@@ -41,7 +54,7 @@ export class MetaWhatsAppProvider implements MessagingProvider {
           Authorization: `Bearer ${this.accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(buildTemplatePayload(message)),
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(15_000),
       });
     } catch (e) {
