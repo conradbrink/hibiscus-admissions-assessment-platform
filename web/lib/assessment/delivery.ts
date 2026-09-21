@@ -43,7 +43,6 @@ export type DeliverySection = {
   position: number;
   title: string;
   instructions: string | null;
-  timeLimitSeconds: number | null;
   /** Story mode: the drawn scene, the character's opening line, the stop rule. */
   sceneKey: string | null;
   narration: string | null;
@@ -59,7 +58,7 @@ export type DeliveryForm = {
 };
 
 const DELIVERY_SELECT =
-  "id, section_position, section_title, section_instructions, section_time_limit_seconds, section_scene_key, section_narration, section_stop_after_misses, is_practice, position, type, stem, stem_media_path, passage_snapshot, options, marks, competency_id, difficulty, narration, answer_mode, scene_focus, adult_note";
+  "id, section_position, section_title, section_instructions, section_scene_key, section_narration, section_stop_after_misses, is_practice, position, type, stem, stem_media_path, passage_snapshot, options, marks, competency_id, difficulty, narration, answer_mode, scene_focus, adult_note";
 
 function asOptions(json: Json): DeliveryOption[] {
   if (!Array.isArray(json)) return [];
@@ -101,7 +100,6 @@ export async function loadDeliveryForm(admin: AdminClient, formId: string): Prom
       position: row.section_position,
       title: row.section_title,
       instructions: row.section_instructions,
-      timeLimitSeconds: row.section_time_limit_seconds,
       sceneKey: row.section_scene_key,
       narration: row.section_narration,
       stopAfterMisses: row.section_stop_after_misses,

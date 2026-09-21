@@ -113,7 +113,6 @@ const sectionSchema = z.object({
   title: z.string().trim().min(1).max(120),
   subjectId: z.guid(),
   instructions: z.string().trim().max(2000).optional(),
-  timeLimitMinutes: z.union([z.literal(""), z.coerce.number().int().min(1).max(300)]).optional(),
   selection: z.enum(["fixed", "random"]),
   randomCount: z.union([z.literal(""), z.coerce.number().int().min(1).max(100)]).optional(),
   randomMix: z.string().trim().max(200).optional(),
@@ -149,7 +148,9 @@ export async function saveSection(_: StaffActionState, formData: FormData): Prom
       title: p.title,
       subject_id: p.subjectId,
       instructions: p.instructions || null,
-      time_limit_minutes: p.timeLimitMinutes === "" || p.timeLimitMinutes === undefined ? null : p.timeLimitMinutes,
+      // No per-section limit: the whole sitting has one clock and the child
+      // decides where to spend it. The column is left alone rather than
+      // written, so an older row keeps its history.
       selection: p.selection,
       random_count: p.randomCount === "" || p.randomCount === undefined ? null : p.randomCount,
       random_difficulty_mix: parseMix(p.randomMix),

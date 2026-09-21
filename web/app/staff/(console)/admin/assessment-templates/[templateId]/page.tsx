@@ -92,7 +92,6 @@ export default async function TemplatePage({ params }: { params: Promise<{ templ
                 <Input name="title" defaultValue={s.title} className="h-8 md:col-span-2 md:h-8" required />
                 <NativeSelect name="subjectId" defaultValue={s.subject_id} className="h-8 md:h-8">{(subjects ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</NativeSelect>
                 <NativeSelect name="selection" defaultValue={s.selection} className="h-8 md:h-8"><option value="fixed">Fixed list</option><option value="random">Random draw</option></NativeSelect>
-                <Input name="timeLimitMinutes" type="number" min={1} defaultValue={s.time_limit_minutes ?? ""} placeholder="Section minutes" className="h-8 md:h-8" />
                 <Input name="randomCount" type="number" min={1} defaultValue={s.random_count ?? ""} placeholder="Random: how many" className="h-8 md:h-8" />
                 <Input name="randomMix" defaultValue={mixText(s.random_difficulty_mix)} placeholder="Random mix, e.g. 2:3, 3:4" className="h-8 md:col-span-2 md:h-8" />
                 {template.delivery === "story" ? (

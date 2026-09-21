@@ -106,8 +106,11 @@ create or replace function pg_temp.add_section(
 ) returns void language plpgsql as $$
 declare s uuid; i int;
 begin
-  insert into public.template_sections (template_id, position, title, subject_id, instructions, time_limit_minutes, selection)
-  values (p_template, p_position, p_title, p_subject, p_instructions, p_minutes, 'fixed')
+  -- p_minutes is accepted and ignored: a sitting has one clock, and a part
+  -- that ends early hands its minutes to the next one. The parameter stays so
+  -- the call sites below still read as the paper does.
+  insert into public.template_sections (template_id, position, title, subject_id, instructions, selection)
+  values (p_template, p_position, p_title, p_subject, p_instructions, 'fixed')
   returning id into s;
   for i in 1..array_length(p_questions, 1) loop
     insert into public.template_section_questions (section_id, question_id, position) values (s, p_questions[i], i);
