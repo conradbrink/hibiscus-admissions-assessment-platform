@@ -178,6 +178,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     canWithdraw: canWrite && !terminal,
     canOfferTrial: canDecide && !terminal && !app.requires_assessment && canBeDecided(app.status) && !liveTrial,
     hasHadTrial: (trials ?? []).length > 0,
+    trial: (trials ?? [])[0] ?? null,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
     deferred:
       app.status === "deferred"

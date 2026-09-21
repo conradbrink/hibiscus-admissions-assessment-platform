@@ -16,7 +16,7 @@ import { loadCatalogue } from "@/lib/enquiry";
 import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
-import { offerTrialWeek } from "@/lib/workflow/trial-week";
+import { offerTrialWeek, recordTrialWeekOutcome } from "@/lib/workflow/trial-week";
 import { requireStaffAction } from "@/lib/staff/session";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
@@ -173,6 +173,32 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
  * edited the form, and an outcome that can be posted but not chosen is worse
  * than either.
  */
+/**
+ * How the free trial week went, from the applicant's own page.
+ *
+ * The same four moves the review queue offers, and the same permission: a
+ * week is offered and closed out by whoever is looking at the child, and
+ * which screen that is should not decide whether they can finish the job.
+ * `done` rather than the queue's `refresh`, so it is this page that is
+ * revalidated.
+ */
+export async function trialWeekOutcome(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("decisions.override");
+    const p = z
+      .object({
+        applicationId: z.guid(),
+        trialId: z.guid(),
+        status: z.enum(["confirmed", "attended", "no_show", "cancelled"]),
+        note: z.string().trim().max(500).optional().or(z.literal("")),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
+    await recordTrialWeekOutcome(admin, app, p.trialId, p.status, p.note || null, ctx.actor);
+    done(p.applicationId);
+  });
+}
+
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const raw = Object.fromEntries(formData);
