@@ -103,6 +103,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     { data: upcoming },
     { data: tokens },
     { data: callbackRequest },
+    { data: trials },
   ] = await Promise.all([
     supabase.from("application_events").select("*").eq("application_id", id).order("id", { ascending: false }).limit(100),
     supabase
@@ -140,6 +141,10 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     // was stored from the first day and shown to nobody, so the person
     // ringing back did not know the family had asked for after five.
     supabase.from("callback_requests").select("preferred_time, message").eq("application_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    // The free trial weeks this child has been offered, newest first: whether
+    // one is running decides if another can be offered, and the Decision tab
+    // says which it was.
+    supabase.from("trial_weeks").select("*").eq("application_id", id).order("created_at", { ascending: false }),
   ]);
 
   const [summaryInputs, { data: storedSummary }, settings] = await Promise.all([
@@ -163,10 +168,17 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   //
   // Whether an outcome can be recorded is the state machine's answer, not a
   // list kept here — see `canBeDecided`.
+  // The free trial week is a pre-school thing and only while nobody has
+  // decided: a child already approved or withdrawn is not coming for a week
+  // on approval. One live week at a time, which the table enforces too.
+  const liveTrial = (trials ?? []).find((t) => t.status === "invited" || t.status === "confirmed") ?? null;
   const decision = {
     canRecordOutcome: canDecide && !terminal && canBeDecided(app.status),
     canDefer: canWrite && !terminal && app.status !== "deferred",
     canWithdraw: canWrite && !terminal,
+    canOfferTrial: canDecide && !terminal && !app.requires_assessment && canBeDecided(app.status) && !liveTrial,
+    hasHadTrial: (trials ?? []).length > 0,
+    trial: (trials ?? [])[0] ?? null,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
     deferred:
       app.status === "deferred"
@@ -616,8 +628,8 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           <PauseOrClose
             applicationId={app.id}
             action={recordDecision}
-            canDefer={decision.canDefer}
-            canWithdraw={decision.canWithdraw}
+            canDefer={decision.canDefer && !decision.canRecordOutcome}
+            canWithdraw={decision.canWithdraw && !decision.canRecordOutcome}
             bookingWillBeCancelled={decision.bookingWillBeCancelled}
           />
 

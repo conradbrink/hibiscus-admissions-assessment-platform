@@ -14,58 +14,21 @@ import type { BenchmarkBand, Json } from "@/lib/supabase/types";
 import { recordReviewOutcome } from "../applications/[id]/actions";
 import { startLabel } from "@/lib/start-month";
 import type { TrialWeekRow } from "@/lib/supabase/types";
-import { formatTrialWeek, nextMonday } from "@/lib/workflow/trial-week-dates";
+import { TrialWeekStatus } from "@/components/staff/trial-week-status";
+import { nextMonday } from "@/lib/workflow/trial-week-dates";
 import { offerTrialWeekAction, trialWeekOutcomeAction } from "./actions";
 
-const TRIAL_LABELS: Record<TrialWeekRow["status"], string> = {
-  invited: "invited, waiting for the family to confirm",
-  confirmed: "confirmed by the family",
-  attended: "attended",
-  no_show: "did not come",
-  cancelled: "cancelled",
-};
-
 /**
- * The pre-schools' free trial week, beside the decision it informs. One of
- * three: the offer form when there is no live week, the live week with the
- * four things that can come of it, or a line saying what did.
+ * The pre-schools' free trial week, beside the decision it informs: the week
+ * as it stands and the four things that can come of it (shared with the
+ * applicant's own Decision tab), plus the offer form when no week is running.
  */
 function TrialWeekPanel({ applicationId, childName, trial, canDecide }: { applicationId: string; childName: string; trial: TrialWeekRow | null; canDecide: boolean }) {
-  const range = trial ? formatTrialWeek({ startsOn: trial.starts_on, endsOn: trial.ends_on }) : "";
-  if (trial && (trial.status === "invited" || trial.status === "confirmed")) {
-    return (
-      <div className="mt-3 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-sm">
-        <p><strong>Free trial week</strong> {range} · {TRIAL_LABELS[trial.status]}{trial.note ? ` · ${trial.note}` : ""}</p>
-        {canDecide ? (
-          <div className="mt-2 flex flex-wrap items-end gap-2">
-            {trial.status === "invited" ? (
-              <ActionForm action={trialWeekOutcomeAction} label="Family confirmed" size="xs" variant="outline">
-                <input type="hidden" name="applicationId" value={applicationId} /><input type="hidden" name="trialId" value={trial.id} /><input type="hidden" name="status" value="confirmed" />
-              </ActionForm>
-            ) : null}
-            <ActionForm action={trialWeekOutcomeAction} label="Attended" size="xs" variant="outline" className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="applicationId" value={applicationId} /><input type="hidden" name="trialId" value={trial.id} /><input type="hidden" name="status" value="attended" />
-              <Input name="note" placeholder="What the teachers said (optional)" className="h-8 w-64 md:h-8" maxLength={500} />
-            </ActionForm>
-            <ActionForm action={trialWeekOutcomeAction} label="Did not come" size="xs" variant="outline">
-              <input type="hidden" name="applicationId" value={applicationId} /><input type="hidden" name="trialId" value={trial.id} /><input type="hidden" name="status" value="no_show" />
-            </ActionForm>
-            <ActionForm action={trialWeekOutcomeAction} label="Cancel the week" size="xs" variant="ghost" confirm="Cancel this trial week? The family is not told automatically; let them know.">
-              <input type="hidden" name="applicationId" value={applicationId} /><input type="hidden" name="trialId" value={trial.id} /><input type="hidden" name="status" value="cancelled" />
-            </ActionForm>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
+  const live = trial?.status === "invited" || trial?.status === "confirmed";
   return (
-    <div className="mt-3 text-sm">
-      {trial ? (
-        <p className={trial.status === "attended" ? "rounded-md bg-success/15 px-3 py-2" : "text-muted-foreground"}>
-          Free trial week {range}: {TRIAL_LABELS[trial.status]}{trial.outcome_note ? ` — ${trial.outcome_note}` : ""}.
-        </p>
-      ) : null}
-      {canDecide ? (
+    <div className="text-sm">
+      <TrialWeekStatus applicationId={applicationId} trial={trial} canDecide={canDecide} action={trialWeekOutcomeAction} />
+      {canDecide && !live ? (
         <ActionForm action={offerTrialWeekAction} label={trial ? "Offer another free trial week" : "Invite to a free trial week"} size="sm" variant="outline" className="mt-2 flex flex-wrap items-end gap-2" confirm={`Invite ${childName}'s family to a free trial week? They are emailed the dates now.`}>
           <input type="hidden" name="applicationId" value={applicationId} />
           <label className="text-xs"><span className="mb-1 block text-muted-foreground">Week starting</span><Input type="date" name="startsOn" defaultValue={nextMonday(new Date())} required className="h-9 w-40 md:h-9" /></label>

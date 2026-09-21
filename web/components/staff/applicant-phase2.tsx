@@ -13,6 +13,7 @@ import { DecisionFields } from "@/components/staff/decision-fields";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
+import { TrialWeekStatus } from "@/components/staff/trial-week-status";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeLinesFor, feeSnapshotFrom } from "@/lib/offers/snapshot";
 import { can, type PermissionSet } from "@/lib/permissions";
@@ -21,10 +22,10 @@ import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
 import type { RuleResult } from "@/lib/rules/evaluate";
 import type { StaffActionState } from "@/components/staff/action-form";
 import type { StaffContext } from "@/lib/staff/session";
-import type { ApplicationRow, BenchmarkBand } from "@/lib/supabase/types";
+import type { ApplicationRow, BenchmarkBand, TrialWeekRow } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
-import { checkIn, recordDecision, resumeDeferred, setDayPattern, setStartMonth } from "@/app/staff/(console)/applications/[id]/actions";
+import { checkIn, recordDecision, resumeDeferred, setDayPattern, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import { formatMonth, type MonthChoice } from "@/lib/start-month";
 
 /**
@@ -68,6 +69,10 @@ export async function ApplicantPhase2({
     canRecordOutcome: boolean;
     canDefer: boolean;
     canWithdraw: boolean;
+    canOfferTrial: boolean;
+    hasHadTrial: boolean;
+    /** The newest week, live or finished; null if the child has never had one. */
+    trial: TrialWeekRow | null;
     bookingWillBeCancelled: boolean;
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
@@ -292,17 +297,30 @@ export async function ApplicantPhase2({
               ) : null}
             </div>
           ) : null}
+          {/* The week itself, above the decision it informs: how it is going
+              while it runs, and what came of it once it is over. Closing it
+              out is done here rather than only on the review queue, because
+              the teachers report on Friday to whoever is looking at the
+              child. */}
+          <TrialWeekStatus
+            applicationId={app.id}
+            trial={decision.trial}
+            canDecide={decision.canRecordOutcome}
+            action={trialWeekOutcome}
+          />
           {decision.canRecordOutcome ? (
             <div className="mb-4 rounded-lg border border-border p-3">
               <h3 className="font-semibold">Record a decision</h3>
               {/* Gone the moment an outcome is recorded: the state machine
                   stops allowing one, so `canRecordOutcome` turns false and
-                  this whole card leaves with it. Pausing and closing moved to
-                  the sidebar, where they stay reachable at every stage. */}
+                  this whole card leaves with it. Pausing and closing are also
+                  in the sidebar, which is what stays reachable afterwards —
+                  the sidebar card hides while this one is up, so neither is
+                  offered twice. */}
               <p className="mt-1 text-xs text-muted-foreground">
                 {app.requires_assessment
                   ? "Overrides the rules engine. A reason is required and audited."
-                  : "Pre-school applicants are decided here. A reason is required and audited."}
+                  : "Pre-school applicants are decided here — or invited to a free trial week first. A reason is required and audited."}
               </p>
               <ActionForm
                 action={recordDecision}
@@ -312,7 +330,14 @@ export async function ApplicantPhase2({
                 confirm="Record this decision? It is audited and the parent will be informed."
               >
                 {idField}
-                <DecisionFields canRecordOutcome canDefer={false} canWithdraw={false} />
+                <DecisionFields
+                  canRecordOutcome
+                  canDefer={decision.canDefer}
+                  canWithdraw={decision.canWithdraw}
+                  canOfferTrial={decision.canOfferTrial}
+                  hasHadTrial={decision.hasHadTrial}
+                  bookingWillBeCancelled={decision.bookingWillBeCancelled}
+                />
               </ActionForm>
             </div>
           ) : null}
