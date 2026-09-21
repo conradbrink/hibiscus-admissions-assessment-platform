@@ -52,6 +52,19 @@ export type Settings = {
   documentsReminderDays: number;
   autoEnrol: boolean;
   whatsappEnabled: boolean;
+  /**
+   * Answer a parent who writes to the line the updates come from, telling
+   * them where somebody is actually reading. On by default: the line looks
+   * like a chat, parents treat it as one, and saying nothing is the state
+   * that caused the problem.
+   */
+  whatsappAutoReplyEnabled: boolean;
+  /**
+   * What that answer says. `{{whatsapp}}` is the campus's manned number and
+   * `{{phone}}` its office line; the clause between `{{#phone}}` and
+   * `{{/phone}}` is dropped for a campus with no phone number.
+   */
+  whatsappAutoReplyText: string;
   /** Require an authenticator app of every member of staff. Off: enrolling is each person's choice, and anybody who has enrolled is always asked. */
   staffMfaRequired: boolean;
   aiExtractionEnabled: boolean;
@@ -112,6 +125,11 @@ export const DEFAULT_SETTINGS: Settings = {
   documentsReminderDays: 2,
   autoEnrol: false,
   whatsappEnabled: false,
+  whatsappAutoReplyEnabled: true,
+  whatsappAutoReplyText:
+    "Thank you for your message. This number only sends updates about your application and nobody reads replies to it. " +
+    "To talk to somebody please message us on {{whatsapp}}{{#phone}} or call {{phone}}{{/phone}}. " +
+    "We have passed your message on either way.",
   // Off on purpose. Thirty people sign in daily; switching a second factor on
   // for all of them at a distance is how a school loses a morning. See
   // supabase/migrations/20260913010000_staff_mfa.sql.
@@ -168,6 +186,8 @@ const KEYS: Record<keyof Settings, string> = {
   documentsReminderDays: "documents_reminder_days",
   autoEnrol: "auto_enrol",
   whatsappEnabled: "whatsapp_enabled",
+  whatsappAutoReplyEnabled: "whatsapp_auto_reply_enabled",
+  whatsappAutoReplyText: "whatsapp_auto_reply_text",
   staffMfaRequired: "staff_mfa_required",
   aiExtractionEnabled: "ai_extraction_enabled",
   aiSummaryEnabled: "ai_summary_enabled",
@@ -291,6 +311,8 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     documentsReminderDays: asPositiveInt(map.get(KEYS.documentsReminderDays), d.documentsReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
+    whatsappAutoReplyEnabled: asBoolean(map.get(KEYS.whatsappAutoReplyEnabled), d.whatsappAutoReplyEnabled),
+    whatsappAutoReplyText: asString(map.get(KEYS.whatsappAutoReplyText), d.whatsappAutoReplyText),
     staffMfaRequired: asBoolean(map.get(KEYS.staffMfaRequired), d.staffMfaRequired),
     aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),
     aiSummaryEnabled: asBoolean(map.get(KEYS.aiSummaryEnabled), d.aiSummaryEnabled),

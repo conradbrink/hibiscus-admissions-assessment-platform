@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { InboundEvent, OutboundTemplateMessage } from "@/lib/messaging/provider";
+import type { InboundEvent, OutboundTemplateMessage, OutboundTextMessage } from "@/lib/messaging/provider";
 
 /**
  * The pure half of the Twilio adapter: the form body of a send, the webhook
@@ -57,6 +57,20 @@ export type TwilioSendOptions = {
   /** Where Twilio should report delivery. Absolute, and the same URL the webhook verifies. */
   statusCallback: string | null;
 };
+
+/** Free text: the same envelope as a template send, with Body instead of a SID. */
+export function buildTextForm(message: OutboundTextMessage, opts: TwilioSendOptions): URLSearchParams {
+  const text = message.text.trim();
+  if (!text) throw new Error("Twilio will not send an empty message.");
+  const form = new URLSearchParams();
+  form.set("To", toWhatsAppAddress(message.to));
+  if (opts.messagingServiceSid) form.set("MessagingServiceSid", opts.messagingServiceSid);
+  else if (opts.from) form.set("From", toWhatsAppAddress(opts.from));
+  else throw new Error("Twilio needs either a sending number or a messaging service.");
+  form.set("Body", text);
+  if (opts.statusCallback) form.set("StatusCallback", opts.statusCallback);
+  return form;
+}
 
 export function buildMessageForm(message: OutboundTemplateMessage, opts: TwilioSendOptions): URLSearchParams {
   if (!message.providerTemplateId) {

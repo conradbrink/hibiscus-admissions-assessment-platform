@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { InboundEvent, OutboundTemplateMessage } from "@/lib/messaging/provider";
+import type { InboundEvent, OutboundTemplateMessage, OutboundTextMessage } from "@/lib/messaging/provider";
 
 /**
  * The pure half of the Zavu adapter: the JSON body of a send, the webhook
@@ -66,6 +66,23 @@ export function buttonVariables(values: string[]): Record<string, string> {
     out[String(i)] = value;
   });
   return out;
+}
+
+/**
+ * Free text, which Zavu takes as `messageType: "text"` with the words in
+ * `content.text`. Same envelope as a template send — same idempotency key
+ * rule, same `to` — so the adapter can post both through one path.
+ */
+export function buildTextBody(message: OutboundTextMessage): Record<string, unknown> {
+  const text = message.text.trim();
+  if (!text) throw new Error("Zavu will not send an empty message.");
+  return {
+    to: message.to,
+    channel: "whatsapp",
+    messageType: "text",
+    idempotencyKey: message.idempotencyKey,
+    content: { text },
+  };
 }
 
 export function buildSendBody(message: OutboundTemplateMessage): Record<string, unknown> {

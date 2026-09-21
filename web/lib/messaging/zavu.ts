@@ -1,12 +1,13 @@
 import "server-only";
 import {
   buildSendBody,
+  buildTextBody,
   parseSendError,
   parseSendResponse,
   parseZavuWebhook,
   verifyZavuSignature,
 } from "@/lib/messaging/zavu-payload";
-import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, SendResult } from "@/lib/messaging/provider";
+import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, OutboundTextMessage, SendResult } from "@/lib/messaging/provider";
 
 /**
  * Zavu, over plain fetch — no SDK, like the payment gateway and Meta before it.
@@ -55,7 +56,21 @@ export class ZavuProvider implements MessagingProvider {
       // A template with no Zavu id: not a thing another attempt fixes.
       return { ok: false, error: (e as Error).message, retryable: false };
     }
+    return this.post(body);
+  }
 
+  /** Free text, for answering a parent inside their own 24-hour window. */
+  async sendText(message: OutboundTextMessage): Promise<SendResult> {
+    let body: Record<string, unknown>;
+    try {
+      body = buildTextBody(message);
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, retryable: false };
+    }
+    return this.post(body);
+  }
+
+  private async post(body: Record<string, unknown>): Promise<SendResult> {
     let response: Response;
     try {
       response = await fetch(`${this.apiUrl}/v1/messages`, {

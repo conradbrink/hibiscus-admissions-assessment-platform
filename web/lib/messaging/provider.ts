@@ -9,9 +9,16 @@ import "server-only";
  * `dev`, which delivers nothing and records everything, so a misconfigured
  * deploy cannot message real parents.
  *
- * Only templates are sent. WhatsApp allows free text solely inside a
- * 24-hour reply window, and free text would put wording in code; so the
- * contract is "this approved template, these parameter values".
+ * Templates are how the school speaks first. WhatsApp allows free text
+ * solely inside the 24-hour window a parent opens by writing to us, so
+ * nothing scheduled could ever use it — every outbound moment is a template,
+ * named and approved.
+ *
+ * `sendText` is the one exception, and only for answering a parent who has
+ * just written: the window is open by definition, and it needs no approval,
+ * which matters when the thing being said is "you are writing to the wrong
+ * number". The wording still is not in code — it is a setting the school
+ * edits — so what this seam carries is the text, not the decision to send it.
  */
 
 export type OutboundTemplateMessage = {
@@ -29,6 +36,17 @@ export type OutboundTemplateMessage = {
   bodyParams: string[];
   /** The dynamic suffix for the template's URL button, when it has one. */
   buttonUrlSuffix?: string | null;
+  idempotencyKey: string;
+};
+
+/**
+ * Free text, inside the 24-hour window a parent's own message opens.
+ * No template, no parameters: what is in `text` is what arrives.
+ */
+export type OutboundTextMessage = {
+  /** E.164, with the leading plus. */
+  to: string;
+  text: string;
   idempotencyKey: string;
 };
 
@@ -51,6 +69,12 @@ export interface MessagingProvider {
   readonly name: string;
   readonly templateIdField: TemplateIdField;
   sendTemplate(message: OutboundTemplateMessage): Promise<SendResult>;
+  /**
+   * Free text to a parent who has just written in. Only ever called from the
+   * inbound path, so the 24-hour window is open; a provider that refuses it
+   * fails the send like any other, and the auto-reply is simply not made.
+   */
+  sendText(message: OutboundTextMessage): Promise<SendResult>;
   /**
    * Verifies a webhook and returns the events it carries, or null when the
    * signature does not check out. A null must be answered with a 401.

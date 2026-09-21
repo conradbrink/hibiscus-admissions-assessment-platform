@@ -1,13 +1,14 @@
 import "server-only";
 import {
   buildMessageForm,
+  buildTextForm,
   formToParams,
   parseSendError,
   parseSendResponse,
   parseTwilioWebhook,
   verifyTwilioSignature,
 } from "@/lib/messaging/twilio-payload";
-import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, SendResult } from "@/lib/messaging/provider";
+import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, OutboundTextMessage, SendResult } from "@/lib/messaging/provider";
 
 /**
  * Twilio in front of WhatsApp, over plain fetch — no SDK, like the payment
@@ -69,7 +70,25 @@ export class TwilioWhatsAppProvider implements MessagingProvider {
       // being tried again.
       return { ok: false, error: (e as Error).message, retryable: false };
     }
+    return this.post(form);
+  }
 
+  /** Free text, for answering a parent inside their own 24-hour window. */
+  async sendText(message: OutboundTextMessage): Promise<SendResult> {
+    let form: URLSearchParams;
+    try {
+      form = buildTextForm(message, {
+        from: this.from,
+        messagingServiceSid: this.messagingServiceSid,
+        statusCallback: this.statusCallback,
+      });
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, retryable: false };
+    }
+    return this.post(form);
+  }
+
+  private async post(form: URLSearchParams): Promise<SendResult> {
     let response: Response;
     try {
       response = await fetch(`${this.apiUrl}/Accounts/${this.accountSid}/Messages.json`, {
