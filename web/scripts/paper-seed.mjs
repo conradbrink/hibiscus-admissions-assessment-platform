@@ -265,10 +265,14 @@ begin
     si := si + 1;
     v_sec := md5('paper:section:' || (t->>'code') || ':' || (part->>'subject'))::uuid;
     select id into v_subj from public.subjects where code = part->>'subject';
+    -- No section clock. A part's "minutes" still sizes the paper (it is what
+    -- the template's own limit is built from), but it is never written here:
+    -- the sitting has one clock and the child decides where to spend it.
+    -- Writing it would also quietly undo 20260921090000 on the next re-run.
     insert into public.template_sections (id, template_id, position, title, subject_id, instructions, time_limit_minutes, selection)
-    values (v_sec, v_tmpl, 1000 + si, part->>'title', v_subj, part->>'instructions', (part->>'minutes')::int, 'fixed')
+    values (v_sec, v_tmpl, 1000 + si, part->>'title', v_subj, part->>'instructions', null, 'fixed')
     on conflict (id) do update set template_id = excluded.template_id, position = excluded.position, title = excluded.title,
-      subject_id = excluded.subject_id, instructions = excluded.instructions, time_limit_minutes = excluded.time_limit_minutes, selection = 'fixed';
+      subject_id = excluded.subject_id, instructions = excluded.instructions, time_limit_minutes = null, selection = 'fixed';
     delete from public.template_section_questions where section_id = v_sec;
     qi := 0;
     for qcode in select * from jsonb_array_elements_text(part->'codes') loop

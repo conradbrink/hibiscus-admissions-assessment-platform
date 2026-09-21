@@ -47,7 +47,6 @@ export default async function Preview({ searchParams }: { searchParams: Promise<
       position: si + 1,
       title: s.title,
       instructions: s.sees,
-      timeLimitSeconds: null,
       sceneKey: s.key,
       narration: s.narration,
       stopAfterMisses: chapter.stop_after_misses,

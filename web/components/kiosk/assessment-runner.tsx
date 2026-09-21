@@ -18,6 +18,12 @@ import type { SubmitState } from "@/app/(kiosk)/sit/actions";
  * The clock shown here is a courtesy. The server's clock decides; when it
  * runs out this component hands the paper in, and if it cannot, the expiry
  * sweep does.
+ *
+ * There is one clock, for the whole sitting. Parts used to carry their own
+ * limit and a child was pushed on when it ran out, which meant a child who
+ * needed longer on the English part lost those minutes even though they
+ * would have finished the Maths part early. The school asked for the trade
+ * to be the child's to make: spend the forty minutes where they are needed.
  */
 
 type Step =
@@ -36,10 +42,6 @@ type Step =
     };
 
 type Responses = Record<string, Json>;
-
-function partMinutes(seconds: number | null): string {
-  return seconds ? ` · ${Math.round(seconds / 60)} minutes for this part, starting when you press Start` : "";
-}
 
 function obj(v: Json | undefined): Record<string, Json | undefined> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, Json | undefined>) : {};
@@ -107,12 +109,6 @@ export function AssessmentRunner({
   const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
   const timeUp = remaining === 0;
 
-  // A section with its own limit (a 40-minute paper inside a longer
-  // sitting) gets a clock from the moment it opens. When it runs out the
-  // child moves on; the paper's overall clock still decides the whole
-  // sitting. The clock is kept here, so reopening the browser restarts it.
-  const [sectionOpenedAt, setSectionOpenedAt] = useState<Record<number, number>>({});
-
   // When the clock runs out, hand in — once. The grace period on the server
   // covers the round trip.
   const autoSubmitted = useRef(false);
@@ -150,19 +146,6 @@ export function AssessmentRunner({
 
   const step = steps[index];
   const isLast = index === steps.length - 1;
-  const currentSectionIndex = step.kind === "intro" || step.kind === "question" ? step.sectionIndex : null;
-  const currentSection = currentSectionIndex === null ? null : form.sections[currentSectionIndex];
-  const sectionLimit = currentSection?.timeLimitSeconds ?? null;
-  const sectionOpened = currentSectionIndex === null ? null : (sectionOpenedAt[currentSectionIndex] ?? null);
-  const sectionRemaining =
-    sectionLimit && sectionOpened ? Math.max(0, Math.floor((sectionOpened + sectionLimit * 1000 - now) / 1000)) : null;
-  const sectionUp = sectionRemaining === 0;
-  const nextSectionStart = useMemo(() => {
-    if (currentSectionIndex === null) return null;
-    const i = steps.findIndex((s) => s.kind === "intro" && s.sectionIndex === currentSectionIndex + 1);
-    return i < 0 ? null : i;
-  }, [steps, currentSectionIndex]);
-
   const answered = useMemo(
     () => steps.filter((s) => s.kind === "question" && !s.question.isPractice && responses[s.question.id] !== undefined).length,
     [steps, responses]
@@ -174,23 +157,9 @@ export function AssessmentRunner({
       clearTimeout(timers.current[step.question.id]);
       void save(step.question.id, responses[step.question.id] ?? null);
     }
-    if (step.kind === "intro" && form.sections[step.sectionIndex].timeLimitSeconds && !sectionOpenedAt[step.sectionIndex]) {
-      const started = Date.now();
-      setSectionOpenedAt((m) => ({ ...m, [step.sectionIndex]: started }));
-    }
     setIndex((i) => Math.min(steps.length - 1, i + 1));
     window.scrollTo({ top: 0 });
   };
-
-  // Time up on a section: move to the next section's intro (or the end).
-  useEffect(() => {
-    if (!sectionUp || step.kind !== "question") return;
-    const t = setTimeout(() => {
-      setIndex(nextSectionStart ?? steps.length - 1);
-      window.scrollTo({ top: 0 });
-    }, 0);
-    return () => clearTimeout(t);
-  }, [sectionUp, step.kind, nextSectionStart, steps.length]);
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
@@ -208,16 +177,6 @@ export function AssessmentRunner({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {sectionRemaining !== null && step.kind === "question" ? (
-            <p
-              className={cn("rounded-lg px-3 py-1.5 font-mono text-lg font-semibold tabular-nums", sectionRemaining < 300 ? "bg-warning/25 text-warning-foreground" : "bg-muted")}
-              aria-live="polite"
-              title="Time left in this part"
-            >
-              {String(Math.floor(sectionRemaining / 60)).padStart(2, "0")}:{String(sectionRemaining % 60).padStart(2, "0")}
-              <span className="ml-1 text-xs font-sans font-normal text-muted-foreground">this part</span>
-            </p>
-          ) : null}
           <p
             className={cn(
               "rounded-lg px-3 py-1.5 font-mono text-lg font-semibold tabular-nums",
@@ -243,8 +202,8 @@ export function AssessmentRunner({
             <p className="mt-3 text-lg leading-relaxed">{form.sections[step.sectionIndex].instructions}</p>
           ) : null}
           <p className="mt-3 text-base text-muted-foreground">
-            {form.sections[step.sectionIndex].questions.filter((q) => !q.isPractice).length} questions
-            {partMinutes(form.sections[step.sectionIndex].timeLimitSeconds)}.
+            {form.sections[step.sectionIndex].questions.filter((q) => !q.isPractice).length} questions. Take as
+            long as you need on this part — the clock at the top is for the whole assessment.
           </p>
         </section>
       ) : (
@@ -265,7 +224,7 @@ export function AssessmentRunner({
           }}
           value={responses[step.question.id]}
           onAnswer={(r) => answer(step.question, r)}
-          disabled={timeUp || sectionUp}
+          disabled={timeUp}
         />
       )}
 
