@@ -68,6 +68,8 @@ export async function ApplicantPhase2({
     canRecordOutcome: boolean;
     canDefer: boolean;
     canWithdraw: boolean;
+    canOfferTrial: boolean;
+    hasHadTrial: boolean;
     bookingWillBeCancelled: boolean;
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
@@ -297,12 +299,14 @@ export async function ApplicantPhase2({
               <h3 className="font-semibold">Record a decision</h3>
               {/* Gone the moment an outcome is recorded: the state machine
                   stops allowing one, so `canRecordOutcome` turns false and
-                  this whole card leaves with it. Pausing and closing moved to
-                  the sidebar, where they stay reachable at every stage. */}
+                  this whole card leaves with it. Pausing and closing are also
+                  in the sidebar, which is what stays reachable afterwards —
+                  the sidebar card hides while this one is up, so neither is
+                  offered twice. */}
               <p className="mt-1 text-xs text-muted-foreground">
                 {app.requires_assessment
                   ? "Overrides the rules engine. A reason is required and audited."
-                  : "Pre-school applicants are decided here. A reason is required and audited."}
+                  : "Pre-school applicants are decided here — or invited to a free trial week first. A reason is required and audited."}
               </p>
               <ActionForm
                 action={recordDecision}
@@ -312,7 +316,14 @@ export async function ApplicantPhase2({
                 confirm="Record this decision? It is audited and the parent will be informed."
               >
                 {idField}
-                <DecisionFields canRecordOutcome canDefer={false} canWithdraw={false} />
+                <DecisionFields
+                  canRecordOutcome
+                  canDefer={decision.canDefer}
+                  canWithdraw={decision.canWithdraw}
+                  canOfferTrial={decision.canOfferTrial}
+                  hasHadTrial={decision.hasHadTrial}
+                  bookingWillBeCancelled={decision.bookingWillBeCancelled}
+                />
               </ActionForm>
             </div>
           ) : null}

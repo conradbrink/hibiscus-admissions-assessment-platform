@@ -16,6 +16,7 @@ import { loadCatalogue } from "@/lib/enquiry";
 import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
+import { offerTrialWeek } from "@/lib/workflow/trial-week";
 import { requireStaffAction } from "@/lib/staff/session";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
@@ -175,9 +176,35 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const raw = Object.fromEntries(formData);
-    const outcome = z.enum(["approved", "deferred", "withdrawn"]).parse(raw.outcome);
+    const outcome = z.enum(["trial_week", "approved", "deferred", "withdrawn"]).parse(raw.outcome);
     const paused = outcome === "deferred" || outcome === "withdrawn";
     const ctx = await requireStaffAction(paused ? "applications.write" : "decisions.override");
+
+    // The free trial week shares this form because it is one of the things a
+    // person chooses between while looking at an undecided child — but it is
+    // not a decision and writes none. It invites the family and leaves the
+    // application where it is, exactly as the review queue's own button does.
+    if (outcome === "trial_week") {
+      const parsed = idSchema
+        .extend({
+          startsOn: z.string().trim(),
+          endsOn: z.string().trim().optional().or(z.literal("")),
+          note: z.string().trim().max(500).optional().or(z.literal("")),
+        })
+        .parse(raw);
+      const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+      await offerTrialWeek(admin, app, {
+        startsOn: parsed.startsOn,
+        endsOn: parsed.endsOn || null,
+        note: parsed.note || null,
+        actor: ctx.actor,
+      });
+      // The invitation is a job; run the queue now so the email goes while the
+      // person is still looking at the screen.
+      drainSoon();
+      done(parsed.applicationId);
+      return;
+    }
 
     if (outcome === "withdrawn") {
       // The code is required and the note is not. It is the other way round
