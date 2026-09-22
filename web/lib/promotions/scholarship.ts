@@ -50,10 +50,12 @@ export type ScholarshipFacts = {
   /** "50%", for the letter and the WhatsApp. */
   award: string;
   /**
-   * Tuition for one term after the award, formatted — "P9,495" — or null when
-   * the campus and grade have no priced schedule yet. Null rather than zero,
-   * because a letter saying a term costs nothing would be a worse lie than
-   * one that omits the figure.
+   * Tuition for one term after the award, formatted by `formatMoney` — so
+   * "P 9,495.00", the house style, and the same string the offer letter and
+   * the payment emails use for the same figure. Null when the campus and
+   * grade have no priced schedule yet: null rather than zero, because a
+   * letter saying a term costs nothing would be a worse lie than one that
+   * omits the figure.
    */
   tuitionPerTerm: string | null;
 };
