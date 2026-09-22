@@ -271,11 +271,34 @@ on conflict (key, version) do nothing;
 -- variable, closes on one too, and no variable can carry a newline. The manned
 -- number is last because a parent who has just been told not to reply here
 -- needs somewhere to go in the same breath.
-insert into public.message_templates (key, name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
+--
+-- **It does not name the award, and that is the point.** The first draft
+-- opened "we are delighted to tell you that {{2}} has been awarded a {{3}}
+-- scholarship" — which is a financial offer, and a Meta reviewer reads a
+-- financial offer as marketing however warmly it is phrased. That is what an
+-- INCORRECT_CATEGORY rejection is, and this account has already had one.
+--
+-- Every one of the thirty-four templates approved for this account so far is
+-- flatly transactional, and the only ones that name a sum (`payment_reminder`,
+-- `offer_accepted_pay`, `payment_received`) do so when the family already owes
+-- it. An unsolicited percentage is a different animal.
+--
+-- So the award stays in the email, where the whole letter is, and the message
+-- says the one thing it needs to: there is news, and here is how to book. The
+-- closing sentence is lifted verbatim from `booking_confirmed` and
+-- `callback_received`, both long since approved.
+--
+-- `meta_template_name` is what the provider knows this template as, and it is
+-- deliberately not the key. The key pairs the message with its email and is
+-- ours; the provider-side name is read by a human reviewer, and a template
+-- called "scholarship" whose body never mentions one is the kind of mismatch
+-- that makes a reviewer look harder. Named for what it says, and for the two
+-- it travels with: `interview_confirmed` and `interview_moved`.
+insert into public.message_templates (key, name, meta_template_name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
 values (
-  'scholarship_invitation', 'Scholarship invitation', 'en',
-  E'Hi {{1}}, we are delighted to tell you that {{2}} has been awarded a {{3}} scholarship at Hibiscus {{4}} for 2027. Please book an interview before {{5}} — tap below to choose a time. The full letter is in your email. Replies to this number are not read — message {{6}} if you need us.',
-  array['parent_first_name', 'student_first_name', 'scholarship_award', 'campus', 'interview_deadline', 'campus_whatsapp'],
+  'scholarship_invitation', 'Scholarship invitation', 'interview_invitation', 'en',
+  E'Hi {{1}}, there is an update on {{2}}\'s application to Hibiscus {{3}}. Please book an interview before {{4}} — tap below to choose a time. Replies here are not read; message {{5}} if you need us.',
+  array['parent_first_name', 'student_first_name', 'campus', 'interview_deadline', 'campus_whatsapp'],
   true, 'next_step', false, 'applicant'
 )
 on conflict (key) do nothing;
@@ -367,16 +390,16 @@ on conflict (key, version) do nothing;
 -- wording goes to Meta, and the row cannot be switched on until a provider id
 -- comes back. Declared now so the coverage suite sees a decision rather than a
 -- silence.
-insert into public.message_templates (key, name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
+insert into public.message_templates (key, name, meta_template_name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
 values
   (
-    'interview_confirmed', 'Scholarship interview confirmed', 'en',
+    'interview_confirmed', 'Scholarship interview confirmed', 'interview_confirmed', 'en',
     E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus is confirmed for {{4}} at {{5}}. Please come to reception and give your name. Tap below for the details and directions.',
     array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
     true, 'next_step', false, 'applicant'
   ),
   (
-    'interview_moved', 'Scholarship interview moved', 'en',
+    'interview_moved', 'Scholarship interview moved', 'interview_moved', 'en',
     E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus has moved. It is now on {{4}}, starting at {{5}}. Your earlier time has been released and nothing else changes. Tap below for the details.',
     array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
     true, 'next_step', false, 'applicant'
