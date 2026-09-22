@@ -48,6 +48,34 @@ describe("bounceReason", () => {
     expect(bounceReason("clicked", undefined)).toBeNull();
   });
 
+  /**
+   * The payload is `JSON.parse` output with a type asserted onto it, so the
+   * compiler's word is worth nothing here. Before this was narrowed, a numeric
+   * `message` threw on `.trim()`, the route answered 500, and the provider
+   * retried a webhook that could never succeed — losing the one event that
+   * says a family never got their letter.
+   */
+  it("survives a payload whose fields are not strings", () => {
+    const junk = [
+      { message: 42 },
+      { message: { text: "nested" } },
+      { message: null },
+      { message: ["a"] },
+      { type: 1, subType: 2 },
+      { type: true, subType: null, message: undefined },
+    ];
+    for (const bounce of junk) {
+      expect(() => bounceReason("bounced", bounce as never)).not.toThrow();
+      expect(bounceReason("bounced", bounce as never)).toBeNull();
+    }
+  });
+
+  it("keeps the good half when only one field is junk", () => {
+    expect(bounceReason("bounced", { type: "Permanent", subType: 7, message: "gone" } as never)).toBe(
+      "Permanent: gone"
+    );
+  });
+
   it("truncates provider prose that runs long", () => {
     const reason = bounceReason("bounced", { message: "x".repeat(900) });
     expect(reason).toHaveLength(500);

@@ -13,6 +13,29 @@ import type { DeliveryEvent } from "@/lib/email/provider";
 /** Long provider prose truncated; the actionable part is always the front. */
 const LIMIT = 500;
 
+/**
+ * The value if it really is a non-empty string, else null.
+ *
+ * `BouncePayload` below is an annotation on the result of `JSON.parse`, and an
+ * annotation is a promise the compiler cannot keep: the payload is whatever a
+ * third party sent. A numeric `message` would have made `.trim()` throw, the
+ * route answer 500, and the provider retry a webhook that can never succeed —
+ * so the one delivery event that says a family never got their letter would be
+ * the one event we failed to record. Narrowing here rather than at the call
+ * site because this is the boundary, and a later caller should not have to
+ * remember.
+ */
+function str(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * What the provider is expected to send — a description of a payload, not a
+ * guarantee about one. Every field is read through `str` above, because this
+ * shape is asserted onto `JSON.parse` output and nothing verifies it.
+ */
 export type BouncePayload = {
   /** Resend: "Permanent" | "Transient" | "Undetermined". */
   type?: string;
@@ -48,8 +71,8 @@ export function bounceReason(
   }
   if (kind !== "bounced") return null;
 
-  const classification = [bounce?.type, bounce?.subType].filter(Boolean).join("/");
-  const prose = bounce?.message?.trim();
+  const classification = [str(bounce?.type), str(bounce?.subType)].filter(Boolean).join("/");
+  const prose = str(bounce?.message);
   const line = prose && classification ? `${classification}: ${prose}` : prose || classification;
   if (!line) return null;
   return line.length > LIMIT ? `${line.slice(0, LIMIT - 1)}…` : line;
