@@ -258,14 +258,11 @@ on conflict (key, version) do nothing;
 -- 7. The WhatsApp companion
 -- ---------------------------------------------------------------------------
 
--- Declared but **inactive**, and deliberately so: the wording is with Meta for
--- approval and there is no provider id for it yet. The row cannot be switched
--- on without one, which is the guard doing its job rather than a gap.
+-- Live: the provider id is the one Zavu returned for `interview_invitation`.
 --
 -- It is here rather than added later because the template coverage suite
--- refuses a parent-facing email nobody has decided about — and "we are waiting
--- on Meta" is a decision, where silence is how `fresh_link` ended up with no
--- companion and nobody noticing for a month.
+-- refuses a parent-facing email nobody has decided about — silence is how
+-- `fresh_link` ended up with no companion and nobody noticing for a month.
 --
 -- The wording obeys what this week taught us: it opens on a word rather than a
 -- variable, closes on one too, and no variable can carry a newline. The manned
@@ -294,12 +291,12 @@ on conflict (key, version) do nothing;
 -- called "scholarship" whose body never mentions one is the kind of mismatch
 -- that makes a reviewer look harder. Named for what it says, and for the two
 -- it travels with: `interview_confirmed` and `interview_moved`.
-insert into public.message_templates (key, name, meta_template_name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
+insert into public.message_templates (key, name, meta_template_name, zavu_template_id, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
 values (
-  'scholarship_invitation', 'Scholarship invitation', 'interview_invitation', 'en',
+  'scholarship_invitation', 'Scholarship invitation', 'interview_invitation', 'ks78nnfpb0yhg55aqdr70sk96n8ex2ae', 'en',
   E'Hi {{1}}, there is an update on {{2}}\'s application to Hibiscus {{3}}. Please book an interview before {{4}} — tap below to choose a time. Replies here are not read; message {{5}} if you need us.',
   array['parent_first_name', 'student_first_name', 'campus', 'interview_deadline', 'campus_whatsapp'],
-  true, 'next_step', false, 'applicant'
+  true, 'next_step', true, 'applicant'
 )
 on conflict (key) do nothing;
 
@@ -386,23 +383,23 @@ Hibiscus International Schools Admissions',
 )
 on conflict (key, version) do nothing;
 
--- Both companions inactive, for the same reason as the invitation above: the
--- wording goes to Meta, and the row cannot be switched on until a provider id
--- comes back. Declared now so the coverage suite sees a decision rather than a
--- silence.
-insert into public.message_templates (key, name, meta_template_name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
+-- Both live, with the provider ids Zavu returned. They matter from the moment
+-- the first family books: before these keys existed, `bookingConfirmedTemplateKey`
+-- sent a scholarship child the play-date message, and the word alone would have
+-- sent them the campus-tour one instead.
+insert into public.message_templates (key, name, meta_template_name, zavu_template_id, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
 values
   (
-    'interview_confirmed', 'Scholarship interview confirmed', 'interview_confirmed', 'en',
+    'interview_confirmed', 'Scholarship interview confirmed', 'interview_confirmed', 'ks7fwdktz0kcs852jx49nnqsb58ex98d', 'en',
     E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus is confirmed for {{4}} at {{5}}. Please come to reception and give your name. Tap below for the details and directions.',
     array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
-    true, 'next_step', false, 'applicant'
+    true, 'next_step', true, 'applicant'
   ),
   (
-    'interview_moved', 'Scholarship interview moved', 'interview_moved', 'en',
+    'interview_moved', 'Scholarship interview moved', 'interview_moved', 'ks75c070sn72y2xk3m06q8m4wx8exzd0', 'en',
     E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus has moved. It is now on {{4}}, starting at {{5}}. Your earlier time has been released and nothing else changes. Tap below for the details.',
     array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
-    true, 'next_step', false, 'applicant'
+    true, 'next_step', true, 'applicant'
   )
 on conflict (key) do nothing;
 
