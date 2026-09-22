@@ -57,10 +57,66 @@ const PLACEMENT = [
 /** Until the family gives the real one on the registration form. */
 const PLACEHOLDER_DOB = "2010-01-01";
 
+/**
+ * Corrections a person checked and confirmed, applied to the sheet before it
+ * is read.
+ *
+ * The roster parser refuses anything it cannot send to, and refuses rather
+ * than guesses: `fenterh@gmailcom` is obviously a missing dot, and inventing
+ * it would put a child's scholarship letter into the void while the run
+ * reported success. But "obviously" is not the same as "confirmed", so the
+ * correction lives here, where it is a line of code somebody approved in a
+ * pull request rather than a silent repair inside a parser.
+ *
+ * Each entry names who confirmed it, because in a year nobody will remember
+ * whether the address came from the school or from a guess. Applied to the
+ * raw cells, so a corrected row is then validated exactly like every other —
+ * a correction that is itself malformed is still refused.
+ */
+const CORRECTIONS: Array<{ student: string; email?: string; why: string }> = [
+  {
+    student: "Tanyaradzwa Vivian Chibaya",
+    email: "fenterh@gmail.com",
+    why: "sheet reads fenterh@gmailcom; the missing dot confirmed by the school, 22 Sep 2026",
+  },
+  // Larona Tlotliso Faith Setlhare has no email in the sheet at all. The
+  // school is asking the family for one (74130016 / 72889337) alongside the
+  // primary cohort's contact list. Until it arrives she cannot be reached,
+  // and a row with no address must stay refused rather than be invented.
+];
+
+/**
+ * Apply the confirmed corrections, and say out loud which ones were used.
+ *
+ * A correction that matches nothing is reported rather than ignored: it means
+ * the name was mistyped here, or the spreadsheet has been replaced with one
+ * that no longer contains that child — and silently doing nothing would leave
+ * a family unreachable with a line of code claiming otherwise.
+ */
+function correct(sheets: Array<{ name: string; rows: string[][] }>): Array<{ name: string; rows: string[][] }> {
+  const used = new Set<string>();
+  const out = sheets.map((sheet) => ({
+    name: sheet.name,
+    rows: sheet.rows.map((cells) => {
+      const fix = CORRECTIONS.find((c) => (cells[1] ?? "").trim() === c.student);
+      if (!fix) return cells;
+      used.add(fix.student);
+      const copy = [...cells];
+      if (fix.email) copy[4] = fix.email;
+      return copy;
+    }),
+  }));
+  for (const c of CORRECTIONS) {
+    const line = used.has(c.student) ? `  applied: ${c.student} — ${c.why}` : `  NOT MATCHED: ${c.student} — is the name right, or has the file changed?`;
+    console.log(line);
+  }
+  return out;
+}
+
 describe.skipIf(!file)("scholarship import", () => {
   it("imports the roster", { timeout: 600_000 }, async () => {
     const sheets = readWorkbook(readFileSync(file as string));
-    const { rows, problems } = readRoster(sheets);
+    const { rows, problems } = readRoster(correct(sheets));
 
     let wanted = rows;
     if (only) wanted = wanted.filter((r) => r.email.toLowerCase() === only);
