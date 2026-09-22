@@ -12,7 +12,7 @@ import { paymentReferenceFor } from "@/lib/payments/reference";
 import { scholarshipFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
-import { getSettings } from "@/lib/settings";
+import { getSettings, type Settings } from "@/lib/settings";
 import { mintToken, siteUrl } from "@/lib/tokens";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
@@ -129,6 +129,10 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     booking_kind: bookingNoun({
       requiresAssessment: application.requires_assessment,
       bookingKind: booking?.kind ?? null,
+      // Off the graph rather than off `extras`, so the word is right even for
+      // a send that carries no scholarship figures — a document reminder to a
+      // scholarship family still has to call the thing an interview.
+      scholarship: Boolean(graph.scholarship),
     }),
     // Null renders as empty and satisfies an {{#if}}, so a template that
     // references a link its send did not mint simply omits it.
@@ -438,6 +442,34 @@ async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Pr
   return { result: { status: "sent", messageId: message.id }, renderedSubject: subject };
 }
 
+/**
+ * The scholarship half of a message's variables, for either channel.
+ *
+ * Shared rather than written twice because the two channels had already
+ * drifted: the email path looked the award up and the WhatsApp path did not,
+ * so `scholarship_award` and `interview_deadline` arrived empty on every
+ * companion send — and the blank-parameter guard, correctly, refused to post a
+ * sentence with a hole in it. The WhatsApp companion of the scholarship
+ * invitation could never have sent a single message to any of the eighty
+ * families. It was latent only because the template is waiting on Meta; the
+ * day somebody pasted the provider id it would have produced eighty skipped
+ * rows and no messages.
+ *
+ * One function, spread by both callers, is the shape that cannot drift again.
+ */
+export async function scholarshipExtras(
+  admin: AdminClient,
+  graph: ApplicationGraph,
+  settings: Settings
+): Promise<Pick<EmailExtras, "scholarshipAward" | "tuitionPerTerm" | "interviewDeadline">> {
+  const award = await scholarshipFor(admin, graph);
+  return {
+    scholarshipAward: award?.award ?? null,
+    tuitionPerTerm: award?.tuitionPerTerm ?? null,
+    interviewDeadline: award ? formatDateLong(settings.scholarshipInterviewDeadline) : null,
+  };
+}
+
 export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplatedOptions): Promise<SendTemplatedResult> {
   const graph = await loadApplicationGraph(admin, opts.applicationId);
   if (!graph) return { status: "skipped", reason: "application missing" };
@@ -449,21 +481,14 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  // Looked up once per send rather than threaded through every caller: a
-  // scholarship is a fact about the application, and any template may want to
-  // name it. Null for everyone else, so the word cannot leak into a letter
-  // that has nothing to do with the programme.
-  const award = await scholarshipFor(admin, graph);
   const extras: EmailExtras & { expiresAt: Date | null } = {
     ...offer,
     ...pay,
+    ...(await scholarshipExtras(admin, graph, settings)),
     missingDocuments: opts.missingDocuments ?? null,
     mismatchDetails: opts.mismatchDetails ?? null,
     outstandingItems: opts.outstandingItems ?? null,
     allReceived: opts.allReceived ?? false,
-    scholarshipAward: award?.award ?? null,
-    tuitionPerTerm: award?.tuitionPerTerm ?? null,
-    interviewDeadline: award ? formatDateLong(settings.scholarshipInterviewDeadline) : null,
   };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,

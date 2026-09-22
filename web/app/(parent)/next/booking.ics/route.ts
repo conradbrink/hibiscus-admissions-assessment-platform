@@ -15,7 +15,7 @@ export async function GET() {
   if (!graph?.booking) return new Response("Not found", { status: 404 });
 
   const { application: app, campus, booking } = graph;
-  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind, scholarship: Boolean(graph.scholarship) });
   const ics = buildIcs({
     uid: booking.id,
     // In a calendar the child's name is what makes the entry findable, and

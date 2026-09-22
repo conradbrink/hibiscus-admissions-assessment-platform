@@ -427,20 +427,66 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
  * The copy for one next action, with the booking called what this family's
  * booking is called.
  *
- * Only `attend_visit` moves: a pre-school family books a play date and a
- * primary family looking around books a visit, and both store the same
- * `next_action`. Adding a second code would mean a constraint change and a
- * second row in every consumer, for one word.
+ * Several tracks share one set of `next_action` codes: a pre-school family
+ * books a play date, a primary family looking around books a visit, and a
+ * scholarship child comes for an interview, but all three store
+ * `book_assessment` and `attend_visit`. Adding a code per track would mean a
+ * constraint change and a new row in every consumer, for one word.
+ *
+ * Which is why this switches on the **noun** rather than special-casing one
+ * string. It used to rewrite `attend_visit` and only when the noun was
+ * exactly "play date", which meant a scholarship family read "Your next step
+ * is to book an assessment" under a button marked "Book assessment" — while
+ * the routing code that put them there carried a comment promising the noun
+ * would make it read "book your interview". It did not. A table of arms makes
+ * the gap visible instead of leaving it to a reader to notice.
  */
 export function nextActionCopy(action: NextAction, input: BookingNounInput): NextActionCopy {
   const copy = NEXT_ACTIONS[action];
-  if (action !== "attend_visit" || bookingNoun(input) !== "play date") return copy;
-  return {
-    parentTitle: "Your next step is to come for the play date.",
-    parentDetail: "Come and play, look around, and ask us anything. There is nothing to bring.",
-    parentCta: { label: "View play date", href: "/next/booking" },
-    staffLabel: "Attend play date",
-  };
+  const noun = bookingNoun(input);
+
+  if (noun === "play date" && action === "attend_visit") {
+    return {
+      parentTitle: "Your next step is to come for the play date.",
+      parentDetail: "Come and play, look around, and ask us anything. There is nothing to bring.",
+      parentCta: { label: "View play date", href: "/next/booking" },
+      staffLabel: "Attend play date",
+    };
+  }
+
+  // An interview is a conversation, not a test, and every one of these four
+  // codes otherwise says "assessment" to a family the school has told in
+  // writing that there is no assessment.
+  if (noun === "interview") {
+    switch (action) {
+      case "book_assessment":
+        return {
+          parentTitle: "Your next step is to book the interview.",
+          parentDetail: "Choose a date and time that suits you. It takes about a minute.",
+          parentCta: { label: "Book interview", href: "/next/book" },
+          staffLabel: "Parent to book interview",
+        };
+      case "attend_assessment":
+      case "attend_visit":
+        return {
+          parentTitle: "Your next step is to come for the interview.",
+          parentDetail: "Arrive ten minutes early and give reception your name. There is nothing to prepare and nothing to bring.",
+          parentCta: { label: "View interview", href: "/next/booking" },
+          staffLabel: "Attend interview",
+        };
+      case "rebook_assessment":
+        return {
+          parentTitle: "We missed you — let's find another time.",
+          parentDetail: "Choose a new date and time for the interview.",
+          parentCta: { label: "Rebook interview", href: "/next/book" },
+          staffLabel: "Parent to rebook interview after no-show",
+        };
+      default:
+        return copy;
+    }
+  }
+
+  return copy;
 }
 
 export function isNextAction(value: string | null | undefined): value is NextAction {

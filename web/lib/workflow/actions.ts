@@ -213,10 +213,19 @@ export async function onBookingCreated(
   const live = { booking_id: booking.id, booking_status: ["booked"] };
 
   if (booking.kind === "visit") {
-    // A pre-school family books a play date; a primary family books a visit.
-    // One stored kind, two words and two templates — `visit_confirmed` is
-    // approved with Zavu for the look-around door and is left alone.
-    const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking.kind };
+    // A pre-school family books a play date, a primary family books a visit,
+    // and a scholarship child comes for an interview. One stored kind, three
+    // words and three template pairs — `visit_confirmed` is approved with Zavu
+    // for the look-around door and is left alone.
+    //
+    // The award is read here rather than passed in because this is the only
+    // branch a scholarship child reaches: the assessment path below pays
+    // nothing for it.
+    const nounInput = {
+      requiresAssessment: app.requires_assessment,
+      bookingKind: booking.kind,
+      scholarship: Boolean(await scholarshipCodeFor(admin, app.id)),
+    };
     const noun = bookingNoun(nounInput);
     // Null when the application is past the booking stage: the visit is
     // recorded and confirmed, and where the family actually is — awaiting an
@@ -469,7 +478,7 @@ export async function onBookingCancelled(
     .in("status", ["booked", "checked_in"]);
   if (error) throw new WorkflowError(error.message, "database");
   const settings = await getSettings(admin);
-  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind, scholarship: Boolean(await scholarshipCodeFor(admin, app.id)) });
 
   await commit(admin, {
     applicationId: app.id,

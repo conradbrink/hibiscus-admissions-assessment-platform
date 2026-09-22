@@ -22,6 +22,7 @@ import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { canBeDecided, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import { monthChoices, startLabel } from "@/lib/start-month";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import {
   addApplicantTask,
   addNote,
@@ -147,14 +148,16 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     supabase.from("trial_weeks").select("*").eq("application_id", id).order("created_at", { ascending: false }),
   ]);
 
-  const [summaryInputs, { data: storedSummary }, settings] = await Promise.all([
+  const [summaryInputs, { data: storedSummary }, settings, { data: award }] = await Promise.all([
     loadSummaryInputs(supabase, id),
     supabase.from("application_summaries").select("*").eq("application_id", id).maybeSingle(),
     getSettings(supabase),
+    supabase.from("application_promotions").select("promotions(code)").eq("application_id", id).maybeSingle(),
   ]);
+  const scholarship = isScholarshipCode(one(award?.promotions)?.code ?? null);
   const summary = summaryInputs ? summaryView(summaryInputs, storedSummary ?? null, settings.aiSummaryEnabled) : null;
   const bookingSession = booking ? one(booking.sessions) : null;
-  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null };
+  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null, scholarship };
   const na = isNextAction(app.next_action) ? nextActionCopy(app.next_action, nounInput) : null;
   const canWrite = can(permissions, "applications.write");
   const canAddTask = can(permissions, "tasks.write");

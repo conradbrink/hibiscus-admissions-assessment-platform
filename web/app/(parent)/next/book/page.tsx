@@ -6,7 +6,7 @@ import { PageHeader, StepIndicator } from "@/components/parent/page-header";
 import { SlotPicker } from "@/components/parent/slot-picker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
-import { loadAvailableSlots } from "@/lib/enquiry";
+import { loadAvailableSlots, parseDeadline } from "@/lib/enquiry";
 import { formatDateLong, formatTime, withinCutoff } from "@/lib/format-date";
 import { nextBookingKind } from "@/lib/booking/kind";
 import { bookingNoun } from "@/lib/booking/noun";
@@ -39,25 +39,37 @@ export default async function BookPage() {
   // Pre-school parents who came through the assessment door can still book
   // a visit; the exempt track never offers an assessment.
   const effectiveKind = app.requires_assessment ? kind : "visit";
-  // Same stored kind, two words: a pre-school family books a play date.
-  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: effectiveKind });
+  // Same stored kind, three words: a pre-school family books a play date and
+  // a scholarship child comes for an interview.
+  const scholarship = Boolean(graph.scholarship);
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: effectiveKind, scholarship });
+  const settings = await getSettings(admin);
+
+  // The award runs to a deadline the school has already put to 172 families in
+  // writing, so a slot past it cannot be honoured and is not offered. Without
+  // this the picker happily sells a family a date in November and the letter
+  // is the only thing that knows better.
+  const deadline = scholarship ? parseDeadline(settings.scholarshipInterviewDeadline) : null;
 
   const days = await loadAvailableSlots(admin, {
     campusId: campus.id,
     kind: effectiveKind,
     gradeSort: grade.sort_order,
+    notAfter: deadline,
   });
 
   // A visit already attended is not the booking being changed: what follows
   // it is a new booking of a different kind.
   const changing = Boolean(graph.booking) && !(visited && effectiveKind === "assessment");
-  const settings = await getSettings(admin);
   const locked = graph.booking ? withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours) : false;
   // After a no-show, name the session they missed so the page reads as a continuation, not a fresh start.
   const { data: missed } = !changing && app.status === "no_show"
     ? await admin.from("bookings").select("sessions(starts_at)").eq("application_id", app.id).eq("status", "no_show").order("updated_at", { ascending: false }).limit(1).maybeSingle()
     : { data: null };
   const missedSession = missed ? (Array.isArray(missed.sessions) ? missed.sessions[0] : missed.sessions) : null;
+  // The booking that already exists, which is what the cutoff message is
+  // about — deliberately not `effectiveKind`, which is the one being made.
+  const currentNoun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: graph.booking?.kind ?? null, scholarship });
 
   return (
     <>
@@ -71,14 +83,18 @@ export default async function BookPage() {
               ? `Choose a time for ${app.child_first_name}'s assessment`
               : noun === "play date"
                 ? `Choose a time for ${app.child_first_name}'s play date`
-                : `Choose a time to visit ${campus.name}`
+                : noun === "interview"
+                  ? `Choose a time for ${app.child_first_name}'s interview`
+                  : `Choose a time to visit ${campus.name}`
         }
         description={
           noun === "assessment"
             ? `${grade.name} at ${campus.name}. Assessments take between 45 and 90 minutes.`
             : noun === "play date"
               ? `${grade.name} at ${campus.name}. Come and play, meet the teachers and see the room; the school confirms ${app.child_first_name}'s place afterwards.`
-              : `We will show you around and answer your questions.`
+              : noun === "interview"
+                ? `${grade.name} at ${campus.name}. A conversation with ${app.child_first_name} and with you — there is no entrance test, and nothing to prepare.`
+                : `We will show you around and answer your questions.`
         }
       />
       {missedSession ? (
@@ -88,9 +104,27 @@ export default async function BookPage() {
       ) : null}
       {locked ? (
         <div className="surface p-5">
-          <p className="font-semibold">Your {bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: graph.booking?.kind ?? null })} is less than {settings.rescheduleCutoffHours} hours away.</p>
+          <p className="font-semibold">Your {currentNoun} is less than {settings.rescheduleCutoffHours} hours away.</p>
           <p className="mt-1 text-sm text-muted-foreground">Bookings this close cannot be changed online. Please call {campus.name} and they will help.</p>
           <Link href="/next/booking" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">Back to your booking</Link>
+        </div>
+      ) : days.length === 0 && deadline ? (
+        // The hole `notAfter` would otherwise leave. A scholarship family
+        // opening the link after the deadline would have been told "as soon
+        // as new dates are published we will email you a link" — a promise
+        // the school will not keep, because there are no more interview dates
+        // for them. Say what happened and give them somebody to talk to.
+        <div className="surface p-5">
+          <p className="font-semibold">Interviews closed on {formatDateLong(deadline)}.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            There are no interview times left for {app.child_first_name} at {campus.name}. Please
+            speak to us — we would rather hear from you than have you miss the place.
+            {campus.phone ? ` Call ${campus.phone}` : ""}
+            {campus.phone && campus.whatsapp ? ` or message ${campus.whatsapp}.` : campus.whatsapp ? ` Message us on ${campus.whatsapp}.` : campus.phone ? "." : ""}
+          </p>
+          <Link href="/next" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">
+            Back to your application
+          </Link>
         </div>
       ) : days.length === 0 ? (
         <div className="surface p-5">

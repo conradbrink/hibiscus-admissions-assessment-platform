@@ -73,17 +73,42 @@ export async function clearPromotion(admin: AdminClient, applicationId: string):
 }
 
 /**
+ * The deal already recorded on an application, and nothing else.
+ *
+ * A read, and only a read. `resolvePromotion` below will *attach* a deal as a
+ * side effect of being asked whether there is one, which is right when an
+ * offer is being drafted and wrong everywhere else — asking a question should
+ * not hand a family a discount. Anything that only wants to know reads this.
+ *
+ * The error is checked rather than discarded: a database fault that returned
+ * null here would read as "this family has no deal", and the caller would go
+ * on to send the ordinary letter to a scholarship child.
+ */
+export async function promotionOn(admin: AdminClient, applicationId: string): Promise<ResolvedPromotion | null> {
+  const { data, error } = await admin.from("application_promotions").select("*").eq("application_id", applicationId).maybeSingle();
+  if (error) throw new WorkflowError(error.message, "database");
+  if (!data) return null;
+  const promo = await loadPromotionSummary(admin, data.promotion_id);
+  // `promotion_id` is `references promotions(id) on delete restrict`, so a row
+  // pointing at nothing cannot exist. Saying so out loud matters because the
+  // alternative — returning null — would read as "no deal" to `resolvePromotion`
+  // and send it off to attach a different one.
+  if (!promo) throw new WorkflowError(`promotion ${data.promotion_id} is recorded on an application but missing`, "database");
+  return { promo, source: data.source };
+}
+
+/**
  * The deal for this application: the one already on it, else the parent's
  * code if it qualifies, else the first rule-based deal that applies. A code
  * that does not qualify is left on the application for staff to see and
  * applies nothing.
+ *
+ * Writes when it lands on a code or a rule. Only call it where attaching a
+ * deal is intended; `promotionOn` is the read.
  */
 export async function resolvePromotion(admin: AdminClient, graph: ApplicationGraph): Promise<ResolvedPromotion | null> {
-  const { data: existing } = await admin.from("application_promotions").select("*").eq("application_id", graph.application.id).maybeSingle();
-  if (existing) {
-    const promo = await loadPromotionSummary(admin, existing.promotion_id);
-    return promo ? { promo, source: existing.source } : null;
-  }
+  const existing = await promotionOn(admin, graph.application.id);
+  if (existing) return existing;
 
   const { data: candidates, error } = await admin.from("promotions").select("*").eq("is_active", true).order("created_at");
   if (error) throw new WorkflowError(error.message, "database");

@@ -1,7 +1,7 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
-import { buildVariables, linkTtlDays, offerExtras, paymentExtras, type EmailExtras, type EmailLinks, type LinkPurpose } from "@/lib/email/send";
+import { buildVariables, linkTtlDays, offerExtras, paymentExtras, scholarshipExtras, type EmailExtras, type EmailLinks, type LinkPurpose } from "@/lib/email/send";
 import { recordMessageEvent } from "@/lib/messaging/audit";
 import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
 import type { TemplateIdField } from "@/lib/messaging/provider";
@@ -112,7 +112,16 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
 
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null };
+  // The scholarship figures come from the same helper the email uses. Without
+  // them `scholarship_award` and `interview_deadline` render empty, and the
+  // blank-parameter guard below refuses the send — so the companion of the
+  // scholarship invitation could never have reached anybody.
+  const extras: EmailExtras & { expiresAt: Date | null } = {
+    ...offer,
+    ...pay,
+    ...(await scholarshipExtras(admin, graph, settings)),
+    missingDocuments: opts.missingDocuments ?? null,
+  };
 
   const links: EmailLinks = { nextStep: "" };
   let buttonSuffix: string | null = null;

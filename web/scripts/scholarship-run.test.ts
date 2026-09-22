@@ -10,12 +10,18 @@ import { importScholarshipRoster, placementFor } from "@/lib/scholarship/import"
  *
  *   cd web
  *   SCHOLARSHIP_FILE=/path/to/highschool_scholarships_Block_7.xlsx \
- *   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… \
- *     npx vitest run lib/scholarship/run.test.ts
+ *     npx vitest run --config scripts/scholarship.vitest.config.ts
  *
- * Add `SCHOLARSHIP_COMMIT=1` to write; without it nothing is created and the
- * run only reports. `SCHOLARSHIP_LIMIT=1` does one family, which is how the
- * first eighty should start.
+ * That is the dry run, and it needs no credentials at all. To write, add the
+ * service role key and the commit flag:
+ *
+ *   SCHOLARSHIP_FILE=… SCHOLARSHIP_COMMIT=1 SCHOLARSHIP_LIMIT=1 \
+ *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… \
+ *     npx vitest run --config scripts/scholarship.vitest.config.ts
+ *
+ * `SCHOLARSHIP_LIMIT=1` does one family, which is how the first eighty should
+ * start. `NEXT_PUBLIC_SUPABASE_URL` is the name `createAdminClient` reads, odd
+ * as it looks beside a service role key.
  *
  * It is a test file because vitest is the only thing in this repository that
  * resolves the `@/` aliases the libraries import by — plain node cannot load
@@ -23,11 +29,11 @@ import { importScholarshipRoster, placementFor } from "@/lib/scholarship/import"
  * modules beside this one, with their own tests; this file only reads the
  * environment and prints.
  *
- * **It does nothing at all unless `SCHOLARSHIP_FILE` is set**, so it sits in
- * the ordinary suite as a skip. The guard is the environment rather than
- * where the file lives: a guard that depends on a glob is not a guard, and
- * nobody widening an include pattern should thereby import eighty families
- * into production.
+ * **It does nothing at all unless `SCHOLARSHIP_FILE` is set.** It has its own
+ * config, so `npm test` never collects it — but the environment guard is the
+ * one that matters: a guard that depends on a glob is not a guard, and nobody
+ * widening an include pattern should thereby import eighty families into
+ * production.
  */
 
 const file = process.env.SCHOLARSHIP_FILE;
@@ -64,14 +70,9 @@ describe.skipIf(!file)("scholarship import", () => {
     // to do that — needing credentials to find out what *would* happen is how
     // people skip the dry run and go straight to the real one.
     if (!commit) {
-      const classes = new Map<string, number>();
-      for (const r of wanted) classes.set(r.className, (classes.get(r.className) ?? 0) + 1);
       console.log(`\nDRY RUN — nothing written, no database touched`);
       console.log(`read ${rows.length}, would attempt ${wanted.length}`);
-      for (const [className, n] of [...classes].sort()) {
-        const campus = PLACEMENT.find((p) => p.className === className)?.campusName ?? "NO CAMPUS MAPPED";
-        console.log(`  ${String(n).padStart(3)} × ${className.padEnd(8)} → ${campus}`);
-      }
+      tallies(wanted);
       report(problems, [], wanted);
       expect(wanted.every((r) => PLACEMENT.some((p) => p.className === r.className)), "a class has no campus mapped").toBe(true);
       return;
@@ -99,6 +100,7 @@ describe.skipIf(!file)("scholarship import", () => {
     console.log(`\nCOMMITTED`);
     console.log(`read ${rows.length}, attempted ${wanted.length}`);
     console.log(`created ${outcome.created} · already there ${outcome.existing} · refused ${outcome.refused}`);
+    tallies(wanted);
     report(problems, outcome.rows, wanted);
     for (const r of outcome.rows) {
       const ref = "reference" in r.outcome ? r.outcome.reference : "—";
@@ -107,6 +109,32 @@ describe.skipIf(!file)("scholarship import", () => {
     expect(outcome.refused, "some rows were refused by the database").toBe(0);
   });
 });
+
+/**
+ * The two counts a person reconciles against the school's own figures.
+ *
+ * The awards matter as much as the classes. A band this intake never created —
+ * `SCHOLARSHIP-35` from a mistyped cell — is refused by the database when the
+ * run commits, but the dry run deliberately needs no credentials and so never
+ * reaches that check. Printing the tally is what makes the typo visible before
+ * anybody spends a service role key on it, and reconciling both lists is the
+ * step the plan asks for anyway.
+ */
+function tallies(rows: Array<{ className: string; promotionCode: string }>): void {
+  const count = <T,>(items: T[], key: (t: T) => string) => {
+    const m = new Map<string, number>();
+    for (const i of items) m.set(key(i), (m.get(key(i)) ?? 0) + 1);
+    return [...m].sort();
+  };
+  for (const [className, n] of count(rows, (r) => r.className)) {
+    const campus = PLACEMENT.find((p) => p.className === className)?.campusName ?? "NO CAMPUS MAPPED";
+    console.log(`  ${String(n).padStart(3)} × ${className.padEnd(8)} → ${campus}`);
+  }
+  console.log("");
+  for (const [code, n] of count(rows, (r) => r.promotionCode)) {
+    console.log(`  ${String(n).padStart(3)} × ${code}`);
+  }
+}
 
 /** What a person has to look at afterwards, whether or not anything was written. */
 function report(

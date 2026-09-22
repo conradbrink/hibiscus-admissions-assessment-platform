@@ -39,11 +39,18 @@ export type BookingNounInput = {
    */
   bookingKind?: "assessment" | "visit" | null;
   /**
-   * Whether the application carries a scholarship award. Optional so that the
-   * dozens of call sites that predate scholarships keep compiling and keep
-   * their old answer; only the surfaces a scholarship family sees pass it.
+   * Whether the application carries a scholarship award.
+   *
+   * Required, and it has to be. It was optional first, so that the call sites
+   * predating scholarships would keep compiling — and every one of them then
+   * kept its old answer, which is to say a Form 3 scholarship student was
+   * invited to a play date on every screen and in every email. Nothing caught
+   * it: the code compiled and the tests passed their own argument.
+   *
+   * Required makes the compiler ask the question at all fourteen call sites,
+   * which is the only reason anybody answers it.
    */
-  scholarship?: boolean;
+  scholarship: boolean;
 };
 
 export function bookingNoun({ requiresAssessment, bookingKind, scholarship }: BookingNounInput): BookingNoun {
@@ -67,12 +74,21 @@ export function bookingNounPlural(input: BookingNounInput): string {
 /**
  * The template confirming a booking that is not an assessment.
  *
- * Pre-school gets its own key rather than a reworded `visit_confirmed`,
- * because `visit_confirmed` is approved with Zavu for the primary look-around
- * door and changing its words sends it back for approval.
+ * Each track gets its own key rather than one reworded template, because each
+ * is separately approved with the provider and changing the words of a live
+ * one sends it back to Meta for approval.
+ *
+ * A scholarship interview needs the third key, and this is the one place
+ * where knowing about the award but having nowhere to put it is *worse* than
+ * not knowing. Without `interview_confirmed`, "play date" sends a Form 3
+ * family "there is nothing to bring and a teacher will take you both
+ * through", and "visit" sends them "we look forward to showing you the
+ * school" — a campus tour, when they are coming to be interviewed.
  */
-export function bookingConfirmedTemplateKey(input: BookingNounInput): "playdate_confirmed" | "visit_confirmed" {
-  return bookingNoun(input) === "play date" ? "playdate_confirmed" : "visit_confirmed";
+export function bookingConfirmedTemplateKey(input: BookingNounInput): "playdate_confirmed" | "visit_confirmed" | "interview_confirmed" {
+  const noun = bookingNoun(input);
+  if (noun === "interview") return "interview_confirmed";
+  return noun === "play date" ? "playdate_confirmed" : "visit_confirmed";
 }
 
 /**
@@ -88,6 +104,8 @@ export function bookingConfirmedTemplateKey(input: BookingNounInput): "playdate_
  * reason: pre-school and primary are separately approved with the provider, so
  * one reworded template cannot serve both doors.
  */
-export function bookingMovedTemplateKey(input: BookingNounInput): "playdate_moved" | "visit_moved" {
-  return bookingNoun(input) === "play date" ? "playdate_moved" : "visit_moved";
+export function bookingMovedTemplateKey(input: BookingNounInput): "playdate_moved" | "visit_moved" | "interview_moved" {
+  const noun = bookingNoun(input);
+  if (noun === "interview") return "interview_moved";
+  return noun === "play date" ? "playdate_moved" : "visit_moved";
 }

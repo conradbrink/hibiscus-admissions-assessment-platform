@@ -19,7 +19,7 @@ export default async function BookedPage() {
   if (!graph.booking) redirect("/next");
 
   const { application: app, campus, booking, contact } = graph;
-  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind, scholarship: Boolean(graph.scholarship) });
   const qr = await QRCode.toDataURL(app.reference, { margin: 1, width: 192 });
 
   return (

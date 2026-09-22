@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAiProvider } from "@/lib/ai/provider";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { registrationCompleteness, SECTIONS } from "@/lib/registration/completeness";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { getSettings } from "@/lib/settings";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationSummaryRow, Database, Json } from "@/lib/supabase/types";
@@ -25,7 +26,7 @@ export async function loadSummaryInputs(client: SupabaseClient<Database>, applic
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
   const gradeSort = one(app.grades)?.sort_order ?? 0;
 
-  const [events, booking, attempt, decision, offer, paymentRequest, registration, contacts, documents, requirements, templates, acceptances, tasks, emails, messages, inbound, siblings] = await Promise.all([
+  const [events, booking, attempt, decision, offer, paymentRequest, registration, contacts, documents, requirements, templates, acceptances, tasks, emails, messages, inbound, siblings, promo] = await Promise.all([
     client.from("application_events").select("type, occurred_at, summary").eq("application_id", applicationId).order("id", { ascending: true }).limit(300),
     client.from("bookings").select("session_id, kind, sessions(starts_at)").eq("application_id", applicationId).in("status", ["booked", "checked_in", "in_progress"]).limit(1).maybeSingle(),
     client.from("attempts").select("status, marking_status, submitted_at").eq("application_id", applicationId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -43,6 +44,7 @@ export async function loadSummaryInputs(client: SupabaseClient<Database>, applic
     client.from("messages").select("id", { count: "exact", head: true }).eq("application_id", applicationId).eq("direction", "out").in("status", ["sent", "delivered", "read"]),
     client.from("messages").select("received_at").eq("application_id", applicationId).eq("direction", "in").order("received_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("applications").select("child_first_name, status").eq("contact_id", app.contact_id).neq("id", applicationId).neq("status", "withdrawn"),
+    client.from("application_promotions").select("promotions(code)").eq("application_id", applicationId).maybeSingle(),
   ]);
 
   const registrationOpen = ["paid", "registration_incomplete", "registration_complete", "enrolled"].includes(app.status);
@@ -80,6 +82,7 @@ export async function loadSummaryInputs(client: SupabaseClient<Database>, applic
       requires_assessment: app.requires_assessment,
       entry_route: app.entry_route,
       source: app.source,
+      scholarship: isScholarshipCode(one(promo.data?.promotions)?.code ?? null),
     },
     campus: one(app.campuses)?.name ?? "",
     grade: one(app.grades)?.name ?? "",

@@ -152,9 +152,26 @@ async function importOne(
     .eq("email_normalised", email)
     .is("whatsapp_opt_out_at", null);
 
-  // Step 4. Only for an application this run created: routing a child who was
-  // already routed would queue a second invitation.
-  if (created) {
+  // Step 4. Routed when it has not been routed, which is not the same as
+  // "created by this run". If `onEnquiryCreated` failed last time — a dropped
+  // connection, a timeout — the application is stored and `create_application`
+  // will report `created = false` for ever after, so gating on that left the
+  // family permanently invisible: no invitation, no task, no timeline.
+  //
+  // Asking the timeline instead makes a second run finish what the first
+  // started. It cannot double-send: the email job's idempotency key is
+  // `email:{id}:scholarship_invitation`, and `commit` is guarded on the
+  // expected status.
+  const { data: routed, error: routedError } = await admin
+    .from("application_events")
+    .select("id")
+    .eq("application_id", applicationId)
+    .eq("type", "enquiry.created")
+    .limit(1)
+    .maybeSingle();
+  if (routedError) return { status: "refused", why: `could not check routing: ${routedError.message}` };
+
+  if (!routed) {
     await onEnquiryCreated(
       admin,
       {

@@ -279,3 +279,125 @@ values (
   true, 'next_step', false, 'applicant'
 )
 on conflict (key) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- 8. The interview is confirmed, and the interview moves
+-- ---------------------------------------------------------------------------
+
+-- Without these two keys, teaching the system the word "interview" makes the
+-- booking confirmation *worse* rather than better.
+--
+-- `bookingConfirmedTemplateKey` picks by noun. A scholarship child sits no
+-- assessment, so before the word existed they were sent `playdate_confirmed`
+-- — "there is nothing to prepare and nothing to bring", and "a teacher will
+-- take you both through" — to the parent of a Form 3 student. Teach it the
+-- word and the same function reaches for `visit_confirmed` instead: "we look
+-- forward to showing you the school", which is a campus tour and not what
+-- anybody is coming for. One wrong message traded for another.
+--
+-- So the noun gets its own pair, written for what actually happens: somebody
+-- sits down with the child and talks to them.
+--
+-- Modelled on the play-date pair rather than the visit pair, because the
+-- reassuring half — nothing to prepare, nothing to bring — is true here too,
+-- and it is the half a family reads twice.
+insert into public.email_templates (key, version, name, description, subject, body_text, body_html, allowed_variables, is_active, audience)
+values (
+  'interview_confirmed', 1,
+  'Scholarship interview confirmed',
+  'Sent when a scholarship family books their interview. No assessment, no results, nothing to bring.',
+  E'{{student_first_name}}\'s interview at Hibiscus {{campus}} is booked',
+E'Dear {{parent_first_name}},
+
+{{student_first_name}}\'s interview at {{campus}} is booked.
+
+When: {{assessment_date}} at {{assessment_time}}
+Where: {{campus}}{{#if location}}, {{location}}{{/if}}
+{{#if campus_address}}{{campus_address}}{{#if campus_maps_url}}
+Directions: {{campus_maps_url}}{{/if}}
+{{/if}}Reference: {{application_reference}}
+
+At reception, give your name or the reference.
+
+The interview is a conversation. Somebody will sit down with {{student_first_name}}, and with you, to get to know them and to answer anything you would like to ask. There is no entrance test — {{student_first_name}} does not sit an assessment. There is nothing to prepare and nothing to bring.
+
+You can view or change your booking here:
+{{next_step_link}}
+
+We look forward to meeting you both.
+
+Hibiscus International Schools Admissions',
+  '<p>Dear {{parent_first_name}},</p><p><strong>{{student_first_name}}''s interview at {{campus}} is booked.</strong></p><p><strong>When:</strong> {{assessment_date}} at {{assessment_time}}<br><strong>Where:</strong> {{campus}}{{#if location}}, {{location}}{{/if}}{{#if campus_address}}<br>{{campus_address}}{{#if campus_maps_url}}<br><a href="{{campus_maps_url}}">Directions</a>{{/if}}{{/if}}<br><strong>Reference:</strong> {{application_reference}}</p><p>At reception, give your name or the reference.</p><p>The interview is a conversation. Somebody will sit down with {{student_first_name}}, and with you, to get to know them and to answer anything you would like to ask. There is no entrance test — {{student_first_name}} does not sit an assessment. There is nothing to prepare and nothing to bring.</p><p><a href="{{next_step_link}}" class="button">View or change your booking</a></p><p>We look forward to meeting you both.<br>Hibiscus International Schools Admissions</p>',
+  array['parent_first_name','student_first_name','campus','assessment_date','assessment_time','location','campus_address','campus_maps_url','application_reference','next_step_link'],
+  true, 'parent'
+)
+on conflict (key, version) do nothing;
+
+insert into public.email_templates (key, version, name, description, subject, body_text, body_html, allowed_variables, is_active, audience)
+values (
+  'interview_moved', 1,
+  'Scholarship interview moved',
+  'Sent when a booked scholarship interview is rescheduled. One sentence saying which time now stands.',
+  E'{{student_first_name}}\'s interview at Hibiscus {{campus}} has moved',
+E'Dear {{parent_first_name}},
+
+{{student_first_name}}\'s interview at {{campus}} has moved. It is now {{assessment_date}} at {{assessment_time}}. Your earlier time has been released.
+
+When: {{assessment_date}} at {{assessment_time}}
+Where: {{campus}}{{#if location}}, {{location}}{{/if}}
+{{#if campus_address}}{{campus_address}}{{#if campus_maps_url}}
+Directions: {{campus_maps_url}}{{/if}}
+{{/if}}Reference: {{application_reference}}
+
+Nothing else changes. At reception, give your name or the reference.
+
+You can view or change your booking here:
+{{next_step_link}}
+
+We look forward to meeting you both.
+
+Hibiscus International Schools Admissions',
+  '<p>Dear {{parent_first_name}},</p><p><strong>{{student_first_name}}''s interview at {{campus}} has moved.</strong> It is now {{assessment_date}} at {{assessment_time}}. Your earlier time has been released.</p><p><strong>When:</strong> {{assessment_date}} at {{assessment_time}}<br><strong>Where:</strong> {{campus}}{{#if location}}, {{location}}{{/if}}{{#if campus_address}}<br>{{campus_address}}{{#if campus_maps_url}}<br><a href="{{campus_maps_url}}">Directions</a>{{/if}}{{/if}}<br><strong>Reference:</strong> {{application_reference}}</p><p>Nothing else changes. At reception, give your name or the reference.</p><p><a href="{{next_step_link}}" class="button">View or change your booking</a></p><p>We look forward to meeting you both.<br>Hibiscus International Schools Admissions</p>',
+  array['parent_first_name','student_first_name','campus','assessment_date','assessment_time','location','campus_address','campus_maps_url','application_reference','next_step_link'],
+  true, 'parent'
+)
+on conflict (key, version) do nothing;
+
+-- Both companions inactive, for the same reason as the invitation above: the
+-- wording goes to Meta, and the row cannot be switched on until a provider id
+-- comes back. Declared now so the coverage suite sees a decision rather than a
+-- silence.
+insert into public.message_templates (key, name, language, body_preview, parameters, button_link, link_purpose, is_active, audience)
+values
+  (
+    'interview_confirmed', 'Scholarship interview confirmed', 'en',
+    E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus is confirmed for {{4}} at {{5}}. Please come to reception and give your name. Tap below for the details and directions.',
+    array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
+    true, 'next_step', false, 'applicant'
+  ),
+  (
+    'interview_moved', 'Scholarship interview moved', 'en',
+    E'Hi {{1}}, {{2}}\'s interview at our {{3}} campus has moved. It is now on {{4}}, starting at {{5}}. Your earlier time has been released and nothing else changes. Tap below for the details.',
+    array['parent_first_name','student_first_name','campus','assessment_date','assessment_time'],
+    true, 'next_step', false, 'applicant'
+  )
+on conflict (key) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- 9. `preschool_offer` is not only a pre-school template
+-- ---------------------------------------------------------------------------
+
+-- The *body* was always generic — "we are delighted to offer {{student_first_name}}
+-- a place at {{campus}}" — which is why a scholarship child offered after an
+-- interview can share it, and does: the offer letter carries the scholarship
+-- language, and this email is the envelope around it.
+--
+-- Only the name and description said pre-school, and both are staff-facing.
+-- Left alone, somebody opening Set up → Email templates and seeing "Pre-school
+-- offer of a place" against a Form 3 student would reasonably conclude the
+-- wrong letter went out, and "fix" it by adding play-date wording to a
+-- template two tracks share.
+update public.email_templates
+   set name = 'Offer of a place (no assessment)',
+       description = 'Sent when an offer is approved for a child who sits no assessment: pre-school, or a scholarship child offered after interview. No results and no learning profile.'
+ where key = 'preschool_offer';

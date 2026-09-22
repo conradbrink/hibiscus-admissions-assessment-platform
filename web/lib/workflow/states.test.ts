@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
+import type { NextAction } from "@/lib/workflow/states";
 import {
   assertTransition,
   canBeDecided,
@@ -7,6 +8,7 @@ import {
   IllegalTransitionError,
   NEXT_ACTION_KEYS,
   NEXT_ACTIONS,
+  nextActionCopy,
   PIPELINE_GROUPS,
   STATUS_LABELS,
   STATUS_TONE,
@@ -272,5 +274,41 @@ describe("a change of class that adds or removes the assessment", () => {
   it("can send a child waiting on a decision back to book the sitting", () => {
     expect(canTransition("awaiting_decision", "new_enquiry")).toBe(true);
     expect(canTransition("staff_review", "new_enquiry")).toBe(true);
+  });
+});
+
+describe("what a scholarship family is told to do next", () => {
+  const scholar = (action: NextAction) =>
+    nextActionCopy(action, { requiresAssessment: false, bookingKind: "visit", scholarship: true });
+
+  it("asks them to book an interview, not an assessment", () => {
+    // This is what shipped: the routing branch set `next_action` to
+    // `book_assessment` under a comment promising "the noun makes it read
+    // 'book your interview'". It did not — `nextActionCopy` rewrote only
+    // `attend_visit`, and only for a play date — so a family the school had
+    // told in writing there is no assessment read "Your next step is to book
+    // an assessment" under a button marked "Book assessment".
+    const copy = scholar("book_assessment");
+    expect(copy.parentTitle).toBe("Your next step is to book the interview.");
+    expect(copy.parentCta?.label).toBe("Book interview");
+    expect(copy.staffLabel).toBe("Parent to book interview");
+    expect(`${copy.parentTitle} ${copy.parentDetail} ${copy.parentCta?.label}`).not.toContain("assessment");
+  });
+
+  it("uses the word for attending and for rebooking too", () => {
+    expect(scholar("attend_visit").parentCta?.label).toBe("View interview");
+    expect(scholar("attend_assessment").parentCta?.label).toBe("View interview");
+    expect(scholar("rebook_assessment").parentCta?.label).toBe("Rebook interview");
+    expect(scholar("rebook_assessment").parentDetail).not.toContain("assessment");
+  });
+
+  it("leaves the other two tracks exactly as they were", () => {
+    // The regression this file exists to prevent: a pre-school family must
+    // still be told about a play date, and an assessed child about an
+    // assessment.
+    const preschool = nextActionCopy("attend_visit", { requiresAssessment: false, bookingKind: "visit", scholarship: false });
+    expect(preschool.parentCta?.label).toBe("View play date");
+    const assessed = nextActionCopy("book_assessment", { requiresAssessment: true, bookingKind: null, scholarship: false });
+    expect(assessed.parentCta?.label).toBe("Book assessment");
   });
 });

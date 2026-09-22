@@ -10,6 +10,7 @@ import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { isNextAction, nextActionCopy, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
 import { FLAG_LABELS, type Flag } from "@/lib/summary/facts";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 
 type Search = {
   q?: string;
@@ -63,13 +64,24 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   ]);
   if (error) throw new Error(error.message);
 
-  // Attention flags from the last generated summary, where one exists.
+  const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+  // Attention flags from the last generated summary, where one exists, and
+  // which of these children hold a scholarship — batched together, because a
+  // row that says "Parent to book assessment" against a scholarship child is
+  // the same wrong word the parent's own screen used to show.
   const ids = (rows ?? []).map((r) => r.id);
-  const { data: summaries } = ids.length ? await supabase.from("application_summaries").select("application_id, flags").in("application_id", ids) : { data: [] };
+  const [{ data: summaries }, { data: awards }] = ids.length
+    ? await Promise.all([
+        supabase.from("application_summaries").select("application_id, flags").in("application_id", ids),
+        supabase.from("application_promotions").select("application_id, promotions(code)").in("application_id", ids),
+      ])
+    : [{ data: [] }, { data: [] }];
   const flagsFor = new Map<string, Flag[]>();
   for (const s of summaries ?? []) flagsFor.set(s.application_id, (Array.isArray(s.flags) ? s.flags : []) as unknown as Flag[]);
-
-  const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+  const scholars = new Set(
+    (awards ?? []).filter((a) => isScholarshipCode(one(a.promotions)?.code ?? null)).map((a) => a.application_id)
+  );
   const countByStatus = new Map<string, number>();
   for (const r of pipeline ?? []) countByStatus.set(r.status, (countByStatus.get(r.status) ?? 0) + r.applications);
   const groupCount = (keys: readonly ApplicationStatus[]) => keys.reduce((n, s) => n + (countByStatus.get(s) ?? 0), 0);
@@ -159,7 +171,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 const contact = one(r.contacts);
                 const owner = one(r.staff_profiles);
                 const na = isNextAction(r.next_action)
-                  ? nextActionCopy(r.next_action, { requiresAssessment: r.requires_assessment, bookingKind: null }).staffLabel
+                  ? nextActionCopy(r.next_action, { requiresAssessment: r.requires_assessment, bookingKind: null, scholarship: scholars.has(r.id) }).staffLabel
                   : "—";
                 return (
                   <tr key={r.id} className="hover:bg-muted/40">

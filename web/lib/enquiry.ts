@@ -281,6 +281,20 @@ function endOfDayIn(day: Date): Date {
 }
 
 /**
+ * A settings date as a `Date`, or null if it is not one.
+ *
+ * `new Date("")` is an Invalid Date, not a throw, and it only blows up later
+ * inside `endOfDayIn` when something asks it for an ISO string. A setting is
+ * a text box a person types into, so the parse belongs here rather than in
+ * each caller's head.
+ */
+export function parseDeadline(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * Published, future sessions at a campus with places left, for one grade.
  *
  * `notAfter` closes the far end of the window. A scholarship intake runs to a

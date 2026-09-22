@@ -32,7 +32,7 @@ export default async function NextPage() {
   if (app.status === "new_enquiry" && app.next_action === null) redirect("/next/grade");
 
   const siblings = await loadSiblingApplications(admin, contact.id);
-  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null };
+  const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null, scholarship: Boolean(graph.scholarship) };
   const copy = nextActionCopy(isNextAction(app.next_action) ? app.next_action : "none", nounInput);
   const actionRequired = copy.parentCta !== null;
 

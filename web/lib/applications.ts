@@ -1,5 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import type {
   ApplicationRow,
   BookingRow,
@@ -25,6 +26,19 @@ export type ApplicationGraph = {
   intake: IntakeRow;
   /** The one live booking, with its session, or null. */
   booking: (BookingRow & { session: SessionRow }) | null;
+  /**
+   * The scholarship award code on this application — `SCHOLARSHIP-50` — or
+   * null.
+   *
+   * Loaded here rather than by each screen because the word for the
+   * appointment depends on it (`lib/booking/noun.ts`), and a scholarship child
+   * sits no assessment, so every surface that reasons from
+   * `requires_assessment` alone calls them a pre-school applicant and invites
+   * them to a play date. Every parent-facing page already loads this graph, so
+   * putting the fact on it is what makes all of them agree by construction
+   * instead of by each one remembering.
+   */
+  scholarship: string | null;
 };
 
 export async function loadApplicationGraph(
@@ -39,7 +53,7 @@ export async function loadApplicationGraph(
   if (error) throw new Error(error.message);
   if (!application) return null;
 
-  const [contactRes, campusRes, gradeRes, intakeRes, bookingRes] = await Promise.all([
+  const [contactRes, campusRes, gradeRes, intakeRes, bookingRes, promoRes] = await Promise.all([
     admin.from("contacts").select("*").eq("id", application.contact_id).single(),
     admin.from("campuses").select("*").eq("id", application.campus_id).single(),
     admin.from("grades").select("*").eq("id", application.grade_id).single(),
@@ -52,10 +66,16 @@ export async function loadApplicationGraph(
       .order("booked_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // A primary-key lookup joined onto the batch that is already running, so
+    // it costs no wall clock. Most pages never read it; being told the wrong
+    // word for your own appointment is worse than an index lookup.
+    admin.from("application_promotions").select("promotions(code)").eq("application_id", applicationId).maybeSingle(),
   ]);
-  for (const r of [contactRes, campusRes, gradeRes, intakeRes, bookingRes]) {
+  for (const r of [contactRes, campusRes, gradeRes, intakeRes, bookingRes, promoRes]) {
     if (r.error) throw new Error(r.error.message);
   }
+  const promo = Array.isArray(promoRes.data?.promotions) ? promoRes.data?.promotions[0] : promoRes.data?.promotions;
+  const promoCode = promo?.code ?? null;
 
   let booking: ApplicationGraph["booking"] = null;
   if (bookingRes.data) {
@@ -75,6 +95,10 @@ export async function loadApplicationGraph(
     grade: gradeRes.data!,
     intake: intakeRes.data!,
     booking,
+    // Filtered rather than passed through: the promotions table is shared with
+    // ordinary marketing deals, and a `SIBLING-10` must never make a letter
+    // announce a scholarship.
+    scholarship: isScholarshipCode(promoCode) ? promoCode : null,
   };
 }
 
