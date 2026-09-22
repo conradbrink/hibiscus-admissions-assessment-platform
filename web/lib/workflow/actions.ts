@@ -5,6 +5,8 @@ import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
+import { awardLabelOf } from "@/lib/promotions/scholarship";
+import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import { bookingTrackNextAction, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
@@ -96,6 +98,35 @@ export async function onEnquiryCreated(
     return;
   }
 
+  // A scholarship child sits no assessment either, so without this branch they
+  // would fall into the pre-school one below and be parked at
+  // `awaiting_decision` — told the school would be in touch, never asked to
+  // book, and the interview the whole award depends on would never happen.
+  // They stay at `new_enquiry` and are pointed straight at the calendar; the
+  // noun makes "book_assessment" read "book your interview".
+  const scholarship = await scholarshipCodeFor(admin, app.id);
+  if (scholarship) {
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: "new_enquiry",
+      newStatus: "new_enquiry",
+      nextAction: "book_assessment",
+      nextActionDueAt: hoursFromNow(settings.enquiryNudgeHours),
+      event: {
+        type: "enquiry.created",
+        summary: `Scholarship invitation — ${awardLabelOf(scholarship)}`,
+        payload: { entry_route: app.entry_route, scholarship },
+      },
+      // No nudge job. The invitation carries a deadline the school has already
+      // put in writing, and a second automatic chase against a date the
+      // parent is holding would read as a machine, not a school.
+      jobs: [emailJob(app.id, "scholarship_invitation")],
+      audit: { action: "application.created", after: { reference: app.reference, scholarship } },
+      actor,
+    });
+    return;
+  }
+
   if (!app.requires_assessment) {
     // Pre-school. There is no assessment to book; the school reviews
     // availability. In Phase 1 that is a task; later phases automate it
@@ -182,10 +213,19 @@ export async function onBookingCreated(
   const live = { booking_id: booking.id, booking_status: ["booked"] };
 
   if (booking.kind === "visit") {
-    // A pre-school family books a play date; a primary family books a visit.
-    // One stored kind, two words and two templates — `visit_confirmed` is
-    // approved with Zavu for the look-around door and is left alone.
-    const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking.kind };
+    // A pre-school family books a play date, a primary family books a visit,
+    // and a scholarship child comes for an interview. One stored kind, three
+    // words and three template pairs — `visit_confirmed` is approved with Zavu
+    // for the look-around door and is left alone.
+    //
+    // The award is read here rather than passed in because this is the only
+    // branch a scholarship child reaches: the assessment path below pays
+    // nothing for it.
+    const nounInput = {
+      requiresAssessment: app.requires_assessment,
+      bookingKind: booking.kind,
+      scholarship: Boolean(await scholarshipCodeFor(admin, app.id)),
+    };
     const noun = bookingNoun(nounInput);
     // Null when the application is past the booking stage: the visit is
     // recorded and confirmed, and where the family actually is — awaiting an
@@ -438,7 +478,7 @@ export async function onBookingCancelled(
     .in("status", ["booked", "checked_in"]);
   if (error) throw new WorkflowError(error.message, "database");
   const settings = await getSettings(admin);
-  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind });
+  const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: booking.kind, scholarship: Boolean(await scholarshipCodeFor(admin, app.id)) });
 
   await commit(admin, {
     applicationId: app.id,

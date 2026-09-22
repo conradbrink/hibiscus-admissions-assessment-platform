@@ -1,4 +1,5 @@
 import "server-only";
+import { signatoryFor } from "@/lib/promotions/scholarship-server";
 import { startLabel } from "@/lib/start-month";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
@@ -63,7 +64,7 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
         bankDetails: typeof (offer.variables as { bank_details?: unknown })?.bank_details === "string" ? (offer.variables as { bank_details: string }).bank_details : null,
         expiresOn: offer.expires_at ? formatDateLong(offer.expires_at) : null,
         sentOn: offer.sent_at ? formatDateLong(offer.sent_at) : null,
-        signatory: { name: graph.campus.head_name, title: graph.campus.head_title, imageDataUrl: graph.campus.signature_data_url },
+        signatory: await signatoryFor(admin, graph.application.id, graph.campus),
       })
     );
     return { buffer, filename: `hibiscus-offer-${ref}.pdf` };

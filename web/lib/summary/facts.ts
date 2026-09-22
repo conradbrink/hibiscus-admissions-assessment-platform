@@ -19,6 +19,8 @@ export type SummaryInputs = {
     requires_assessment: boolean;
     entry_route: string;
     source: string;
+    /** Holds a scholarship award: interviewed, not assessed, and not pre-school. */
+    scholarship: boolean;
   };
   campus: string;
   grade: string;
@@ -108,7 +110,11 @@ export function summaryFacts(input: SummaryInputs): { facts: string[]; flags: Fl
   const now = input.now;
 
   facts.push(`${name}: ${input.grade} at ${input.campus}, starting ${input.intake}. Enquired ${dayString(a.created_at)} via ${a.entry_route.replace(/_/g, " ")}${a.source !== "website" ? ` (${a.source.replace(/_/g, " ")})` : ""}.`);
-  if (!a.requires_assessment) facts.push("Pre-school applicant: no assessment is required.");
+  // Order matters. A scholarship child sits no assessment too, so reading
+  // `requires_assessment` alone told the summary — and the AI prose written
+  // over it — that a Form 1 student was a pre-school applicant.
+  if (a.scholarship) facts.push("Scholarship award: the child is interviewed, not assessed.");
+  else if (!a.requires_assessment) facts.push("Pre-school applicant: no assessment is required.");
 
   const milestoneLabel = new Map(MILESTONES);
   for (const e of input.events) {
@@ -117,7 +123,7 @@ export function summaryFacts(input: SummaryInputs): { facts: string[]; flags: Fl
   }
 
   facts.push(`Status: ${STATUS_LABELS[a.status]}.`);
-  const nounInput = { requiresAssessment: a.requires_assessment, bookingKind: input.booking?.kind ?? null };
+  const nounInput = { requiresAssessment: a.requires_assessment, bookingKind: input.booking?.kind ?? null, scholarship: a.scholarship };
   const na = isNextAction(a.next_action) ? nextActionCopy(a.next_action, nounInput) : null;
   if (na && a.next_action !== "none") facts.push(`Next: ${na.staffLabel}${a.next_action_due_at ? `, due ${dayString(a.next_action_due_at)}` : ""}.`);
 

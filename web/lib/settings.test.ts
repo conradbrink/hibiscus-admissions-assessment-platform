@@ -50,3 +50,26 @@ describe("the schedule's sitting times", () => {
     expect((await starts([0, 1439])).autoAssessmentStarts).toEqual([0, 1439]);
   });
 });
+
+describe("the scholarship interview deadline", () => {
+  const deadline = (value: Json) =>
+    getSettings(stub([{ key: "scholarship_interview_deadline", value }]));
+
+  it("is whatever the school typed", async () => {
+    expect((await deadline("2026-10-16")).scholarshipInterviewDeadline).toBe("2026-10-16");
+  });
+
+  it("falls back when the box is cleared, rather than lifting the limit", async () => {
+    // A cleared box was documented as "no deadline", but nothing implemented
+    // that: the invitation states the date outright and a WhatsApp parameter
+    // cannot be conditional, so an empty value would have sent "interviews
+    // must take place by —" to eighty families rather than removing the
+    // sentence. Falling back is the only reading the wording can carry.
+    for (const blank of ["", "   "] as Json[]) {
+      expect((await deadline(blank)).scholarshipInterviewDeadline, JSON.stringify(blank)).toBe(
+        DEFAULT_SETTINGS.scholarshipInterviewDeadline
+      );
+    }
+    expect((await getSettings(stub([]))).scholarshipInterviewDeadline).toBe(DEFAULT_SETTINGS.scholarshipInterviewDeadline);
+  });
+});

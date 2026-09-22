@@ -1,4 +1,5 @@
 import "server-only";
+import { endOfDayIn } from "@/lib/booking/deadline";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
 import type { HeardFrom } from "@/lib/heard-from";
@@ -261,18 +262,31 @@ export type SlotDay = {
   }>;
 };
 
-/** Published, future sessions at a campus with places left, for one grade. */
+/**
+ * Published, future sessions at a campus with places left, for one grade.
+ *
+ * `notAfter` closes the far end of the window. A scholarship intake runs to a
+ * deadline the school has told the families about, and sessions are created
+ * weeks ahead for everyone — so without this the picker would cheerfully
+ * offer a date past the deadline and the letter would be the only thing that
+ * knew. Excluding the slot is the honest way to say it: a date that cannot be
+ * accepted should not be on the page.
+ */
 export async function loadAvailableSlots(
   admin: AdminClient,
-  opts: { campusId: string; kind: "assessment" | "visit"; gradeSort: number }
+  opts: { campusId: string; kind: "assessment" | "visit"; gradeSort: number; notAfter?: Date | null }
 ): Promise<SlotDay[]> {
-  const { data: sessions, error } = await admin
+  let query = admin
     .from("sessions")
     .select("id, starts_at, ends_at, capacity, location, min_grade_sort, max_grade_sort")
     .eq("campus_id", opts.campusId)
     .eq("kind", opts.kind)
     .eq("is_published", true)
-    .gt("starts_at", new Date().toISOString())
+    .gt("starts_at", new Date().toISOString());
+  // Inclusive of the deadline day: a deadline of the 9th means the 9th is
+  // still a date you can come on.
+  if (opts.notAfter) query = query.lte("starts_at", endOfDayIn(opts.notAfter).toISOString());
+  const { data: sessions, error } = await query
     .order("starts_at")
     // Read enough to cover the whole horizon: the cap is applied before the
     // grade band and the places-left filter below, so a short read hides

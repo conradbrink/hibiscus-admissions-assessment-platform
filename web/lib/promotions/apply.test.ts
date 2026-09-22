@@ -109,3 +109,51 @@ describe("eligibility", () => {
     expect(normaliseCode(null)).toBeNull();
   });
 });
+
+describe("a scholarship, which is a promotion like any other", () => {
+  // The four bands the school awarded, as `20260922140000_the_2027_scholarship_intake.sql`
+  // writes them: both acceptance fees waived, tuition discounted by the band.
+  const band = (percent: number): PromotionSummary => ({
+    id: `s-${percent}`,
+    code: `SCHOLARSHIP-${percent}`,
+    name: `Hibiscus Scholarship — ${percent}%`,
+    letter_text: null,
+    effects: [
+      { kind: "waive_fee", fee_code: "registration", amount_minor: null, percent: null, label: "Registration fee waived" },
+      { kind: "waive_fee", fee_code: "admission", amount_minor: null, percent: null, label: "Admission fee waived" },
+      { kind: "discount_percent", fee_code: "tuition_term", amount_minor: null, percent, label: `Scholarship — ${percent}% of tuition` },
+    ],
+  });
+
+  it("leaves a 50% Form 1 family with nothing to pay to accept", () => {
+    // The whole reason a scholarship is modelled as a promotion: `fullyWaived`
+    // is what makes acceptance skip the gateway, and it has to be true here
+    // without a line of new payment code.
+    const out = applyPromotion(snapshot, band(50));
+    expect(out.payable_at_acceptance_minor).toBe(0);
+    expect(fullyWaived(out)).toBe(true);
+  });
+
+  it("quotes the termly figure the letter promises", () => {
+    // These are the numbers in the letter and in the WhatsApp. If this test
+    // ever goes red, eighty families have been told the wrong fee.
+    const termly = (percent: number) =>
+      applyPromotion(snapshot, band(percent)).lines.find((l) => l.code === "tuition_term")!.amount_minor;
+    // Form 1–2, P18,990 a term.
+    expect(termly(50)).toBe(949500);
+    expect(termly(40)).toBe(1139400);
+    expect(termly(30)).toBe(1329300);
+    expect(termly(20)).toBe(1519200);
+  });
+
+  it("keeps tuition out of what is due at acceptance", () => {
+    // A discount is not a waiver: the family still owes the term, in the
+    // instalments the letter sets out, and the offer must not present the
+    // discounted tuition as payable on the day.
+    const out = applyPromotion(snapshot, band(40));
+    const tuition = out.lines.find((l) => l.code === "tuition_term")!;
+    expect(tuition.payable_at_acceptance).toBe(false);
+    expect(tuition.waived).toBeFalsy();
+    expect(tuition.original_minor).toBe(1899000);
+  });
+});

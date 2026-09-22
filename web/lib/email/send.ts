@@ -9,9 +9,10 @@ import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
 import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@/lib/email/render";
 import { paymentReferenceFor } from "@/lib/payments/reference";
+import { scholarshipFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
-import { getSettings } from "@/lib/settings";
+import { getSettings, type Settings } from "@/lib/settings";
 import { mintToken, siteUrl } from "@/lib/tokens";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
@@ -70,6 +71,15 @@ export type EmailExtras = {
   mismatchDetails?: string | null;
   /** "Application fee waived · P1,000 uniform voucher", from the offer's frozen deal. */
   promotionText?: string | null;
+  /**
+   * The award, "50%", when the application holds a scholarship. Null for
+   * every other family, which is what keeps the word out of their letters.
+   */
+  scholarshipAward?: string | null;
+  /** Tuition per term after that award, already formatted: "P9,495". */
+  tuitionPerTerm?: string | null;
+  /** The last day a scholarship family may book their interview. */
+  interviewDeadline?: string | null;
   /** After a registration submission: what is still outstanding, or "yes" in `allReceived` when nothing is. */
   outstandingItems?: string | null;
   allReceived?: boolean;
@@ -119,6 +129,10 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     booking_kind: bookingNoun({
       requiresAssessment: application.requires_assessment,
       bookingKind: booking?.kind ?? null,
+      // Off the graph rather than off `extras`, so the word is right even for
+      // a send that carries no scholarship figures — a document reminder to a
+      // scholarship family still has to call the thing an interview.
+      scholarship: Boolean(graph.scholarship),
     }),
     // Null renders as empty and satisfies an {{#if}}, so a template that
     // references a link its send did not mint simply omits it.
@@ -136,6 +150,9 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     missing_documents: extras.missingDocuments ?? null,
     mismatch_details: extras.mismatchDetails ?? null,
     promotion_text: extras.promotionText ?? null,
+    scholarship_award: extras.scholarshipAward ?? null,
+    tuition_term: extras.tuitionPerTerm ?? null,
+    interview_deadline: extras.interviewDeadline ?? null,
     outstanding_items: extras.outstandingItems ?? null,
     all_received: extras.allReceived ? "yes" : null,
     // Can this family pay by card at all? The school's gateway settles in
@@ -425,6 +442,34 @@ async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Pr
   return { result: { status: "sent", messageId: message.id }, renderedSubject: subject };
 }
 
+/**
+ * The scholarship half of a message's variables, for either channel.
+ *
+ * Shared rather than written twice because the two channels had already
+ * drifted: the email path looked the award up and the WhatsApp path did not,
+ * so `scholarship_award` and `interview_deadline` arrived empty on every
+ * companion send — and the blank-parameter guard, correctly, refused to post a
+ * sentence with a hole in it. The WhatsApp companion of the scholarship
+ * invitation could never have sent a single message to any of the eighty
+ * families. It was latent only because the template is waiting on Meta; the
+ * day somebody pasted the provider id it would have produced eighty skipped
+ * rows and no messages.
+ *
+ * One function, spread by both callers, is the shape that cannot drift again.
+ */
+export async function scholarshipExtras(
+  admin: AdminClient,
+  graph: ApplicationGraph,
+  settings: Settings
+): Promise<Pick<EmailExtras, "scholarshipAward" | "tuitionPerTerm" | "interviewDeadline">> {
+  const award = await scholarshipFor(admin, graph);
+  return {
+    scholarshipAward: award?.award ?? null,
+    tuitionPerTerm: award?.tuitionPerTerm ?? null,
+    interviewDeadline: award ? formatDateLong(settings.scholarshipInterviewDeadline) : null,
+  };
+}
+
 export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplatedOptions): Promise<SendTemplatedResult> {
   const graph = await loadApplicationGraph(admin, opts.applicationId);
   if (!graph) return { status: "skipped", reason: "application missing" };
@@ -436,7 +481,15 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null, outstandingItems: opts.outstandingItems ?? null, allReceived: opts.allReceived ?? false };
+  const extras: EmailExtras & { expiresAt: Date | null } = {
+    ...offer,
+    ...pay,
+    ...(await scholarshipExtras(admin, graph, settings)),
+    missingDocuments: opts.missingDocuments ?? null,
+    mismatchDetails: opts.mismatchDetails ?? null,
+    outstandingItems: opts.outstandingItems ?? null,
+    allReceived: opts.allReceived ?? false,
+  };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",

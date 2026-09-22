@@ -5,6 +5,7 @@ import { PageTitle, EmptyState } from "@/components/staff/page-title";
 import { StatTile } from "@/components/staff/stat-tile";
 import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
 import { bookingNounTitle } from "@/lib/booking/noun";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { formatDate, formatTime, toSchoolDateString } from "@/lib/format-date";
 import { bookedRowLabel, bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
 import { orientationProgress } from "@/lib/orientation";
@@ -99,6 +100,19 @@ export default async function DashboardPage() {
   const c = (countsRaw ?? {}) as Counts;
   const n = (k: string) => c[k] ?? 0;
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+  // Which of today's arrivals hold a scholarship. The board query is rooted at
+  // bookings, so the ids come out of the embed; it is capped at 50 rows, so
+  // this is one bounded lookup. Without it the board labels a Form 3
+  // scholarship student's interview a "Play date".
+  const boardAppIds = (todays ?? []).map((b) => one(b.applications)?.id).filter((id): id is string => Boolean(id));
+  const { data: boardAwards } = boardAppIds.length
+    ? await supabase.from("application_promotions").select("application_id, promotions(code)").in("application_id", boardAppIds)
+    : { data: [] };
+  const boardScholars = new Set(
+    (boardAwards ?? []).filter((a) => isScholarshipCode(one(a.promotions)?.code ?? null)).map((a) => a.application_id)
+  );
+
   const kinds = bookingKindsInScope(
     (offered ?? []).map((o) => ({
       campusId: o.campus_id,
@@ -205,7 +219,7 @@ export default async function DashboardPage() {
                       {/* Which of the three this is. On a mixed board the
                           time and the name do not say. */}
                       <span className="text-xs text-muted-foreground">
-                        {bookingNounTitle({ requiresAssessment: app?.requires_assessment ?? true, bookingKind: b.kind })}
+                        {bookingNounTitle({ requiresAssessment: app?.requires_assessment ?? true, bookingKind: b.kind, scholarship: app ? boardScholars.has(app.id) : false })}
                       </span>
                       <BookingBadge status={b.status} />
                     </li>

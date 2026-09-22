@@ -7,7 +7,7 @@ const now = new Date("2026-09-05T10:00:00Z");
 function inputs(overrides: Partial<SummaryInputs> = {}): SummaryInputs {
   return {
     now,
-    application: { status: "offer_sent", next_action: "accept_offer", next_action_due_at: "2026-09-07T00:00:00Z", created_at: "2026-08-01T09:00:00Z", child_first_name: "Thato", requires_assessment: true, entry_route: "assessment", source: "website" },
+    application: { status: "offer_sent", next_action: "accept_offer", next_action_due_at: "2026-09-07T00:00:00Z", created_at: "2026-08-01T09:00:00Z", child_first_name: "Thato", requires_assessment: true, entry_route: "assessment", source: "website", scholarship: false },
     campus: "Block 7",
     grade: "Stage 4",
     intake: "Term 1 2027",
@@ -56,6 +56,24 @@ describe("summaryFacts", () => {
     expect(facts).toContain("Booking made on 2026-08-01.");
     expect(facts).toContain("Play date booked for 2026-08-10.");
     expect(facts.join(" ")).not.toContain("Assessment booked");
+  });
+
+  it("does not call a scholarship child a pre-school applicant", () => {
+    // A scholarship child sits no assessment either, so reading
+    // `requires_assessment` alone put "Pre-school applicant" at the top of a
+    // Form 1 student's summary — and the AI prose staff read is written over
+    // these facts, so the mistake propagated into a sentence somebody trusts.
+    const { facts } = summaryFacts(
+      inputs({
+        application: { ...inputs().application, requires_assessment: false, entry_route: "visit", scholarship: true },
+        booking: { starts_at: "2026-08-10T08:00:00Z", kind: "visit" },
+        attempt: null,
+      })
+    );
+    expect(facts).toContain("Scholarship award: the child is interviewed, not assessed.");
+    expect(facts).toContain("Interview booked for 2026-08-10.");
+    expect(facts.join(" ")).not.toContain("Pre-school applicant");
+    expect(facts.join(" ")).not.toContain("Play date");
   });
   it("flags overdue payment, missing documents, mismatches, overdue tasks, a reply and siblings", () => {
     const { flags } = summaryFacts(

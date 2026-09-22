@@ -65,6 +65,17 @@ export type Settings = {
    * `{{/phone}}` is dropped for a campus with no phone number.
    */
   whatsappAutoReplyText: string;
+  /**
+   * The last day a scholarship family may book their interview, ISO.
+   *
+   * Always set: blank falls back to the default rather than lifting the limit.
+   * The invitation states the date outright and a WhatsApp parameter cannot be
+   * conditional, so "no deadline" is not a state the wording can express — the
+   * school moves the date by typing a different one. The booking page stops
+   * offering slots after it and the invitation quotes it, so both agree by
+   * construction.
+   */
+  scholarshipInterviewDeadline: string;
   /** Require an authenticator app of every member of staff. Off: enrolling is each person's choice, and anybody who has enrolled is always asked. */
   staffMfaRequired: boolean;
   aiExtractionEnabled: boolean;
@@ -130,6 +141,9 @@ export const DEFAULT_SETTINGS: Settings = {
     "Thank you for your message. This number only sends updates about your application and nobody reads replies to it. " +
     "To talk to somebody please message us on {{whatsapp}}{{#phone}} or call {{phone}}{{/phone}}. " +
     "We have passed your message on either way.",
+  // The 2027 intake's deadline. A date rather than a number of days, because
+  // the school picked it and told 172 families in writing.
+  scholarshipInterviewDeadline: "2026-10-09",
   // Off on purpose. Thirty people sign in daily; switching a second factor on
   // for all of them at a distance is how a school loses a morning. See
   // supabase/migrations/20260913010000_staff_mfa.sql.
@@ -188,6 +202,7 @@ const KEYS: Record<keyof Settings, string> = {
   whatsappEnabled: "whatsapp_enabled",
   whatsappAutoReplyEnabled: "whatsapp_auto_reply_enabled",
   whatsappAutoReplyText: "whatsapp_auto_reply_text",
+  scholarshipInterviewDeadline: "scholarship_interview_deadline",
   staffMfaRequired: "staff_mfa_required",
   aiExtractionEnabled: "ai_extraction_enabled",
   aiSummaryEnabled: "ai_summary_enabled",
@@ -270,6 +285,21 @@ function asString(v: Json | undefined, fallback: string): string {
   return typeof v === "string" ? v.trim() : fallback;
 }
 
+/**
+ * A setting that must have a value: blank falls back to the default.
+ *
+ * `asString` lets an empty text box through, which is right for a setting that
+ * can be off. The interview deadline cannot be: the invitation states it
+ * outright, and a WhatsApp template parameter cannot be made conditional — so
+ * a cleared box would have sent "interviews must take place by —" rather than
+ * lifting any limit. Falling back is the honest reading of an empty box, and
+ * the school moves the date by typing a different one.
+ */
+function asRequiredString(v: Json | undefined, fallback: string): string {
+  const value = asString(v, fallback);
+  return value === "" ? fallback : value;
+}
+
 export async function getSettings(supabase: SupabaseClient<Database>): Promise<Settings> {
   const { data, error } = await supabase.from("settings").select("key, value");
   if (error) throw new Error(error.message);
@@ -313,6 +343,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
     whatsappAutoReplyEnabled: asBoolean(map.get(KEYS.whatsappAutoReplyEnabled), d.whatsappAutoReplyEnabled),
     whatsappAutoReplyText: asString(map.get(KEYS.whatsappAutoReplyText), d.whatsappAutoReplyText),
+    scholarshipInterviewDeadline: asRequiredString(map.get(KEYS.scholarshipInterviewDeadline), d.scholarshipInterviewDeadline),
     staffMfaRequired: asBoolean(map.get(KEYS.staffMfaRequired), d.staffMfaRequired),
     aiExtractionEnabled: asBoolean(map.get(KEYS.aiExtractionEnabled), d.aiExtractionEnabled),
     aiSummaryEnabled: asBoolean(map.get(KEYS.aiSummaryEnabled), d.aiSummaryEnabled),

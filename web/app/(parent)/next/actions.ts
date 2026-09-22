@@ -177,7 +177,7 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
   if (graph.booking) {
     const settings = await getSettings(admin);
     if (withinCutoff(graph.booking.session.starts_at, settings.rescheduleCutoffHours)) {
-      const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: graph.booking.kind });
+      const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: graph.booking.kind, scholarship: Boolean(graph.scholarship) });
       return { error: `Bookings cannot be changed online within ${settings.rescheduleCutoffHours} hours of the ${noun}. Please call ${graph.campus.name}.` };
     }
   }
