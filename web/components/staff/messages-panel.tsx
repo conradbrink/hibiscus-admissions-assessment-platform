@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDateTime } from "@/lib/format-date";
 import { deliveryProof } from "@/lib/messaging/delivery";
+import { classifyFailure } from "@/lib/messaging/failure-kind";
 import type { MessageEventRow, MessageRow } from "@/lib/supabase/types";
 
 /**
@@ -39,8 +40,23 @@ export function MessagesPanel({
 
   const trailFor = (messageId: string) => events.filter((e) => e.message_id === messageId);
 
+  // A number WhatsApp cannot reach fails once per message, and each failure
+  // reads as a one-off against whichever template was sending. Twice is no
+  // longer bad luck: it is this handset, and it will go on failing until
+  // somebody checks the number. Said once, at the top, where it belongs —
+  // the admin templates page deliberately no longer carries this.
+  const unreachable = messages.filter((m) => m.direction === "out" && m.status === "failed" && classifyFailure(m.error) === "recipient").length;
+
   return (
     <div className="space-y-3">
+      {unreachable >= 2 ? (
+        <p className="rounded-md bg-muted px-3 py-2 text-xs">
+          <span className="font-semibold">This number cannot receive WhatsApp.</span> {unreachable} messages have failed
+          to reach it — it is the handset, not the wording, so re-sending will fail the same way. Every one of them was
+          also sent by email, so nothing has been missed. Reach this family by email or phone, and check the mobile
+          number on their contact details.
+        </p>
+      ) : null}
       {messages.length ? (
         <ul className="space-y-2">
           {messages.map((m) => {
