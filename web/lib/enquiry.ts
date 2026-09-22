@@ -1,4 +1,5 @@
 import "server-only";
+import { endOfDayIn } from "@/lib/booking/deadline";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
 import type { HeardFrom } from "@/lib/heard-from";
@@ -260,39 +261,6 @@ export type SlotDay = {
     placesLeft: number;
   }>;
 };
-
-/**
- * The last instant of a day in Gaborone, as a UTC timestamp.
- *
- * A deadline the school writes as "by 9 October" means the whole of the 9th,
- * in the time zone the school and every family are standing in — not
- * midnight UTC, which would quietly cut two hours off the last afternoon.
- */
-function endOfDayIn(day: Date): Date {
-  const key = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "Africa/Gaborone",
-  }).format(day);
-  // Gaborone is UTC+2 all year: no daylight saving, so the offset is a
-  // constant rather than something to look up.
-  return new Date(`${key}T23:59:59.999+02:00`);
-}
-
-/**
- * A settings date as a `Date`, or null if it is not one.
- *
- * `new Date("")` is an Invalid Date, not a throw, and it only blows up later
- * inside `endOfDayIn` when something asks it for an ISO string. A setting is
- * a text box a person types into, so the parse belongs here rather than in
- * each caller's head.
- */
-export function parseDeadline(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
 
 /**
  * Published, future sessions at a campus with places left, for one grade.

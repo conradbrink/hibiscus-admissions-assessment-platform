@@ -6,7 +6,8 @@ import { PageHeader, StepIndicator } from "@/components/parent/page-header";
 import { SlotPicker } from "@/components/parent/slot-picker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
-import { loadAvailableSlots, parseDeadline } from "@/lib/enquiry";
+import { deadlinePassed, parseDeadline } from "@/lib/booking/deadline";
+import { loadAvailableSlots } from "@/lib/enquiry";
 import { formatDateLong, formatTime, withinCutoff } from "@/lib/format-date";
 import { nextBookingKind } from "@/lib/booking/kind";
 import { bookingNoun } from "@/lib/booking/noun";
@@ -50,6 +51,12 @@ export default async function BookPage() {
   // this the picker happily sells a family a date in November and the letter
   // is the only thing that knows better.
   const deadline = scholarship ? parseDeadline(settings.scholarshipInterviewDeadline) : null;
+  // Whether the window has *closed*, which is not the same as holding a
+  // deadline. Every scholarship family holds one; only some are past it, and
+  // telling a family whose campus is merely booked out that "interviews closed
+  // on 9 October" — a date that has not arrived — would be worse than the
+  // ordinary empty state it replaced.
+  const closed = deadlinePassed(deadline);
 
   const days = await loadAvailableSlots(admin, {
     campusId: campus.id,
@@ -108,7 +115,7 @@ export default async function BookPage() {
           <p className="mt-1 text-sm text-muted-foreground">Bookings this close cannot be changed online. Please call {campus.name} and they will help.</p>
           <Link href="/next/booking" className="mt-4 inline-block text-sm font-medium text-primary underline underline-offset-2">Back to your booking</Link>
         </div>
-      ) : days.length === 0 && deadline ? (
+      ) : days.length === 0 && closed && deadline ? (
         // The hole `notAfter` would otherwise leave. A scholarship family
         // opening the link after the deadline would have been told "as soon
         // as new dates are published we will email you a link" — a promise
