@@ -9,6 +9,7 @@ import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
 import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@/lib/email/render";
 import { paymentReferenceFor } from "@/lib/payments/reference";
+import { scholarshipFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { getSettings } from "@/lib/settings";
@@ -70,6 +71,15 @@ export type EmailExtras = {
   mismatchDetails?: string | null;
   /** "Application fee waived · P1,000 uniform voucher", from the offer's frozen deal. */
   promotionText?: string | null;
+  /**
+   * The award, "50%", when the application holds a scholarship. Null for
+   * every other family, which is what keeps the word out of their letters.
+   */
+  scholarshipAward?: string | null;
+  /** Tuition per term after that award, already formatted: "P9,495". */
+  tuitionPerTerm?: string | null;
+  /** The last day a scholarship family may book their interview. */
+  interviewDeadline?: string | null;
   /** After a registration submission: what is still outstanding, or "yes" in `allReceived` when nothing is. */
   outstandingItems?: string | null;
   allReceived?: boolean;
@@ -136,6 +146,9 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     missing_documents: extras.missingDocuments ?? null,
     mismatch_details: extras.mismatchDetails ?? null,
     promotion_text: extras.promotionText ?? null,
+    scholarship_award: extras.scholarshipAward ?? null,
+    tuition_term: extras.tuitionPerTerm ?? null,
+    interview_deadline: extras.interviewDeadline ?? null,
     outstanding_items: extras.outstandingItems ?? null,
     all_received: extras.allReceived ? "yes" : null,
     // Can this family pay by card at all? The school's gateway settles in
@@ -436,7 +449,22 @@ export async function sendTemplatedEmail(admin: AdminClient, opts: SendTemplated
   const settings = await getSettings(admin);
   const offer = await offerExtras(admin, opts.offerId);
   const pay = await paymentExtras(admin, graph, opts.paymentRequestId, opts.paymentId);
-  const extras: EmailExtras & { expiresAt: Date | null } = { ...offer, ...pay, missingDocuments: opts.missingDocuments ?? null, mismatchDetails: opts.mismatchDetails ?? null, outstandingItems: opts.outstandingItems ?? null, allReceived: opts.allReceived ?? false };
+  // Looked up once per send rather than threaded through every caller: a
+  // scholarship is a fact about the application, and any template may want to
+  // name it. Null for everyone else, so the word cannot leak into a letter
+  // that has nothing to do with the programme.
+  const award = await scholarshipFor(admin, graph);
+  const extras: EmailExtras & { expiresAt: Date | null } = {
+    ...offer,
+    ...pay,
+    missingDocuments: opts.missingDocuments ?? null,
+    mismatchDetails: opts.mismatchDetails ?? null,
+    outstandingItems: opts.outstandingItems ?? null,
+    allReceived: opts.allReceived ?? false,
+    scholarshipAward: award?.award ?? null,
+    tuitionPerTerm: award?.tuitionPerTerm ?? null,
+    interviewDeadline: award ? formatDateLong(settings.scholarshipInterviewDeadline) : null,
+  };
   const nextStep = await mintToken(admin, {
     applicationId: graph.application.id,
     purpose: "next_step",

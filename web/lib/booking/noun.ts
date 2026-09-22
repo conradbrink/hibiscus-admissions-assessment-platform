@@ -1,27 +1,34 @@
 /**
  * What to call the appointment.
  *
- * Three words for two stored columns, which is exactly the sort of rule that
+ * Four words for three stored facts, which is exactly the sort of rule that
  * rots when each screen writes its own ternary:
  *
- * | Condition                  | Word        |
- * | -------------------------- | ----------- |
- * | the child sits no assessment | play date |
- * | the booking is a look around | visit     |
- * | otherwise                    | assessment |
+ * | Condition                       | Word       |
+ * | ------------------------------- | ---------- |
+ * | the child holds a scholarship   | interview  |
+ * | the child sits no assessment    | play date  |
+ * | the booking is a look around    | visit      |
+ * | otherwise                       | assessment |
  *
- * The middle row is the one that catches people out. A *primary* family can
+ * The middle rows are the ones that catch people out. A *primary* family can
  * come through `/join/visit` to see the campus before applying, so "not an
- * assessment" does not mean "pre-school". Pre-school comes first precisely
- * because a pre-school booking is stored with `kind = 'visit'` too, and what
- * those families come to is a play date.
+ * assessment" does not mean "pre-school". Pre-school sits above that
+ * precisely because a pre-school booking is stored with `kind = 'visit'` too,
+ * and what those families come to is a play date.
+ *
+ * Scholarship sits above *both*, and it has to. A scholarship child sits no
+ * assessment either — that is the whole point of the award — so without this
+ * row a Form 3 student would be invited to a play date. "Not assessed" has
+ * meant "pre-school" since the day this file was written, and a scholarship
+ * intake is the first thing to break that inference.
  *
  * Pure, and used by every surface — emails, WhatsApp, the booking pages, the
  * confirmation card, and the staff console — so the school can say "play date"
  * everywhere by changing one string.
  */
 
-export type BookingNoun = "assessment" | "visit" | "play date";
+export type BookingNoun = "assessment" | "visit" | "play date" | "interview";
 
 export type BookingNounInput = {
   /** `applications.requires_assessment` — false for the pre-school track. */
@@ -31,9 +38,16 @@ export type BookingNounInput = {
    * what this child would be offered, so the nudge to book reads properly.
    */
   bookingKind?: "assessment" | "visit" | null;
+  /**
+   * Whether the application carries a scholarship award. Optional so that the
+   * dozens of call sites that predate scholarships keep compiling and keep
+   * their old answer; only the surfaces a scholarship family sees pass it.
+   */
+  scholarship?: boolean;
 };
 
-export function bookingNoun({ requiresAssessment, bookingKind }: BookingNounInput): BookingNoun {
+export function bookingNoun({ requiresAssessment, bookingKind, scholarship }: BookingNounInput): BookingNoun {
+  if (scholarship) return "interview";
   if (!requiresAssessment) return "play date";
   if (bookingKind === "visit") return "visit";
   return "assessment";

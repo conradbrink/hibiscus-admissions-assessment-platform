@@ -1,4 +1,5 @@
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
+import { signatoryFor } from "@/lib/promotions/scholarship-server";
 import { redirect } from "next/navigation";
 import { createElement, type ReactElement } from "react";
 import { loadApplicationGraph } from "@/lib/applications";
@@ -33,7 +34,7 @@ export async function GET(): Promise<Response> {
     bankDetails: typeof (offer.variables as { bank_details?: unknown })?.bank_details === "string" ? ((offer.variables as { bank_details: string }).bank_details ?? null) : null,
     expiresOn: offer.expires_at ? formatDateLong(offer.expires_at) : null,
     sentOn: offer.sent_at ? formatDateLong(offer.sent_at) : null,
-    signatory: { name: graph.campus.head_name, title: graph.campus.head_title, imageDataUrl: graph.campus.signature_data_url },
+    signatory: await signatoryFor(admin, graph.application.id, graph.campus),
   }) as unknown as ReactElement<DocumentProps>;
   const buffer = await renderToBuffer(element);
   return new Response(new Uint8Array(buffer), {

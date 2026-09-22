@@ -71,3 +71,39 @@ describe("bookingMovedTemplateKey", () => {
     }
   });
 });
+
+describe("a scholarship child is interviewed", () => {
+  // The whole reason this case exists: a scholarship child sits no
+  // assessment, which until now meant pre-school and therefore "play date".
+  // Inviting a Form 3 student to a play date is the bug being prevented.
+  it("says interview, not play date, though no assessment is sat", () => {
+    expect(bookingNoun({ requiresAssessment: false, bookingKind: "visit", scholarship: true })).toBe("interview");
+  });
+
+  it("says interview whatever the booking says, and before anything is booked", () => {
+    expect(bookingNoun({ requiresAssessment: false, bookingKind: null, scholarship: true })).toBe("interview");
+    expect(bookingNoun({ requiresAssessment: true, bookingKind: "visit", scholarship: true })).toBe("interview");
+    expect(bookingNoun({ requiresAssessment: true, bookingKind: "assessment", scholarship: true })).toBe("interview");
+  });
+
+  it("leaves every other family exactly as they were", () => {
+    // `scholarship` is optional and false-y for the dozens of call sites that
+    // predate it; none of them may change answer.
+    expect(bookingNoun({ requiresAssessment: false, bookingKind: "visit", scholarship: false })).toBe("play date");
+    expect(bookingNoun({ requiresAssessment: true, bookingKind: "visit", scholarship: false })).toBe("visit");
+    expect(bookingNoun({ requiresAssessment: true, bookingKind: "assessment", scholarship: false })).toBe("assessment");
+  });
+
+  it("reads properly in a heading and a count", () => {
+    expect(bookingNounTitle({ requiresAssessment: false, scholarship: true })).toBe("Interview");
+    expect(bookingNounPlural({ requiresAssessment: false, scholarship: true })).toBe("interviews");
+  });
+
+  it("confirms and reschedules on the primary templates, not the pre-school ones", () => {
+    // `visit_confirmed` and `visit_moved` are already approved with Meta and
+    // their wording suits an interview; a new pair would need approval and
+    // say nothing different.
+    expect(bookingConfirmedTemplateKey({ requiresAssessment: false, bookingKind: "visit", scholarship: true })).toBe("visit_confirmed");
+    expect(bookingMovedTemplateKey({ requiresAssessment: false, bookingKind: "visit", scholarship: true })).toBe("visit_moved");
+  });
+});

@@ -9,6 +9,7 @@ import { createPaymentRequest, loadBankInstructions } from "@/lib/payments/reque
 import { applyPromotion } from "@/lib/promotions/apply";
 import { chargeAtAcceptance, securedWithoutPaying } from "@/lib/payments/due";
 import { resolvePromotion } from "@/lib/promotions/load";
+import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { onPaymentVerified } from "@/lib/workflow/payment-actions";
 import { getSettings } from "@/lib/settings";
 import { commit, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
@@ -57,9 +58,14 @@ export async function onOfferDrafted(
     throw new WorkflowError(`An offer is already ${existing.status}`, "status_conflict");
   }
 
+  // A scholarship child gets the scholarship letter. The award is already on
+  // the application by the time an offer is drafted — the import put it there
+  // — so the key is a lookup rather than an argument, and nobody can draft the
+  // wrong letter by pressing the wrong button.
+  const scholarship = await scholarshipCodeFor(admin, app.id);
   const [graph, template, settings] = await Promise.all([
     loadApplicationGraph(admin, app.id),
-    loadActiveOfferTemplate(admin),
+    loadActiveOfferTemplate(admin, scholarship ? "scholarship" : "standard"),
     getSettings(admin),
   ]);
   if (!graph) throw new WorkflowError("application missing", "database");
