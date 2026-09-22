@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { bounceReason } from "@/lib/email/bounce";
 import type { DeliveryEvent, EmailProvider, OutboundEmail, SendResult } from "@/lib/email/provider";
 
 /**
@@ -94,7 +95,11 @@ export class ResendProvider implements EmailProvider {
     const valid = presented.some((p) => p.length === expected.length && timingSafeEqual(p, expected));
     if (!valid) return null;
 
-    let payload: { type?: string; created_at?: string; data?: { email_id?: string } };
+    let payload: {
+      type?: string;
+      created_at?: string;
+      data?: { email_id?: string; bounce?: { type?: string; subType?: string; message?: string } };
+    };
     try {
       payload = JSON.parse(rawBody);
     } catch {
@@ -117,6 +122,7 @@ export class ResendProvider implements EmailProvider {
         providerMessageId: emailId,
         kind,
         occurredAt: payload.created_at ? new Date(payload.created_at) : new Date(),
+        reason: bounceReason(kind, payload.data?.bounce),
       },
     ];
   }

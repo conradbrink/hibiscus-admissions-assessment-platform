@@ -115,7 +115,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
       .maybeSingle(),
     supabase.from("tasks").select("*, staff_profiles!tasks_assignee_staff_id_fkey(full_name)").eq("application_id", id).order("status").order("due_at", { ascending: true, nullsFirst: false }),
     supabase.from("notes").select("*, staff_profiles(full_name)").eq("application_id", id).order("is_pinned", { ascending: false }).order("created_at", { ascending: false }),
-    supabase.from("email_messages").select("id, subject, template_key, status, sent_at, opened_at, clicked_at, created_at").eq("application_id", id).order("created_at", { ascending: false }),
+    supabase.from("email_messages").select("id, subject, template_key, status, error, sent_at, opened_at, clicked_at, created_at").eq("application_id", id).order("created_at", { ascending: false }),
     can(permissions, "audit.read")
       ? supabase.from("audit_log").select("*").eq("application_id", id).order("id", { ascending: false }).limit(50)
       : Promise.resolve({ data: null }),
@@ -399,10 +399,18 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
             {emails && emails.length > 0 ? (
               <ul className="divide-y divide-border">
                 {emails.map((m) => (
-                  <li key={m.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <li key={m.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
                     <span className="w-32 shrink-0 text-xs text-muted-foreground">{formatDateTime(m.sent_at ?? m.created_at)}</span>
-                    <Link href={`/staff/admin/dev-outbox/${m.id}`} className="min-w-0 flex-1 truncate hover:underline">{m.subject}</Link>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="min-w-0 flex-1">
+                      <Link href={`/staff/admin/dev-outbox/${m.id}`} className="block truncate hover:underline">{m.subject}</Link>
+                      {/* Why it did not arrive, in the provider's words. On the
+                          row rather than a hover or a detail page because the
+                          person reading this list is deciding whether to
+                          telephone the family, and "bounced" alone does not
+                          answer that. */}
+                      {m.error ? <span className="mt-0.5 block text-xs text-destructive">{m.error}</span> : null}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {m.status}{m.opened_at ? " · opened" : ""}{m.clicked_at ? " · clicked" : ""}
                     </span>
                   </li>

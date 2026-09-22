@@ -28,6 +28,19 @@ export type DeliveryEvent = {
   providerMessageId: string;
   kind: "delivered" | "opened" | "clicked" | "bounced" | "complained";
   occurredAt: Date;
+  /**
+   * Why a bounce or complaint happened, in the provider's own words, or null
+   * when it did not say. Meaningless on the other kinds.
+   *
+   * Kept because "bounced" on its own does not tell anybody what to do next,
+   * and the two things it can mean call for opposite actions: a mailbox that
+   * does not exist means ring the family and ask for another address, while a
+   * full one or a temporary rejection means send again later. Four scholarship
+   * letters bounced on the 2027 intake with nothing recorded but the word
+   * "bounced", and separating those cases meant opening the provider's own
+   * dashboard — which the office has no login for.
+   */
+  reason?: string | null;
 };
 
 export interface EmailProvider {

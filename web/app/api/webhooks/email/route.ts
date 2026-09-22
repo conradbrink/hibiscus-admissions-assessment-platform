@@ -47,6 +47,13 @@ export async function POST(request: Request) {
     const next = ev.kind === "complained" ? "bounced" : ev.kind;
     if ((RANK[next] ?? 0) > (RANK[status] ?? 0)) status = next;
 
+    // The reason goes in `error`, beside the send failures, because to the
+    // office they are one question — why has this family not got their
+    // letter — and a second column would mean looking in two places to
+    // answer it. Written only when the provider gave one, so an existing
+    // send error is never overwritten with a blank.
+    if (ev.reason) stamp.error = ev.reason;
+
     await admin.from("email_messages").update({ ...stamp, status }).eq("id", msg.id);
   }
   return Response.json({ received: events.length });
