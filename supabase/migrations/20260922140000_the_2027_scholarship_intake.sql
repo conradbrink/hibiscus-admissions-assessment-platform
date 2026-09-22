@@ -258,7 +258,16 @@ on conflict (key, version) do nothing;
 -- 7. The WhatsApp companion
 -- ---------------------------------------------------------------------------
 
--- Live: the provider id is the one Zavu returned for `interview_invitation`.
+-- The provider id is the one Zavu returned for `interview_invitation`, but the
+-- row is **inactive**: Meta has not approved it yet.
+--
+-- Holding an id and being approved are different things, and this is the row
+-- where confusing them costs the most. The import queues this template for
+-- every family it creates, so an active row against an uncleared template
+-- turns one run into seventy-eight failed sends. Inactive, the companion is
+-- skipped and the invitation goes by email alone, which is where the letter
+-- and the figures are anyway. Flip it on when Meta answers; nothing else
+-- changes and no deploy is needed.
 --
 -- It is here rather than added later because the template coverage suite
 -- refuses a parent-facing email nobody has decided about — silence is how
@@ -296,7 +305,7 @@ values (
   'scholarship_invitation', 'Scholarship invitation', 'interview_invitation', 'ks78nnfpb0yhg55aqdr70sk96n8ex2ae', 'en',
   E'Hi {{1}}, there is an update on {{2}}\'s application to Hibiscus {{3}}. Please book an interview before {{4}} — tap below to choose a time. Replies here are not read; message {{5}} if you need us.',
   array['parent_first_name', 'student_first_name', 'campus', 'interview_deadline', 'campus_whatsapp'],
-  true, 'next_step', true, 'applicant'
+  true, 'next_step', false, 'applicant'
 )
 on conflict (key) do nothing;
 
