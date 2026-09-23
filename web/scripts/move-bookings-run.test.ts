@@ -64,6 +64,17 @@ function schoolDayStart(date: string, what: string): Date {
   // run before a single booking moves; thrown where it used to be, it stopped
   // the run halfway down the list with some families moved and the rest not.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`${what} must be a date as YYYY-MM-DD, not "${date}"`);
+  const [y, m, d] = date.split("-").map(Number);
+  // An Invalid Date is not the only way a date can be wrong, and it is not the
+  // dangerous one. JavaScript *rolls an impossible day forward in silence*:
+  // "2026-02-30" parses happily as 2 March, "2026-04-31" as 1 May. A typed
+  // MOVE_FROM would then sweep and move a different day than the one the
+  // school closed, and the run would report success on the wrong families. So
+  // build the same date a second way and check it came back as it went in.
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
+    throw new Error(`${what} is not a real date: "${date}" — there is no such day in that month`);
+  }
   const at = new Date(`${date}T00:00:00+02:00`);
   if (Number.isNaN(at.getTime())) throw new Error(`${what} is not a real date: "${date}"`);
   return at;
