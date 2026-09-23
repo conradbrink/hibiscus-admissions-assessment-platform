@@ -22,6 +22,18 @@ export type EnquiryFormState = {
    * here. The form is replaced by that sentence.
    */
   linkSent?: { email: string };
+  /**
+   * This child already has an application, and it is at a *different* campus
+   * from the one just chosen.
+   *
+   * One child holds one live application, and it is not moved by a parent
+   * looking at another campus — a child with a booking or an offer must not be
+   * relocated by somebody browsing. Silently redirecting them, which is what
+   * used to happen, left a family believing they had applied to Tlokweng while
+   * the record still said Phase 4. So the form says where the application
+   * actually is and lets them carry on to it.
+   */
+  alreadyApplied?: { childFirstName: string; campusName: string; reference: string };
 };
 
 export type EnquiryFormProps = {
@@ -99,6 +111,31 @@ export function EnquiryForm({ route, campuses, promoCodesLive = false, action }:
           with your application. The link is only sent to that address, which keeps your family&rsquo;s details safe.
         </p>
         <p className="mt-3 text-xs text-muted-foreground">No email after a few minutes? Check your spam folder, or request a call and we will help.</p>
+      </section>
+    );
+  }
+
+  if (state.alreadyApplied) {
+    const { childFirstName, campusName, reference } = state.alreadyApplied;
+    return (
+      <section className="rounded-2xl bg-success/10 p-5" role="status">
+        <p className="text-xs font-semibold tracking-wide text-success uppercase">Already with us</p>
+        <h2 className="mt-2 text-xl font-bold">{childFirstName} already has an application.</h2>
+        <p className="mt-2 text-sm leading-relaxed">
+          It is at <span className="font-medium">{campusName}</span>, reference{" "}
+          <span className="font-medium">{reference}</span>. We keep one application per child, so we have not
+          started a second one.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed">
+          Carry on with it below. If you would rather {childFirstName} was considered at a different campus,
+          please tell us and we will move the application across for you.
+        </p>
+        <a
+          href="/next"
+          className="mt-4 inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground"
+        >
+          Continue with {childFirstName}&rsquo;s application
+        </a>
       </section>
     );
   }
