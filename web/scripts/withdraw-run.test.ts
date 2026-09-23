@@ -30,6 +30,9 @@ import { isWithdrawnReasonCode } from "@/lib/workflow/withdrawal";
  * ever after.
  */
 
+/** The three booking statuses that hold a seat. */
+const LIVE = ["booked", "checked_in", "in_progress"] as const;
+
 const ref = process.env.WITHDRAW_REF;
 const commit = process.env.WITHDRAW_COMMIT === "1";
 const reason = process.env.WITHDRAW_REASON ?? null;
@@ -58,11 +61,16 @@ describe("withdraw one application", () => {
     }
 
     const { data: campus } = await admin.from("campuses").select("name").eq("id", app.campus_id).maybeSingle();
-    const { data: live } = await admin
+    const { data: live, error: liveError } = await admin
       .from("bookings")
       .select("id, sessions(starts_at)")
       .eq("application_id", app.id)
-      .in("status", ["booked", "checked_in", "in_progress"]);
+      .in("status", LIVE);
+    // Not swallowed: a failed read here would print "live bookings to cancel:
+    // 0", which is the one line an operator reads before typing the commit
+    // flag. A dry run that under-reports what it is about to cancel is worse
+    // than one that refuses to run.
+    if (liveError) throw new Error(liveError.message);
 
     console.log(`\n${commit ? "WITHDRAWING" : "DRY RUN — nothing written"}`);
     console.log(`  ${app.reference}  ${app.child_first_name} ${app.child_last_name}  ${campus?.name ?? "?"}`);
@@ -72,13 +80,35 @@ describe("withdraw one application", () => {
 
     if (commit) {
       await onWithdrawn(admin, app, reason, SYSTEM_ACTOR, code);
-      const { data: after } = await admin
+      const { data: after, error: afterError } = await admin
         .from("applications")
         .select("status, withdrawn_reason_code")
         .eq("id", app.id)
         .maybeSingle();
+      if (afterError) throw new Error(afterError.message);
       console.log(`  now: ${after?.status} (${after?.withdrawn_reason_code ?? "no code"})\n`);
       expect(after?.status).toBe("withdrawn");
+
+      // The status is not the whole job. `onWithdrawn` cancels the booking,
+      // abandons the sitting and closes the payment requests before it commits
+      // the status, and it does not check the results of those updates — so a
+      // failure among them leaves an application marked withdrawn while a seat
+      // another family could have is still held in its name. Nobody would ever
+      // look again, because the status reads as finished. So look now, and say
+      // so loudly enough that a person goes and cancels it by hand.
+      const { data: stillLive, error: stillError } = await admin
+        .from("bookings")
+        .select("id, status")
+        .eq("application_id", app.id)
+        .in("status", LIVE);
+      if (stillError) throw new Error(stillError.message);
+      if ((stillLive ?? []).length > 0) {
+        throw new Error(
+          `${app.reference} is withdrawn but still holds ${stillLive!.length} live booking(s) ` +
+            `(${stillLive!.map((b) => `${b.id} ${b.status}`).join(", ")}). Cancel them by hand — the seat is not free.`
+        );
+      }
+      console.log("  no live bookings left — the seat is free.\n");
     }
   }, 120_000);
 });

@@ -26,11 +26,21 @@
 -- So the key becomes the question a person would ask — is this the same
 -- parent, and the same child — and nothing else:
 --
---   contact_id + lower(trim(child_first_name))          (status <> 'withdrawn')
+--   contact_id + lower(trim(child_first_name))          (while the file is live)
 --
 -- `child_last_name` stays out for the reason given in
 -- 20260913100000_one_child_one_enquiry.sql: a family correcting a surname
 -- would otherwise get a second record.
+--
+-- "Live" is the CRM's own definition of an open application — everything but
+-- `enrolled`, `withdrawn`, `declined` and `offer_declined` (see `open_n` in
+-- 20260919110000_crm_family_facts_tasks_once.sql). Those four are finished
+-- files, and a finished file must not stand in the way of the next one: a
+-- child who enrolled this year, or whose family declined the offer, comes back
+-- next year and is entitled to a fresh application rather than being handed
+-- the closed one with `created => false`. Anything short of finished — waiting
+-- on an assessment, a decision, a payment, even an expired offer — is still
+-- the child's one live file.
 --
 -- Two things this deliberately does NOT do:
 --
@@ -45,7 +55,37 @@
 --     2010-01-01 for every imported family.
 
 -- ---------------------------------------------------------------------------
--- 1. The rule, in the database
+-- 1. Refuse to run while the rule is already broken
+-- ---------------------------------------------------------------------------
+
+-- `create unique index` would fail here anyway, but it fails naming a contact
+-- uuid and one duplicated key, which is not enough to act on. A child holding
+-- two live applications is a decision for the school — which campus is the
+-- child actually going to, and what happens to the offer and the booking on
+-- the other one — and it is not a decision a migration may quietly make by
+-- withdrawing the loser. So this names every offending family, by the
+-- reference the office searches on, and stops.
+do $$
+declare
+  v_rows text;
+begin
+  select string_agg(line, e'\n') into v_rows from (
+    select '  ' || c.email || '  /  ' || trim(min(a.child_first_name)) || ': '
+             || string_agg(a.reference || ' (' || a.status || ')', ', ' order by a.created_at) as line
+      from public.applications a
+      join public.contacts c on c.id = a.contact_id
+     where a.status not in ('enrolled', 'withdrawn', 'declined', 'offer_declined')
+     group by c.id, c.email, lower(trim(a.child_first_name))
+    having count(*) > 1
+  ) dup;
+
+  if v_rows is not null then
+    raise exception e'One child already holds more than one live application, so the one-live-application-per-child index cannot be built.\nWithdraw or close the applications that should not stand, then run this migration again:\n%', v_rows;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 2. The rule, in the database
 -- ---------------------------------------------------------------------------
 
 -- Until now nothing enforced this but the function's own SELECT, and a
@@ -55,10 +95,10 @@
 -- catch instead of a race to lose.
 create unique index if not exists applications_one_live_per_child_idx
   on public.applications (contact_id, lower(trim(child_first_name)))
-  where status <> 'withdrawn';
+  where status not in ('enrolled', 'withdrawn', 'declined', 'offer_declined');
 
 -- ---------------------------------------------------------------------------
--- 2. The function
+-- 3. The function
 -- ---------------------------------------------------------------------------
 
 create or replace function public.create_application(
@@ -98,12 +138,26 @@ begin
   select c.id into v_contact_id from public.contacts c where c.email_normalised = p_email_normalised;
 
   if v_contact_id is null then
+    -- `on conflict do nothing` rather than a bare insert: two first-time
+    -- enquiries for the same address at the same moment both find nothing
+    -- here, and the loser would otherwise raise `unique_violation` on
+    -- `contacts.email_normalised` before `v_contact_id` was ever set — leaving
+    -- the handler at the bottom querying on a null contact and re-raising an
+    -- error the family did nothing to deserve.
     insert into public.contacts (first_name, last_name, email, email_normalised, mobile, mobile_normalised)
     values (
       p_parent_first_name, p_parent_last_name, p_email, p_email_normalised,
       p_mobile, p_mobile_normalised
     )
+    on conflict (email_normalised) do nothing
     returning id into v_contact_id;
+
+    if v_contact_id is null then
+      select c.id into v_contact_id from public.contacts c where c.email_normalised = p_email_normalised;
+      if v_contact_id is null then
+        raise exception 'contact_not_created';
+      end if;
+    end if;
   elsif p_trusted then
     -- The family, or the desk: what was just typed is the better spelling and
     -- the newer number. A blank does not erase a number.
@@ -118,13 +172,13 @@ begin
   -- Not trusted and already on file: the contact row is left exactly as it
   -- was. Nobody types over a stranger's name or phone number.
 
-  -- Same parent, same child. Not the same date of birth, not the same intake,
-  -- not the same campus — see the header.
+  -- Same parent, same child, file still live. Not the same date of birth, not
+  -- the same intake, not the same campus — see the header.
   select a.id, a.reference into v_application_id, v_reference
     from public.applications a
    where a.contact_id = v_contact_id
      and lower(trim(a.child_first_name)) = lower(trim(p_child_first_name))
-     and a.status <> 'withdrawn'
+     and a.status not in ('enrolled', 'withdrawn', 'declined', 'offer_declined')
    order by a.created_at
    limit 1;
 
@@ -188,7 +242,7 @@ exception
       from public.applications a
      where a.contact_id = v_contact_id
        and lower(trim(a.child_first_name)) = lower(trim(p_child_first_name))
-       and a.status <> 'withdrawn'
+       and a.status not in ('enrolled', 'withdrawn', 'declined', 'offer_declined')
      order by a.created_at
      limit 1;
     if v_application_id is null then

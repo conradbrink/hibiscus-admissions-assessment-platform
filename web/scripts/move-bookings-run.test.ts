@@ -57,8 +57,16 @@ type Candidate = { id: string; starts_at: string; capacity: number };
  * one zone for every campus because Botswana and South Africa are both UTC+2
  * with no daylight saving, so there is no offset here that varies by date.
  */
-function schoolDayStart(date: string): Date {
-  return new Date(`${date}T00:00:00+02:00`);
+function schoolDayStart(date: string, what: string): Date {
+  // Checked, not trusted. Both dates that reach here are typed by a person —
+  // one into the environment, one into Settings — and `new Date("09/10/2026")`
+  // is an Invalid Date whose `.toISOString()` throws. Thrown here it stops the
+  // run before a single booking moves; thrown where it used to be, it stopped
+  // the run halfway down the list with some families moved and the rest not.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`${what} must be a date as YYYY-MM-DD, not "${date}"`);
+  const at = new Date(`${date}T00:00:00+02:00`);
+  if (Number.isNaN(at.getTime())) throw new Error(`${what} is not a real date: "${date}"`);
+  return at;
 }
 
 /**
@@ -92,8 +100,14 @@ describe("move bookings off a closed day", () => {
     const admin = createAdminClient();
     const settings = await getSettings(admin);
 
-    const dayStart = schoolDayStart(from);
+    const dayStart = schoolDayStart(from, "MOVE_FROM");
     const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+
+    // Read once, before anything moves. It is the same value for every family,
+    // and a bad one is a reason not to start rather than a reason to stop.
+    const scholarshipDeadline = new Date(
+      schoolDayStart(settings.scholarshipInterviewDeadline, "the scholarship interview deadline").getTime() + 86_400_000
+    );
 
     const { data: bookings, error } = await admin
       .from("bookings")
@@ -136,9 +150,7 @@ describe("move bookings off a closed day", () => {
       // false for exactly the families the deadline binds, and true for
       // everyone it does not.
       const award = await scholarshipCodeFor(admin, app.id);
-      const deadline = award
-        ? new Date(schoolDayStart(settings.scholarshipInterviewDeadline).getTime() + 86_400_000)
-        : null;
+      const deadline = award ? scholarshipDeadline : null;
 
       let query = admin
         .from("sessions")

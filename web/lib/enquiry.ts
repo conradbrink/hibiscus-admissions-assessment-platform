@@ -257,15 +257,20 @@ export async function createEnquiry(
   // whole point of reading it back rather than echoing the input.
   let onCampus = campus;
   if (!row.created) {
-    const { data: existing } = await admin
+    const { data: existing, error: readBack } = await admin
       .from("applications")
       .select("campus_id, campuses(name)")
       .eq("id", row.application_id)
       .maybeSingle();
-    const named = Array.isArray(existing?.campuses) ? existing?.campuses[0] : existing?.campuses;
-    if (existing?.campus_id) {
-      onCampus = { id: existing.campus_id, name: named?.name ?? campus.name } as typeof campus;
-    }
+    // Not swallowed. A failed read here would leave `onCampus` as the campus
+    // the parent just chose, which is the one answer we know may be wrong —
+    // and the caller would then redirect them into an application somewhere
+    // else without a word, which is exactly the bug this read-back exists to
+    // remove. Better a retryable error than a confident lie.
+    if (readBack) throw new Error(readBack.message);
+    if (!existing?.campus_id) throw new Error("create_application matched an application that cannot be read back");
+    const named = Array.isArray(existing.campuses) ? existing.campuses[0] : existing.campuses;
+    onCampus = { id: existing.campus_id, name: named?.name ?? campus.name } as typeof campus;
   }
 
   return {
