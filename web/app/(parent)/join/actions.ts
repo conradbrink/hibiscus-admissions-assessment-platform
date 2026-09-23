@@ -176,6 +176,24 @@ export async function submitEnquiry(
   const settings = await getSettings(admin);
   await startParentSession(result.applicationId, "next_step", settings.parentSessionMinutes);
 
+  // The child is already with us, at a campus other than the one just chosen.
+  // The session is started first so the button on that screen works; what is
+  // skipped is the silent redirect, which used to send a parent who asked for
+  // Tlokweng into the next step of their Phase 4 application without a word,
+  // and they would finish the journey believing they had applied somewhere
+  // they had not. One live application per child is the rule; saying so is the
+  // half that was missing.
+  if (!result.created && result.campusId !== parsed.data.campusId) {
+    return {
+      alreadyApplied: {
+        childFirstName: parsed.data.childFirstName.trim(),
+        campusName: result.campusName,
+        reference: result.reference,
+      },
+      values,
+    };
+  }
+
   if (route === "callback") {
     const cb = parsed.data as { preferredTime?: string; message?: string };
     if (result.created) {

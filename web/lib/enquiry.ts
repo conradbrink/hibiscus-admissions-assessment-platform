@@ -141,6 +141,19 @@ export type EnquiryResult = {
   recommendedGradeId: string | null;
   intakeId: string;
   startMonth: string | null;
+  /**
+   * The campus the application is actually on, which is not always the campus
+   * the parent just picked.
+   *
+   * One child holds one live application (`applications_one_live_per_child_idx`),
+   * and it is deliberately not relocated when a family looks at a second
+   * campus — a child with a booking or an offer must not be moved by somebody
+   * browsing a different one. So when `created` is false the parent may have
+   * asked for Tlokweng and still be on Phase 4, and the only way they find
+   * that out is if the caller tells them. Returned for exactly that.
+   */
+  campusId: string;
+  campusName: string;
 };
 
 /**
@@ -239,6 +252,27 @@ export async function createEnquiry(
       .eq("id", row.contact_id);
   }
 
+  // Where the application actually is. On a fresh one that is the campus just
+  // chosen; on a match it is wherever the child already was, which is the
+  // whole point of reading it back rather than echoing the input.
+  let onCampus = campus;
+  if (!row.created) {
+    const { data: existing, error: readBack } = await admin
+      .from("applications")
+      .select("campus_id, campuses(name)")
+      .eq("id", row.application_id)
+      .maybeSingle();
+    // Not swallowed. A failed read here would leave `onCampus` as the campus
+    // the parent just chose, which is the one answer we know may be wrong —
+    // and the caller would then redirect them into an application somewhere
+    // else without a word, which is exactly the bug this read-back exists to
+    // remove. Better a retryable error than a confident lie.
+    if (readBack) throw new Error(readBack.message);
+    if (!existing?.campus_id) throw new Error("create_application matched an application that cannot be read back");
+    const named = Array.isArray(existing.campuses) ? existing.campuses[0] : existing.campuses;
+    onCampus = { id: existing.campus_id, name: named?.name ?? campus.name } as typeof campus;
+  }
+
   return {
     applicationId: row.application_id,
     reference: row.reference,
@@ -247,6 +281,8 @@ export async function createEnquiry(
     recommendedGradeId,
     intakeId: intake.id,
     startMonth,
+    campusId: onCampus.id,
+    campusName: onCampus.name,
   };
 }
 
