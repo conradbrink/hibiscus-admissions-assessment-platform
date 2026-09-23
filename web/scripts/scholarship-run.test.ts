@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { readWorkbook } from "@/lib/xlsx-read";
 import { readRoster } from "@/lib/scholarship/roster";
 import { importScholarshipRoster, placementFor } from "@/lib/scholarship/import";
+import { resolvePlacement, type Placement } from "@/lib/scholarship/placement";
 
 /**
  * The scholarship import, run by hand.
@@ -23,6 +24,12 @@ import { importScholarshipRoster, placementFor } from "@/lib/scholarship/import"
  * start. `NEXT_PUBLIC_SUPABASE_URL` is the name `createAdminClient` reads, odd
  * as it looks beside a service role key.
  *
+ * Where the children go is a decision rather than a fact in the file:
+ * `SCHOLARSHIP_CAMPUS=Broadhurst` places the whole file at one campus, and
+ * `SCHOLARSHIP_PLACEMENT='{"Form 1":"Block 7"}'` overrides the classes it
+ * names. Neither set keeps the list below. The dry run prints what it
+ * resolved, class by class, which is the line to read before committing.
+ *
  * It is a test file because vitest is the only thing in this repository that
  * resolves the `@/` aliases the libraries import by — plain node cannot load
  * TypeScript with path aliases. Everything with a decision in it is in the
@@ -40,9 +47,14 @@ const file = process.env.SCHOLARSHIP_FILE;
 const commit = process.env.SCHOLARSHIP_COMMIT === "1";
 const limit = Number(process.env.SCHOLARSHIP_LIMIT ?? Infinity);
 const only = process.env.SCHOLARSHIP_ONLY?.toLowerCase() ?? null;
+const campusOverride = process.env.SCHOLARSHIP_CAMPUS ?? null;
+const placementJson = process.env.SCHOLARSHIP_PLACEMENT ?? null;
 
 // Which class sits where. Not in the spreadsheet — a placement decision.
-const PLACEMENT = [
+// Supplied per run by SCHOLARSHIP_CAMPUS (one campus for the whole file)
+// or SCHOLARSHIP_PLACEMENT (a class-to-campus map, which wins where it names a
+// class). This is what a run that says neither falls back to.
+const FALLBACK_PLACEMENT: Placement[] = [
   { className: "Form 1", campusName: "Block 7" },
   { className: "Form 2", campusName: "Block 7" },
   { className: "Form 3", campusName: "Block 7" },
@@ -122,15 +134,26 @@ describe.skipIf(!file)("scholarship import", () => {
     if (only) wanted = wanted.filter((r) => r.email.toLowerCase() === only);
     if (Number.isFinite(limit)) wanted = wanted.slice(0, limit);
 
+    // Where these children go. Resolved from the classes actually in the file,
+    // so a class nobody placed is simply absent and the check below names it
+    // rather than the run quietly placing a child at the wrong school.
+    const placements = resolvePlacement({
+      classNames: wanted.map((r) => r.className),
+      campus: campusOverride,
+      json: placementJson,
+      variable: "SCHOLARSHIP_PLACEMENT",
+      fallback: FALLBACK_PLACEMENT,
+    });
+
     // A dry run reads a file and reports. It must not need a service-role key
     // to do that — needing credentials to find out what *would* happen is how
     // people skip the dry run and go straight to the real one.
     if (!commit) {
       console.log(`\nDRY RUN — nothing written, no database touched`);
       console.log(`read ${rows.length}, would attempt ${wanted.length}`);
-      tallies(wanted);
+      tallies(wanted, placements);
       report(problems, [], wanted);
-      expect(wanted.every((r) => PLACEMENT.some((p) => p.className === r.className)), "a class has no campus mapped").toBe(true);
+      expect(wanted.every((r) => placements.some((p) => p.className === r.className)), "a class has no campus mapped").toBe(true);
       return;
     }
 
@@ -142,7 +165,7 @@ describe.skipIf(!file)("scholarship import", () => {
       .maybeSingle();
     expect(intake.data?.id, "intake not found").toBeTruthy();
 
-    const placement = await placementFor(admin, PLACEMENT);
+    const placement = await placementFor(admin, placements);
     const missing = [...new Set(wanted.map((r) => r.className))].filter((c) => !placement.has(c));
     expect(missing, `no grade or campus for ${missing.join(", ")}`).toEqual([]);
 
@@ -156,7 +179,7 @@ describe.skipIf(!file)("scholarship import", () => {
     console.log(`\nCOMMITTED`);
     console.log(`read ${rows.length}, attempted ${wanted.length}`);
     console.log(`created ${outcome.created} · already there ${outcome.existing} · refused ${outcome.refused}`);
-    tallies(wanted);
+    tallies(wanted, placements);
     report(problems, outcome.rows, wanted);
     for (const r of outcome.rows) {
       const ref = "reference" in r.outcome ? r.outcome.reference : "—";
@@ -176,14 +199,14 @@ describe.skipIf(!file)("scholarship import", () => {
  * anybody spends a service role key on it, and reconciling both lists is the
  * step the plan asks for anyway.
  */
-function tallies(rows: Array<{ className: string; promotionCode: string }>): void {
+function tallies(rows: Array<{ className: string; promotionCode: string }>, placements: Placement[]): void {
   const count = <T,>(items: T[], key: (t: T) => string) => {
     const m = new Map<string, number>();
     for (const i of items) m.set(key(i), (m.get(key(i)) ?? 0) + 1);
     return [...m].sort();
   };
   for (const [className, n] of count(rows, (r) => r.className)) {
-    const campus = PLACEMENT.find((p) => p.className === className)?.campusName ?? "NO CAMPUS MAPPED";
+    const campus = placements.find((p) => p.className === className)?.campusName ?? "NO CAMPUS MAPPED";
     console.log(`  ${String(n).padStart(3)} × ${className.padEnd(8)} → ${campus}`);
   }
   console.log("");
