@@ -181,6 +181,22 @@ describe.skipIf(!file)("primary scholarship import", () => {
 });
 
 /**
+ * Near-name pairs a person has looked at and settled.
+ *
+ * The check below cannot tell two children from one child typed twice, and
+ * neither can the index. Once somebody has decided, the decision belongs here
+ * rather than in a memory: a second run should not raise the same alarm and
+ * invite somebody to settle it differently.
+ */
+const CONFIRMED_DIFFERENT_CHILDREN: Array<{ importing: string; onFile: string; why: string }> = [
+  {
+    importing: "Lerang",
+    onFile: "Letang",
+    why: "siblings — Letang is Form 1 at Block 7, Lerang is Stage 6 at Broadhurst; confirmed by Conrad, 23 Sep 2026",
+  },
+];
+
+/**
  * Families in this roster who are already in the system, and — the point of it
  * — children whose names are one letter away from a child already on file.
  *
@@ -262,8 +278,13 @@ async function familiesAlreadyOnFile(
     console.log(`    importing: ${r.studentFirstName} ${r.studentLastName} (${r.className})`);
     for (const a of known.get(r.email.trim().toLowerCase()) ?? []) {
       const near = looksLikeSameChild(a.first, r.studentFirstName);
-      console.log(`    on file:   ${a.first} ${a.last} — ${a.reference} ${a.grade} ${a.campus} ${a.status}${near ? "   ←← ONE LETTER APART" : ""}`);
-      if (near) {
+      const settled = CONFIRMED_DIFFERENT_CHILDREN.find(
+        (c) => c.importing.toLowerCase() === r.studentFirstName.trim().toLowerCase() && c.onFile.toLowerCase() === a.first.trim().toLowerCase()
+      );
+      const flag = !near ? "" : settled ? "   ← near name, settled" : "   ←← ONE LETTER APART";
+      console.log(`    on file:   ${a.first} ${a.last} — ${a.reference} ${a.grade} ${a.campus} ${a.status}${flag}`);
+      if (near && settled) console.log(`               ${settled.why}`);
+      if (near && !settled) {
         suspect.push(`${r.studentFirstName} ${r.studentLastName} (importing) vs ${a.first} ${a.last} (${a.reference})`);
       }
     }
