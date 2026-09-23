@@ -54,36 +54,65 @@
 -- weekend ones missing is a calendar somebody later has to second-guess, and
 -- the row costs nothing.
 
-insert into public.school_closures (campus_id, starts_on, ends_on, label)
-select null, s.starts_on, s.ends_on, s.label
-from (values
-  (date '2027-03-26', date '2027-03-29', 'Good Friday to Easter Monday'),
-  (date '2027-05-01', date '2027-05-01', 'Labour Day (a Saturday in 2027)'),
-  (date '2027-05-06', date '2027-05-06', 'Ascension Day'),
-  (date '2027-07-01', date '2027-07-01', 'Sir Seretse Khama Day'),
-  (date '2027-07-19', date '2027-07-20', 'Presidents'' Day and the day after'),
-  (date '2027-09-30', date '2027-10-01', 'Botswana Day holidays'),
-  (date '2027-12-25', date '2027-12-27', 'Christmas, Boxing Day and the Monday in lieu')
-) as s(starts_on, ends_on, label)
-where not exists (
-  select 1 from public.school_closures x
-   where x.campus_id is null and x.starts_on = s.starts_on and x.label = s.label
-);
-
--- A 2027 with no public holidays in it is the state this migration exists to
--- fix, so it says out loud whether it worked rather than leaving somebody to
--- notice in nine months that a family was invited on Botswana Day.
+-- ---------------------------------------------------------------------------
+-- The seed, and the proof that it worked
+-- ---------------------------------------------------------------------------
+--
+-- One loop rather than an insert followed by a separate check, because the
+-- list of dates is the thing that must not drift and writing it twice is how
+-- it drifts. Each range is inserted and then immediately proved closed.
+--
+-- The guard matches the **whole range**, not just the start and the label. An
+-- earlier version matched on `(campus_id, starts_on, label)` alone, which
+-- meant a pre-existing "Botswana Day holidays" row ending on 30 September
+-- would have suppressed the row ending on 1 October — and the old check,
+-- which counted rows rather than days, would have passed anyway and left
+-- 1 October bookable. Counting rows proves nothing; the invariant is that
+-- every day in every range is closed, so that is what is checked, day by day,
+-- naming the first date that is not.
+--
+-- Coverage is asked of school-wide closures only (`campus_id is null`). A
+-- closure at one campus does not make a public holiday, and counting it would
+-- report the school closed when only Broadhurst was.
 do $$
 declare
-  v_days int;
+  r record;
+  v_uncovered date;
 begin
-  select count(*) into v_days
-    from public.school_closures
-   where starts_on >= date '2027-01-11' and starts_on < date '2028-01-01';
+  for r in
+    select * from (values
+      (date '2027-03-26', date '2027-03-29', 'Good Friday to Easter Monday'),
+      (date '2027-05-01', date '2027-05-01', 'Labour Day (a Saturday in 2027)'),
+      (date '2027-05-06', date '2027-05-06', 'Ascension Day'),
+      (date '2027-07-01', date '2027-07-01', 'Sir Seretse Khama Day'),
+      (date '2027-07-19', date '2027-07-20', 'Presidents'' Day and the day after'),
+      (date '2027-09-30', date '2027-10-01', 'Botswana Day holidays'),
+      (date '2027-12-25', date '2027-12-27', 'Christmas, Boxing Day and the Monday in lieu')
+    ) as t(starts_on, ends_on, label)
+  loop
+    insert into public.school_closures (campus_id, starts_on, ends_on, label)
+    select null, r.starts_on, r.ends_on, r.label
+    where not exists (
+      select 1 from public.school_closures x
+       where x.campus_id is null
+         and x.starts_on = r.starts_on
+         and x.ends_on = r.ends_on
+         and x.label = r.label
+    );
 
-  if v_days < 7 then
-    raise exception 'only % closure rows cover 2027 after the end-of-year holiday; expected at least 7', v_days;
-  end if;
+    select d::date into v_uncovered
+      from generate_series(r.starts_on, r.ends_on, interval '1 day') d
+     where not exists (
+       select 1 from public.school_closures x
+        where x.campus_id is null and d::date between x.starts_on and x.ends_on
+     )
+     order by d
+     limit 1;
 
-  raise notice '2027 public holidays seeded: % closure rows now cover the year', v_days;
+    if v_uncovered is not null then
+      raise exception '% is still open, though it falls inside "%"', v_uncovered, r.label;
+    end if;
+  end loop;
+
+  raise notice '2027 public holidays: every day of all seven ranges is closed';
 end $$;
