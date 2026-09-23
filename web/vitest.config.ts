@@ -13,6 +13,14 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      // `lib/workflow/actions.ts` is marked `server-only`, a marker package
+      // whose whole job is to fail a *client bundle* that pulls a server module
+      // into it. There is no bundle here, so it has nothing to protect and
+      // would only stop the import running at all — the same reason
+      // `scripts/scholarship.vitest.config.ts` stubs it, and the same stub.
+      // This does not widen the line above: the workflow tests hand those
+      // functions a stub client and still touch no database, Next or React.
+      "server-only": path.resolve(__dirname, "scripts/server-only-stub.ts"),
     },
   },
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { bookingConfirmedTemplateKey, bookingMovedTemplateKey, bookingNoun } from "@/lib/booking/noun";
 import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfterDeferral } from "@/lib/workflow/deferral";
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
+import type { PostgrestError } from "@supabase/supabase-js";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
@@ -50,6 +51,36 @@ const emailJob = (
   runAfter: opts.runAfter,
   precondition: opts.precondition,
 });
+
+/**
+ * A cleanup write whose failure must stop the transition that follows it.
+ *
+ * `onWithdrawn` used to await its six cleanup updates, drop every result, and
+ * commit the status anyway. A failed booking cancellation therefore left a
+ * family holding a seat another family could have had, under an application
+ * whose status read as finished — so nobody would ever look at it again, and
+ * no sweep would catch it. CodeRabbit found it on #122.
+ *
+ * Partial success must not be recorded as completion. Raising here leaves the
+ * status alone, so the whole operation can be retried: every cleanup update
+ * filters on the live statuses, so a second run only touches what is still
+ * live. The message is read by the person at the screen — `guarded()` shows a
+ * `WorkflowError` verbatim — so it names the step and the application.
+ */
+async function mustSucceed(
+  reference: string,
+  outcome: string,
+  step: string,
+  run: PromiseLike<{ error: PostgrestError | null }>
+): Promise<void> {
+  const { error } = await run;
+  if (error) {
+    throw new WorkflowError(
+      `${reference} was not ${outcome}: we could not ${step} (${error.message}). Its status is unchanged — please try again.`,
+      "database"
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Enquiry
@@ -658,22 +689,32 @@ export async function onManualDecision(
  */
 export async function onDeferred(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "owner_staff_id">,
+  app: Pick<ApplicationRow, "id" | "status" | "reference" | "child_first_name" | "owner_staff_id">,
   spec: { until: string; reason: string | null },
   actor: Actor
 ): Promise<void> {
   const settings = await getSettings(admin);
+
+  // Raising rather than reporting, and before the application is touched: a
+  // failed cancellation must not leave a `deferred_until` on an application
+  // that is still live, nor a held seat and a queue of reminders under one
+  // that reads as deferred.
+  await mustSucceed(
+    app.reference,
+    "deferred",
+    "cancel its bookings",
+    admin
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" })
+      .eq("application_id", app.id)
+      .in("status", ["booked", "checked_in", "in_progress"])
+  );
+
   const { error } = await admin
     .from("applications")
     .update({ deferred_until: spec.until, deferred_reason: spec.reason })
     .eq("id", app.id);
   if (error) throw new WorkflowError(error.message, "database");
-
-  await admin
-    .from("bookings")
-    .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" })
-    .eq("application_id", app.id)
-    .in("status", ["booked", "checked_in", "in_progress"]);
 
   // Every send holds only while the application is still deferred, so a
   // family who answers the first — or whom staff move back — is never chased
@@ -724,16 +765,26 @@ export async function onDeferred(
  */
 export async function onDeferralEnded(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status" | "requires_assessment">,
+  app: Pick<ApplicationRow, "id" | "status" | "reference" | "requires_assessment">,
   actor: Actor
 ): Promise<void> {
   // A sitting that was submitted or marked. The booking their deferral
   // cancelled is not one, which is the whole point of asking.
-  const { count } = await admin
+  const { count, error } = await admin
     .from("attempts")
     .select("id", { count: "exact", head: true })
     .eq("application_id", app.id)
     .in("status", ["submitted", "marked"]);
+  // Not swallowed: a failed count is undefined, `?? 0` reads it as none, and
+  // the application would resume as though the child had never sat. That is a
+  // wrong status rather than a missing cleanup — worse, because nothing
+  // downstream asks again.
+  if (error) {
+    throw new WorkflowError(
+      `${app.reference}: we could not check whether the child has sat the assessment (${error.message}). Its status is unchanged — please try again.`,
+      "database"
+    );
+  }
   const newStatus = statusAfterDeferral({
     requiresAssessment: app.requires_assessment,
     hasSatAssessment: (count ?? 0) > 0,
@@ -764,7 +815,7 @@ export async function onDeferralEnded(
  */
 export async function onWithdrawn(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status">,
+  app: Pick<ApplicationRow, "id" | "status" | "reference">,
   reason: string | null,
   actor: Actor,
   /**
@@ -775,39 +826,73 @@ export async function onWithdrawn(
   reasonCode: WithdrawnReasonCode | null = null
 ): Promise<void> {
   const now = new Date().toISOString();
-  await admin
-    .from("bookings")
-    .update({ status: "cancelled", cancelled_at: now, cancel_reason: "Application withdrawn" })
-    .eq("application_id", app.id)
-    .in("status", ["booked", "checked_in", "in_progress"]);
-  await admin
-    .from("attempts")
-    .update({ status: "abandoned" })
-    .eq("application_id", app.id)
-    .in("status", ["ready", "in_progress"]);
-  await admin
-    .from("offers")
-    .update({ status: "withdrawn", withdrawn_reason: "Application withdrawn" })
-    .eq("application_id", app.id)
-    .in("status", ["draft", "pending_approval", "sent", "viewed"]);
+  // Each of these raises rather than reporting, and all of them run before the
+  // status is committed below. The seat is the one that matters: a cancelled
+  // family still holding it, under an application that reads as withdrawn, is
+  // invisible for ever.
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "cancel its bookings",
+    admin
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: now, cancel_reason: "Application withdrawn" })
+      .eq("application_id", app.id)
+      .in("status", ["booked", "checked_in", "in_progress"])
+  );
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "abandon its assessment attempt",
+    admin
+      .from("attempts")
+      .update({ status: "abandoned" })
+      .eq("application_id", app.id)
+      .in("status", ["ready", "in_progress"])
+  );
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "withdraw its offer",
+    admin
+      .from("offers")
+      .update({ status: "withdrawn", withdrawn_reason: "Application withdrawn" })
+      .eq("application_id", app.id)
+      .in("status", ["draft", "pending_approval", "sent", "viewed"])
+  );
   // Money: open requests close; a checkout nobody started expires; one in
   // progress is left alone — if it later verifies as paid, the engine files
   // it as unexpected and finance decides.
-  await admin
-    .from("payment_requests")
-    .update({ status: "cancelled" })
-    .eq("application_id", app.id)
-    .in("status", ["required", "failed", "partially_paid", "processing"]);
-  await admin
-    .from("payments")
-    .update({ status: "expired", failure_reason: "Application withdrawn" })
-    .eq("application_id", app.id)
-    .eq("status", "pending");
-  await admin
-    .from("tasks")
-    .update({ status: "cancelled", resolved_at: now, resolution_note: "Application withdrawn" })
-    .eq("application_id", app.id)
-    .eq("status", "open");
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "close its payment requests",
+    admin
+      .from("payment_requests")
+      .update({ status: "cancelled" })
+      .eq("application_id", app.id)
+      .in("status", ["required", "failed", "partially_paid", "processing"])
+  );
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "expire its unpaid checkout",
+    admin
+      .from("payments")
+      .update({ status: "expired", failure_reason: "Application withdrawn" })
+      .eq("application_id", app.id)
+      .eq("status", "pending")
+  );
+  await mustSucceed(
+    app.reference,
+    "withdrawn",
+    "close its open tasks",
+    admin
+      .from("tasks")
+      .update({ status: "cancelled", resolved_at: now, resolution_note: "Application withdrawn" })
+      .eq("application_id", app.id)
+      .eq("status", "open")
+  );
   const { error } = await admin
     .from("applications")
     .update({ withdrawn_reason: reason, withdrawn_reason_code: reasonCode })
