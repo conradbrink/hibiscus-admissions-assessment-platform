@@ -68,6 +68,32 @@ describe("resolving where a file's children go", () => {
     const out = resolvePlacement({ classNames: ["Stage 4"], campus: "   ", fallback: FALLBACK });
     expect(out).toEqual([{ className: "Stage 4", campusName: "Broadhurst" }]);
   });
+
+  it("matches a class whose key was typed with a stray space", () => {
+    // The key is matched against a class name read out of the workbook, so an
+    // untrimmed `"Stage 4 "` would match nothing and quietly leave the child at
+    // the fallback campus — the one this run was trying to move them off.
+    const out = resolvePlacement({
+      classNames: ["Stage 4"],
+      json: '{"Stage 4 ":"Block 7"}',
+      fallback: FALLBACK,
+    });
+    expect(out).toEqual([{ className: "Stage 4", campusName: "Block 7" }]);
+  });
+
+  it("refuses a map that was set to nothing rather than falling back", () => {
+    // `PLACEMENT=$SOMETHING_UNSET` expands to the empty string. Treating that
+    // as absent would place children at the runner's own campus while the
+    // person who typed it believed they had chosen one.
+    expect(() =>
+      resolvePlacement({
+        classNames: ["Stage 4"],
+        json: "",
+        variable: "SCHOLARSHIP_PLACEMENT",
+        fallback: FALLBACK,
+      })
+    ).toThrow('SCHOLARSHIP_PLACEMENT "" is not valid JSON');
+  });
 });
 
 describe("reading the placement map a person typed", () => {
@@ -90,6 +116,25 @@ describe("reading the placement map a person typed", () => {
   it("refuses a list, which is the shape people reach for first", () => {
     expect(() => parsePlacement('["Block 7"]', "SCHOLARSHIP_PLACEMENT")).toThrow(
       /must be an object of class name to campus name/
+    );
+  });
+
+  it("trims the class name as well as the campus", () => {
+    expect(parsePlacement('{"  Stage 4  ":"Block 7"}', "X")).toEqual([{ className: "Stage 4", campusName: "Block 7" }]);
+  });
+
+  it("refuses an entry whose class name is only whitespace", () => {
+    expect(() => parsePlacement('{"   ":"Block 7"}', "SCHOLARSHIP_PLACEMENT")).toThrow(
+      "SCHOLARSHIP_PLACEMENT has an entry with no class name"
+    );
+  });
+
+  it("refuses the same class twice under different spacing", () => {
+    // JSON itself drops an exactly repeated key, so the only way to name one
+    // class twice is with whitespace — and then which campus wins would be a
+    // matter of key order.
+    expect(() => parsePlacement('{"Stage 4":"Block 7","Stage 4 ":"Broadhurst"}', "SCHOLARSHIP_PLACEMENT")).toThrow(
+      'SCHOLARSHIP_PLACEMENT names "Stage 4" twice'
     );
   });
 

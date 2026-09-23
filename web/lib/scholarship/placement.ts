@@ -36,7 +36,10 @@ export function resolvePlacement(opts: {
   classNames: string[];
   /** One campus for every class in the file. */
   campus?: string | null;
-  /** JSON, class name to campus name. */
+  /**
+   * JSON, class name to campus name. Absent is absent; set-but-empty is
+   * malformed and refused, because the two are typed by different mistakes.
+   */
   json?: string | null;
   /**
    * The variable `json` came from, for the message when it is malformed. The
@@ -47,7 +50,12 @@ export function resolvePlacement(opts: {
   /** What the runner falls back to when the environment says nothing. */
   fallback: Placement[];
 }): Placement[] {
-  const overrides = opts.json ? parsePlacement(opts.json, opts.variable ?? "the placement map") : [];
+  // `== null` rather than falsy: a variable set to nothing is not a variable
+  // nobody set. `PLACEMENT=$SOMETHING_UNSET` expands to the empty string, and
+  // treating that as absent would fall back to the runner's own campus while
+  // the person who typed it believed they had chosen one. Empty is malformed
+  // JSON, so it goes to the parser and is refused by name.
+  const overrides = opts.json == null ? [] : parsePlacement(opts.json, opts.variable ?? "the placement map");
   const byClass = new Map(overrides.map((p) => [p.className, p.campusName]));
   const fallbackBy = new Map(opts.fallback.map((p) => [p.className, p.campusName]));
   const campus = opts.campus?.trim() || null;
@@ -79,10 +87,24 @@ export function parsePlacement(raw: string, variable: string): Placement[] {
     throw new Error(`${variable} must be an object of class name to campus name, not ${raw}`);
   }
   const out: Placement[] = [];
-  for (const [className, campusName] of Object.entries(parsed)) {
+  const seen = new Set<string>();
+  for (const [rawClassName, campusName] of Object.entries(parsed)) {
+    // The key is trimmed as well as the value, and this is the half that
+    // matters: the class names it is matched against come from the workbook,
+    // so `"Stage 4 "` with a stray space would match nothing, fall through to
+    // the fallback, and place the child at the campus the run was trying to
+    // move them off — silently, with the dry run's summary agreeing.
+    const className = rawClassName.trim();
+    if (!className) {
+      throw new Error(`${variable} has an entry with no class name`);
+    }
+    if (seen.has(className)) {
+      throw new Error(`${variable} names "${className}" twice`);
+    }
     if (typeof campusName !== "string" || !campusName.trim()) {
       throw new Error(`${variable} entry "${className}" must name a campus`);
     }
+    seen.add(className);
     out.push({ className, campusName: campusName.trim() });
   }
   return out;
