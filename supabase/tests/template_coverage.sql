@@ -165,6 +165,38 @@ begin
     raise exception E'TEMPLATE COVERAGE: % WhatsApp template(s) say "assessment" where a pre-school family can read it:\n%\n\nWhatsApp has no {{#if}}, so the wording has to be split into its own template — or the key belongs in assessed_only.', v_count, v_list;
   end if;
 
+  -- An offer template that cannot render.
+  --
+  -- `renderHtml` (web/lib/email/render.ts) validates every {{name}} and
+  -- {{#if name}} against the template's own `allowed_variables` and *throws*
+  -- when one is missing, so the staff member pressing "Generate offer" gets a
+  -- failed draft rather than a letter with a blank in it. That is the right
+  -- failure and a terrible one to discover live.
+  --
+  -- It nearly was discovered live: the scholarship letter shipped using
+  -- {{fees_table}} and {{campus_whatsapp}}, neither of them allowed, and would
+  -- have thrown for the first scholarship child whose offer anyone drafted.
+  -- Nothing anywhere checked, because the allow-list is enforced at render
+  -- time and nothing renders until a family is waiting.
+  --
+  -- Inactive rows are skipped: they are superseded versions kept for the
+  -- offers that were frozen from them, and those letters are already rendered.
+  select string_agg(format('  - %s: {{%s}}', u.key, u.name), E'\n' order by u.key, u.name), count(*)
+    into v_list, v_count
+  from (
+    select distinct t.key, m.parts[1] as name
+      from public.offer_templates t
+      cross join lateral regexp_matches(
+        coalesce(t.body_html, '') || coalesce(t.terms_html, ''),
+        '\{\{\s*(?:#if\s+)?([a-z][a-z0-9_]*)\s*\}\}', 'g'
+      ) as m(parts)
+     where t.is_active and not (m.parts[1] = any (t.allowed_variables))
+  ) u;
+
+  if v_count > 0 then
+    raise exception E'TEMPLATE COVERAGE: % variable(s) in active offer templates are not in that template\'s allowed_variables, so the letter throws instead of rendering:\n%\n\nAdd the name to allowed_variables in a migration, or use a variable buildOfferVariables actually returns (web/lib/offers/snapshot.ts).', v_count, v_list;
+  end if;
+
   -- Passing, with the outstanding gaps printed so they are seen every run.
   select string_agg(format('  - %s — %s', g.key, g.why), E'\n' order by g.key), count(*)
     into v_list, v_count
