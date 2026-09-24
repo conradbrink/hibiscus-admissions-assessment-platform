@@ -73,6 +73,62 @@ describe("applyPromotion", () => {
     expect(fullyWaived(snapshot)).toBe(false);
   });
 
+  it("makes a line due at acceptance for the children on the deal, and nobody else", () => {
+    // The scholarship shape: the two fees waived, tuition discounted, and the
+    // month — which the schedule invoices later for everyone else — required
+    // up front from these children only.
+    const withMonth: FeeSnapshot = {
+      ...snapshot,
+      lines: [
+        ...snapshot.lines,
+        { code: "tuition_month", label: "Tuition per month", amount_minor: 633000, payable_at_acceptance: false },
+      ],
+    };
+    const scholarship: PromotionSummary = {
+      id: "s30",
+      code: "SCHOLARSHIP-30",
+      name: "Scholarship — 30%",
+      letter_text: null,
+      effects: [
+        { kind: "waive_fee", fee_code: "registration", amount_minor: null, percent: null, label: "Application fee waived" },
+        { kind: "waive_fee", fee_code: "admission", amount_minor: null, percent: null, label: "Admission fee waived" },
+        { kind: "discount_percent", fee_code: "tuition_month", amount_minor: null, percent: 30, label: "Scholarship — 30% of the monthly fee" },
+        { kind: "require_at_acceptance", fee_code: "tuition_month", amount_minor: null, percent: null, label: "First month payable to confirm the place" },
+      ],
+    };
+
+    const out = applyPromotion(withMonth, scholarship);
+    const month = out.lines.find((l) => l.code === "tuition_month")!;
+    expect(month.amount_minor).toBe(443100);
+    expect(month.payable_at_acceptance).toBe(true);
+    // The discounted month, and only that: both fees are waived to zero.
+    expect(out.payable_at_acceptance_minor).toBe(443100);
+    // Nothing is left to pay only when nothing is due; this family owes a month.
+    expect(fullyWaived(out)).toBe(false);
+    // Not a benefit, so it stays out of what the letter prints as the deal.
+    expect(out.promotion?.fee_lines).toEqual([
+      "Application fee waived",
+      "Admission fee waived",
+      "Scholarship — 30% of the monthly fee",
+    ]);
+    // The family without the deal is untouched: the month is still invoiced.
+    expect(withMonth.lines.find((l) => l.code === "tuition_month")!.payable_at_acceptance).toBe(false);
+    expect(withMonth.payable_at_acceptance_minor).toBe(530000);
+  });
+
+  it("requires nothing extra of a line the deal does not name", () => {
+    const out = applyPromotion(snapshot, {
+      ...launch,
+      effects: [
+        { kind: "require_at_acceptance", fee_code: "tuition_month", amount_minor: null, percent: null, label: "First month payable to confirm the place" },
+      ],
+    });
+    // No monthly line on this schedule, so the effect finds nothing and the
+    // family owes exactly what the schedule already said.
+    expect(out.payable_at_acceptance_minor).toBe(530000);
+    expect(out.promotion?.fee_lines).toEqual([]);
+  });
+
   it("builds the letter variables", () => {
     const v = promotionVariables(applyPromotion(snapshot, launch));
     expect(v.promotion_name).toBe("Launch 2027");
