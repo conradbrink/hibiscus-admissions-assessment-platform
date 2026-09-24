@@ -71,6 +71,25 @@ export function applyPromotion(snapshot: FeeSnapshot, promo: PromotionSummary): 
       const pct = Math.min(100, Math.max(0, e.percent ?? 0));
       line.amount_minor = Math.max(0, Math.round(line.amount_minor * (1 - pct / 100)));
       line.waived = line.amount_minor === 0;
+    } else if (e.kind === "require_at_acceptance") {
+      // The one effect that costs a family money rather than saving it, and
+      // the only way a deal can say "this line, for these children".
+      //
+      // The scholarship programme asks for the first month's tuition to
+      // confirm the place. `payable_at_acceptance` is a property of the fee
+      // line, and a fee line belongs to a schedule that every child in that
+      // class shares — so marking the monthly line payable on the schedule
+      // would have billed a month up front to every 2027 family, which is
+      // not what the school asked for. The promotion is the only thing that
+      // knows which children are on the programme, so the requirement rides
+      // on the promotion.
+      //
+      // Deliberately not added to `feeLines`: that list is what the letter
+      // and the console print as the deal's benefits, and "you must pay this
+      // now" is not one. What the family owes is already the letter's
+      // largest number, under `{{amount_due}}`.
+      line.payable_at_acceptance = true;
+      continue;
     }
     feeLines.push(e.label);
   }

@@ -443,7 +443,7 @@ export type ApplicationRow = {
   updated_at: string;
 };
 
-export type PromotionEffectKind = "waive_fee" | "discount_fixed" | "discount_percent" | "gift";
+export type PromotionEffectKind = "waive_fee" | "discount_fixed" | "discount_percent" | "gift" | "require_at_acceptance";
 
 export type PromotionRow = {
   id: string;
