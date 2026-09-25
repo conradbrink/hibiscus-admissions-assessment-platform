@@ -9,6 +9,10 @@ import { createCampus, saveCampus } from "./actions";
 export default async function CampusesPage() {
   const { supabase } = await requireStaff("settings.write");
   const { data: campuses } = await supabase.from("campuses").select("*").order("sort_order");
+  // Only people who can still log in: a campus pointed at a deactivated
+  // account collects applications nobody opens, and the trigger ignores it
+  // anyway. Offering them here would be offering a dead end.
+  const { data: staff } = await supabase.from("staff_profiles").select("id, full_name").eq("is_active", true).order("full_name");
 
   return (
     <>
@@ -32,6 +36,14 @@ export default async function CampusesPage() {
               <div><span className="text-xs text-muted-foreground">WhatsApp number (parents tap to chat)</span><Input name="whatsapp" type="tel" defaultValue={c.whatsapp ?? ""} placeholder="+267 72 320 145" /></div>
               <div className="sm:col-span-2"><span className="text-xs text-muted-foreground">Maps link (parents tap for directions; leave empty and the address stands alone)</span><Input name="mapsUrl" type="url" defaultValue={c.maps_url ?? ""} placeholder="https://maps.app.goo.gl/…" /></div>
               <p className="text-xs text-muted-foreground">Shown on the parent&rsquo;s pages and in the &ldquo;Talk to our admissions team&rdquo; message. Leave one empty and that way of reaching you is simply not offered.</p>
+            </div>
+            <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[minmax(180px,260px)_1fr] sm:items-end">
+              <div><span className="text-xs text-muted-foreground">New applications go to</span>
+                <NativeSelect name="defaultOwnerStaffId" defaultValue={c.default_owner_staff_id ?? ""}>
+                  <option value="">Nobody</option>
+                  {(staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+                </NativeSelect></div>
+              <p className="text-xs text-muted-foreground">Every enquiry, import and application added by hand at this campus lands on that person&rsquo;s badge, so they find it under <span className="font-mono">Applications &rarr; Mine</span> and tasks raised for the owner have somebody to go to. Staff can still reassign any applicant. Leave it on <em>Nobody</em> and applications here arrive unowned, as they used to. They also do while that person&rsquo;s account is deactivated &mdash; work stops arriving for somebody who has left rather than piling up unread.</p>
             </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[180px_1fr] sm:items-end">
               <div><span className="text-xs text-muted-foreground">Families join by the</span>
