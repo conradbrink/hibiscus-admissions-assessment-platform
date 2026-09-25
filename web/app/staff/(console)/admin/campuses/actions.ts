@@ -26,6 +26,9 @@ const schema = z.object({
   mapsUrl: z.union([z.literal(""), z.url().max(500).startsWith("https://")]).optional(),
   headName: z.string().trim().max(80).optional(),
   headTitle: z.string().trim().max(80).optional(),
+  // Who new applications here land on. Empty is a real answer — a campus
+  // between admissions officers assigns nobody rather than the last one.
+  defaultOwnerStaffId: z.union([z.literal(""), z.guid()]).optional(),
   removeSignature: z.string().optional(),
   isActive: z.string().optional(),
 });
@@ -61,6 +64,7 @@ export async function saveCampus(_: StaffActionState, formData: FormData): Promi
         maps_url: p.mapsUrl || null,
         head_name: p.headName || null,
         head_title: p.headTitle || null,
+        default_owner_staff_id: p.defaultOwnerStaffId || null,
         ...(p.removeSignature === "1" ? { signature_data_url: null } : uploaded ? { signature_data_url: uploaded } : {}),
         is_active: p.isActive === "1",
       })

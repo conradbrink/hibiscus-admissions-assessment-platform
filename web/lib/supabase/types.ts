@@ -249,6 +249,8 @@ export type CampusRow = {
   head_name: string | null;
   head_title: string | null;
   signature_data_url: string | null;
+  /** Who new applications at this campus are assigned to, while that profile is active. Filled by a trigger on insert; an owner passed in wins. */
+  default_owner_staff_id: string | null;
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -2207,7 +2209,7 @@ export type Database = {
       >;
       campuses: TableOf<
         CampusRow,
-        "descriptor" | "country" | "currency" | "intake_cadence" | "address" | "phone" | "whatsapp" | "maps_url" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "sort_order" | "is_active"
+        "descriptor" | "country" | "currency" | "intake_cadence" | "address" | "phone" | "whatsapp" | "maps_url" | "first_day_arrival_time" | "head_name" | "head_title" | "signature_data_url" | "default_owner_staff_id" | "sort_order" | "is_active"
       >;
       promotions: TableOf<
         PromotionRow,
