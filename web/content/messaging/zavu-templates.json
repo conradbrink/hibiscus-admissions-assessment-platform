@@ -1,5 +1,5 @@
 {
-  "note": "The WhatsApp templates as Meta approves them, one entry per message_templates row. Body text and the order of parameters are the contract: we fill {{1}}..{{n}} positionally, so re-wording is free but re-ordering silently sends the wrong values. The button carries its own {{1}}, numbered separately from the body, and Meta only accepts it as a dynamic URL when an example value is submitted with it. web/scripts/zavu-templates.mjs prints these as form fields and as the SQL that records the ids Zavu gives back. The button URL is the address the site answers on today; when the custom domain is connected it changes here and in every template already approved with Zavu, or every button a parent taps stops resolving.",
+  "note": "The WhatsApp templates as Meta approves them, one entry per message_templates row. Body text and the order of parameters are the contract: we fill {{1}}..{{n}} positionally, so re-wording is free but re-ordering silently sends the wrong values. The button carries its own {{1}}, numbered separately from the body, and Meta only accepts it as a dynamic URL when an example value is submitted with it. web/scripts/zavu-templates.mjs prints these as form fields and as the SQL that records the ids Zavu gives back. The button URL is the address the site answers on today; when the custom domain is connected it changes here and in every template already approved with Zavu, or every button a parent taps stops resolving. A template may name its own category (the event follow-ups are MARKETING: they invite rather than inform) and it overrides the document's.",
   "category": "UTILITY",
   "language": "en",
   "buttonUrl": "https://hibiscus-admissions-assessment-plat.vercel.app/a/{{1}}",
@@ -351,6 +351,53 @@
         "Lesedi",
         "Block 7",
         "+267 72 320 145"
+      ]
+    },
+    {
+      "key": "event_thank_you",
+      "category": "MARKETING",
+      "body": "Hi {{1}}, thank you for coming to our {{2}}. It was lovely to meet you and your child. If you would like to see what a week with us is like, your child is welcome to a free one-week trial at Hibiscus {{3}}. Book it here: https://admissions.hibiscus.co.bw/join. The Hibiscus Team",
+      "parameters": [
+        "parent_first_name",
+        "event_name",
+        "campus"
+      ],
+      "samples": [
+        "Neo",
+        "Bana Tlokweng Open Day",
+        "Bana Tlokweng"
+      ]
+    },
+    {
+      "key": "event_free_trial_reminder",
+      "category": "MARKETING",
+      "body": "Hi {{1}}, your child's free one-week trial at Hibiscus {{2}} is still open after our {{3}}. Booking takes two minutes: https://admissions.hibiscus.co.bw/join. We would love to have you both.",
+      "parameters": [
+        "parent_first_name",
+        "campus",
+        "event_name"
+      ],
+      "samples": [
+        "Neo",
+        "Bana Tlokweng",
+        "Bana Tlokweng Open Day"
+      ]
+    },
+    {
+      "key": "event_free_trial_last_call",
+      "category": "MARKETING",
+      "body": "Hi {{1}}, this is our last note about our {{2}}. Enrol your child at Hibiscus {{3}} by {{4}} and they get a free Hibiscus Welcome Pack. Want to try us first? Book a free one-week trial here: https://admissions.hibiscus.co.bw/join. We would love to welcome your family to Hibiscus.",
+      "parameters": [
+        "parent_first_name",
+        "event_name",
+        "campus",
+        "deadline"
+      ],
+      "samples": [
+        "Neo",
+        "Bana Tlokweng Open Day",
+        "Bana Tlokweng",
+        "31 October"
       ]
     }
   ]
