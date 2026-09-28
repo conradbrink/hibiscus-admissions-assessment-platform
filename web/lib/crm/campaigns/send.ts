@@ -32,6 +32,26 @@ import type { HandlerResult } from "@/lib/workflow/handlers";
 
 const BATCH = 50;
 
+/**
+ * How long one batch may keep taking recipients. The drain is one function
+ * call with a 60-second ceiling, it runs its sweeps first, and each send is
+ * a few seconds (the family's details, a link, the provider, the records).
+ * A batch that ran on until the ceiling was killed mid-send: the recipient
+ * it had claimed stayed claimed and was never written to, and the jobs
+ * behind it waited ten minutes for their lock to expire. So a batch stops
+ * taking recipients once this much time has gone and hands the rest to the
+ * next batch, which the next drain picks up.
+ */
+export const BATCH_BUDGET_MS = 25_000;
+
+/** Whether a batch that began at `startedAt` may still take another recipient. */
+export function withinBudget(startedAt: number, now: number, budgetMs: number = BATCH_BUDGET_MS): boolean {
+  return now - startedAt < budgetMs;
+}
+
+/** What a recipient row says while a batch is sending to it. */
+export const CLAIMED = "claimed";
+
 export async function queueCampaignSend(admin: AdminClient, campaignId: string, batch = 0): Promise<void> {
   await enqueueJobs(admin, [
     {
@@ -60,6 +80,21 @@ export async function sendCampaignHandler(admin: AdminClient, job: JobRow): Prom
     if (started.error) return { outcome: "failed", error: started.error.message, retryable: true };
   }
 
+  // A retry means the last attempt died, and a recipient it had claimed may
+  // never have been sent. Only one batch of a campaign runs at a time (the
+  // next is queued when this one ends), so a claim left behind is an orphan:
+  // put it back. A send that did go out is not repeated, because every send
+  // is keyed per campaign and contact and the second attempt stops at the key.
+  if (job.attempts > 1) {
+    const released = await admin
+      .from("campaign_recipients")
+      .update({ status: "pending", exclusion_reason: null })
+      .eq("campaign_id", campaign.id)
+      .eq("status", "skipped")
+      .eq("exclusion_reason", CLAIMED);
+    if (released.error) return { outcome: "failed", error: released.error.message, retryable: true };
+  }
+
   const result = await sendCampaignBatch(admin, { ...campaign, status: "sending" });
 
   if (result.remaining > 0) {
@@ -80,7 +115,7 @@ export async function sendCampaignHandler(admin: AdminClient, job: JobRow): Prom
 
 export type BatchResult = { sent: number; skipped: number; failed: number; remaining: number; sentSoFar: number };
 
-export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRow): Promise<BatchResult> {
+export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRow, startedAt: number = Date.now()): Promise<BatchResult> {
   const { data: pending, error } = await admin
     .from("campaign_recipients")
     .select("id, family_id, contact_id, channel")
@@ -100,8 +135,10 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
     : null;
 
   for (const r of pending ?? []) {
+    // Out of time: leave the rest pending for the next batch.
+    if (!withinBudget(startedAt, Date.now())) break;
     // Claim the row. Zero rows updated means another drain got here first.
-    const claimed = await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: "claimed" }).eq("id", r.id).eq("status", "pending").select("id").maybeSingle();
+    const claimed = await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: CLAIMED }).eq("id", r.id).eq("status", "pending").select("id").maybeSingle();
     if (!claimed.data) continue;
 
     try {
