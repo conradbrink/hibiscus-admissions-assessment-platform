@@ -86,6 +86,15 @@ export function renderPreview(bodyPreview: string, params: string[]): string {
   return bodyPreview.replace(/\{\{\s*(\d+)\s*\}\}/g, (_, n: string) => params[Number(n) - 1] ?? "");
 }
 
+/**
+ * The template parameters that came out empty, by name. Meta refuses a
+ * parameter with no text, and where it does not the parent reads a sentence
+ * with a hole in it, so a send with any of these is skipped, not sent.
+ */
+export function blankParameters(names: string[], params: string[]): string[] {
+  return names.filter((_, i) => (params[i] ?? "") === "");
+}
+
 /** How many {{n}} placeholders the wording has; the highest index counts, so a gap is a mistake. */
 export function placeholderCount(bodyPreview: string): number {
   let max = 0;
