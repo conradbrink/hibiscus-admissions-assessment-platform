@@ -37,7 +37,7 @@ export async function prepareCampaign(staff: Client, admin: AdminClient, campaig
     const slice = familyIds.slice(i, i + 200);
     const { data, error } = await staff
       .from("contacts")
-      .select("id, family_id, first_name, last_name, email, mobile_normalised, whatsapp_opt_in, marketing_email_consent, marketing_whatsapp_consent, unsubscribed_at, is_active")
+      .select("id, family_id, first_name, last_name, email, mobile_normalised, whatsapp_opt_in, marketing_email_consent, marketing_whatsapp_consent, sms_consent, unsubscribed_at, is_active")
       .in("family_id", slice);
     if (error) throw new Error(error.message);
     const primaryOf = new Map(families.map((f) => [f.family_id, f.primary_contact_id]));
@@ -82,6 +82,7 @@ export async function prepareCampaign(staff: Client, admin: AdminClient, campaig
       recipients_total: plan.familiesReached,
       recipients_email: plan.email,
       recipients_whatsapp: plan.whatsapp,
+      recipients_sms: plan.sms,
       excluded_count: plan.excluded.filter((e) => e.reason !== "not_primary").length,
       exclusions: plan.exclusionCounts,
     })

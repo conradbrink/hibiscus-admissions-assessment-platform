@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { buildCampaignVariables, renderCampaign } from "@/lib/crm/campaigns/variables";
+import { buildCampaignVariables, renderCampaign, renderCampaignSms } from "@/lib/crm/campaigns/variables";
 import { CAMPAIGN_CATEGORY_LABELS, CAMPAIGN_CHANNEL_LABELS, SENSITIVE_CATEGORIES } from "@/lib/crm/labels";
-import { EXCLUSION_LABELS, isTransactional } from "@/lib/crm/recipients";
+import { EXCLUSION_LABELS, channelsOf, isTransactional } from "@/lib/crm/recipients";
 import { formatDateTime } from "@/lib/format-date";
+import { smsLength } from "@/lib/messaging/sms";
 import { getMessagingProvider } from "@/lib/messaging/provider";
 import { activeTemplates } from "@/lib/messaging/send";
 import { can } from "@/lib/permissions";
@@ -21,7 +22,7 @@ import { addCampaignNote, approveCampaign, backToDraft, cancelCampaign, pauseCam
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
-type Stats = { total: number; pending: number; excluded: number; sent: number; skipped: number; failed: number; email: Record<string, number>; whatsapp: Record<string, number> };
+type Stats = { total: number; pending: number; excluded: number; sent: number; skipped: number; failed: number; email: Record<string, number>; whatsapp: Record<string, number>; sms?: Record<string, number> };
 
 /**
  * Steps 4 to 7 and the results: the preview rendered for one real family,
@@ -42,7 +43,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
   const [{ data: statsRaw }, { data: excluded }, { data: sampleRecipient }, { data: notes }, { data: segments }, { data: campuses }, { data: templates }, provider, { data: events }, { data: recentSends }] = await Promise.all([
     supabase.rpc("crm_campaign_stats", { p_campaign_id: id }),
     supabase.from("campaign_recipients").select("id, channel, exclusion_reason, status, error, contacts(first_name, last_name), families!campaign_recipients_family_id_fkey(id, display_name, family_code)").eq("campaign_id", id).in("status", ["excluded", "failed", "skipped"]).order("status").limit(200),
-    supabase.from("campaign_recipients").select("family_id, contact_id").eq("campaign_id", id).eq("channel", "email").in("status", ["pending", "sent"]).limit(1).maybeSingle(),
+    supabase.from("campaign_recipients").select("family_id, contact_id").eq("campaign_id", id).in("status", ["pending", "sent"]).order("channel").limit(1).maybeSingle(),
     supabase.from("crm_notes").select("*, staff_profiles(full_name)").eq("campaign_id", id).order("created_at", { ascending: false }),
     supabase.from("segments").select("id, name, match_count, campus_id").eq("is_active", true).order("name"),
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
@@ -55,7 +56,9 @@ export default async function CampaignPage({ params, searchParams }: { params: P
 
   // The preview: the message as one real family in the list would read it.
   let preview: { subject: string; bodyHtml: string; text: string; who: string } | null = null;
-  if (c.email_subject && c.email_body_html && c.email_body_text) {
+  let smsPreview: { text: string; who: string } | null = null;
+  const channels = channelsOf(c.channel);
+  if ((c.email_subject && c.email_body_html && c.email_body_text) || c.sms_body) {
     let ctxFamily: { contact: { first_name: string; last_name: string; unsubscribe_token: string }; family: { display_name: string | null; family_code: string }; campus: { name: string; phone: string | null } | null; students: Array<{ preferred_name: string | null; legal_first_name: string; date_of_birth: string; status: string }> } | null = null;
     if (sampleRecipient) {
       const [{ data: contact }, { data: family }, { data: students }] = await Promise.all([
@@ -75,12 +78,20 @@ export default async function CampaignPage({ params, searchParams }: { params: P
       siteUrl: siteUrl(),
       familyLink: `${siteUrl()}/a/…`,
     });
+    const who = ctxFamily ? `${ctxFamily.contact.first_name} ${ctxFamily.contact.last_name}` : "an example family";
     try {
-      const rendered = renderCampaign({ email_subject: c.email_subject, email_body_html: c.email_body_html, email_body_text: c.email_body_text }, vars, { marketing: !isTransactional(c.category) });
-      // Composed by lib/email/render.ts, which escapes every variable it substitutes.
-      preview = { subject: rendered.subject, bodyHtml: rendered.html, text: rendered.text, who: ctxFamily ? `${ctxFamily.contact.first_name} ${ctxFamily.contact.last_name}` : "an example family" };
+      if (c.email_subject && c.email_body_html && c.email_body_text) {
+        const rendered = renderCampaign({ email_subject: c.email_subject, email_body_html: c.email_body_html, email_body_text: c.email_body_text }, vars, { marketing: !isTransactional(c.category) });
+        // Composed by lib/email/render.ts, which escapes every variable it substitutes.
+        preview = { subject: rendered.subject, bodyHtml: rendered.html, text: rendered.text, who };
+      }
     } catch {
       preview = null;
+    }
+    try {
+      if (c.sms_body) smsPreview = { text: renderCampaignSms(c.sms_body, vars), who };
+    } catch {
+      smsPreview = null;
     }
   }
   const exclusions = (c.exclusions ?? {}) as Record<string, number>;
@@ -108,9 +119,18 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 <p className="mt-2 font-medium">{preview.subject}</p>
                 <div className="prose prose-sm mt-2 rounded-xl border border-border/70 bg-background p-4" dangerouslySetInnerHTML={{ __html: preview.bodyHtml }} />
               </div>
-            ) : c.channel === "whatsapp" ? (
-              <p className="mt-1 text-sm text-muted-foreground">WhatsApp only: the template &ldquo;{c.message_template_key}&rdquo; is sent with each family&rsquo;s own names.</p>
+            ) : !channels.includes("email") ? (
+              channels.includes("whatsapp") ? <p className="mt-1 text-sm text-muted-foreground">WhatsApp: the template &ldquo;{c.message_template_key}&rdquo; is sent with each family&rsquo;s own names.</p> : null
             ) : <p className="mt-1 text-sm text-muted-foreground">Prepare the list to preview the email for a real family.</p>}
+            {smsPreview ? (() => {
+              const len = smsLength(smsPreview.text);
+              return (
+                <div className="mt-3">
+                  <p className="text-xs text-muted-foreground">SMS, as {smsPreview.who} would read it · {len.units}/{len.singleLimit}{len.parts > 1 ? ` · goes as ${len.parts} messages` : " · one message"}</p>
+                  <p className="mt-1 whitespace-pre-wrap rounded-xl border border-border/70 bg-background p-3 text-sm">{smsPreview.text}</p>
+                </div>
+              );
+            })() : null}
             {c.message_template_key ? <p className="mt-3 text-xs text-muted-foreground">WhatsApp: template &ldquo;{c.message_template_key}&rdquo; through {provider.name}.</p> : null}
           </section>
 
@@ -122,7 +142,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
             {c.prepared_at ? (
               <>
                 <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {[["Families", c.recipients_total], ["Email", c.recipients_email], ["WhatsApp", c.recipients_whatsapp], ["Excluded", c.excluded_count]].map(([l, v]) => (
+                  {[["Families", c.recipients_total], ...(channels.includes("email") ? [["Email", c.recipients_email]] : []), ...(channels.includes("whatsapp") ? [["WhatsApp", c.recipients_whatsapp]] : []), ...(channels.includes("sms") ? [["SMS", c.recipients_sms]] : []), ["Excluded", c.excluded_count]].map(([l, v]) => (
                     <div key={String(l)} className="rounded-xl bg-muted/60 px-3 py-2"><dt className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{l}</dt><dd className="text-2xl font-semibold tabular-nums">{v ?? 0}</dd></div>
                   ))}
                 </dl>
@@ -130,7 +150,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 {Object.keys(exclusions).length ? (
                   <ul className="mt-2 text-sm">{Object.entries(exclusions).sort((a, b) => b[1] - a[1]).map(([reason, n]) => <li key={reason}>{EXCLUSION_LABELS[reason as keyof typeof EXCLUSION_LABELS] ?? reason}: <span className="font-semibold tabular-nums">{n}</span></li>)}</ul>
                 ) : <p className="mt-2 text-sm text-success">Nobody excluded.</p>}
-                {(c.recipients_email ?? 0) + (c.recipients_whatsapp ?? 0) === 0 ? <p className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">Nobody would receive this campaign. Check the segment and the families&rsquo; consent.</p> : null}
+                {(c.recipients_email ?? 0) + (c.recipients_whatsapp ?? 0) + (c.recipients_sms ?? 0) === 0 ? <p className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">Nobody would receive this campaign. Check the segment and the families&rsquo; consent.</p> : null}
               </>
             ) : <p className="mt-1 text-sm text-muted-foreground">Not prepared yet. Preparing freezes the list and shows who is in, who is out and why.</p>}
           </section>
@@ -144,8 +164,9 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 ))}
               </dl>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm">
-                {c.channel !== "whatsapp" ? <div><p className="font-medium">Email</p><p className="text-xs text-muted-foreground">sent {stats.email.sent} · delivered {stats.email.delivered} · opened {stats.email.opened} · clicked {stats.email.clicked} · bounced {stats.email.bounced} · failed {stats.email.failed}</p></div> : null}
-                {c.channel !== "email" ? <div><p className="font-medium">WhatsApp</p><p className="text-xs text-muted-foreground">sent {stats.whatsapp.sent} · delivered {stats.whatsapp.delivered} · read {stats.whatsapp.read} · failed {stats.whatsapp.failed} · replies {stats.whatsapp.replies}</p></div> : null}
+                {channels.includes("email") ? <div><p className="font-medium">Email</p><p className="text-xs text-muted-foreground">sent {stats.email.sent} · delivered {stats.email.delivered} · opened {stats.email.opened} · clicked {stats.email.clicked} · bounced {stats.email.bounced} · failed {stats.email.failed}</p></div> : null}
+                {channels.includes("whatsapp") ? <div><p className="font-medium">WhatsApp</p><p className="text-xs text-muted-foreground">sent {stats.whatsapp.sent} · delivered {stats.whatsapp.delivered} · read {stats.whatsapp.read} · failed {stats.whatsapp.failed} · replies {stats.whatsapp.replies}</p></div> : null}
+                {channels.includes("sms") && stats.sms ? <div><p className="font-medium">SMS</p><p className="text-xs text-muted-foreground">sent {stats.sms.sent} · delivered {stats.sms.delivered} · failed {stats.sms.failed}</p></div> : null}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">Delivery, opens, clicks and reads are what the providers reported through their webhooks; a figure the provider does not report stays at zero rather than being guessed.</p>
               {recentSends?.length ? <ul className="mt-2 divide-y divide-border/70 text-xs">{recentSends.map((r) => <li key={r.id} className="py-1"><Link href={`/staff/crm/families/${one(r.families)?.id}`} className="hover:underline">{one(r.families)?.display_name ?? one(r.families)?.family_code}</Link> · {one(r.contacts)?.first_name} {one(r.contacts)?.last_name} · {r.channel} · {r.sent_at ? formatDateTime(r.sent_at) : ""}</li>)}</ul> : null}

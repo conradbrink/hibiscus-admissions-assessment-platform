@@ -1,5 +1,5 @@
 import { TRANSACTIONAL_CATEGORIES } from "@/lib/crm/labels";
-import type { CampaignCategory, CampaignChannel } from "@/lib/supabase/types";
+import type { CampaignCategory, CampaignChannel, CampaignSendChannel } from "@/lib/supabase/types";
 
 /**
  * Who a campaign actually reaches, and why the rest do not.
@@ -10,7 +10,9 @@ import type { CampaignCategory, CampaignChannel } from "@/lib/supabase/types";
  * campaign (a fee notice, a policy) needs only a working address. WhatsApp
  * additionally needs the updates opt-in and a number the provider can
  * reach — the same two things `sendFamilyMessage` checks, so what this
- * excludes is exactly what that would have skipped.
+ * excludes is exactly what that would have skipped. An SMS needs a number
+ * and, for marketing, the contact's SMS consent; it does not need the
+ * WhatsApp opt-in, which is about WhatsApp.
  *
  * Every exclusion carries a reason, counted, because "127 recipients" is
  * only half the sentence the approver needs. Pure and tested.
@@ -26,6 +28,7 @@ export type RecipientContact = {
   whatsapp_opt_in: boolean;
   marketing_email_consent: boolean;
   marketing_whatsapp_consent: boolean;
+  sms_consent: boolean;
   unsubscribed_at: string | null;
   is_active: boolean;
   /** Only the primary contact is written to unless the campaign asks for every contact. */
@@ -35,6 +38,7 @@ export type RecipientContact = {
 export type ExclusionReason =
   | "no_consent_email"
   | "no_consent_whatsapp"
+  | "no_consent_sms"
   | "unsubscribed"
   | "whatsapp_updates_off"
   | "invalid_email"
@@ -45,6 +49,7 @@ export type ExclusionReason =
 export const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   no_consent_email: "No consent to marketing email",
   no_consent_whatsapp: "No consent to marketing WhatsApp",
+  no_consent_sms: "No consent to SMS",
   unsubscribed: "Unsubscribed",
   whatsapp_updates_off: "WhatsApp updates switched off",
   invalid_email: "No usable email address",
@@ -53,8 +58,8 @@ export const EXCLUSION_LABELS: Record<ExclusionReason, string> = {
   not_primary: "Not the family's primary contact",
 };
 
-export type PlannedRecipient = { contactId: string; familyId: string; channel: "email" | "whatsapp" };
-export type PlannedExclusion = { contactId: string; familyId: string; channel: "email" | "whatsapp"; reason: ExclusionReason };
+export type PlannedRecipient = { contactId: string; familyId: string; channel: CampaignSendChannel };
+export type PlannedExclusion = { contactId: string; familyId: string; channel: CampaignSendChannel; reason: ExclusionReason };
 
 export type RecipientPlan = {
   recipients: PlannedRecipient[];
@@ -63,6 +68,7 @@ export type RecipientPlan = {
   familiesReached: number;
   email: number;
   whatsapp: number;
+  sms: number;
   /** Count per reason, for the approval screen. */
   exclusionCounts: Partial<Record<ExclusionReason, number>>;
 };
@@ -74,12 +80,43 @@ export function isTransactional(category: CampaignCategory): boolean {
   return TRANSACTIONAL_CATEGORIES.has(category);
 }
 
+const CHANNELS: Record<CampaignChannel, CampaignSendChannel[]> = {
+  email: ["email"],
+  whatsapp: ["whatsapp"],
+  both: ["email", "whatsapp"],
+  sms: ["sms"],
+  email_sms: ["email", "sms"],
+  whatsapp_sms: ["whatsapp", "sms"],
+  all: ["email", "whatsapp", "sms"],
+};
+
+/** The channels a campaign sends on, in a fixed order. */
+export function channelsOf(channel: CampaignChannel): CampaignSendChannel[] {
+  return CHANNELS[channel];
+}
+
+/**
+ * The one value for a set of channels, or null for none. The inverse of
+ * `channelsOf`, so the form's three tick boxes and the column agree.
+ */
+export function channelFor(picked: { email: boolean; whatsapp: boolean; sms: boolean }): CampaignChannel | null {
+  const { email, whatsapp, sms } = picked;
+  if (email && whatsapp && sms) return "all";
+  if (email && whatsapp) return "both";
+  if (email && sms) return "email_sms";
+  if (whatsapp && sms) return "whatsapp_sms";
+  if (email) return "email";
+  if (whatsapp) return "whatsapp";
+  if (sms) return "sms";
+  return null;
+}
+
 export function planRecipients(
   contacts: readonly RecipientContact[],
   opts: { channel: CampaignChannel; category: CampaignCategory; everyContact?: boolean }
 ): RecipientPlan {
   const transactional = isTransactional(opts.category);
-  const channels: Array<"email" | "whatsapp"> = opts.channel === "both" ? ["email", "whatsapp"] : [opts.channel];
+  const channels = channelsOf(opts.channel);
   const recipients: PlannedRecipient[] = [];
   const excluded: PlannedExclusion[] = [];
   const families = new Set<string>();
@@ -105,12 +142,13 @@ export function planRecipients(
     familiesReached: families.size,
     email: recipients.filter((r) => r.channel === "email").length,
     whatsapp: recipients.filter((r) => r.channel === "whatsapp").length,
+    sms: recipients.filter((r) => r.channel === "sms").length,
     exclusionCounts,
   };
 }
 
 /** Null when the contact may be written to on this channel; otherwise why not. */
-export function exclusionFor(c: RecipientContact, channel: "email" | "whatsapp", transactional: boolean, everyContact: boolean): ExclusionReason | null {
+export function exclusionFor(c: RecipientContact, channel: CampaignSendChannel, transactional: boolean, everyContact: boolean): ExclusionReason | null {
   if (!c.is_active) return "contact_inactive";
   if (!everyContact && !c.is_primary) return "not_primary";
   if (channel === "email") {
@@ -122,6 +160,10 @@ export function exclusionFor(c: RecipientContact, channel: "email" | "whatsapp",
     return null;
   }
   if (!c.mobile_normalised || !E164.test(c.mobile_normalised)) return "invalid_number";
+  if (channel === "sms") {
+    if (!transactional && !c.sms_consent) return "no_consent_sms";
+    return null;
+  }
   if (!c.whatsapp_opt_in) return "whatsapp_updates_off";
   if (!transactional && !c.marketing_whatsapp_consent) return "no_consent_whatsapp";
   return null;

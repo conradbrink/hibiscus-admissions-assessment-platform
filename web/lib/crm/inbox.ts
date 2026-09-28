@@ -25,6 +25,8 @@ export async function listConversations(supabase: Client, opts: { q?: string; un
   const { data: messages, error } = await supabase
     .from("messages")
     .select("*")
+    // A one-way SMS cannot be answered, so it is not a conversation here.
+    .eq("channel", "whatsapp")
     .not("contact_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(2000);
@@ -82,7 +84,7 @@ export async function loadConversation(supabase: Client, contactId: string) {
       .select("*, families!contacts_family_id_fkey(id, display_name, family_code, campus_id)")
       .eq("id", contactId)
       .maybeSingle(),
-    supabase.from("messages").select("*").eq("contact_id", contactId).order("created_at"),
+    supabase.from("messages").select("*").eq("contact_id", contactId).eq("channel", "whatsapp").order("created_at"),
   ]);
   if (!contact) return null;
   const ids = (messages ?? []).map((m) => m.id);

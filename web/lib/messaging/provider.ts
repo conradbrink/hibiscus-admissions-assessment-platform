@@ -50,6 +50,20 @@ export type OutboundTextMessage = {
   idempotencyKey: string;
 };
 
+/**
+ * A one-way SMS: plain text from the school's alphanumeric sender, which a
+ * parent cannot reply to. No template and no approval, so the words are the
+ * caller's, already rendered. `senderId` picks the provider's sender that
+ * texts as the school, where that is not the one WhatsApp goes out as.
+ */
+export type OutboundSmsMessage = {
+  /** E.164, with the leading plus. */
+  to: string;
+  text: string;
+  idempotencyKey: string;
+  senderId?: string | null;
+};
+
 export type SendResult =
   | { ok: true; providerMessageId: string }
   | { ok: false; error: string; retryable: boolean };
@@ -75,6 +89,11 @@ export interface MessagingProvider {
    * fails the send like any other, and the auto-reply is simply not made.
    */
   sendText(message: OutboundTextMessage): Promise<SendResult>;
+  /**
+   * A one-way SMS. Optional: only a provider that texts has it, and a send
+   * through one that does not is skipped with the reason rather than tried.
+   */
+  sendSms?(message: OutboundSmsMessage): Promise<SendResult>;
   /**
    * Verifies a webhook and returns the events it carries, or null when the
    * signature does not check out. A null must be answered with a 401.

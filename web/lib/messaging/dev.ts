@@ -22,6 +22,10 @@ export const devMessagingProvider: MessagingProvider = {
     console.info(`[whatsapp:dev] to=${message.to} text=${message.text.slice(0, 60)}`);
     return { ok: true, providerMessageId: `dev-wa-${randomUUID()}` };
   },
+  async sendSms(message) {
+    console.info(`[sms:dev] to=${message.to} text=${message.text.slice(0, 60)}`);
+    return { ok: true, providerMessageId: `dev-sms-${randomUUID()}` };
+  },
   async verifyWebhook() {
     return null;
   },

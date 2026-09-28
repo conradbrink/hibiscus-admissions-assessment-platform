@@ -11,6 +11,7 @@ export type TimelineKind =
   | "enrolment"
   | "email"
   | "whatsapp"
+  | "sms"
   | "task"
   | "note"
   | "opportunity"
@@ -39,6 +40,7 @@ export const TIMELINE_KIND_LABELS: Record<TimelineKind, string> = {
   enrolment: "Enrolment",
   email: "Email",
   whatsapp: "WhatsApp",
+  sms: "SMS",
   task: "Task",
   note: "Note",
   opportunity: "Opportunity",

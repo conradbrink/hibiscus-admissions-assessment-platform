@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TOLERANCE_SECONDS,
   MAX_INBOUND_LENGTH,
+  SMS_CHANNEL,
   buildSendBody,
+  buildSmsBody,
   numberedVariables,
   parseSendError,
   parseSendResponse,
@@ -216,5 +218,24 @@ describe("the send response", () => {
     expect(parseSendError({ error: "bad request" })).toBe("bad request");
     expect(parseSendError({ message: "nope" })).toBe("nope");
     expect(parseSendError(null)).toContain("without saying why");
+  });
+});
+
+describe("buildSmsBody", () => {
+  it("posts plain text on Zavu's one-way SMS channel, as its own node does", () => {
+    expect(buildSmsBody({ to: "+26776642259", text: "  Hi Neo, see you soon  ", idempotencyKey: "campaign:c1:p1:sms" })).toEqual({
+      to: "+26776642259",
+      channel: "sms_oneway",
+      messageType: "text",
+      text: "Hi Neo, see you soon",
+      idempotencyKey: "campaign:c1:p1:sms",
+    });
+    expect(SMS_CHANNEL).toBe("sms_oneway");
+  });
+  it("keeps the sender out of the body: it travels in the Zavu-Sender header", () => {
+    expect(buildSmsBody({ to: "+26776642259", text: "Hi", idempotencyKey: "k", senderId: "kd71" })).not.toHaveProperty("senderId");
+  });
+  it("refuses an empty message rather than sending a blank text", () => {
+    expect(() => buildSmsBody({ to: "+26776642259", text: "   ", idempotencyKey: "k" })).toThrow(/empty SMS/);
   });
 });

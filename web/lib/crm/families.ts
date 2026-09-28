@@ -166,7 +166,16 @@ export async function loadFamilyProfile(supabase: Client, familyId: string) {
       status: m.status,
       actor: "System",
     })),
-    (messages ?? []).map<TimelineEntry>((m) => ({
+    (messages ?? []).map<TimelineEntry>((m) => m.channel === "sms" ? {
+      id: `sms:${m.id}`,
+      kind: "sms",
+      at: m.sent_at ?? m.created_at,
+      title: m.template_key?.startsWith("campaign:") ? "SMS from a campaign" : "SMS",
+      detail: [m.rendered_text.slice(0, 200), deliveryProof(m).summary].filter(Boolean).join(" · "),
+      href: null,
+      status: m.status,
+      actor: m.sent_by ? "Staff" : "System",
+    } : ({
       id: `wa:${m.id}`,
       kind: "whatsapp",
       at: m.sent_at ?? m.received_at ?? m.created_at,

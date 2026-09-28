@@ -415,6 +415,26 @@ approved: free text is never sent, because WhatsApp only allows it inside a
    the dashboard address when the profile is open. With a single sender,
    leave it unset and Zavu picks the only one.
 
+**SMS through Zavu**
+
+A campaign may also go by SMS: one way, as the school's name, from the Zavu
+sender whose **SMS One Way** channel is switched on (the "HIBISCUS" sender).
+An SMS needs no approval from Meta; its words are the campaign's own, with
+the same `{{variables}}` as the email, and a marketing SMS goes only to a
+contact with SMS consent.
+
+1. In Zavu, open the sender that texts as the school and copy its id, the
+   last part of the address (`/sender-profiles/<id>`).
+2. In **Workflow settings**, set `sms_sender_id` to that id. Left empty, SMS
+   goes out as the messaging sender (`ZAVU_SENDER_ID`), which may be the
+   WhatsApp one and have no SMS channel.
+3. Set `sms_enabled` to `true`. While it is `false`, every SMS a campaign
+   would send is skipped with the reason "SMS is switched off".
+
+A parent cannot reply to a one-way SMS, so it never appears in the WhatsApp
+inbox; it is on the family's timeline, and its delivery comes back through
+the same webhook as WhatsApp's.
+
 **Through Twilio** (`MESSAGING_PROVIDER=twilio`)
 
 1. In the Twilio console: a WhatsApp sender (the school's number, through

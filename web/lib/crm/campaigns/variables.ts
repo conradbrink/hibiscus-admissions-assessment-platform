@@ -110,6 +110,21 @@ export function renderCampaign(
   };
 }
 
+/** Problems with an SMS's words: an unknown {{variable}} or an unclosed {{#if}}. */
+export function validateCampaignSms(body: string): TemplateProblem[] {
+  return validateTemplate(body, CAMPAIGN_VARIABLES);
+}
+
+/**
+ * An SMS for one family: the same variables as the email, as plain text.
+ * No unsubscribe footer: the SMS goes only to a contact who consented to
+ * SMS, one way, and every character is paid for; the family's SMS consent
+ * is withdrawn from the family page.
+ */
+export function renderCampaignSms(body: string, vars: TemplateVariables): string {
+  return renderText(body, vars, CAMPAIGN_VARIABLES).trim();
+}
+
 /** Plain text to HTML paragraphs, for an author who writes the email once. */
 export function textToHtml(text: string): string {
   return text

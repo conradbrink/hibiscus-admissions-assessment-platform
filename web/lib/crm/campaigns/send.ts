@@ -1,11 +1,11 @@
 import "server-only";
-import { buildCampaignVariables, renderCampaign, type CampaignFamilyContext } from "@/lib/crm/campaigns/variables";
+import { buildCampaignVariables, renderCampaign, renderCampaignSms, type CampaignFamilyContext } from "@/lib/crm/campaigns/variables";
 import { notifyStaff } from "@/lib/crm/notifications";
 import { isTransactional } from "@/lib/crm/recipients";
 import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider } from "@/lib/email/provider";
 import { formatDateLong, formatTime } from "@/lib/format-date";
-import { sendFamilyMessage } from "@/lib/messaging/send";
+import { sendFamilyMessage, sendFamilySms } from "@/lib/messaging/send";
 import { getSettings } from "@/lib/settings";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { CampaignRow, JobRow } from "@/lib/supabase/types";
@@ -116,7 +116,9 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
       if (marketing) {
         const reason = r.channel === "email"
           ? (!ctx.contact.marketing_email_consent || ctx.contact.unsubscribed_at ? "no consent to marketing email at send time" : null)
-          : (!ctx.contact.marketing_whatsapp_consent ? "no consent to marketing WhatsApp at send time" : null);
+          : r.channel === "sms"
+            ? (!ctx.contact.sms_consent ? "no consent to SMS at send time" : null)
+            : (!ctx.contact.marketing_whatsapp_consent ? "no consent to marketing WhatsApp at send time" : null);
         if (reason) {
           await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: reason }).eq("id", r.id);
           out.skipped += 1;
@@ -163,6 +165,35 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
         await admin.from("email_messages").update({ status: "sent", provider_message_id: sent.providerMessageId, sent_at: new Date().toISOString() }).eq("id", message.id);
         await admin.from("campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString(), email_message_id: message.id }).eq("id", r.id);
         out.sent += 1;
+        continue;
+      }
+
+      // SMS: the campaign's own words, one way, through the family SMS sender.
+      if (r.channel === "sms") {
+        if (!campaign.sms_body) {
+          await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: "the campaign has no SMS" }).eq("id", r.id);
+          out.skipped += 1;
+          continue;
+        }
+        const text = renderCampaignSms(campaign.sms_body, buildCampaignVariables(ctx.variables));
+        const result = await sendFamilySms(admin, {
+          familyId: r.family_id,
+          contactId: r.contact_id,
+          text,
+          idempotencyKey: `campaign:${campaign.id}:${r.contact_id}:sms`,
+          recordKey: `campaign:${campaign.id}`,
+          trigger: "campaign",
+        });
+        if (result.status === "sent") {
+          await admin.from("campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString(), message_id: result.messageId }).eq("id", r.id);
+          out.sent += 1;
+        } else if (result.status === "skipped") {
+          await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: result.reason }).eq("id", r.id);
+          out.skipped += 1;
+        } else {
+          await admin.from("campaign_recipients").update({ status: "failed", error: result.error }).eq("id", r.id);
+          out.failed += 1;
+        }
         continue;
       }
 
@@ -220,7 +251,7 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
 }
 
 type FamilyContext = {
-  contact: { email: string; marketing_email_consent: boolean; marketing_whatsapp_consent: boolean; unsubscribed_at: string | null };
+  contact: { email: string; marketing_email_consent: boolean; marketing_whatsapp_consent: boolean; sms_consent: boolean; unsubscribed_at: string | null };
   variables: CampaignFamilyContext;
   link: "family" | "event" | null;
 };
@@ -233,7 +264,7 @@ async function familyContext(
   campaign: CampaignRow
 ): Promise<FamilyContext | null> {
   const [{ data: contact }, { data: family }, { data: students }] = await Promise.all([
-    admin.from("contacts").select("first_name, last_name, email, unsubscribe_token, marketing_email_consent, marketing_whatsapp_consent, unsubscribed_at").eq("id", contactId).maybeSingle(),
+    admin.from("contacts").select("first_name, last_name, email, unsubscribe_token, marketing_email_consent, marketing_whatsapp_consent, sms_consent, unsubscribed_at").eq("id", contactId).maybeSingle(),
     admin.from("families").select("display_name, family_code, campus_id, campuses!families_campus_id_fkey(name, phone)").eq("id", familyId).maybeSingle(),
     admin.from("students").select("preferred_name, legal_first_name, date_of_birth, status").eq("family_id", familyId),
   ]);

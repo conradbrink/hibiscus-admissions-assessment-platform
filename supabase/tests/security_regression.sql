@@ -4432,6 +4432,60 @@ begin
     delete from public.trial_weeks where id = v_trial;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 79. An SMS campaign: the words are what was approved, like the email's
+  -- -------------------------------------------------------------------------
+  declare
+    v_sms uuid;
+    v_refused boolean;
+  begin
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.campaigns (name, campus_id, channel, category, sms_body, created_by)
+      values ('Sec SMS', c_broadhurst, 'sms', 'general', 'Hi {{parent_first_name}}, see you soon', u_campus_mgr) returning id into v_sms;
+      -- A draft's SMS may still be rewritten by its author.
+      update public.campaigns set sms_body = 'Hi {{parent_first_name}}, see you at the open day' where id = v_sms;
+      if (select sms_body from public.campaigns where id = v_sms) <> 'Hi {{parent_first_name}}, see you at the open day' then
+        v_fail := v_fail || E'\n  - ' || '79 control: the author could not rewrite a draft SMS';
+      end if;
+      update public.campaigns set status = 'pending_approval' where id = v_sms;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('79: the author''s round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    begin
+      perform pg_temp.impersonate(u_management);
+      update public.campaigns set status = 'approved' where id = v_sms;
+      v_refused := false;
+      begin
+        update public.campaigns set sms_body = 'Something else entirely' where id = v_sms;
+      exception when others then
+        v_refused := sqlerrm like '%campaign_locked%';
+        if not v_refused then
+          v_fail := v_fail || E'\n  - ' || ('79: the SMS edit was refused by "' || sqlerrm || '" rather than the lock');
+          v_refused := true;
+        end if;
+      end;
+      if not v_refused then
+        v_fail := v_fail || E'\n  - ' || '79: an approved campaign''s SMS was changed';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('79: the approver''s round failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- An SMS longer than three parts is not stored at all.
+    begin
+      insert into public.campaigns (name, campus_id, channel, category, sms_body, created_by)
+      values ('Sec long SMS', c_broadhurst, 'sms', 'general', repeat('a', 460), u_admin);
+      v_fail := v_fail || E'\n  - ' || '79: an SMS longer than three parts was stored';
+    exception when check_violation then null;
+    end;
+    delete from public.campaigns where id = v_sms;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;
