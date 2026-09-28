@@ -1724,7 +1724,8 @@ export type MessageRow = {
   student_id: string | null;
   contact_id: string | null;
   direction: "out" | "in";
-  channel: "whatsapp";
+  /** WhatsApp, or a one-way SMS a campaign sent. */
+  channel: "whatsapp" | "sms";
   template_key: string | null;
   to_normalised: string | null;
   from_normalised: string | null;
@@ -1928,7 +1929,10 @@ export type SegmentRow = {
   updated_at: string;
 };
 
-export type CampaignChannel = "email" | "whatsapp" | "both";
+/** Any mix of the three, as one value: `both` is WhatsApp and email, `all` is every channel. */
+export type CampaignChannel = "email" | "whatsapp" | "both" | "sms" | "email_sms" | "whatsapp_sms" | "all";
+/** One channel a single recipient row is sent on. */
+export type CampaignSendChannel = "email" | "whatsapp" | "sms";
 export type CampaignCategory = "general" | "promotion" | "event" | "reenrolment" | "fee_notice" | "policy" | "announcement";
 export type CampaignStatus = "draft" | "pending_approval" | "approved" | "scheduled" | "sending" | "sent" | "paused" | "cancelled";
 
@@ -1946,6 +1950,8 @@ export type CampaignRow = {
   email_body_text: string | null;
   message_template_key: string | null;
   whatsapp_variables: Json;
+  /** The SMS in plain text with {{variables}}; null unless the channel includes SMS. */
+  sms_body: string | null;
   status: CampaignStatus;
   scheduled_at: string | null;
   started_at: string | null;
@@ -1963,6 +1969,7 @@ export type CampaignRow = {
   recipients_total: number | null;
   recipients_email: number | null;
   recipients_whatsapp: number | null;
+  recipients_sms: number | null;
   excluded_count: number | null;
   exclusions: Json;
   created_at: string;
@@ -1977,7 +1984,7 @@ export type CampaignRecipientRow = {
   family_id: string;
   contact_id: string;
   student_id: string | null;
-  channel: "email" | "whatsapp";
+  channel: CampaignSendChannel;
   status: CampaignRecipientStatus;
   exclusion_reason: string | null;
   email_message_id: string | null;
@@ -3035,9 +3042,9 @@ export type Database = {
       campaigns: TableOf<
         CampaignRow,
         | "description" | "campus_id" | "segment_id" | "event_id" | "category" | "email_subject" | "email_body_html" | "email_body_text"
-        | "message_template_key" | "whatsapp_variables" | "status" | "scheduled_at" | "started_at" | "finished_at" | "created_by"
+        | "message_template_key" | "whatsapp_variables" | "sms_body" | "status" | "scheduled_at" | "started_at" | "finished_at" | "created_by"
         | "submitted_by" | "submitted_at" | "approved_by" | "approved_at" | "approval_note" | "rejected_by" | "rejected_at" | "rejection_reason"
-        | "prepared_at" | "recipients_total" | "recipients_email" | "recipients_whatsapp" | "excluded_count" | "exclusions",
+        | "prepared_at" | "recipients_total" | "recipients_email" | "recipients_whatsapp" | "recipients_sms" | "excluded_count" | "exclusions",
         [
           Rel<"campaigns_campus_id_fkey", "campus_id", "campuses">,
           Rel<"campaigns_segment_id_fkey", "segment_id", "segments">,

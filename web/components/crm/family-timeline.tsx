@@ -11,6 +11,7 @@ const DOT: Record<TimelineKind, string> = {
   enrolment: "bg-success",
   email: "bg-chart-2",
   whatsapp: "bg-success",
+  sms: "bg-chart-4",
   task: "bg-warning",
   note: "bg-muted-foreground",
   opportunity: "bg-primary",

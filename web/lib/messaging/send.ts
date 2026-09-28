@@ -6,6 +6,7 @@ import { recordMessageEvent } from "@/lib/messaging/audit";
 import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
 import type { TemplateIdField } from "@/lib/messaging/provider";
 import { getMessagingProvider } from "@/lib/messaging/provider";
+import { E164 } from "@/lib/messaging/sms";
 import { getSettings } from "@/lib/settings";
 import { mintToken } from "@/lib/tokens";
 import type { MessageTemplateRow } from "@/lib/supabase/types";
@@ -412,6 +413,110 @@ export async function sendFamilyMessage(
     source: "send",
     providerStatus: provider.name,
     detail: result.providerMessageId ? `Accepted by ${provider.name} as ${result.providerMessageId}` : `Accepted by ${provider.name}`,
+  });
+  return { status: "sent", messageId: message.id };
+}
+
+export type SendFamilySmsOptions = {
+  familyId: string;
+  contactId: string;
+  /** The words, already rendered for this family. */
+  text: string;
+  idempotencyKey: string;
+  /** What the row is recorded as, like a template key: `campaign:<id>` for a campaign. */
+  recordKey: string;
+  trigger?: "campaign" | "manual";
+  actorId?: string | null;
+  actorLabel?: string | null;
+};
+
+/**
+ * One SMS to one contact, and its record.
+ *
+ * The same rules as a WhatsApp message wherever they apply: a `messages`
+ * row whatever happens, keyed so a retried job cannot text a parent twice,
+ * a `skipped` row with the reason when it cannot go, and the events a
+ * member of staff reads on the family. What differs is what an SMS does not
+ * need: no approved template (the words are the campaign's own), no WhatsApp
+ * opt-in, and no 24-hour window, because it goes one way and cannot be
+ * answered. The school's switch (`sms_enabled`) and a provider that can text
+ * at all are checked here, at the moment of sending.
+ */
+export async function sendFamilySms(admin: AdminClient, opts: SendFamilySmsOptions): Promise<SendCompanionResult> {
+  const settings = await getSettings(admin);
+  const { data: contact, error: cErr } = await admin.from("contacts").select("id, mobile_normalised").eq("id", opts.contactId).maybeSingle();
+  if (cErr) return { status: "failed", error: cErr.message, retryable: true };
+
+  const text = opts.text.trim();
+  const source = opts.trigger === "manual" ? "staff" : "system";
+  const base = {
+    family_id: opts.familyId,
+    contact_id: contact?.id ?? null,
+    direction: "out" as const,
+    channel: "sms" as const,
+    template_key: opts.recordKey,
+    to_normalised: contact?.mobile_normalised ?? null,
+    idempotency_key: opts.idempotencyKey,
+    trigger_source: opts.trigger ?? "campaign",
+    sent_by: opts.actorId ?? null,
+  };
+
+  const skip = async (reason: string): Promise<SendCompanionResult> => {
+    const { data: row } = await admin
+      .from("messages")
+      .upsert({ ...base, provider: "none", status: "skipped", rendered_text: text, error: reason }, { onConflict: "idempotency_key", ignoreDuplicates: true })
+      .select("id")
+      .maybeSingle();
+    if (row) await recordMessageEvent(admin, { messageId: row.id, status: "skipped", source, actorId: opts.actorId ?? null, actorLabel: opts.actorLabel ?? null, detail: reason });
+    return { status: "skipped", reason };
+  };
+
+  if (!settings.smsEnabled) return skip("SMS is switched off");
+  if (!text) return skip("the SMS is empty");
+  if (!contact) return skip("the family has no contact to text");
+  if (!contact.mobile_normalised || !E164.test(contact.mobile_normalised)) return skip("the parent's mobile number could not be normalised");
+  const provider = await getMessagingProvider();
+  if (!provider.sendSms) return skip(`${provider.name} cannot send SMS`);
+
+  const { data: message, error: mErr } = await admin
+    .from("messages")
+    .upsert({ ...base, provider: provider.name, status: "queued", rendered_text: text }, { onConflict: "idempotency_key", ignoreDuplicates: true })
+    .select("id")
+    .maybeSingle();
+  if (mErr) return { status: "failed", error: mErr.message, retryable: true };
+  // The key already existed: an earlier attempt got this far. Never twice.
+  if (!message) return { status: "skipped", reason: "already sent" };
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "queued",
+    source,
+    actorId: opts.actorId ?? null,
+    actorLabel: opts.actorLabel ?? null,
+    detail: opts.trigger === "manual" ? "SMS sent by hand from the CRM" : "SMS queued by a campaign",
+  });
+
+  const result = await provider.sendSms({
+    to: contact.mobile_normalised,
+    text,
+    idempotencyKey: opts.idempotencyKey,
+    senderId: settings.smsSenderId || null,
+  });
+
+  if (!result.ok) {
+    await admin.from("messages").update({ status: "failed", error: result.error }).eq("id", message.id);
+    await recordMessageEvent(admin, { messageId: message.id, status: "failed", source: "send", detail: result.error, providerStatus: provider.name });
+    return { status: "failed", error: result.error, retryable: result.retryable };
+  }
+  await admin
+    .from("messages")
+    .update({ status: "sent", provider_message_id: result.providerMessageId, sent_at: new Date().toISOString() })
+    .eq("id", message.id);
+  await recordMessageEvent(admin, {
+    messageId: message.id,
+    status: "sent",
+    source: "send",
+    providerStatus: provider.name,
+    detail: `SMS accepted by ${provider.name} as ${result.providerMessageId}`,
   });
   return { status: "sent", messageId: message.id };
 }

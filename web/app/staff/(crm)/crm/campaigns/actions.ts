@@ -7,8 +7,9 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import { recordCrmAudit } from "@/lib/crm/audit";
 import { prepareCampaign } from "@/lib/crm/campaigns/prepare";
 import { queueCampaignSend } from "@/lib/crm/campaigns/send";
-import { textToHtml, validateCampaignBody } from "@/lib/crm/campaigns/variables";
+import { textToHtml, validateCampaignBody, validateCampaignSms } from "@/lib/crm/campaigns/variables";
 import { SENSITIVE_CATEGORIES } from "@/lib/crm/labels";
+import { channelsOf } from "@/lib/crm/recipients";
 import { notifyPermissionHolders, notifyStaff } from "@/lib/crm/notifications";
 import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
@@ -33,18 +34,26 @@ const draftSchema = z.object({
   campusId: z.string().optional().or(z.literal("")),
   segmentId: z.guid("Choose the audience."),
   eventId: z.string().optional().or(z.literal("")),
-  channel: z.enum(["email", "whatsapp", "both"]),
+  channel: z.enum(["email", "whatsapp", "both", "sms", "email_sms", "whatsapp_sms", "all"], "Choose at least one channel."),
   category: z.enum(CATEGORIES).default("general"),
   emailSubject: z.string().trim().max(200).optional().or(z.literal("")),
   emailBody: z.string().trim().max(20000).optional().or(z.literal("")),
   messageTemplateKey: z.string().optional().or(z.literal("")),
+  smsBody: z.string().trim().max(459, "An SMS may be at most 459 characters (three parts).").optional().or(z.literal("")),
 });
 
 function contentFrom(p: z.infer<typeof draftSchema>) {
-  const wantsEmail = p.channel === "email" || p.channel === "both";
-  const wantsWhatsApp = p.channel === "whatsapp" || p.channel === "both";
+  const channels = channelsOf(p.channel);
+  const wantsEmail = channels.includes("email");
+  const wantsWhatsApp = channels.includes("whatsapp");
+  const wantsSms = channels.includes("sms");
   if (wantsEmail && (!p.emailSubject || !p.emailBody)) throw new Error("An email campaign needs a subject and a message.");
   if (wantsWhatsApp && !p.messageTemplateKey) throw new Error("A WhatsApp campaign needs an approved template.");
+  if (wantsSms && !p.smsBody) throw new Error("An SMS campaign needs the words of the SMS.");
+  if (wantsSms) {
+    const problems = validateCampaignSms(p.smsBody!);
+    if (problems.length) throw new Error(`The SMS uses something it may not: ${problems.map((x) => (x.kind === "unknown_variable" ? `{{${x.name}}}` : "an unclosed {{#if}}")).join(", ")}.`);
+  }
   const html = wantsEmail ? textToHtml(p.emailBody!) : null;
   const text = wantsEmail ? p.emailBody! : null;
   if (wantsEmail) {
@@ -56,6 +65,7 @@ function contentFrom(p: z.infer<typeof draftSchema>) {
     email_body_html: html,
     email_body_text: text,
     message_template_key: wantsWhatsApp ? p.messageTemplateKey! : null,
+    sms_body: wantsSms ? p.smsBody! : null,
   };
 }
 
@@ -112,7 +122,7 @@ export async function updateCampaign(_: StaffActionState, formData: FormData): P
     const content = contentFrom(p);
     const { error } = await ctx.supabase
       .from("campaigns")
-      .update({ name: p.name, description: p.description || null, campus_id: p.campusId || null, segment_id: p.segmentId, event_id: p.eventId || null, channel: p.channel, category: p.category, ...content, prepared_at: null, recipients_total: null, recipients_email: null, recipients_whatsapp: null, excluded_count: null, exclusions: {} })
+      .update({ name: p.name, description: p.description || null, campus_id: p.campusId || null, segment_id: p.segmentId, event_id: p.eventId || null, channel: p.channel, category: p.category, ...content, prepared_at: null, recipients_total: null, recipients_email: null, recipients_whatsapp: null, recipients_sms: null, excluded_count: null, exclusions: {} })
       .eq("id", campaignId);
     if (error) await refuse(error);
     revalidatePath(`/staff/crm/campaigns/${campaignId}`);

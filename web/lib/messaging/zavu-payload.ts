@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { InboundEvent, OutboundTemplateMessage, OutboundTextMessage } from "@/lib/messaging/provider";
+import type { InboundEvent, OutboundSmsMessage, OutboundTemplateMessage, OutboundTextMessage } from "@/lib/messaging/provider";
 
 /**
  * The pure half of the Zavu adapter: the JSON body of a send, the webhook
@@ -82,6 +82,27 @@ export function buildTextBody(message: OutboundTextMessage): Record<string, unkn
     messageType: "text",
     idempotencyKey: message.idempotencyKey,
     content: { text },
+  };
+}
+
+/**
+ * Zavu's one-way SMS: the sender texts as the school's name, needs no phone
+ * number, and cannot be replied to. The words sit at the top level as
+ * `text` beside `messageType: "text"`, which is how Zavu's own node posts
+ * a text on any channel; the channel is `sms_oneway`, the one the school's
+ * sender has switched on.
+ */
+export const SMS_CHANNEL = "sms_oneway";
+
+export function buildSmsBody(message: OutboundSmsMessage): Record<string, unknown> {
+  const text = message.text.trim();
+  if (!text) throw new Error("Zavu will not send an empty SMS.");
+  return {
+    to: message.to,
+    channel: SMS_CHANNEL,
+    messageType: "text",
+    text,
+    idempotencyKey: message.idempotencyKey,
   };
 }
 

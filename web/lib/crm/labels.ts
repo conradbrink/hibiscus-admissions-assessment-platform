@@ -74,6 +74,10 @@ export const CAMPAIGN_CHANNEL_LABELS: Record<CampaignChannel, string> = {
   email: "Email",
   whatsapp: "WhatsApp",
   both: "WhatsApp and email",
+  sms: "SMS",
+  email_sms: "Email and SMS",
+  whatsapp_sms: "WhatsApp and SMS",
+  all: "Email, WhatsApp and SMS",
 };
 
 export const CAMPAIGN_CATEGORY_LABELS: Record<CampaignCategory, string> = {

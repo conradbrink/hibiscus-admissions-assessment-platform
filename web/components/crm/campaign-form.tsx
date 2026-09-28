@@ -7,16 +7,20 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { CAMPAIGN_CATEGORY_LABELS, SENSITIVE_CATEGORIES } from "@/lib/crm/labels";
 import { CAMPAIGN_VARIABLE_HINTS, CAMPAIGN_VARIABLES } from "@/lib/crm/campaigns/variables";
-import type { CampaignCategory, CampaignChannel, CampaignRow } from "@/lib/supabase/types";
+import { channelFor, channelsOf } from "@/lib/crm/recipients";
+import { smsLength } from "@/lib/messaging/sms";
+import type { CampaignCategory, CampaignRow } from "@/lib/supabase/types";
 import { createCampaign, updateCampaign } from "@/app/staff/(crm)/crm/campaigns/actions";
 
 type Template = { key: string; name: string; body_preview: string; parameters: string[] };
 
 /**
  * The campaign's three authoring steps on one form: kind, audience,
- * message. The email is written in plain text with {{variables}}; the
- * WhatsApp half is an approved template chosen from the list the live
- * provider can send. A sensitive category says so as it is chosen.
+ * message. The channels are three tick boxes, stored as one value. The
+ * email is written in plain text with {{variables}}; the WhatsApp half is an
+ * approved template chosen from the list the live provider can send; the SMS
+ * is its own short text with the same variables, counted as the network
+ * counts it. A sensitive category says so as it is chosen.
  */
 export function CampaignForm({
   campaign,
@@ -35,12 +39,17 @@ export function CampaignForm({
   providerName: string;
   preset?: { segmentId?: string; eventId?: string };
 }) {
-  const [channel, setChannel] = useState<CampaignChannel>(campaign?.channel ?? "email");
+  const initial = channelsOf(campaign?.channel ?? "email");
+  const [picked, setPicked] = useState({ email: initial.includes("email"), whatsapp: initial.includes("whatsapp"), sms: initial.includes("sms") });
+  const channel = channelFor(picked);
+  const [smsBody, setSmsBody] = useState(campaign?.sms_body ?? "");
+  const sms = smsLength(smsBody);
   const [category, setCategory] = useState<CampaignCategory>(campaign?.category ?? (preset?.eventId ? "event" : "general"));
   const [templateKey, setTemplateKey] = useState(campaign?.message_template_key ?? templates[0]?.key ?? "");
   const template = templates.find((t) => t.key === templateKey);
-  const wantsEmail = channel !== "whatsapp";
-  const wantsWhatsApp = channel !== "email";
+  const wantsEmail = picked.email;
+  const wantsWhatsApp = picked.whatsapp;
+  const wantsSms = picked.sms;
 
   return (
     <ActionForm action={campaign ? updateCampaign : createCampaign} label={campaign ? "Save changes" : "Save draft"} size="lg" resetOnSubmit={false} className="max-w-3xl space-y-4">
@@ -49,11 +58,19 @@ export function CampaignForm({
         <h2 className="text-sm font-semibold">Step 1 · What kind of campaign</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs sm:col-span-2"><span className="mb-1 block text-muted-foreground">Name (staff see this)</span><Input name="name" defaultValue={campaign?.name ?? ""} required maxLength={160} /></label>
-          <label className="text-xs"><span className="mb-1 block text-muted-foreground">Channel</span>
-            <NativeSelect name="channel" value={channel} onChange={(e) => setChannel(e.target.value as CampaignChannel)}>
-              <option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="both">WhatsApp and email</option>
-            </NativeSelect>
-          </label>
+          <fieldset className="text-xs">
+            <legend className="mb-1 block text-muted-foreground">Channels</legend>
+            <input type="hidden" name="channel" value={channel ?? ""} />
+            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1.5 text-sm">
+              {(["email", "whatsapp", "sms"] as const).map((k) => (
+                <label key={k} className="flex items-center gap-2">
+                  <input type="checkbox" checked={picked[k]} onChange={(e) => setPicked((p) => ({ ...p, [k]: e.target.checked }))} />
+                  {k === "email" ? "Email" : k === "whatsapp" ? "WhatsApp" : "SMS"}
+                </label>
+              ))}
+            </div>
+            {channel ? null : <span className="mt-1 block text-destructive">Choose at least one channel.</span>}
+          </fieldset>
           <label className="text-xs"><span className="mb-1 block text-muted-foreground">Category</span>
             <NativeSelect name="category" value={category} onChange={(e) => setCategory(e.target.value as CampaignCategory)}>
               {Object.entries(CAMPAIGN_CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -64,7 +81,7 @@ export function CampaignForm({
         {SENSITIVE_CATEGORIES.has(category) ? (
           <p className="rounded-xl bg-warning/15 px-3 py-2 text-xs">A fee notice, a policy announcement or a group-wide announcement is a service message: it goes to every family in the audience whatever their marketing consent, and it needs approval from somebody who may approve sensitive communications.</p>
         ) : (
-          <p className="text-xs text-muted-foreground">A marketing message goes only to contacts who consented to marketing on that channel. Every marketing email carries an unsubscribe link.</p>
+          <p className="text-xs text-muted-foreground">A marketing message goes only to contacts who consented to marketing on that channel. Every marketing email carries an unsubscribe link. An SMS goes one way from the school&rsquo;s SMS name, so a parent cannot reply to it.</p>
         )}
       </section>
 
@@ -107,6 +124,14 @@ export function CampaignForm({
               ) : <p className="text-sm text-destructive">No active family template has a {providerName} template id. Add one under Settings → WhatsApp templates.</p>}
             </label>
             {template ? <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm">{template.body_preview}<span className="block text-xs text-muted-foreground">Parameters: {template.parameters.join(", ") || "none"} — filled from the family.</span></p> : null}
+          </div>
+        ) : null}
+        {wantsSms ? (
+          <div className="space-y-2">
+            <label className="text-xs"><span className="mb-1 flex justify-between gap-2 text-muted-foreground"><span>SMS (plain text, sent one way; no approval needed)</span><span className={sms.parts > 1 ? "font-medium text-warning-foreground" : ""}>{sms.units}/{sms.singleLimit}{sms.parts > 1 ? ` · ${sms.parts} messages` : ""}{sms.encoding === "unicode" ? " · emoji or special characters shorten it" : ""}</span></span>
+              <Textarea name="smsBody" rows={4} value={smsBody} onChange={(e) => setSmsBody(e.target.value)} maxLength={459} required={wantsSms} placeholder={"Hi {{parent_first_name}}, …"} />
+            </label>
+            <p className="text-xs text-muted-foreground">The count is of the words as written: a long name or campus name makes the real message longer. Keep it well under 160 to go as one message. The variables are the same as the email&rsquo;s.</p>
           </div>
         ) : null}
       </section>

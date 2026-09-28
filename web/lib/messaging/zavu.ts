@@ -1,13 +1,14 @@
 import "server-only";
 import {
   buildSendBody,
+  buildSmsBody,
   buildTextBody,
   parseSendError,
   parseSendResponse,
   parseZavuWebhook,
   verifyZavuSignature,
 } from "@/lib/messaging/zavu-payload";
-import type { InboundEvent, MessagingProvider, OutboundTemplateMessage, OutboundTextMessage, SendResult } from "@/lib/messaging/provider";
+import type { InboundEvent, MessagingProvider, OutboundSmsMessage, OutboundTemplateMessage, OutboundTextMessage, SendResult } from "@/lib/messaging/provider";
 
 /**
  * Zavu, over plain fetch — no SDK, like the payment gateway and Meta before it.
@@ -70,7 +71,21 @@ export class ZavuProvider implements MessagingProvider {
     return this.post(body);
   }
 
-  private async post(body: Record<string, unknown>): Promise<SendResult> {
+  /**
+   * A one-way SMS, as the sender named for it (the school's SMS sender is a
+   * different Zavu sender from its WhatsApp one) or else the usual one.
+   */
+  async sendSms(message: OutboundSmsMessage): Promise<SendResult> {
+    let body: Record<string, unknown>;
+    try {
+      body = buildSmsBody(message);
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, retryable: false };
+    }
+    return this.post(body, message.senderId || this.senderId);
+  }
+
+  private async post(body: Record<string, unknown>, senderId: string | null = this.senderId): Promise<SendResult> {
     let response: Response;
     try {
       response = await fetch(`${this.apiUrl}/v1/messages`, {
@@ -78,7 +93,7 @@ export class ZavuProvider implements MessagingProvider {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          ...(this.senderId ? { "Zavu-Sender": this.senderId } : {}),
+          ...(senderId ? { "Zavu-Sender": senderId } : {}),
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000),

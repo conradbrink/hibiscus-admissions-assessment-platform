@@ -59,6 +59,10 @@ export type Settings = {
    * that caused the problem.
    */
   whatsappAutoReplyEnabled: boolean;
+  /** Send SMS. Off until the school turns it on; an SMS a campaign would send is skipped with the reason. */
+  smsEnabled: boolean;
+  /** The Zavu sender profile SMS goes out as. Empty uses the messaging sender. */
+  smsSenderId: string;
   /**
    * What that answer says. `{{whatsapp}}` is the campus's manned number and
    * `{{phone}}` its office line; the clause between `{{#phone}}` and
@@ -136,6 +140,8 @@ export const DEFAULT_SETTINGS: Settings = {
   documentsReminderDays: 2,
   autoEnrol: false,
   whatsappEnabled: false,
+  smsEnabled: false,
+  smsSenderId: "",
   whatsappAutoReplyEnabled: true,
   whatsappAutoReplyText:
     "Thank you for your message. This number only sends updates about your application and nobody reads replies to it. " +
@@ -200,6 +206,8 @@ const KEYS: Record<keyof Settings, string> = {
   documentsReminderDays: "documents_reminder_days",
   autoEnrol: "auto_enrol",
   whatsappEnabled: "whatsapp_enabled",
+  smsEnabled: "sms_enabled",
+  smsSenderId: "sms_sender_id",
   whatsappAutoReplyEnabled: "whatsapp_auto_reply_enabled",
   whatsappAutoReplyText: "whatsapp_auto_reply_text",
   scholarshipInterviewDeadline: "scholarship_interview_deadline",
@@ -341,6 +349,8 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     documentsReminderDays: asPositiveInt(map.get(KEYS.documentsReminderDays), d.documentsReminderDays),
     autoEnrol: asBoolean(map.get(KEYS.autoEnrol), d.autoEnrol),
     whatsappEnabled: asBoolean(map.get(KEYS.whatsappEnabled), d.whatsappEnabled),
+    smsEnabled: asBoolean(map.get(KEYS.smsEnabled), d.smsEnabled),
+    smsSenderId: asString(map.get(KEYS.smsSenderId), d.smsSenderId).trim(),
     whatsappAutoReplyEnabled: asBoolean(map.get(KEYS.whatsappAutoReplyEnabled), d.whatsappAutoReplyEnabled),
     whatsappAutoReplyText: asString(map.get(KEYS.whatsappAutoReplyText), d.whatsappAutoReplyText),
     scholarshipInterviewDeadline: asRequiredString(map.get(KEYS.scholarshipInterviewDeadline), d.scholarshipInterviewDeadline),
