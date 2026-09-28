@@ -72,6 +72,7 @@ change.
 | `…20260920100000_crm_ed_admin_import` (20 Sep) | The Ed-admin import: `crm_imports.kind` gains `ed_admin_parents` and `ed_admin_students`, `crm_import_rows.student_id`, an index on `families.external_ref`; `crm_create_family()` takes an optional `p_family_code` so a family imported from Ed-admin keeps Ed-admin's code as its own (refused if a live family already has it). Security suite case 77 |
 | `…20260920110000_preschool_trial_week` (20 Sep) | `trial_weeks`: the pre-schools' free trial week, offered from the review queue while the application waits for a decision (readable with the application, written only by the queue's own action); the `trial_week_invitation` email and its inactive WhatsApp companion. Security suite case 78 |
 | `…20260928100000_family_code_counts_families_too` (28 Sep) | `next_family_code()` counts the codes on live `families` as well as on `contacts`, so a family whose contacts are gone no longer makes the next family with the same three letters collide with it; the suffix is read as `numeric` (an imported Ed-admin code may carry any number of digits) and is padded to four digits but never cut to them |
+| `…20260928120000_event_follow_up_templates` (28 Sep) | The event follow-up as three WhatsApp templates any campus can send (`event_thank_you`, `event_free_trial_reminder`, `event_free_trial_last_call`): parent, event and campus are variables, the child is "your child", the link is the universal `/join` page. Inactive until Meta's approval through Zavu is recorded |
 
 ## Rules for new migrations
 

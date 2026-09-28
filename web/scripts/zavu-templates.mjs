@@ -86,7 +86,7 @@ const apiBody = (t) => ({
   name: t.key,
   language: doc.language,
   body: t.body,
-  whatsappCategory: doc.category,
+  whatsappCategory: t.category ?? doc.category,
   ...(t.button
     ? { buttons: [{ type: "url", text: t.button, url: doc.buttonUrl, example: doc.buttonExample }] }
     : {}),
@@ -116,7 +116,7 @@ if (flag("api")) {
     const created = await call("POST", "/v1/templates", apiBody(t));
     const id = created?.data?.id ?? created?.template?.id ?? created?.id;
     if (!id) throw new Error(`${t.key}: created, but no id in the response\n${JSON.stringify(created)}`);
-    if (sender) await call("POST", `/v1/templates/${id}/submit`, { senderId: sender, category: doc.category });
+    if (sender) await call("POST", `/v1/templates/${id}/submit`, { senderId: sender, category: t.category ?? doc.category });
     console.log(`${t.key}=${id}${sender ? " (submitted)" : " (draft, submit it from the dashboard)"}`);
   }
   console.error(`\nDone. Record them:\n  node web/scripts/zavu-templates.mjs --sql <key>=<id> ...`);
@@ -127,7 +127,7 @@ if (flag("api")) {
 for (const t of chosen) {
   console.log(`\n${"─".repeat(72)}\n${t.key}\n${"─".repeat(72)}`);
   console.log(`Name       ${t.key}`);
-  console.log(`Category   ${doc.category}`);
+  console.log(`Category   ${t.category ?? doc.category}`);
   console.log(`Language   ${doc.language}`);
   console.log(`Header     None`);
   console.log(`Footer     (leave blank)`);
