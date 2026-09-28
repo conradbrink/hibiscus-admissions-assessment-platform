@@ -371,7 +371,7 @@
     {
       "key": "event_free_trial_reminder",
       "category": "MARKETING",
-      "body": "Hi {{1}}, your child's free one-week trial at Hibiscus {{2}} is still open after our {{3}}. Booking takes two minutes: https://admissions.hibiscus.co.bw/join. We would love to have you both.",
+      "body": "Hi {{1}}, your child's free one-week trial at Hibiscus {{2}} is still open after our {{3}}. We would love to have you both. Booking takes two minutes: https://admissions.hibiscus.co.bw/join",
       "parameters": [
         "parent_first_name",
         "campus",
@@ -386,7 +386,7 @@
     {
       "key": "event_free_trial_last_call",
       "category": "MARKETING",
-      "body": "Hi {{1}}, this is our last note about our {{2}}. Enrol your child at Hibiscus {{3}} by {{4}} and they get a free Hibiscus Welcome Pack. Want to try us first? Book a free one-week trial here: https://admissions.hibiscus.co.bw/join. We would love to welcome your family to Hibiscus.",
+      "body": "Hi {{1}}, this is our last note about our {{2}}. Enrol your child at Hibiscus {{3}} by {{4}} and they get a free Hibiscus Welcome Pack. We would love to welcome your family to Hibiscus. Want to try us first? Book a free one-week trial here: https://admissions.hibiscus.co.bw/join",
       "parameters": [
         "parent_first_name",
         "event_name",
