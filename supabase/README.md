@@ -71,6 +71,7 @@ change.
 | `…20260919110000_crm_family_facts_tasks_once` (19 Sep) | `v_crm_family_facts` counts a family's open tasks from one grouped subquery instead of a per-family lateral that called `crm_family_of_application()` for every open task; the Families list and `crm_dashboard_counts()` had been reaching the API's 8-second statement timeout |
 | `…20260920100000_crm_ed_admin_import` (20 Sep) | The Ed-admin import: `crm_imports.kind` gains `ed_admin_parents` and `ed_admin_students`, `crm_import_rows.student_id`, an index on `families.external_ref`; `crm_create_family()` takes an optional `p_family_code` so a family imported from Ed-admin keeps Ed-admin's code as its own (refused if a live family already has it). Security suite case 77 |
 | `…20260920110000_preschool_trial_week` (20 Sep) | `trial_weeks`: the pre-schools' free trial week, offered from the review queue while the application waits for a decision (readable with the application, written only by the queue's own action); the `trial_week_invitation` email and its inactive WhatsApp companion. Security suite case 78 |
+| `…20260928100000_family_code_counts_families_too` (28 Sep) | `next_family_code()` counts the codes on live `families` as well as on `contacts`, so a family whose contacts are gone no longer makes the next family with the same three letters collide with it |
 
 ## Rules for new migrations
 
