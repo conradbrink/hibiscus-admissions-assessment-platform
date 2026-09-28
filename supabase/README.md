@@ -75,6 +75,7 @@ change.
 | `…20260928120000_event_follow_up_templates` (28 Sep) | The event follow-up as three WhatsApp templates any campus can send (`event_thank_you`, `event_free_trial_reminder`, `event_free_trial_last_call`): parent, event and campus are variables, the child is "your child", the link is the universal `/join` page. Inactive until Meta's approval through Zavu is recorded |
 | `…20260928130000_event_thank_you_as_submitted` (28 Sep) | The three event follow-up templates say what was submitted to Meta: universal wording, every link last, and each template numbering only the variables it uses from `{{1}}` without gaps |
 | `…20260928140000_sms_campaign_channel` (28 Sep) | SMS as a campaign channel: `campaigns.channel` takes any mix of email, WhatsApp and SMS (`sms`, `email_sms`, `whatsapp_sms`, `all` beside the old three), `campaigns.sms_body` (three parts at most, locked once the campaign leaves draft by `campaigns_sms_locked`) and `recipients_sms`; `messages` and `campaign_recipients` take the `sms` channel; `crm_campaign_stats()` counts SMS; the `sms_enabled` switch (off) and `sms_sender_id` settings. Security suite case 79 |
+| `…20260928150000_event_reminder_template` (28 Sep) | `event_reminder`: one WhatsApp template for any event reminder, the "when" typed on the campaign (a week before, two days before, tonight) and the event's name and place filled from the event. Inactive until Meta's approval through Zavu is recorded, with an inactive email companion |
 
 ## Rules for new migrations
 

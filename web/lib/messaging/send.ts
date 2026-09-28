@@ -3,7 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
 import { buildVariables, linkTtlDays, offerExtras, paymentExtras, scholarshipExtras, type EmailExtras, type EmailLinks, type LinkPurpose } from "@/lib/email/send";
 import { recordMessageEvent } from "@/lib/messaging/audit";
-import { renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
+import { blankParameters, renderPreview, sanitiseParam } from "@/lib/messaging/meta-payload";
 import type { TemplateIdField } from "@/lib/messaging/provider";
 import { getMessagingProvider } from "@/lib/messaging/provider";
 import { E164 } from "@/lib/messaging/sms";
@@ -151,7 +151,7 @@ export async function sendCompanionMessage(admin: AdminClient, opts: SendCompani
   // hole in it — "or message us on ." is worse than no message at all. The
   // moment goes by email, and the reason names the variable so whoever fills
   // it in knows which field is blank.
-  const blank = template.parameters.filter((name, i) => params[i] === "");
+  const blank = blankParameters(template.parameters, params);
   if (blank.length > 0) {
     return skip(`the "${opts.templateKey}" template needs ${blank.join(", ")}, which ${blank.length === 1 ? "is" : "are"} not set`);
   }
@@ -339,6 +339,14 @@ export async function sendFamilyMessage(
   if (!contact.mobile_normalised) return skip("the parent's mobile number could not be normalised");
 
   const vars: Record<string, string | null> = { ...opts.variables, parent_first_name: contact.first_name };
+  const params = template.parameters.map((name) => sanitiseParam(vars[name] ?? ""));
+  // As for an application's message: a campaign that leaves a parameter
+  // unfilled (an event reminder with no "when") is skipped, naming the
+  // missing value, before any link is minted, and never sent with a gap.
+  const blank = blankParameters(template.parameters, params);
+  if (blank.length > 0) {
+    return skip(`the "${opts.templateKey}" template needs ${blank.join(", ")}, which ${blank.length === 1 ? "is" : "are"} not set`);
+  }
   let buttonSuffix: string | null = null;
   if (template.button_link && opts.link) {
     const minted = await mintToken(admin, {
@@ -351,7 +359,6 @@ export async function sendFamilyMessage(
     buttonSuffix = minted.token;
   }
 
-  const params = template.parameters.map((name) => sanitiseParam(vars[name] ?? ""));
   const rendered = renderPreview(template.body_preview, params) + (buttonSuffix ? ` [${template.link_purpose} link]` : "");
 
   const { data: message, error: mErr } = await admin

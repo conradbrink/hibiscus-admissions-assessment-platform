@@ -395,6 +395,22 @@
         "Bana Tlokweng",
         "31 October"
       ]
+    },
+    {
+      "key": "event_reminder",
+      "body": "Hi {{1}}, a friendly reminder that our {{2}} is {{3}}, at {{4}}. We look forward to seeing you there.",
+      "parameters": [
+        "parent_first_name",
+        "event_name",
+        "event_when",
+        "event_location"
+      ],
+      "samples": [
+        "Neo",
+        "Parents' Social Evening",
+        "next Thursday, 8 October, from 18:30",
+        "Hibiscus Learning Academy, Ext. 27, Broadhurst"
+      ]
     }
   ]
 }

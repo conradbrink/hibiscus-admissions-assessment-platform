@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  blankParameters,
   buildTemplatePayload,
   isOptIn,
   isOptOut,
@@ -135,6 +136,17 @@ describe("preview", () => {
     expect(renderPreview("Hi {{1}}, {{2}} is booked.", ["Sarah", "John"])).toBe("Hi Sarah, John is booked.");
     expect(placeholderCount("Hi {{1}}, {{3}}")).toBe(3);
     expect(placeholderCount("none")).toBe(0);
+  });
+});
+
+describe("blankParameters", () => {
+  it("names each parameter that came out empty", () => {
+    const names = ["parent_first_name", "event_name", "event_when", "event_location"];
+    expect(blankParameters(names, ["Neo", "Social Evening", "", "Broadhurst"])).toEqual(["event_when"]);
+    expect(blankParameters(names, ["Neo", "Social Evening"])).toEqual(["event_when", "event_location"]);
+  });
+  it("finds nothing when every parameter is filled", () => {
+    expect(blankParameters(["a", "b"], ["x", "y"])).toEqual([]);
   });
 });
 
