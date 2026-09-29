@@ -195,12 +195,12 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
         const sent = await provider.send({ to: ctx.contact.email, subject: rendered.subject, html, text: rendered.text, idempotencyKey: `campaign:${campaign.id}:${r.contact_id}` });
         if (!sent.ok) {
           await admin.from("email_messages").update({ status: "failed", error: sent.error }).eq("id", message.id);
-          await admin.from("campaign_recipients").update({ status: "failed", error: sent.error, email_message_id: message.id }).eq("id", r.id);
+          await admin.from("campaign_recipients").update({ status: "failed", exclusion_reason: null, error: sent.error, email_message_id: message.id }).eq("id", r.id);
           out.failed += 1;
           continue;
         }
         await admin.from("email_messages").update({ status: "sent", provider_message_id: sent.providerMessageId, sent_at: new Date().toISOString() }).eq("id", message.id);
-        await admin.from("campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString(), email_message_id: message.id }).eq("id", r.id);
+        await admin.from("campaign_recipients").update({ status: "sent", exclusion_reason: null, sent_at: new Date().toISOString(), email_message_id: message.id }).eq("id", r.id);
         out.sent += 1;
         continue;
       }
@@ -222,13 +222,13 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
           trigger: "campaign",
         });
         if (result.status === "sent") {
-          await admin.from("campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString(), message_id: result.messageId }).eq("id", r.id);
+          await admin.from("campaign_recipients").update({ status: "sent", exclusion_reason: null, sent_at: new Date().toISOString(), message_id: result.messageId }).eq("id", r.id);
           out.sent += 1;
         } else if (result.status === "skipped") {
           await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: result.reason }).eq("id", r.id);
           out.skipped += 1;
         } else {
-          await admin.from("campaign_recipients").update({ status: "failed", error: result.error }).eq("id", r.id);
+          await admin.from("campaign_recipients").update({ status: "failed", exclusion_reason: null, error: result.error }).eq("id", r.id);
           out.failed += 1;
         }
         continue;
@@ -264,18 +264,18 @@ export async function sendCampaignBatch(admin: AdminClient, campaign: CampaignRo
         trigger: "campaign",
       });
       if (result.status === "sent") {
-        await admin.from("campaign_recipients").update({ status: "sent", sent_at: new Date().toISOString(), message_id: result.messageId }).eq("id", r.id);
+        await admin.from("campaign_recipients").update({ status: "sent", exclusion_reason: null, sent_at: new Date().toISOString(), message_id: result.messageId }).eq("id", r.id);
         out.sent += 1;
       } else if (result.status === "skipped") {
         await admin.from("campaign_recipients").update({ status: "skipped", exclusion_reason: result.reason }).eq("id", r.id);
         out.skipped += 1;
       } else {
-        await admin.from("campaign_recipients").update({ status: "failed", error: result.error }).eq("id", r.id);
+        await admin.from("campaign_recipients").update({ status: "failed", exclusion_reason: null, error: result.error }).eq("id", r.id);
         out.failed += 1;
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      await admin.from("campaign_recipients").update({ status: "failed", error: message }).eq("id", r.id);
+      await admin.from("campaign_recipients").update({ status: "failed", exclusion_reason: null, error: message }).eq("id", r.id);
       out.failed += 1;
     }
   }
