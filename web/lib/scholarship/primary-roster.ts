@@ -201,6 +201,46 @@ function bandFromRows(rows: string[][], block: Block): string | null {
 }
 
 /**
+ * The parent, email and contact columns of a block whose header left them blank.
+ *
+ * The third file filled in the 30/20/10 blocks' contact details, but under no
+ * heading: "Name & Surname | Stage | (blank) | (blank) | (blank) | Academics /
+ * Sports". A label cannot find those, so a column is recognised by what most
+ * of its rows hold instead — addresses, Botswana mobiles — and the parent is
+ * the unlabelled column just before the addresses, which is where every block
+ * with headings keeps it.
+ *
+ * Only blank-headed columns are considered, only a slot the labels left empty
+ * is filled, and "most" means at least half the block's rows, so one stray
+ * note cannot make a column. Without an email column nothing is inferred at
+ * all: the block stays `pending`, as it did before the details arrived.
+ */
+function withUnlabelledColumns(block: Block, header: string[], rows: string[][]): Block {
+  if (block.email !== null && block.contact !== null && block.parent !== null) return block;
+
+  const width = block.end - block.start;
+  const blank: number[] = [];
+  for (let offset = 1; offset < width; offset++) {
+    if (offset !== block.stage && label(header[block.start + offset] ?? "") === "") blank.push(offset);
+  }
+  const most = (offset: number, test: (cell: string) => boolean) =>
+    rows.filter((cells) => test((cells[block.start + offset] ?? "").trim())).length * 2 >= rows.length;
+
+  const email = block.email ?? blank.find((o) => most(o, (cell) => cell.includes("@"))) ?? null;
+  if (email === null) return block;
+
+  const isMobile = (cell: string) => mobilesIn(cell).some((local) => toBotswanaE164(local) !== null);
+  const contact = block.contact ?? blank.find((o) => o !== email && most(o, isMobile)) ?? null;
+
+  const before = email - 1;
+  const parent =
+    block.parent ??
+    (blank.includes(before) && before !== contact && most(before, (cell) => /[a-z]/i.test(cell) && !cell.includes("@")) ? before : null);
+
+  return { ...block, email, contact, parent };
+}
+
+/**
  * The Botswana mobile somewhere in a block that has no "Contact" header.
  *
  * The 30/20/10 blocks do carry a phone number, but in a column the school left
@@ -245,7 +285,7 @@ export function readPrimaryRoster(sheets: Array<{ name: string; rows: string[][]
     const bandRow = headerIndex > 0 ? sheet.rows[headerIndex - 1] : [];
     const body = sheet.rows.slice(headerIndex + 1);
 
-    for (const block of blocksIn(header, bandRow)) {
+    for (const labelled of blocksIn(header, bandRow)) {
       // A row belongs to this block when the school numbered it there. Its own
       // numbering, one column to the left of the name, is the only thing that
       // separates a family from everything else written on the same line: the
@@ -255,12 +295,13 @@ export function readPrimaryRoster(sheets: Array<{ name: string; rows: string[][]
       //
       // A block starting in the first column has no room for a numbering
       // column; then a name is all there is to go on.
-      const numbered = block.start > 0;
+      const numbered = labelled.start > 0;
       const mine = body
         .map((cells, index) => ({ cells, line: headerIndex + 2 + index }))
-        .filter(({ cells }) => (cells[block.start] ?? "").trim().length > 0)
-        .filter(({ cells }) => !numbered || isRowNumber(cells[block.start - 1] ?? ""));
+        .filter(({ cells }) => (cells[labelled.start] ?? "").trim().length > 0)
+        .filter(({ cells }) => !numbered || isRowNumber(cells[labelled.start - 1] ?? ""));
       if (mine.length === 0) continue;
+      const block = withUnlabelledColumns(labelled, header, mine.map((m) => m.cells));
 
       const code = block.promotionCode ?? bandFromRows(mine.map((m) => m.cells), block);
       const contactable = block.email !== null && block.contact !== null;

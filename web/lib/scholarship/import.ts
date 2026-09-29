@@ -52,6 +52,13 @@ export type ImportOptions = {
   placeholderDateOfBirth: string;
   /** Write nothing; report what would happen. */
   dryRun?: boolean;
+  /**
+   * The days these families may come in, inclusive, as ISO dates. Set on each
+   * application this run routes, before its invitation is queued, so the
+   * letter, the WhatsApp and the booking page all name the same dates.
+   * Omitted: the school-wide deadline, as before.
+   */
+  interviewWindow?: { from: string; to: string } | null;
 };
 
 export type ImportReport = {
@@ -134,6 +141,30 @@ async function importOne(
   const reference = result.reference as string;
   const created = Boolean(result.created);
 
+  // Routed yet? Which is not the same as "created by this run". If `onEnquiryCreated` failed last time — a dropped
+  // connection, a timeout — the application is stored and `create_application`
+  // will report `created = false` for ever after, so gating on that left the
+  // family permanently invisible: no invitation, no task, no timeline.
+  //
+  // Asking the timeline instead makes a second run finish what the first
+  // started. It cannot double-send: the email job's idempotency key is
+  // `email:{id}:scholarship_invitation`, and `commit` is guarded on the
+  // expected status.
+  //
+  // And a family already routed is finished: nothing below is written again.
+  // The award in particular is an upsert on the application, so a later file
+  // placing the same child in another band would otherwise quietly change the
+  // money in a letter already sent.
+  const { data: routed, error: routedError } = await admin
+    .from("application_events")
+    .select("id")
+    .eq("application_id", applicationId)
+    .eq("type", "enquiry.created")
+    .limit(1)
+    .maybeSingle();
+  if (routedError) return { status: "refused", why: `could not check routing: ${routedError.message}` };
+  if (routed) return { status: "existing", reference, applicationId };
+
   // Step 2. See the note at the top: the trigger has just overwritten
   // whatever was intended, and this is where it is put right.
   const { error: flagError } = await admin
@@ -155,40 +186,29 @@ async function importOne(
     .eq("email_normalised", email)
     .is("whatsapp_opt_out_at", null);
 
-  // Step 4. Routed when it has not been routed, which is not the same as
-  // "created by this run". If `onEnquiryCreated` failed last time — a dropped
-  // connection, a timeout — the application is stored and `create_application`
-  // will report `created = false` for ever after, so gating on that left the
-  // family permanently invisible: no invitation, no task, no timeline.
-  //
-  // Asking the timeline instead makes a second run finish what the first
-  // started. It cannot double-send: the email job's idempotency key is
-  // `email:{id}:scholarship_invitation`, and `commit` is guarded on the
-  // expected status.
-  const { data: routed, error: routedError } = await admin
-    .from("application_events")
-    .select("id")
-    .eq("application_id", applicationId)
-    .eq("type", "enquiry.created")
-    .limit(1)
-    .maybeSingle();
-  if (routedError) return { status: "refused", why: `could not check routing: ${routedError.message}` };
-
-  if (!routed) {
-    await onEnquiryCreated(
-      admin,
-      {
-        id: applicationId,
-        reference,
-        status: "new_enquiry",
-        entry_route: "visit",
-        requires_assessment: false,
-        child_first_name: row.studentFirstName,
-      },
-      `${row.parentFirstName} ${row.parentLastName}`.trim(),
-      SYSTEM_ACTOR
-    );
+  // The family's own dates, before the invitation that names them is queued.
+  if (opts.interviewWindow) {
+    const { error: windowError } = await admin
+      .from("applications")
+      .update({ interview_window_from: opts.interviewWindow.from, interview_window_to: opts.interviewWindow.to })
+      .eq("id", applicationId);
+    if (windowError) return { status: "refused", why: `could not set the interview dates: ${windowError.message}` };
   }
+
+  // Step 4.
+  await onEnquiryCreated(
+    admin,
+    {
+      id: applicationId,
+      reference,
+      status: "new_enquiry",
+      entry_route: "visit",
+      requires_assessment: false,
+      child_first_name: row.studentFirstName,
+    },
+    `${row.parentFirstName} ${row.parentLastName}`.trim(),
+    SYSTEM_ACTOR
+  );
 
   return { status: created ? "created" : "existing", reference, applicationId };
 }

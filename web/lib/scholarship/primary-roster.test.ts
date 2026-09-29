@@ -225,6 +225,48 @@ describe("readPrimaryRoster", () => {
     });
   });
 
+  it("reads contact columns the school filled in under no heading", () => {
+    // The third file: the 30% block gained a parent, an address and a number
+    // between Stage and "Academics / Sports", with the header cells left blank.
+    const { rows, pending, problems } = readPrimaryRoster(
+      sheet([
+        ["", "30% SCHOLARSHIP", "", "", "", "", ""],
+        ["", "Name & Surname", "Stage", "", "", "", "Academics / Sports"],
+        ["1.0", "Tlotla Jaydon Morake", "6.0", "Barnabas Morake", "barney@example.com", "74061929 - 75395609", "0.3"],
+        ["2.0", "Reatile Mothofela", "6.0", "Keemetse Mhiko", "keemetse@example.com", "71219494", "0.3"],
+        ["3.0", "Laone Moatshe", "6.0", "", "", "", "0.3"],
+      ])
+    );
+
+    expect(pending).toEqual([]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      studentFirstName: "Tlotla",
+      parentFirstName: "Barnabas",
+      email: "barney@example.com",
+      mobile: "+26774061929",
+      className: "Stage 6",
+      promotionCode: "SCHOLARSHIP-30",
+    });
+    // A family in the block with nothing filled in is a problem to chase,
+    // never read out of a neighbouring row.
+    expect(problems).toEqual([expect.objectContaining({ student: "Laone Moatshe", why: "no email address" })]);
+  });
+
+  it("leaves a blank-headed block pending when no column of it holds addresses", () => {
+    const { rows, pending } = readPrimaryRoster(
+      sheet([
+        ["", "20% SCHOLARSHIP", "", ""],
+        ["", "Name & Surname", "Stage", "", "Academics / Sports"],
+        ["1.0", "Logan Shongwe", "5.0", "72461745", "0.2"],
+        ["2.0", "Nicolas Lebalang", "5.0", "74827938", "0.2"],
+      ])
+    );
+
+    expect(rows).toEqual([]);
+    expect(pending.map((p) => p.studentName)).toEqual(["Logan Shongwe", "Nicolas Lebalang"]);
+  });
+
   it("ignores the notes the school wrote down the side of a block", () => {
     const { rows, problems, pending } = readPrimaryRoster(
       sheet([

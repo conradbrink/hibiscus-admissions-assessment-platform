@@ -36,6 +36,20 @@ const limit = Number(process.env.PRIMARY_SCHOLARSHIP_LIMIT ?? Infinity);
 const only = process.env.PRIMARY_SCHOLARSHIP_ONLY?.toLowerCase() ?? null;
 
 /**
+ * The interview dates these families are given, as `from..to` ISO dates:
+ * `PRIMARY_SCHOLARSHIP_WINDOW=2026-10-12..2026-10-23`. Set on each application
+ * the run invites, so its letter, WhatsApp and booking page name those dates
+ * instead of the school-wide deadline. Unset: the deadline, as before.
+ */
+const interviewDates = (() => {
+  const raw = process.env.PRIMARY_SCHOLARSHIP_WINDOW;
+  if (!raw) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/.exec(raw.trim());
+  if (!match || match[1] > match[2]) throw new Error(`PRIMARY_SCHOLARSHIP_WINDOW must be from..to, earliest first: "${raw}"`);
+  return { from: match[1], to: match[2] };
+})();
+
+/**
  * Which class sits where. Not in the spreadsheet — a placement decision.
  *
  * Every child in this workbook is a primary stage and goes to Broadhurst,
@@ -73,6 +87,40 @@ const CORRECTIONS: Array<{ student: string; was: string; email: string; why: str
     was: "masilodkgomo@gmaill.com",
     email: "masilodkgomo@gmail.com",
     why: "sheet reads gmaill.com with two Ls; one L confirmed by Conrad, 23 Sep 2026",
+  },
+  {
+    student: "Letsema Cayla Bikimane",
+    was: "bikimanegoitseone@gmailcom",
+    email: "bikimanegoitseone@gmail.com",
+    why: "sheet has no dot before com; gmail.com confirmed by Conrad, 29 Sep 2026",
+  },
+  {
+    student: "Aasa Anaya Halle Motlhabane",
+    was: "onedijengbb@gmailcom",
+    email: "onedijengbb@gmail.com",
+    why: "sheet has no dot before com; gmail.com confirmed by Conrad, 29 Sep 2026",
+  },
+  {
+    student: "Anaya Adumetse Ndebele",
+    was: "ndebindex@gmail.com - gloryndebele6@gmail.com",
+    email: "gloryndebele6@gmail.com",
+    why: "two addresses in one cell; the one already on file for her brother Bafenyi (same parent, Goitsemang M. Ndebele), chosen by Conrad, 29 Sep 2026",
+  },
+];
+
+/**
+ * Rows a person has looked at and decided not to send, and why. They are
+ * refused by the reader anyway; listing them here means the next run says
+ * "settled" instead of asking the same question again.
+ */
+const SETTLED: Array<{ student: string; why: string }> = [
+  {
+    student: "Letsema Bikimane",
+    why: "the same child as Letsema Cayla Bikimane in the 20% block, who is sent; confirmed by Conrad, 29 Sep 2026",
+  },
+  {
+    student: "Lethabo Carol Bikimane",
+    why: "stage Form 1 is secondary, not this primary send; left out until the school confirms, Conrad, 29 Sep 2026",
   },
 ];
 
@@ -129,6 +177,7 @@ describe.skipIf(!file)("primary scholarship import", () => {
     if (!commit) {
       console.log(`\nDRY RUN — nothing written`);
       console.log(`read ${rows.length}, would attempt ${wanted.length}`);
+      console.log(interviewDates ? `interview dates: ${interviewDates.from} to ${interviewDates.to}` : `interview dates: the school-wide deadline`);
       blockSummary(blocks, rows, pending, problems);
       tallies(wanted);
       // The one check that needs the database. It only ever reads, so it runs
@@ -162,10 +211,12 @@ describe.skipIf(!file)("primary scholarship import", () => {
       intakeId: intake.data!.id,
       placeholderDateOfBirth: PLACEHOLDER_DOB,
       dryRun: false,
+      interviewWindow: interviewDates,
     });
 
     console.log(`\nCOMMITTED`);
     console.log(`read ${rows.length}, attempted ${wanted.length}`);
+    console.log(interviewDates ? `interview dates: ${interviewDates.from} to ${interviewDates.to}` : `interview dates: the school-wide deadline`);
     console.log(`created ${outcome.created} · already there ${outcome.existing} · refused ${outcome.refused}`);
     blockSummary(blocks, rows, pending, problems);
     tallies(wanted);
@@ -350,9 +401,15 @@ function report(
   rows: Array<{ studentFirstName: string; studentLastName: string; notes: string[]; outcome: { status: string; why?: string } }>,
   wanted: Array<{ notes: string[]; studentFirstName: string; studentLastName: string }>
 ): void {
-  if (problems.length) {
-    console.log(`\nrefused before the database (${problems.length}) — these need a person:`);
-    for (const p of problems) console.log(`  ${p.sheet}:${p.line} ${p.student} — ${p.why}`);
+  const settled = problems.filter((p) => SETTLED.some((s) => s.student === p.student));
+  const open = problems.filter((p) => !settled.includes(p));
+  if (open.length) {
+    console.log(`\nrefused before the database (${open.length}) — these need a person:`);
+    for (const p of open) console.log(`  ${p.sheet}:${p.line} ${p.student} — ${p.why}`);
+  }
+  if (settled.length) {
+    console.log(`\nleft out, already decided (${settled.length}):`);
+    for (const p of settled) console.log(`  ${p.sheet}:${p.line} ${p.student} — ${SETTLED.find((s) => s.student === p.student)?.why}`);
   }
   if (pending.length) {
     console.log(`\nwaiting on contact details (${pending.length}) — nothing wrong with these, the columns are simply not filled in yet:`);

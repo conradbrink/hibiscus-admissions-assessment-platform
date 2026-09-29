@@ -1,5 +1,5 @@
 import "server-only";
-import { endOfDayIn } from "@/lib/booking/deadline";
+import { endOfDayIn, startOfDayIn } from "@/lib/booking/deadline";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationSource, CampusRow, EntryRoute, GradeRow, IntakeRow } from "@/lib/supabase/types";
 import type { HeardFrom } from "@/lib/heard-from";
@@ -301,7 +301,7 @@ export type SlotDay = {
 /**
  * Published, future sessions at a campus with places left, for one grade.
  *
- * `notAfter` closes the far end of the window. A scholarship intake runs to a
+ * `notAfter` closes the far end of the window, `notBefore` the near one. A scholarship intake runs to a
  * deadline the school has told the families about, and sessions are created
  * weeks ahead for everyone — so without this the picker would cheerfully
  * offer a date past the deadline and the letter would be the only thing that
@@ -310,7 +310,7 @@ export type SlotDay = {
  */
 export async function loadAvailableSlots(
   admin: AdminClient,
-  opts: { campusId: string; kind: "assessment" | "visit"; gradeSort: number; notAfter?: Date | null }
+  opts: { campusId: string; kind: "assessment" | "visit"; gradeSort: number; notAfter?: Date | null; notBefore?: Date | null }
 ): Promise<SlotDay[]> {
   let query = admin
     .from("sessions")
@@ -322,6 +322,9 @@ export async function loadAvailableSlots(
   // Inclusive of the deadline day: a deadline of the 9th means the 9th is
   // still a date you can come on.
   if (opts.notAfter) query = query.lte("starts_at", endOfDayIn(opts.notAfter).toISOString());
+  // And the near end, for an application given dates of its own that start
+  // later than tomorrow (bookingWindow in lib/booking/deadline.ts).
+  if (opts.notBefore) query = query.gte("starts_at", startOfDayIn(opts.notBefore).toISOString());
   const { data: sessions, error } = await query
     .order("starts_at")
     // Read enough to cover the whole horizon: the cap is applied before the

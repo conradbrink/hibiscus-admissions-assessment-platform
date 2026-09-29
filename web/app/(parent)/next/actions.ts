@@ -14,6 +14,7 @@ import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { requestContext } from "@/lib/request";
 import { bookingNoun } from "@/lib/booking/noun";
 import { getSettings } from "@/lib/settings";
+import { bookingWindow, withinWindow } from "@/lib/booking/deadline";
 import { toSchoolDateString, withinCutoff } from "@/lib/format-date";
 import { intakeForMonth, monthChoices } from "@/lib/start-month";
 import { requireParentSession } from "@/lib/tokens/server";
@@ -169,6 +170,16 @@ export async function bookSlot(_prev: ActionState, formData: FormData): Promise<
   if (sErr || !target) return { error: "That time is no longer available. Please choose another." };
   if (target.campus_id !== app.campus_id) {
     return { error: "That time is at a different campus. Please choose another." };
+  }
+
+  // The dates the page offers, held here too: a session outside the family's
+  // window is refused whatever the form posted, not merely left off the page.
+  const dates = bookingWindow(app, {
+    scholarship: Boolean(graph.scholarship),
+    scholarshipDeadline: (await getSettings(admin)).scholarshipInterviewDeadline,
+  });
+  if (!withinWindow(new Date(target.starts_at), dates)) {
+    return { error: "That date is not one of the dates open to you. Please choose a time from the list." };
   }
 
   // A parent has one appointment at a time, whichever kind it is. Treating a
