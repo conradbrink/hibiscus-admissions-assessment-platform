@@ -6,7 +6,7 @@ import { PageHeader, StepIndicator } from "@/components/parent/page-header";
 import { SlotPicker } from "@/components/parent/slot-picker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadApplicationGraph } from "@/lib/applications";
-import { deadlinePassed, parseDeadline } from "@/lib/booking/deadline";
+import { bookingWindow, deadlinePassed } from "@/lib/booking/deadline";
 import { loadAvailableSlots } from "@/lib/enquiry";
 import { formatDateLong, formatTime, withinCutoff } from "@/lib/format-date";
 import { nextBookingKind } from "@/lib/booking/kind";
@@ -50,7 +50,10 @@ export default async function BookPage() {
   // writing, so a slot past it cannot be honoured and is not offered. Without
   // this the picker happily sells a family a date in November and the letter
   // is the only thing that knows better.
-  const deadline = scholarship ? parseDeadline(settings.scholarshipInterviewDeadline) : null;
+  // An application given dates of its own (the late primary scholarships,
+  // 12 to 23 October) books inside those instead.
+  const dates = bookingWindow(app, { scholarship, scholarshipDeadline: settings.scholarshipInterviewDeadline });
+  const deadline = dates.notAfter;
   // Whether the window has *closed*, which is not the same as holding a
   // deadline. Every scholarship family holds one; only some are past it, and
   // telling a family whose campus is merely booked out that "interviews closed
@@ -63,6 +66,7 @@ export default async function BookPage() {
     kind: effectiveKind,
     gradeSort: grade.sort_order,
     notAfter: deadline,
+    notBefore: dates.notBefore,
   });
 
   // A visit already attended is not the booking being changed: what follows

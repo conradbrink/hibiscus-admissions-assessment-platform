@@ -4486,6 +4486,36 @@ begin
     delete from public.campaigns where id = v_sms;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 80. A family's own interview dates are set by the import, not by staff
+  -- -------------------------------------------------------------------------
+  -- The window decides which dates a family may book and what its letter
+  -- says. Staff have no update grant on it, even an administrator, and a
+  -- window that ends before it starts is not stored.
+  begin
+    perform pg_temp.impersonate(u_admin);
+    update public.applications set interview_window_to = '2027-01-31' where id = x_own_campus;
+    v_fail := v_fail || E'\n  - ' || '80: an administrator set an application''s interview dates directly';
+  exception
+    when insufficient_privilege then null;
+    when others then v_fail := v_fail || E'\n  - ' || ('80: refused, but by "' || sqlerrm || '" rather than the column grant');
+  end;
+  perform pg_temp.service();
+  begin
+    update public.applications set interview_window_from = '2026-10-12', interview_window_to = '2026-10-23' where id = x_own_campus;
+    get diagnostics v_count = row_count;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('80 control: the service set a window on ' || v_count || ' applications, not 1'); end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('80 control: the service could not set a window: ' || sqlerrm);
+  end;
+  begin
+    update public.applications set interview_window_from = '2026-10-23', interview_window_to = '2026-10-12' where id = x_own_campus;
+    get diagnostics v_count = row_count;
+    v_fail := v_fail || E'\n  - ' || ('80: a window ending before it starts was stored (' || v_count || ' rows)');
+  exception when check_violation then null;
+  end;
+  update public.applications set interview_window_from = null, interview_window_to = null where id = x_own_campus;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

@@ -431,6 +431,10 @@ export type ApplicationRow = {
   deferred_until: string | null;
   /** What they said when they asked to be deferred, in the words of whoever spoke to them. */
   deferred_reason: string | null;
+  /** First day this family may book, when the application has dates of its own. Null: no earliest day. */
+  interview_window_from: string | null;
+  /** Last day this family may book, in place of the scholarship deadline setting. Null: the setting. */
+  interview_window_to: string | null;
   /**
    * The family said at enquiry that the child has additional needs. It exists
    * so the sitting can be arranged properly — extra time, a quieter room, an

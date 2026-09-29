@@ -466,7 +466,9 @@ export async function scholarshipExtras(
   return {
     scholarshipAward: award?.award ?? null,
     tuitionPerTerm: award?.tuitionPerTerm ?? null,
-    interviewDeadline: award ? formatDateLong(settings.scholarshipInterviewDeadline) : null,
+    // An application with dates of its own names its own last day; the page
+    // and the booking hold it to the same one (bookingWindow).
+    interviewDeadline: award ? formatDateLong(graph.application.interview_window_to ?? settings.scholarshipInterviewDeadline) : null,
   };
 }
 
