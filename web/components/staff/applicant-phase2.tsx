@@ -25,8 +25,9 @@ import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand, TrialWeekRow } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
-import { checkIn, recordDecision, resumeDeferred, setDayPattern, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
+import { checkIn, recordDecision, resumeDeferred, setDayPattern, setScholarship, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import { formatMonth, type MonthChoice } from "@/lib/start-month";
+import { awardLabelOf } from "@/lib/promotions/scholarship";
 
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
@@ -48,6 +49,7 @@ export async function ApplicantPhase2({
   decision,
   dayPattern,
   startMonth,
+  scholarshipBand,
   booking,
 }: {
   supabase: StaffContext["supabase"];
@@ -89,6 +91,18 @@ export async function ApplicantPhase2({
    * letter names and what the first-day emails count from.
    */
   startMonth: { value: string | null; canSet: boolean; choices: MonthChoice[] } | null;
+  /**
+   * The scholarship band this child holds and the bands that could replace it.
+   * `code` is whatever promotion is on the application, which is not always a
+   * scholarship — a child may hold an ordinary deal, and the box has to say so
+   * rather than quietly call it "no scholarship" and offer to clear it.
+   */
+  scholarshipBand: {
+    code: string | null;
+    isScholarship: boolean;
+    canSet: boolean;
+    choices: string[];
+  } | null;
 }) {
   const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
@@ -418,6 +432,53 @@ export async function ApplicantPhase2({
                     Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next offer letter quotes. While this is
                     undecided the letter shows both rates and asks the family to confirm; either way, tuition is invoiced
                     and is not payable to accept the offer. An offer already sent keeps the fees it was drafted with.
+                  </p>
+                </ActionForm>
+              ) : null}
+            </div>
+          ) : null}
+          {scholarshipBand ? (
+            <div className="mb-4 rounded-lg border border-border p-3">
+              <h3 className="font-semibold">Scholarship</h3>
+              <p className="mt-1">
+                {scholarshipBand.isScholarship
+                  ? `${awardLabelOf(scholarshipBand.code)} of tuition`
+                  : scholarshipBand.code
+                    ? `No scholarship. This applicant holds the ${scholarshipBand.code} deal.`
+                    : "No scholarship"}
+              </p>
+              {scholarshipBand.canSet ? (
+                <ActionForm action={setScholarship} label="Save" variant="outline" size="sm" className="mt-2">
+                  {idField}
+                  <NativeSelect
+                    name="code"
+                    defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}
+                    aria-label="Scholarship band"
+                  >
+                    {/* A child on an ordinary deal starts on "keep", so saving
+                        without choosing cannot take the deal off them. */}
+                    {scholarshipBand.code && !scholarshipBand.isScholarship ? (
+                      <option value="keep">Keep the {scholarshipBand.code} deal</option>
+                    ) : null}
+                    <option value="">
+                      {scholarshipBand.code && !scholarshipBand.isScholarship
+                        ? `Remove the ${scholarshipBand.code} deal`
+                        : "No scholarship"}
+                    </option>
+                    {scholarshipBand.choices.map((c) => (
+                      <option key={c} value={c}>{awardLabelOf(c)}</option>
+                    ))}
+                  </NativeSelect>
+                  <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
+                  <p className="text-xs text-muted-foreground">
+                    {liveOffer && liveOffer.status !== "draft"
+                      ? "An offer has already gone to this family and keeps the fees it was drafted with. To put the new band in front of them, withdraw that offer and issue a fresh one."
+                      : liveOffer
+                        ? "The draft offer below still shows the old fees. Press Generate offer again to re-price it."
+                        : "Decides the tuition the next offer letter quotes and the figure the scholarship messages name."}
+                    {scholarshipBand.code && !scholarshipBand.isScholarship
+                      ? " Awarding a scholarship here replaces the deal this applicant holds; there is only ever one."
+                      : ""}
                   </p>
                 </ActionForm>
               ) : null}

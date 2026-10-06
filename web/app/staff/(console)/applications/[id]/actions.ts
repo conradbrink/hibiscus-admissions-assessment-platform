@@ -12,6 +12,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendCompanionMessage } from "@/lib/messaging/send";
 import { saysAssessment } from "@/lib/messaging/template-checks";
 import { generateSummary } from "@/lib/summary/generate";
+import { clearPromotion, promotionOn, recordPromotion } from "@/lib/promotions/load";
+import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
 import { loadCatalogue } from "@/lib/enquiry";
 import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -1155,5 +1157,74 @@ export async function setDayPattern(_: StaffActionState, formData: FormData): Pr
       actor: ctx.actor,
     });
     revalidatePath(`/staff/applications/${app.id}`);
+  });
+}
+
+/**
+ * The scholarship band on one applicant: change it, award one, take it away.
+ *
+ * A scholarship is a promotion (see `lib/promotions/scholarship.ts`), so the
+ * band is the promotion code and changing it is one upsert on
+ * `application_promotions`. Doing it here rather than in the admin promotions
+ * screen is the point: that screen edits what `SCHOLARSHIP-40` *means* for
+ * everybody holding it, and a child awarded the wrong band needs the opposite
+ * — their row moved, nobody else's.
+ *
+ * `offers.approve` rather than `applications.write`. The band decides what a
+ * family pays for the next decade of their child's schooling, which is the
+ * weight of signing off an offer, not of correcting a spelling.
+ *
+ * What it deliberately does not do is touch any offer. A letter already with a
+ * family keeps the fees it was drafted with — that is `snapshotFees` working
+ * as intended, and silently re-pricing a letter a parent has read would be
+ * worse than making somebody press Generate offer again. The screen says so.
+ */
+export async function setScholarship(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("offers.approve");
+    const parsed = idSchema
+      .extend({ code: z.string().trim().max(40), reason: z.string().trim().max(500).optional() })
+      .parse(Object.fromEntries(formData));
+    // "keep" is the screen's way of saying "I opened this box and changed
+    // nothing". A child holding an ordinary deal has no band selected, so
+    // without it a stray Save would read as "remove the deal" and take one
+    // away that nobody meant to touch.
+    if (parsed.code === "keep") return;
+    const to = parsed.code === "" ? null : parsed.code;
+    if (to !== null && !isScholarshipCode(to)) throw new Error("That is not a scholarship band.");
+
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const held = await promotionOn(admin, app.id);
+    const from = held?.promo.code ?? null;
+    if (from === to) return;
+
+    if (to === null) {
+      await clearPromotion(admin, app.id);
+    } else {
+      const { data: promo, error } = await admin.from("promotions").select("id, is_active").eq("code", to).maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!promo) throw new Error(`There is no ${to} promotion set up to award.`);
+      if (!promo.is_active) throw new Error(`${to} is switched off. Switch it back on in Promotions before awarding it.`);
+      await recordPromotion(admin, app.id, promo.id, "staff", {
+        staffId: ctx.userId,
+        reason: parsed.reason || "Band set on the applicant page",
+      });
+    }
+
+    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "scholarship.changed",
+        summary: `Scholarship ${say(from)} → ${say(to)}`,
+        payload: { from, to, reason: parsed.reason ?? null },
+      },
+      audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
+      actor: ctx.actor,
+    });
+    done(app.id);
   });
 }
