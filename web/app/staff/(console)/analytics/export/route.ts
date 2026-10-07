@@ -18,7 +18,17 @@ export async function GET(request: Request) {
 
   let q = ctx.supabase.from("v_application_facts").select("*").gte("enquired_at", `${from}T00:00:00+02:00`).lte("enquired_at", `${to}T23:59:59+02:00`).limit(5000);
   if (campus) q = q.eq("campus_id", campus);
-  const { data } = await q;
+  const { data, error } = await q;
+  // A failed read must not become an empty spreadsheet. Silently exporting
+  // nothing is worse than exporting nothing loudly: the file looks finished,
+  // it gets sent on, and the audit log would record an export that never
+  // happened. So it refuses, and writes nothing to the log.
+  if (error) {
+    return new Response(`The export could not be prepared: ${error.message}\n`, {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "private, no-store" },
+    });
+  }
   const { headers, rows } = breakdownCsvRows(dim, groupBy((data ?? []) as FactRow[], dim));
   await createAdminClient().from("audit_log").insert({
     actor_type: "staff",

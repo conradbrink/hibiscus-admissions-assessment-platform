@@ -45,11 +45,30 @@ export default async function ForecastPage({ searchParams }: { searchParams: Pro
   const year = (years ?? []).find((y) => y.id === sp.year) ?? (years ?? []).find((y) => y.is_current) ?? years?.[0] ?? null;
   if (!year) return <PageTitle title="Forecast" description="No academic year is set up yet." />;
 
-  const [{ data: current }, { data: history }, { data: campusGrades }] = await Promise.all([
+  const [{ data: current, error: currentError }, { data: history, error: historyError }, { data: campusGrades }] = await Promise.all([
     supabase.from("v_application_facts").select("*").eq("academic_year_id", year.id).limit(5000),
     supabase.from("v_application_facts").select("*").gte("enquired_at", `${daysAgoDateString(365)}T00:00:00+02:00`).limit(5000),
     supabase.from("campus_grades").select("campus_id, grade_id, capacity, campuses!inner(name, is_active), grades!inner(name, sort_order, is_active)").eq("is_active", true),
   ]);
+  // Without the applications there is no forecast — only a page of zeros that
+  // reads like an empty year rather than a failed read. Say so instead.
+  const readFailed = currentError ?? historyError;
+  if (readFailed) {
+    return (
+      <>
+        <PageTitle title="Forecast" description={`For ${year.label}.`} />
+        <section className="surface border-destructive/40 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-destructive">The forecast could not be worked out</h2>
+          <p className="text-sm text-muted-foreground">
+            Nothing is shown rather than zeros, because zeros would read as an empty year. If this keeps happening it is
+            worth reporting.
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">Reason given: {readFailed.message}</p>
+        </section>
+      </>
+    );
+  }
+
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
   const capacities = (campusGrades ?? [])
     .filter((cg) => one(cg.campuses)?.is_active && one(cg.grades)?.is_active)
