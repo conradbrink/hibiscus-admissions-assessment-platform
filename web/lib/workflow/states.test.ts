@@ -304,10 +304,13 @@ describe("what a scholarship family is told to do next", () => {
 
   it("leaves the other two tracks exactly as they were", () => {
     // The regression this file exists to prevent: a pre-school family must
-    // still be told about a play date, and an assessed child about an
-    // assessment.
+    // still be told about their visit, and an assessed child about an
+    // assessment. The pre-school arm used to say "play date" and now shares
+    // the generic `attend_visit` row — so what this guards is that sharing it
+    // did not quietly hand them the assessment wording instead.
     const preschool = nextActionCopy("attend_visit", { requiresAssessment: false, bookingKind: "visit", scholarship: false });
-    expect(preschool.parentCta?.label).toBe("View play date");
+    expect(preschool.parentCta?.label).toBe("View visit");
+    expect(`${preschool.parentTitle} ${preschool.parentDetail}`).not.toContain("assessment");
     const assessed = nextActionCopy("book_assessment", { requiresAssessment: true, bookingKind: null, scholarship: false });
     expect(assessed.parentCta?.label).toBe("Book assessment");
   });

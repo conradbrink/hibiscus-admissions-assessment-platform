@@ -129,7 +129,7 @@ export function GradeConfirmForm(props: GradeConfirmProps) {
         </NativeSelect>
         {selectedGrade && !selectedGrade.requires_assessment ? (
           <p className="rounded-lg bg-muted px-3 py-2 text-sm">
-            Next you will choose a time for a play date at the campus, and the school confirms {props.childFirstName}&rsquo;s place after it.
+            Next you will choose a time to visit the campus, and the school confirms {props.childFirstName}&rsquo;s place after it.
           </p>
         ) : null}
       </div>

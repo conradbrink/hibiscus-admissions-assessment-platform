@@ -55,7 +55,7 @@ export const LIFECYCLE_TONE: Record<LifecycleStage, "info" | "success" | "warnin
 /** One line under the stage on a profile, saying what it means. */
 export const LIFECYCLE_BLURB: Record<LifecycleStage, string> = {
   new_enquiry: "The family has asked about a place and nothing has been booked yet.",
-  qualified: "A visit or a play date is booked.",
+  qualified: "A visit is booked.",
   applicant: "An assessment is booked.",
   assessment: "The child is being assessed, or is waiting for a decision.",
   offer: "An offer is being drafted, is out with the family, or the child is waitlisted.",

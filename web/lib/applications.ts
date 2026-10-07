@@ -34,7 +34,7 @@ export type ApplicationGraph = {
    * appointment depends on it (`lib/booking/noun.ts`), and a scholarship child
    * sits no assessment, so every surface that reasons from
    * `requires_assessment` alone calls them a pre-school applicant and invites
-   * them to a play date. Every parent-facing page already loads this graph, so
+   * them to look around the campus. Every parent-facing page already loads this graph, so
    * putting the fact on it is what makes all of them agree by construction
    * instead of by each one remembering.
    */
