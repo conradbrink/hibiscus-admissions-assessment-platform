@@ -152,7 +152,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     loadSummaryInputs(supabase, id),
     supabase.from("application_summaries").select("*").eq("application_id", id).maybeSingle(),
     getSettings(supabase),
-    supabase.from("application_promotions").select("promotions(code)").eq("application_id", id).maybeSingle(),
+    supabase.from("application_promotions").select("promotion_id, promotions(code)").eq("application_id", id).maybeSingle(),
     // The bands on offer, for the box that changes one. Only the switched-on
     // ones: `setScholarship` refuses a dormant band, so offering it here would
     // be offering a choice that errors.
@@ -213,6 +213,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     scholarship || can(permissions, "offers.approve")
       ? {
           code: heldCode,
+          promotionId: award?.promotion_id ?? null,
           isScholarship: scholarship,
           canSet: can(permissions, "offers.approve"),
           choices: (bands ?? []).map((b) => b.code).filter((c): c is string => isScholarshipCode(c)),

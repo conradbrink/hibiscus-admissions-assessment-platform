@@ -16,6 +16,7 @@ import { PaymentPanel } from "@/components/staff/payment-panel";
 import { TrialWeekStatus } from "@/components/staff/trial-week-status";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeLinesFor, feeSnapshotFrom } from "@/lib/offers/snapshot";
+import type { PromotionFeeSnapshot } from "@/lib/promotions/apply";
 import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
@@ -99,6 +100,8 @@ export async function ApplicantPhase2({
    */
   scholarshipBand: {
     code: string | null;
+    /** `application_promotions.promotion_id`, for comparing against an offer's. */
+    promotionId: string | null;
     isScholarship: boolean;
     canSet: boolean;
     choices: string[];
@@ -164,6 +167,23 @@ export async function ApplicantPhase2({
 
   const canApprove = can(permissions, "offers.approve");
   const liveOffer = (offers ?? []).find((o) => ["draft", "pending_approval", "sent", "viewed", "expired"].includes(o.status)) ?? null;
+  // The most recent letter *of any status*, which is not the same question as
+  // `liveOffer`: a withdrawn one is not live, and withdrawing is exactly what
+  // staff are told to do before re-pricing. Reading only the live offer left
+  // the band box silent in the one state the advice creates — the screen said
+  // nothing about generating, and somebody flipped the band off and on
+  // instead, twice, trying to make the letter catch up.
+  const newestOffer = (offers ?? [])[0] ?? null;
+  // Compared by id rather than by the code in the stored snapshot: the column
+  // is typed and the snapshot's shape is not.
+  const bandMovedSinceOffer = Boolean(
+    newestOffer && scholarshipBand && newestOffer.promotion_id !== scholarshipBand.promotionId
+  );
+  // `promotion` rides on the stored snapshot but not on `FeeSnapshot` itself,
+  // so this reads it the way `promotionVariables` and `fullyWaived` already do.
+  const offerPricedUnder = awardLabelOf(
+    (feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null
+  );
   const computed = profile ? (profile.computed as unknown as ComputedProfile) : null;
   const narrative = profile ? NARRATIVE_SCHEMA.safeParse(profile.narrative) : null;
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
@@ -447,6 +467,16 @@ export async function ApplicantPhase2({
                     ? `No scholarship. This applicant holds the ${scholarshipBand.code} deal.`
                     : "No scholarship"}
               </p>
+              {bandMovedSinceOffer ? (
+                <p className="mt-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-foreground">
+                  {offerPricedUnder
+                    ? `The most recent letter was priced at ${offerPricedUnder}, not this. `
+                    : "The most recent letter was priced under a different deal to this one. "}
+                  {liveOffer
+                    ? "Press Generate offer to re-price it."
+                    : "Nothing is drafted now — press Generate offer below to issue one at the band above."}
+                </p>
+              ) : null}
               {scholarshipBand.canSet ? (
                 <ActionForm action={setScholarship} label="Save" variant="outline" size="sm" className="mt-2">
                   {idField}
@@ -475,7 +505,9 @@ export async function ApplicantPhase2({
                       ? "An offer has already gone to this family and keeps the fees it was drafted with. To put the new band in front of them, withdraw that offer and issue a fresh one."
                       : liveOffer
                         ? "The draft offer below still shows the old fees. Press Generate offer again to re-price it."
-                        : "Decides the tuition the next offer letter quotes and the figure the scholarship messages name."}
+                        : newestOffer
+                          ? "Changing the band here does not rewrite a letter. Press Generate offer below to draft one at the new band."
+                          : "Decides the tuition the next offer letter quotes and the figure the scholarship messages name."}
                     {scholarshipBand.code && !scholarshipBand.isScholarship
                       ? " Awarding a scholarship here replaces the deal this applicant holds; there is only ever one."
                       : ""}
