@@ -12,13 +12,13 @@ const ROUTES: Record<string, { entry: EntryRoute; title: string; description: st
   assessment: {
     entry: "assessment",
     title: "Join Primary and Secondary",
-    description: "For children joining Reception to Form 5. Eight quick details, then choose a date. About two minutes — and the assessment is free. Reception and younger children are offered a play date instead.",
+    description: "For children joining Reception to Form 5. Eight quick details, then choose a date. About two minutes — and the assessment is free. Reception and younger children are offered a visit instead.",
     steps: 3,
   },
   preschool: {
     entry: "visit",
     title: "Join pre-school",
-    description: "For children joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception. Eight quick details, then choose a time for a play date: come and play, meet the teachers and see the room.",
+    description: "For children joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception. Eight quick details, then choose a time to visit: see the room, meet the teachers and ask us anything.",
     steps: 3,
     preschool: true,
   },

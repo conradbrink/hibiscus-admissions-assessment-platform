@@ -40,8 +40,9 @@ export default async function BookPage() {
   // Pre-school parents who came through the assessment door can still book
   // a visit; the exempt track never offers an assessment.
   const effectiveKind = app.requires_assessment ? kind : "visit";
-  // Same stored kind, three words: a pre-school family books a play date and
-  // a scholarship child comes for an interview.
+  // Same stored kind, two words: a pre-school family and a primary family
+  // looking around both book a visit, and a scholarship child comes for an
+  // interview.
   const scholarship = Boolean(graph.scholarship);
   const noun = bookingNoun({ requiresAssessment: app.requires_assessment, bookingKind: effectiveKind, scholarship });
   const settings = await getSettings(admin);
@@ -92,20 +93,16 @@ export default async function BookPage() {
             ? "Choose a new time"
             : noun === "assessment"
               ? `Choose a time for ${app.child_first_name}'s assessment`
-              : noun === "play date"
-                ? `Choose a time for ${app.child_first_name}'s play date`
-                : noun === "interview"
-                  ? `Choose a time for ${app.child_first_name}'s interview`
-                  : `Choose a time to visit ${campus.name}`
+              : noun === "interview"
+                ? `Choose a time for ${app.child_first_name}'s interview`
+                : `Choose a time to visit ${campus.name}`
         }
         description={
           noun === "assessment"
             ? `${grade.name} at ${campus.name}. Assessments take between 45 and 90 minutes.`
-            : noun === "play date"
-              ? `${grade.name} at ${campus.name}. Come and play, meet the teachers and see the room; the school confirms ${app.child_first_name}'s place afterwards.`
-              : noun === "interview"
-                ? `${grade.name} at ${campus.name}. A conversation with ${app.child_first_name} and with you — there is no entrance test, and nothing to prepare.`
-                : `We will show you around and answer your questions.`
+            : noun === "interview"
+              ? `${grade.name} at ${campus.name}. A conversation with ${app.child_first_name} and with you — there is no entrance test, and nothing to prepare.`
+              : `${grade.name} at ${campus.name}. We will show you around, introduce the teachers and answer your questions.`
         }
       />
       {missedSession ? (

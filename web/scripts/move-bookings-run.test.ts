@@ -32,7 +32,7 @@ import { SYSTEM_ACTOR } from "@/lib/workflow/engine";
  * the live-booking index covers), re-checks campus, grade band and capacity
  * through `book_session`, links `rescheduled_to_id` so the timeline reads
  * "moved from…", and sends the right template — `interview_moved` for a
- * scholarship child, `visit_moved` or `playdate_moved` otherwise. Writing the
+ * scholarship child, `visit_moved` otherwise. Writing the
  * rows here instead would have got the first three wrong and sent nothing.
  */
 

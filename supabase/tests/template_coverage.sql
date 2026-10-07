@@ -124,7 +124,7 @@ begin
   --    inside an {{#if assessed}} block.
   --
   --    Variable names are stripped before the search, so {{assessment_date}}
-  --    on a play date and {{#if no_assessment}} on an outcome letter are not
+  --    on a visit and {{#if no_assessment}} on an outcome letter are not
   --    the word — they are never read by anybody.
   create temp table if not exists assessed_only(key text primary key, why text);
   truncate assessed_only;

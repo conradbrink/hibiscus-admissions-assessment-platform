@@ -120,7 +120,7 @@ export function buildVariables(graph: ApplicationGraph, links: EmailLinks, extra
     campus_maps_url: campus.maps_url ?? null,
     assessment_date: booking ? formatDateLong(booking.session.starts_at) : null,
     assessment_time: booking ? formatTime(booking.session.starts_at) : null,
-    // What to call the appointment: assessment, visit, or play date. A parent
+    // What to call the appointment: assessment, visit or interview. A parent
     // who booked a look around the campus should not be told their assessment
     // is confirmed, and those moments share one template, so the noun is a
     // variable rather than a template (and a Meta approval) per moment.

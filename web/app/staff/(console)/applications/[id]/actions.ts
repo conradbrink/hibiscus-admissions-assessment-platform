@@ -487,7 +487,7 @@ export async function sendWhatsAppTemplate(_: StaffActionState, formData: FormDa
         .eq("key", parsed.templateKey)
         .maybeSingle();
       if (saysAssessment(template?.body_preview)) {
-        throw new Error("That wording says “assessment”, and this child does not sit one. Pick the play-date version.");
+        throw new Error("That wording says “assessment”, and this child does not sit one. Pick the visit version.");
       }
     }
     const verdict = await enforceRateLimit(admin, LIMITS.staffMessage, ctx.userId);

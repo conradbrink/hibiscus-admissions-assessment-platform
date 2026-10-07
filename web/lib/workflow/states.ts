@@ -137,7 +137,8 @@ export function statusAfterBooking(
  *
  *   - The child sits an assessment. A primary family may book a look-around
  *     visit through the visit door, and that visit is stored the same way as a
- *     play date. Moving them on would walk them past the assessment they have
+ *     pre-school one — the two are told apart by `requires_assessment`, not by
+ *     the row. Moving them on would walk them past the assessment they have
  *     not sat.
  *   - They are already past it — visiting with an offer in hand is not a
  *     return to the decision. Same reasoning as `statusAfterBooking`.
@@ -156,8 +157,8 @@ export function statusAfterVisitArrival(
  *
  * The booking is a stage of the funnel only while the application is waiting
  * on it — `assessment_booked`, `visit_booked`, `no_show` — and then the family
- * goes back to the start of the booking track. A pre-school family's play
- * date is booked from `awaiting_decision`, and a primary family may book a
+ * goes back to the start of the booking track. A pre-school family's visit is
+ * booked from `awaiting_decision`, and a primary family may book a
  * look-around from `offer_sent`: neither of those is waiting on the booking,
  * and neither may be sent back to `new_enquiry`. Until this existed, a parent
  * cancelling a play date was shown "Illegal transition: awaiting_decision →
@@ -428,10 +429,10 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
  * booking is called.
  *
  * Several tracks share one set of `next_action` codes: a pre-school family
- * books a play date, a primary family looking around books a visit, and a
- * scholarship child comes for an interview, but all three store
- * `book_assessment` and `attend_visit`. Adding a code per track would mean a
- * constraint change and a new row in every consumer, for one word.
+ * and a primary family looking around both book a visit, and a scholarship
+ * child comes for an interview, but all three store `book_assessment` and
+ * `attend_visit`. Adding a code per track would mean a constraint change and
+ * a new row in every consumer, for one word.
  *
  * Which is why this switches on the **noun** rather than special-casing one
  * string. It used to rewrite `attend_visit` and only when the noun was
@@ -440,19 +441,14 @@ export const NEXT_ACTIONS: Record<NextAction, NextActionCopy> = {
  * the routing code that put them there carried a comment promising the noun
  * would make it read "book your interview". It did not. A table of arms makes
  * the gap visible instead of leaving it to a reader to notice.
+ *
+ * The pre-school arm has since gone: that track reads "visit" now, so the
+ * `attend_visit` row in the table above already says the right thing and
+ * needs no arm of its own.
  */
 export function nextActionCopy(action: NextAction, input: BookingNounInput): NextActionCopy {
   const copy = NEXT_ACTIONS[action];
   const noun = bookingNoun(input);
-
-  if (noun === "play date" && action === "attend_visit") {
-    return {
-      parentTitle: "Your next step is to come for the play date.",
-      parentDetail: "Come and play, look around, and ask us anything. There is nothing to bring.",
-      parentCta: { label: "View play date", href: "/next/booking" },
-      staffLabel: "Attend play date",
-    };
-  }
 
   // An interview is a conversation, not a test, and every one of these four
   // codes otherwise says "assessment" to a family the school has told in
