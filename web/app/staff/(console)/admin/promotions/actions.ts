@@ -4,11 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { HEARD_FROM_KEYS } from "@/lib/heard-from";
-import { parseMoneyToMinor } from "@/lib/money";
 import { normaliseCode } from "@/lib/promotions/apply";
+import { effectsFromForm, unrepresentable } from "@/lib/promotions/effect-form";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
-import type { PromotionEffectRow } from "@/lib/supabase/types";
 
 /**
  * Promotions are configured here and applied by the offer engine. The form
@@ -39,36 +38,11 @@ const schema = z.object({
   waiveAdmission: z.string().optional(),
   admissionDiscountKind: z.enum(["none", "fixed", "percent"]).default("none"),
   admissionDiscountValue: z.string().trim().max(20).optional(),
+  tuitionPercent: z.string().trim().max(10).optional(),
+  firstMonthAtAcceptance: z.string().optional(),
   gifts: z.string().max(1000).optional(),
   isActive: z.string().optional(),
 });
-
-type Effect = Omit<PromotionEffectRow, "id" | "promotion_id">;
-
-/** The effect rows a saved form produces; the labels are the parent-facing wording. */
-function effectsFrom(p: z.infer<typeof schema>): Effect[] {
-  const out: Effect[] = [];
-  let position = 1;
-  if (p.waiveRegistration === "1") out.push({ position: position++, kind: "waive_fee", fee_code: "registration", amount_minor: null, percent: null, label: "Application fee waived" });
-  if (p.waiveAdmission === "1") out.push({ position: position++, kind: "waive_fee", fee_code: "admission", amount_minor: null, percent: null, label: "Admission fee waived" });
-  if (p.waiveAdmission !== "1" && p.admissionDiscountKind !== "none") {
-    const raw = p.admissionDiscountValue ?? "";
-    if (p.admissionDiscountKind === "fixed") {
-      const minor = parseMoneyToMinor(raw);
-      if (minor === null || minor <= 0) throw new Error("Enter the admission fee discount as an amount, for example 500.");
-      out.push({ position: position++, kind: "discount_fixed", fee_code: "admission", amount_minor: minor, percent: null, label: `${(minor / 100).toLocaleString("en", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} off the admission fee` });
-    } else {
-      const pct = Number(raw.replace(/%/g, "").trim());
-      if (!Number.isFinite(pct) || pct <= 0 || pct > 100) throw new Error("Enter the admission fee discount as a percentage between 1 and 100.");
-      out.push({ position: position++, kind: "discount_percent", fee_code: "admission", amount_minor: null, percent: Math.round(pct * 100) / 100, label: `${pct}% off the admission fee` });
-    }
-  }
-  for (const line of (p.gifts ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean)) {
-    if (line.length > 120) throw new Error("Keep each gift to one short line.");
-    out.push({ position: position++, kind: "gift", fee_code: null, amount_minor: null, percent: null, label: line });
-  }
-  return out;
-}
 
 function rowFrom(p: z.infer<typeof schema>, createdBy: string) {
   const code = p.code ? normaliseCode(p.code) : null;
@@ -102,8 +76,8 @@ export async function savePromotion(_: StaffActionState, formData: FormData): Pr
   return guarded(async () => {
     const ctx = await requireStaffAction("settings.write");
     const p = schema.parse(Object.fromEntries([...formData.entries()].filter(([, v]) => typeof v === "string")));
-    const effects = effectsFrom(p);
-    if (effects.length === 0) throw new Error("A promotion needs at least one effect: a waiver, a discount or a gift.");
+    const effects = effectsFromForm(p);
+    if (effects.length === 0) throw new Error("A promotion needs at least one effect: a waiver, a discount, a scholarship or a gift.");
     const row = rowFrom(p, ctx.userId);
 
     let promotionId = p.promotionId;
@@ -119,6 +93,24 @@ export async function savePromotion(_: StaffActionState, formData: FormData): Pr
     }
     // Effects are replaced as a set; a deal already on an application keeps
     // the letter it was drafted with (the snapshot is on the offer).
+    //
+    // Replacing is only lossless while the form can express what is already
+    // there, and for a long time it could not: a scholarship's tuition
+    // percentages had no field, so saving one deleted them. The form builds
+    // them now, and this refuses the save rather than dropping whatever the
+    // next unmodelled effect kind turns out to be.
+    if (p.promotionId) {
+      const { data: already } = await ctx.supabase
+        .from("promotion_effects")
+        .select("kind, fee_code, label")
+        .eq("promotion_id", p.promotionId);
+      const lost = unrepresentable(already ?? []);
+      if (lost.length > 0) {
+        throw new Error(
+          `This promotion carries something this form cannot rebuild, so saving would remove it: ${lost.join("; ")}. It needs changing in a migration.`
+        );
+      }
+    }
     const { error: delErr } = await ctx.supabase.from("promotion_effects").delete().eq("promotion_id", promotionId);
     if (delErr) throw new Error(delErr.message);
     const { error: insErr } = await ctx.supabase.from("promotion_effects").insert(effects.map((e) => ({ ...e, promotion_id: promotionId })));
