@@ -148,13 +148,18 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     supabase.from("trial_weeks").select("*").eq("application_id", id).order("created_at", { ascending: false }),
   ]);
 
-  const [summaryInputs, { data: storedSummary }, settings, { data: award }] = await Promise.all([
+  const [summaryInputs, { data: storedSummary }, settings, { data: award }, { data: bands }] = await Promise.all([
     loadSummaryInputs(supabase, id),
     supabase.from("application_summaries").select("*").eq("application_id", id).maybeSingle(),
     getSettings(supabase),
     supabase.from("application_promotions").select("promotions(code)").eq("application_id", id).maybeSingle(),
+    // The bands on offer, for the box that changes one. Only the switched-on
+    // ones: `setScholarship` refuses a dormant band, so offering it here would
+    // be offering a choice that errors.
+    supabase.from("promotions").select("code").eq("is_active", true).order("code"),
   ]);
-  const scholarship = isScholarshipCode(one(award?.promotions)?.code ?? null);
+  const heldCode = one(award?.promotions)?.code ?? null;
+  const scholarship = isScholarshipCode(heldCode);
   const summary = summaryInputs ? summaryView(summaryInputs, storedSummary ?? null, settings.aiSummaryEnabled) : null;
   const bookingSession = booking ? one(booking.sessions) : null;
   const nounInput = { requiresAssessment: app.requires_assessment, bookingKind: booking?.kind ?? null, scholarship };
@@ -199,6 +204,20 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const startMonth = campus?.intake_cadence === "month"
     ? { value: app.start_month, canSet: canWrite, choices: monthChoices(toSchoolDateString(new Date())) }
     : null;
+  // The scholarship band, in the Offer tab beside the day pattern and the
+  // starting month — the three things that decide what the next letter says.
+  // Shown to whoever may change it, and to everyone else only when there is an
+  // award to see: a "Scholarship: none" box on every one of three hundred
+  // ordinary applicants is noise.
+  const scholarshipBand =
+    scholarship || can(permissions, "offers.approve")
+      ? {
+          code: heldCode,
+          isScholarship: scholarship,
+          canSet: can(permissions, "offers.approve"),
+          choices: (bands ?? []).map((b) => b.code).filter((c): c is string => isScholarshipCode(c)),
+        }
+      : null;
   const eligibleSessions = (upcoming ?? []).filter(
     (s) =>
       s.kind === (app.requires_assessment ? "assessment" : "visit") &&
@@ -371,7 +390,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
           </section>
 
           {/* Assessment, profile, decision, offer */}
-          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} startMonth={startMonth} booking={booking ? { status: booking.status } : null} />
+          <ApplicantPhase2 supabase={supabase} permissions={permissions} app={app} gradeSort={grade?.sort_order ?? 0} sendWhatsApp={sendWhatsAppTemplate} decision={decision} dayPattern={dayPattern} startMonth={startMonth} scholarshipBand={scholarshipBand} booking={booking ? { status: booking.status } : null} />
 
           {/* Timeline */}
           <section className="surface">
