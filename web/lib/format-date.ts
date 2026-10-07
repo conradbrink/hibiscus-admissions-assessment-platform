@@ -112,6 +112,19 @@ export function toSchoolDateString(value: Date): string {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+/**
+ * The last moment of a school day, from a `YYYY-MM-DD`.
+ *
+ * A deadline somebody types as a date means the end of that day, not midnight
+ * at the start of it — a family told "pay by the 15th" has the 15th. Both
+ * countries sit at UTC+2 with no daylight saving (see the note at the top), so
+ * the offset can be written into the string and the answer is exact rather
+ * than a guess about which side of a transition the date falls.
+ */
+export function endOfSchoolDay(yyyyMmDd: string): Date {
+  return new Date(`${yyyyMmDd}T23:59:59+02:00`);
+}
+
 /** True inside the last `hours` before an instant (or after it): the window in which a booking is no longer the parent's to move online. */
 export function withinCutoff(startsAt: string | Date, hours: number, now: Date = new Date()): boolean {
   return new Date(startsAt).getTime() - now.getTime() < hours * 3_600_000;

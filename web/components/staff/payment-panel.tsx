@@ -1,10 +1,10 @@
 import { ActionForm } from "@/components/staff/action-form";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { formatDate, formatDateTime, hasStarted } from "@/lib/format-date";
+import { formatDate, formatDateTime, hasStarted, toSchoolDateString } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
-import { checkWithGateway, markNotCompleted, recordEft, recordRefund } from "@/app/staff/(console)/payments/actions";
+import { checkWithGateway, markNotCompleted, recordEft, recordRefund, setPaymentDueDate } from "@/app/staff/(console)/payments/actions";
 
 /**
  * One application's payment position, and finance's actions on it. Used by
@@ -110,6 +110,19 @@ export function PaymentPanel({
       ) : (
         <p className="text-xs text-muted-foreground">No payments yet.</p>
       )}
+
+      {canWrite && open ? (
+        <ActionForm action={setPaymentDueDate} label="Move deadline" size="sm" variant="outline" className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-[180px_1fr_auto]">
+          {idField}
+          <Input name="dueOn" type="date" defaultValue={toSchoolDateString(new Date(request.due_at))} className="h-8 md:h-8" required aria-label="New payment deadline" />
+          <Input name="reason" placeholder="Why the date moved" className="h-8 md:h-8" required minLength={3} maxLength={300} />
+          <p className="text-xs text-muted-foreground md:col-span-3">
+            The parent&rsquo;s payment page and every reminder still to go out read this date, so they all follow it. The
+            reminders and the overdue check move with it; one whose new time has already passed is dropped rather than
+            sent late. A date in the past marks the family overdue at the next sweep.
+          </p>
+        </ActionForm>
+      ) : null}
 
       {canWrite && open && request.status !== "processing" ? (
         <ActionForm action={recordEft} label="Record bank transfer" size="sm" variant="outline" className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-4">
