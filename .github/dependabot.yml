@@ -33,6 +33,18 @@ updates:
     commit-message:
       prefix: deps
       include: scope
+    # Lint cannot run on these two yet. eslint-config-next pulls in
+    # typescript-eslint, which refuses to run on TypeScript 7 ("typescript-eslint
+    # does not support TS 7.0", tracked in typescript-eslint/typescript-eslint
+    # #10940), and plugins that stop at ESLint 9. The grouped major update that
+    # proposed both (#142) typechecked but failed at lint, so its tests and
+    # build never ran. Remove both rules when eslint-config-next supports them.
+    # Security updates are not affected by these rules.
+    ignore:
+      - dependency-name: typescript
+        versions: [">=7.0.0"]
+      - dependency-name: eslint
+        versions: [">=10.0.0"]
     groups:
       # A security fix is its own pull request, never grouped and never
       # waiting for Monday: if it can be applied it should be applied.
