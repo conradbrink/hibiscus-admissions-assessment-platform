@@ -109,6 +109,23 @@ change.
 8. Idempotent DDL: `create table if not exists`, `drop policy if exists`
    before `create policy`, `drop trigger if exists` before `create trigger`.
 
+## The HR app shares this database
+
+The HR system lives in its own repository, `conradbrink/hibiscus-hr`, and uses
+this project too. It owns every `hr_*` table and function, adds its own rows to
+`permissions`, `roles` and `role_permissions`, and applies its schema with its
+own runner, which records what it ran in `hr_schema_migrations`. Its versions
+never appear in this project's Supabase migration history, so `supabase db
+push` here is unaffected.
+
+- Never create an `hr_` object in this repository.
+- Before renaming or removing `staff_profiles`, `staff_roles`, `roles`,
+  `permissions`, `role_permissions`, `campuses`, `staff_campuses`, `settings`,
+  `has_permission`, `can_access_campus`, `set_updated_at`, `my_permissions` or
+  `consume_rate_limit`, read HR's `docs/ADMISSIONS-CONTRACT.md`: HR uses them.
+- HR's CI replays this repository's `main` schema every week, so a break shows
+  up there.
+
 ## Applying to a project
 
 ```sh
