@@ -8,6 +8,7 @@ import { wordCount } from "@/lib/questions/rubric";
 import { getHrSettings } from "@/lib/settings";
 import type { ApplicantSession } from "@/lib/tokens/session";
 import { loadDraftFor } from "@/lib/applicant/scope";
+import { removeDocument } from "@/lib/documents/storage";
 import type {
   AnswerSchema,
   ComplianceSchema,
@@ -121,9 +122,9 @@ export async function saveCompliance(admin: AdminClient, session: ApplicantSessi
 }
 
 /**
- * One answer, autosaved as the applicant types. The writing behaviour the
- * browser recorded is merged with what was stored, taking the larger of each
- * counter, so a page reload cannot reset "characters pasted" to zero.
+ * One answer, autosaved as the applicant types. The browser sends the writing
+ * counters since its last save and they are added to what is stored, so the
+ * totals hold across reloads and devices.
  */
 export async function saveAnswer(admin: AdminClient, session: ApplicantSession, input: z.infer<typeof AnswerSchema>): Promise<void> {
   const { application } = await openDraft(admin, session);
@@ -147,13 +148,13 @@ export async function saveAnswer(admin: AdminClient, session: ApplicantSession, 
     .maybeSingle();
   const before = cleanBehaviour(existing?.integrity);
   const now = cleanBehaviour(input.behaviour);
-  const merged = {
-    activeMs: Math.max(before.activeMs, now.activeMs),
-    keystrokes: Math.max(before.keystrokes, now.keystrokes),
-    pastedChars: Math.max(before.pastedChars, now.pastedChars),
-    pasteEvents: Math.max(before.pasteEvents, now.pasteEvents),
-    blurCount: Math.max(before.blurCount, now.blurCount),
-  };
+  const merged = cleanBehaviour({
+    activeMs: before.activeMs + now.activeMs,
+    keystrokes: before.keystrokes + now.keystrokes,
+    pastedChars: before.pastedChars + now.pastedChars,
+    pasteEvents: before.pasteEvents + now.pasteEvents,
+    blurCount: before.blurCount + now.blurCount,
+  });
 
   const { error } = await admin.from("hr_application_answers").upsert(
     {
@@ -220,4 +221,15 @@ export async function markDocumentsDone(admin: AdminClient, session: ApplicantSe
     .eq("kind", "cv");
   if (!count) throw new HrError("Please upload your CV.");
   await markSection(admin, application.id, application.sections_completed, "documents", true);
+}
+
+export async function removeOwnDocument(admin: AdminClient, session: ApplicantSession, documentId: string): Promise<void> {
+  const { application } = await openDraft(admin, session);
+  await removeDocument(admin, application.id, documentId);
+  const { count } = await admin
+    .from("hr_application_documents")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", application.id)
+    .eq("kind", "cv");
+  if (!count) await markSection(admin, application.id, application.sections_completed, "documents", false);
 }

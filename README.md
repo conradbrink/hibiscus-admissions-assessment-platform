@@ -22,6 +22,7 @@ only where judgement is needed.
 | Path | What |
 |---|---|
 | `web/` | Next.js 16 application: the parent funnel (`/join`, `/next`), the staff console (`/staff`), route handlers (`/api`) |
+| `hr/` | **A separate app on the same database**: the HR system (careers page, teacher applications, references, scoring, the recruitment pipeline). Deployed as its own Vercel project. See `docs/hr/README.md` |
 | `web/lib/workflow/` | The state machine and the engine — the only writer of an application's status |
 | `web/lib/email/` | Templates, rendering, the provider seam (`dev` and Resend) |
 | `web/lib/tokens/` | Magic links and the parent session cookie |

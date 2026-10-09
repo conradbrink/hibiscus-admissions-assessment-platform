@@ -79,6 +79,19 @@ if [ -f "$ROOT/tests/security_regression.sql" ]; then
   fi
 fi
 
+if [ -f "$ROOT/tests/hr_security_regression.sql" ]; then
+  echo "== hr_security_regression.sql"
+  # The HR app's own cases, kept apart so the admissions suite stays as it is.
+  out="$(psql -X -d "$DB" -f "$ROOT/tests/hr_security_regression.sql" 2>&1 || true)"
+  if echo "$out" | grep -q "ALL HR SECURITY CHECKS PASSED"; then
+    echo "HR security regression suite: PASSED"
+  else
+    echo "$out"
+    echo "HR security regression suite: FAILED" >&2
+    exit 1
+  fi
+fi
+
 if [ -f "$ROOT/tests/template_coverage.sql" ]; then
   echo "== template_coverage.sql"
   # Same convention as the security suite: it always raises, and the message

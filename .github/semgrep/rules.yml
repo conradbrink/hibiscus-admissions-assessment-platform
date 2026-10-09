@@ -50,6 +50,7 @@ rules:
     paths:
       exclude:
         - web/lib/supabase/admin.ts
+        - hr/lib/supabase/admin.ts
     patterns:
       - pattern-either:
           - pattern: process.env.$NAME
@@ -111,6 +112,7 @@ rules:
     paths:
       exclude:
         - web/proxy.ts
+        - hr/proxy.ts
     pattern-either:
       - pattern: $RES.headers.set("Content-Security-Policy", ...)
       - pattern: $RES.headers.append("Content-Security-Policy", ...)

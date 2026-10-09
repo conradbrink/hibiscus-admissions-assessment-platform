@@ -212,3 +212,40 @@
     @apply px-3 py-2;
   }
 }
+
+/*
+ * The public pages (vacancies, the application form, the referee form) wear
+ * the school's own colours: warm paper and the Hibiscus orange from the
+ * letters and emails. The console keeps its calm teal. The orange is too
+ * light to carry white text (about 3.3:1), so buttons and links use a deeper
+ * shade of the same hue, and the logo orange is kept for rules and marks.
+ */
+.theme-public {
+  --background: oklch(0.985 0.006 75);
+  --foreground: oklch(0.24 0.02 50);
+  --card: oklch(0.995 0.003 75);
+  --card-foreground: oklch(0.24 0.02 50);
+  --primary: oklch(0.53 0.16 40);
+  --primary-foreground: oklch(0.99 0.008 70);
+  --ring: oklch(0.53 0.16 40);
+  --secondary: oklch(0.955 0.018 65);
+  --secondary-foreground: oklch(0.32 0.05 45);
+  --muted: oklch(0.96 0.01 70);
+  --muted-foreground: oklch(0.45 0.025 50);
+  --accent: oklch(0.95 0.03 60);
+  --accent-foreground: oklch(0.42 0.12 40);
+  --border: oklch(0.91 0.015 65);
+  --input: oklch(0.88 0.018 65);
+  --brand-mark: #e8632b;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}

@@ -79,6 +79,7 @@ export function matchesPrefix(pathname: string, prefix: string): boolean {
  */
 const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/recruitment/question-banks", "hr.questions.write"],
+  ["/staff/documents", "hr.recruitment.read"],
   ["/staff/recruitment", "hr.recruitment.read"],
   ["/staff/employees", "hr.employees.read"],
   ["/staff/timesheets", "hr.timesheets.write"],

@@ -69,6 +69,44 @@ jobs:
         working-directory: web
         run: npm run check:nonce-safe
 
+  hr:
+    # The HR app (hr/): its own npm project, deployed as its own Vercel
+    # project, on the same database. The same gate as the web job.
+    name: HR — typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hr
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: hr/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          NEXT_PUBLIC_SITE_URL: https://placeholder.example
+        run: npm run build
+
+      - name: Every page is rendered per request (the CSP nonce depends on it)
+        run: npm run check:nonce-safe
+
   dependencies:
     name: Dependency audit
     runs-on: ubuntu-latest
@@ -92,6 +130,12 @@ jobs:
       - name: Report high and moderate advisories
         if: always()
         run: npm audit --audit-level=moderate || true
+
+      - name: HR app — block on critical advisories
+        working-directory: hr
+        run: |
+          npm ci
+          npm audit --audit-level=critical
 
   migrations:
     name: Migration safety

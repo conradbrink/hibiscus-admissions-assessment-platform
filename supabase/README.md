@@ -79,6 +79,21 @@ change.
 | `…20260929090000_campaign_claim_marker_cleared` (29 Sep) | Clears the `claimed` marker a campaign batch left on recipients it had sent or failed, which showed in the CSV export as the reason for every sent parent and in place of the provider's error for failed ones. The send now clears it with the status |
 | `…20260929100000_per_application_interview_window` (29 Sep) | `applications.interview_window_from` and `_to`: an interview window of the application's own. The booking page offers only sessions inside it, the booking is refused outside it, and the scholarship letter and WhatsApp name its last day. Null ends fall back to no earliest day and the `scholarship_interview_deadline` setting. Set by the import only; staff have no grant |
 
+### The HR app (`hr/`)
+
+The HR app shares this database and these rules. Its tables are all prefixed
+`hr_`, it has its own audit log, job queue, templates and tokens, and its
+cases are in `tests/hr_security_regression.sql`, run by `replay_local.sh`
+after the admissions suite. See `docs/hr/README.md`.
+
+| Migration | What |
+|---|---|
+| `20261012090000_hr_foundations` | HR permissions and roles (`hr_manager`, `hr_staff`, `payroll_officer`, `hr_interviewer`), `hr_has_strict()` (ignores `admin`, for pay), `hr_settings`, `hr_audit_log` with a sensitivity column, `hr_jobs`, `hr_claim_jobs()`, `hr_drain_runs`, the five-minute `hr_drain_tick` schedule |
+| `20261012090100_hr_recruitment` | Vacancies, applications (stage Review / Shortlisted / Unsuccessful), qualifications, employment, compliance, documents, question banks and vacancy questions (frozen once published), answers with AI and human bands and the AI-writing fields, referees, reference requests and responses, score snapshots, interviews; `pg_trgm` and `hr_similar_answers()`; read policies only |
+| `20261012090200_hr_communications_and_tokens` | `hr_email_templates` (seeded, plain English), `hr_email_messages`, `hr_publish_email_template()`, `hr_access_tokens` with the subject check, `hr_consume_token()` |
+| `20261012090300_hr_question_banks` | Data only: the Pre-school, Primary and Secondary banks, core and pool, each question with a five-band rubric |
+| `20261012090400_hr_recruitment_engine` | `hr_commit_stage()` (compare-and-set, the only stage writer after submission) and `hr_anonymise_applicant()`, both service role only |
+
 ## Rules for new migrations
 
 1. **Filename `YYYYMMDDHHMMSS_snake_case.sql`**, and once a migration has been

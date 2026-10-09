@@ -50,6 +50,32 @@ updates:
         patterns: ["*"]
         update-types: [major]
 
+  # The HR app, its own npm project. Same grouping as the web app.
+  - package-ecosystem: npm
+    directory: /hr
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Africa/Gaborone
+    open-pull-requests-limit: 5
+    labels: [dependencies, hr]
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+      minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      major:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [major]
+
   # ---------------------------------------------------------------------------
   # The static-analysis tool, pinned so a scan is reproducible.
   # ---------------------------------------------------------------------------

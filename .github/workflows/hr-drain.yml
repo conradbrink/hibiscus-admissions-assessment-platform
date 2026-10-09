@@ -1,0 +1,37 @@
+# An hourly backstop for the HR app's job queue (reference emails, reminders,
+# AI marking, the AI-writing check, rescoring). Not the schedule: the real
+# five-minute schedule is Supabase pg_cron calling the same endpoint
+# (supabase/migrations/20261012090000_hr_foundations.sql, hr_drain_tick), and
+# hr/vercel.json's nightly cron is the last resort under this.
+#
+# Two repository secrets, separate from the admissions ones:
+#   HR_DRAIN_URL    https://<hr site>/api/jobs/drain
+#   HR_CRON_SECRET  the same value as the HR Vercel project's CRON_SECRET
+name: Drain HR job queue
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: hr-drain
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the HR /api/jobs/drain
+        env:
+          DRAIN_URL: ${{ secrets.HR_DRAIN_URL || vars.HR_DRAIN_URL }}
+          CRON_SECRET: ${{ secrets.HR_CRON_SECRET }}
+        run: |
+          if [ -z "$DRAIN_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "HR_DRAIN_URL or HR_CRON_SECRET is not set. Nothing to do until both exist."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/drain.json -w "%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "$DRAIN_URL")
+          echo "HTTP $code"
+          cat /tmp/drain.json; echo
+          [ "$code" = "200" ]
