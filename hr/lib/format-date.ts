@@ -1,0 +1,131 @@
+/**
+ * Date and time formatting, in the school's own timezone.
+ *
+ * Every campus is in Botswana or South Africa, both UTC+2 with no daylight
+ * saving, so one fixed zone is correct today. It is a constant rather than a
+ * per-campus setting because nothing yet needs the second value, and a setting
+ * nobody can exercise is a setting nobody notices is wrong.
+ */
+export const SCHOOL_TIMEZONE = "Africa/Gaborone";
+
+const DATE_LONG = new Intl.DateTimeFormat("en-GB", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+const DATE_SHORT = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+const TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+const DATE_TIME = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+function parse(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  // A date-only string is parsed by ECMAScript as UTC midnight, which renders
+  // as the previous day anywhere behind UTC. Botswana is ahead, so today it
+  // would be fine — but pinning local parsing costs nothing and stops a
+  // reader in another zone seeing a birthday a day early.
+  const s =
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? `${value}T00:00:00`
+      : value;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** "Saturday 12 September 2026" */
+export function formatDateLong(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? DATE_LONG.format(d) : "—";
+}
+
+/** "12 Sep 2026" */
+export function formatDate(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? DATE_SHORT.format(d) : "—";
+}
+
+/** "09:00" */
+export function formatTime(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? TIME.format(d) : "—";
+}
+
+/** "12 Sep 2026, 09:00" */
+export function formatDateTime(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? DATE_TIME.format(d) : "—";
+}
+
+/** True once an instant is in the past. Lives here so components stay pure. */
+export function hasStarted(value: string | Date): boolean {
+  const d = parse(value);
+  return d !== null && d.getTime() < Date.now();
+}
+
+/**
+ * An instant N hours back, as an ISO string, for a `gte` on a timestamptz.
+ *
+ * A rolling window rather than `daysAgoDateString`'s calendar one: "in the
+ * last 24 hours" has to mean 24 hours when it is being compared against a
+ * count of what a schedule should have delivered in them.
+ */
+export function hoursAgoIso(hours: number): string {
+  return new Date(Date.now() - hours * 3_600_000).toISOString();
+}
+
+/** `YYYY-MM-DD` for N days ago, in the school's zone. */
+export function daysAgoDateString(days: number): string {
+  return toSchoolDateString(new Date(Date.now() - days * 86_400_000));
+}
+
+/** A date-only `YYYY-MM-DD` for the school's zone, from any instant. */
+export function toSchoolDateString(value: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: SCHOOL_TIMEZONE,
+  }).formatToParts(value);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * The last moment of a school day, from a `YYYY-MM-DD`.
+ *
+ * A deadline somebody types as a date means the end of that day, not midnight
+ * at the start of it — a family told "pay by the 15th" has the 15th. Both
+ * countries sit at UTC+2 with no daylight saving (see the note at the top), so
+ * the offset can be written into the string and the answer is exact rather
+ * than a guess about which side of a transition the date falls.
+ */
+export function endOfSchoolDay(yyyyMmDd: string): Date {
+  return new Date(`${yyyyMmDd}T23:59:59+02:00`);
+}
+
+/** True inside the last `hours` before an instant (or after it): the window in which a booking is no longer the parent's to move online. */
+export function withinCutoff(startsAt: string | Date, hours: number, now: Date = new Date()): boolean {
+  return new Date(startsAt).getTime() - now.getTime() < hours * 3_600_000;
+}
