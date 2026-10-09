@@ -42,6 +42,8 @@ only where judgement is needed.
 | `supabase/tests/` | `replay_local.sh` rebuilds a local database; `security_regression.sql` attacks it |
 | `docs/` | Project context, deployment, runbook |
 
+**The HR system is a separate repository** ([`conradbrink/hibiscus-hr`](https://github.com/conradbrink/hibiscus-hr), private) that **shares this database**: the same staff logins, roles and campuses. It owns only the `hr_*` objects and its own rows in `permissions`, `roles` and `role_permissions`, applies its schema with its own runner (never `supabase db push`), and records it in `hr_schema_migrations`. Do not create `hr_` objects here. What HR relies on from this schema is listed in that repository's `docs/ADMISSIONS-CONTRACT.md`; check it before renaming or removing a staff, role, permission or campus table or function.
+
 ## Running it
 
 ```sh

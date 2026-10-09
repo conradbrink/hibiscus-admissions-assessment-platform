@@ -20,7 +20,8 @@ import {
   type FactRow,
 } from "@/lib/analytics/breakdown";
 import { deferredSummary, delta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
-import { daysAgoDateString, toSchoolDateString } from "@/lib/format-date";
+import { activePreset, DEFAULT_PRESET, RANGE_PRESETS, rangeFor } from "@/lib/analytics/ranges";
+import { toSchoolDateString } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 
@@ -49,8 +50,11 @@ const fmtD = (v: number | null) => (v === null ? "—" : fmtDays(v));
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const { supabase, permissions } = await requireStaff("analytics.read");
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to! : toSchoolDateString(new Date());
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from! : daysAgoDateString(90);
+  const today = new Date();
+  const fallback = rangeFor(RANGE_PRESETS.find((p) => p.key === DEFAULT_PRESET)!, today);
+  const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to! : fallback.to;
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from! : fallback.from;
+  const chosen = activePreset(from, to, today);
   const dim: Dimension = (DIMENSIONS as readonly string[]).includes(sp.dim ?? "") ? (sp.dim as Dimension) : "campus";
   const prev = previousRange(from, to);
 
@@ -60,7 +64,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     return q;
   };
 
-  const [{ data: rows }, { data: prevRows }, { data: effort }, { data: campuses }, { data: profiles }] = await Promise.all([
+  const [{ data: rows, error: rowsError }, { data: prevRows }, { data: effort }, { data: campuses }, { data: profiles }] = await Promise.all([
     facts({ from, to }),
     facts(prev),
     supabase.from("v_funnel_effort").select("*").maybeSingle(),
@@ -76,7 +80,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const stages = funnelStages(counts);
   // Ninety days is "soon enough to matter for the intake being planned", and
   // the same window the page already defaults to looking back over.
-  const deferred = deferredSummary(all, daysAgoDateString(-90));
+  const deferred = deferredSummary(all, toSchoolDateString(new Date(today.getTime() + 90 * 86_400_000)));
   const conv = conversion(counts, all.filter((r) => r.requires_assessment).length);
   const cycle = cycleTimes(all);
   const prevCycle = cycleTimes(before);
@@ -94,11 +98,30 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const qs = new URLSearchParams({ from, to, ...(sp.campus ? { campus: sp.campus } : {}), dim }).toString();
   const campusName = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus)?.name : null;
 
-  return (
+  const presetLinks = (
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-muted-foreground">Show the</span>
+      {RANGE_PRESETS.map((p) => {
+        const r = rangeFor(p, today);
+        const href = `/staff/analytics?${new URLSearchParams({ from: r.from, to: r.to, ...(sp.campus ? { campus: sp.campus } : {}), dim }).toString()}`;
+        return (
+          <Link
+            key={p.key}
+            href={href}
+            aria-current={chosen === p.key ? "page" : undefined}
+            className={`rounded-full border px-3 py-1 transition-colors ${chosen === p.key ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}
+          >
+            {p.label.replace(/^Past /, "past ")}
+          </Link>
+        );
+      })}
+      <span className="text-muted-foreground">or pick the dates yourself.</span>
+    </div>
+  );
+
+  const filters = (
     <>
-      <PageTitle title="Analytics" description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}, compared with ${prev.from} to ${prev.to}.`}>
-        <Link href="/staff/analytics/forecast" className="text-sm underline">Forecast</Link>
-      </PageTitle>
+      {presetLinks}
       <form method="get" className="mb-5 flex flex-wrap items-end gap-2">
         <Input type="date" name="from" defaultValue={from} className="w-40" />
         <Input type="date" name="to" defaultValue={to} className="w-40" />
@@ -114,6 +137,34 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <a href={`/staff/analytics/export?${qs}`} className="text-sm text-primary underline underline-offset-2">Export CSV</a>
         ) : null}
       </form>
+    </>
+  );
+
+  if (rowsError) {
+    return (
+      <>
+        <PageTitle title="Analytics" description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}.`}>
+          <Link href="/staff/analytics/forecast" className="text-sm underline">Forecast</Link>
+        </PageTitle>
+        {filters}
+        <section className="surface border-destructive/40 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-destructive">These numbers could not be worked out</h2>
+          <p className="text-sm text-muted-foreground">
+            The figures are left out rather than shown as zero, because zero would not be true. A shorter range usually
+            goes through — try past week or past month above. If it keeps happening, this is worth reporting.
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">Reason given: {rowsError.message}</p>
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <PageTitle title="Analytics" description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}, compared with ${prev.from} to ${prev.to}.`}>
+        <Link href="/staff/analytics/forecast" className="text-sm underline">Forecast</Link>
+      </PageTitle>
+      {filters}
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Headline label="Enquiries" value={now.enquiries} delta={delta(now.enquiries, then.enquiries)} />

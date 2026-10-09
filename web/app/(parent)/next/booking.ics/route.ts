@@ -23,9 +23,7 @@ export async function GET() {
     summary:
       noun === "assessment"
         ? `${app.child_first_name} — Hibiscus assessment`
-        : noun === "play date"
-          ? `${app.child_first_name} — Hibiscus play date, ${campus.name}`
-          : `Hibiscus International Schools visit — ${campus.name}`,
+        : `${app.child_first_name} — Hibiscus visit, ${campus.name}`,
     description: `Reference ${app.reference}`,
     location: [campus.name, booking.session.location].filter(Boolean).join(", "),
     startsAt: new Date(booking.session.starts_at),

@@ -467,7 +467,10 @@ export async function updateRolePermissions(_: StaffActionState, formData: FormD
     if (role?.code === "super_admin" && !codes.includes("admin")) {
       throw new Error("The super administrator role must keep the admin permission.");
     }
-    await ctx.supabase.from("role_permissions").delete().eq("role_id", roleId);
+    // Only the codes this console knows are replaced. The HR app keeps its
+    // own `hr.*` codes on the same roles table, and a save here must not
+    // silently strip them from a role.
+    await ctx.supabase.from("role_permissions").delete().eq("role_id", roleId).in("permission_code", [...PERMISSION_CODES]);
     if (codes.length) {
       const { error } = await ctx.supabase.from("role_permissions").insert(codes.map((permission_code) => ({ role_id: roleId, permission_code })));
       if (error) throw new Error(error.message);
