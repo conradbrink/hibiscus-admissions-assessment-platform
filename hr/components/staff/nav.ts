@@ -32,9 +32,14 @@ export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
 
 /** The rail item a path belongs to: the longest href that prefixes it. */
 export function activeHref(pathname: string, groups: NavGroup[]): string | null {
+  // An applicant's page belongs to the pipeline it was opened from.
+  if (pathname.startsWith("/staff/recruitment/applications/")) pathname = "/staff/recruitment/pipeline";
+  // The dashboard is only itself; every other page sits under /staff.
+  if (pathname === "/staff") return "/staff";
   let best: string | null = null;
   for (const g of groups) {
     for (const i of g.items) {
+      if (i.href === "/staff") continue;
       if (pathname === i.href || pathname.startsWith(i.href + "/")) {
         if (!best || i.href.length > best.length) best = i.href;
       }

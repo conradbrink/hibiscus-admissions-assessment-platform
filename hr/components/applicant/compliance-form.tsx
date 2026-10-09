@@ -77,7 +77,7 @@ export function ComplianceForm({ initial, country }: { initial: ComplianceValues
         <h2 className="text-xl font-semibold tracking-tight">Teacher registration</h2>
         <fieldset className="space-y-2">
           <legend className="text-[15px] font-medium">Are you registered with {bodyName}?</legend>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
             {[
               [body, `Yes, with ${body}`],
               ["other", "Yes, with another council"],
@@ -178,10 +178,12 @@ export function ComplianceForm({ initial, country }: { initial: ComplianceValues
           {state.error}
         </p>
       ) : null}
-      <div className="border-t border-border pt-6 sm:w-72">
+      <div className="border-t border-border pt-6">
+        <div className="sm:w-72">
         <Button type="submit" size="parent" disabled={pending}>
           {pending ? "Saving…" : "Save and continue"}
         </Button>
+        </div>
       </div>
     </form>
   );

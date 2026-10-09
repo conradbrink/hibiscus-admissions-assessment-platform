@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
 import { EmptyState, PageTitle } from "@/components/staff/page-title";
-import { FlagChips, ScoreBadge } from "@/components/recruitment/badges";
+import { FlagChips, hasCriticalFlag, ScoreBadge } from "@/components/recruitment/badges";
 import { formatDate } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { STAGE_LABELS } from "@/lib/recruitment/engine";
@@ -111,7 +111,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
                               {vacancy ? a.reference : vacancyTitle.get(a.vacancy_id) ?? a.reference}
                             </p>
                           </Link>
-                          <ScoreBadge total={a.score_total} available={a.score_available} />
+                          <ScoreBadge total={a.score_total} available={a.score_available} flagged={hasCriticalFlag(a.score_flags)} />
                         </div>
                         <p className="mt-1.5 text-xs text-muted-foreground tabular-nums">
                           Sent {formatDate(a.submitted_at)} · References {r.in}/{r.total}

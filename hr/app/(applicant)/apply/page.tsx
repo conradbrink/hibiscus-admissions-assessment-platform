@@ -101,7 +101,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
         </p>
       ) : null}
 
-      <ul className="mt-6 divide-y divide-border rounded-2xl border border-border bg-card">
+      <ul className="mt-6 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
         {SECTIONS.map((s) => {
           const isDone = done.includes(s);
           return (
@@ -109,7 +109,7 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
               <Link
                 href={`/apply/${s}`}
                 className={cn(
-                  "group flex items-center gap-4 px-5 py-4 first:rounded-t-2xl last:rounded-b-2xl hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none",
+                  "group flex items-center gap-4 px-5 py-4 hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none focus-visible:ring-inset",
                   s === next && "bg-accent/50"
                 )}
               >

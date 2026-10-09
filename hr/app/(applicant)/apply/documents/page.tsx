@@ -17,8 +17,10 @@ export default async function DocumentsPage() {
         <DocumentUploader kind="police_clearance" label="Police clearance" hint="If you have one." documents={docs} />
         {view.application.is_citizen === false ? <DocumentUploader kind="permit" label="Work or residence permit" hint="If you have one." documents={docs} /> : null}
       </div>
-      <div className="mt-8 border-t border-border pt-6 sm:w-72">
+      <div className="mt-8 border-t border-border pt-6">
+        <div className="sm:w-72">
         <ApplicantActionButton action={finishDocumentsAction} label="Save and continue" pendingLabel="Saving…" />
+        </div>
       </div>
     </SectionShell>
   );

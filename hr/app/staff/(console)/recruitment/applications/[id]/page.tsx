@@ -116,7 +116,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
                 <h2 className="font-semibold">Score</h2>
                 <p className="text-sm text-muted-foreground">Five qualities. A quality with nothing to score yet is left out, not counted as zero.</p>
               </div>
-              {score ? <ScoreBadge total={score.total} available={score.available} size="lg" /> : <span className="text-sm text-muted-foreground">Scored once the application is sent.</span>}
+              {score ? <ScoreBadge total={score.total} available={score.available} size="lg" flagged={score.flags.some((f) => f.severity === "critical")} /> : <span className="text-sm text-muted-foreground">Scored once the application is sent.</span>}
             </div>
             {score ? (
               <>
@@ -168,7 +168,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
                       {v.level === "high" ? "Likely AI" : v.level === "medium" ? "Possibly AI" : v.level === "unchecked" ? "Not checked yet" : "Looks own work"}
                     </span>
                     <span className="text-muted-foreground">
-                      {[...v.reasons.map((r) => REASON_LABELS[r]), ...modelReasons].join(". ") || `Pasted ${Math.round(v.pastedShare * 100)}% of the text.`}
+                      {[...v.reasons.map((r) => REASON_LABELS[r]), ...modelReasons].join(". ") || (v.level === "unchecked" ? "Waiting for the AI review." : "No signs of AI writing.")}
                       {ans.duplicate_of_answer_id ? (
                         <>
                           {" "}
@@ -376,9 +376,12 @@ export default async function ApplicationPage({ params, searchParams }: { params
                     {resp ? (
                       <div className="mt-3 space-y-2 text-sm">
                         {resp.concern ? (
-                          <p className="flex items-start gap-2 font-semibold text-destructive">
-                            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> Concern raised: <span className="font-normal">{resp.concern_detail}</span>
-                          </p>
+                          <div className="flex items-start gap-2 text-destructive">
+                            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                            <p>
+                              <span className="font-semibold">Concern raised.</span> {resp.concern_detail}
+                            </p>
+                          </div>
                         ) : null}
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
                           {RATING_KEYS.map((k) => (

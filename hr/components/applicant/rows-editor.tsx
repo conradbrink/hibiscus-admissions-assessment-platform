@@ -173,10 +173,12 @@ export function RowsEditor({
           {errors._ ? ` ${errors._}` : ""}
         </p>
       ) : null}
-      <div className="border-t border-border pt-6 sm:w-72">
+      <div className="border-t border-border pt-6">
+        <div className="sm:w-72">
         <Button type="submit" size="parent" disabled={pending}>
           {pending ? "Saving…" : submitLabel}
         </Button>
+        </div>
       </div>
     </form>
   );

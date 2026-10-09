@@ -26,8 +26,10 @@ export default async function QuestionsPage() {
         ))}
       </ol>
       {accepted ? (
-        <div className="mt-10 border-t border-border pt-6 sm:w-72">
+        <div className="mt-10 border-t border-border pt-6">
+          <div className="sm:w-72">
           <ApplicantActionButton action={finishQuestionsAction} label="I have answered every question" pendingLabel="Checking…" />
+          </div>
         </div>
       ) : null}
     </SectionShell>

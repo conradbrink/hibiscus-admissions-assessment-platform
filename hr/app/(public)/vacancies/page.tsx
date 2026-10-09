@@ -140,9 +140,12 @@ export default async function VacanciesPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
 
-      <section className="mx-auto mt-24 max-w-3xl px-5">
-        <h2 className="text-2xl font-semibold tracking-tight">Questions teachers ask</h2>
-        <div className="mt-4 divide-y divide-border border-y border-border">
+      <section className="mx-auto mt-24 grid max-w-6xl gap-x-12 gap-y-4 px-5 lg:grid-cols-[1fr_2fr]">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Questions teachers ask</h2>
+          <p className="mt-2 max-w-[38ch] text-[15px] text-muted-foreground">The honest answers to what most teachers want to know before they apply.</p>
+        </div>
+        <div className="divide-y divide-border border-y border-border">
           {FAQ.map((item) => (
             <details key={item.q} className="group py-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-md font-medium focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none">

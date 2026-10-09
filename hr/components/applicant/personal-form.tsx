@@ -41,10 +41,12 @@ export function PersonalForm({ initial, email, country }: { initial: Values; ema
           {state.error}
         </p>
       ) : null}
-      <div className="border-t border-border pt-6 sm:w-72">
+      <div className="border-t border-border pt-6">
+        <div className="sm:w-72">
         <Button type="submit" size="parent" disabled={pending}>
           {pending ? "Saving…" : "Save and continue"}
         </Button>
+        </div>
       </div>
     </form>
   );

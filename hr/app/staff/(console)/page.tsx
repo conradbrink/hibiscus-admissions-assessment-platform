@@ -74,7 +74,7 @@ export default async function DashboardPage() {
                         <FlagChips codes={a.score_flags.filter((f) => critical.includes(f))} />
                       </span>
                     </span>
-                    <ScoreBadge total={a.score_total} available={a.score_available} />
+                    <ScoreBadge total={a.score_total} available={a.score_available} flagged />
                   </Link>
                 </li>
               ))}

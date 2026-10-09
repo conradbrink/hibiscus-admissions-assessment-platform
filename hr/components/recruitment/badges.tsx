@@ -6,12 +6,23 @@ import { cn } from "@/lib/utils";
  * The score as a number out of 100, and how much of the 100 could be scored
  * so far. "62 / 85" reads as provisional at a glance; the ring would not.
  */
-export function ScoreBadge({ total, available, size = "md" }: { total: number | null; available: number | null; size?: "md" | "lg" }) {
+export function ScoreBadge({
+  total,
+  available,
+  size = "md",
+  flagged = false,
+}: {
+  total: number | null;
+  available: number | null;
+  size?: "md" | "lg";
+  /** A red flag stands: the number stays, but it is not shown in reassuring green. */
+  flagged?: boolean;
+}) {
   if (total === null || !available) {
     return <span className={cn("font-semibold text-muted-foreground tabular-nums", size === "lg" ? "text-3xl" : "text-sm")}>Not scored</span>;
   }
   const pct = total / available;
-  const tone = pct >= 0.75 ? "text-success" : pct >= 0.5 ? "text-foreground" : "text-destructive";
+  const tone = flagged ? "text-foreground" : pct >= 0.75 ? "text-success" : pct >= 0.5 ? "text-foreground" : "text-destructive";
   return (
     <span className="inline-flex items-baseline gap-1 tabular-nums">
       <span className={cn("font-semibold", tone, size === "lg" ? "text-4xl tracking-tight" : "text-base")}>{Math.round(total)}</span>
@@ -21,6 +32,10 @@ export function ScoreBadge({ total, available, size = "md" }: { total: number | 
       </span>
     </span>
   );
+}
+
+export function hasCriticalFlag(codes: readonly string[]): boolean {
+  return codes.some((c) => flagMeta(c).severity === "critical");
 }
 
 export function FlagChips({ codes, limit }: { codes: readonly string[]; limit?: number }) {

@@ -20,12 +20,9 @@ export function SiteFooter() {
     <footer className="mt-24 border-t border-border/80">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>Hibiscus International Schools · Human Resources</p>
-        <p>
-          Questions about a post? Reply to any email we send you.{" "}
-          <Link href="/staff/login" className="ml-3 underline-offset-2 hover:underline">
-            Staff sign in
-          </Link>
-        </p>
+        <Link href="/staff/login" className="underline-offset-2 hover:underline">
+          Staff sign in
+        </Link>
       </div>
     </footer>
   );
