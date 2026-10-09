@@ -29,9 +29,7 @@ export default async function BookedPage() {
         title={
           noun === "assessment"
             ? `${app.child_first_name}'s assessment is booked.`
-            : noun === "play date"
-              ? `${app.child_first_name}'s play date at ${campus.name} is booked.`
-              : `Your visit to ${campus.name} is booked.`
+            : `${app.child_first_name}'s visit to ${campus.name} is booked.`
         }
       />
       <div className="mb-5 flex items-start gap-3 rounded-2xl bg-success/10 px-4 py-3 text-sm text-success">
@@ -53,7 +51,7 @@ export default async function BookedPage() {
       />
       <div className="mt-6 space-y-2 text-sm text-muted-foreground">
         {/* Only an assessment gets reminders queued; promising them for a
-            visit or a play date was a promise nothing kept. */}
+            visit was a promise nothing kept. */}
         {booking.kind === "assessment" ? (
           <p>We will remind you two days before and on the morning.</p>
         ) : null}

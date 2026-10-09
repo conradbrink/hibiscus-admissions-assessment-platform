@@ -246,7 +246,7 @@
     },
     {
       "key": "preschool_enquiry_received",
-      "body": "Hi {{1}}, thank you for your enquiry for {{2}} to join {{3}}. Your reference is {{4}}. Our admissions team will check availability and come back to you. Tap below if you would like to book a play date and see the campus first. You can also message us on {{5}} and we will answer there.",
+      "body": "Hi {{1}}, thank you for your enquiry for {{2}} to join {{3}}. Your reference is {{4}}. Pre-school children do not sit an assessment — our admissions team will check availability and come back to you. Tap below if you would like to see the campus first. This number only sends updates and nobody reads replies to it — message {{5}} to talk to somebody.",
       "parameters": [
         "parent_first_name",
         "student_first_name",
@@ -261,7 +261,7 @@
         "HIS-2026-0142",
         "+267 72 320 145"
       ],
-      "button": "Book a play date"
+      "button": "Book a visit"
     },
     {
       "key": "deferred_follow_up",

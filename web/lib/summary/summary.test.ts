@@ -42,10 +42,10 @@ describe("summaryFacts", () => {
     expect(facts).toContain("Status: Offer sent.");
     expect(flags.map((f) => f.kind)).toEqual(["offer_expiring"]);
   });
-  it("calls a pre-school child's booking a play date", () => {
+  it("calls a pre-school child's booking a visit", () => {
     // The milestone labels are keyed on the event type alone, so they had to
     // stop naming the assessment: "Assessment booked" was printed for a
-    // three-year-old whose booking is a play date.
+    // three-year-old who is only coming to look around.
     const { facts } = summaryFacts(
       inputs({
         application: { ...inputs().application, requires_assessment: false, entry_route: "visit" },
@@ -54,7 +54,7 @@ describe("summaryFacts", () => {
       })
     );
     expect(facts).toContain("Booking made on 2026-08-01.");
-    expect(facts).toContain("Play date booked for 2026-08-10.");
+    expect(facts).toContain("Visit booked for 2026-08-10.");
     expect(facts.join(" ")).not.toContain("Assessment booked");
   });
 
@@ -73,7 +73,7 @@ describe("summaryFacts", () => {
     expect(facts).toContain("Scholarship award: the child is interviewed, not assessed.");
     expect(facts).toContain("Interview booked for 2026-08-10.");
     expect(facts.join(" ")).not.toContain("Pre-school applicant");
-    expect(facts.join(" ")).not.toContain("Play date");
+    expect(facts.join(" ")).not.toContain("Visit booked");
   });
   it("flags overdue payment, missing documents, mismatches, overdue tasks, a reply and siblings", () => {
     const { flags } = summaryFacts(

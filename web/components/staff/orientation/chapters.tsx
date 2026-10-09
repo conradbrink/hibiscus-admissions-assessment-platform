@@ -77,7 +77,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
       <Scene where="Int. Admissions office — 07:40">
         <Beat cue="On screen">
           <p>
-            <strong>Today&rsquo;s assessments and play dates</strong> — every child expected today, by time, with the
+            <strong>Today&rsquo;s assessments and visits</strong> — every child expected today, by time, with the
             campus and which of the three it is. The heading matches your campuses: a pre-school campus never says
             &ldquo;assessment&rdquo;, because its children do not sit one.
           </p>
@@ -119,9 +119,10 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
             to their own next step. If they opted in to WhatsApp, the same moment goes out there too.
           </p>
           <p>
-            From there the child needs either an <strong>assessment</strong> (primary and secondary) or, for
-            pre-school, a <strong>play date</strong> or a <strong>visit</strong>. The parent picks the slot themselves
-            from a calendar of what is published. You do not have to do anything for any of this to happen.
+            From there the child needs either an <strong>assessment</strong> (primary and secondary) or a{" "}
+            <strong>visit</strong> — which is what pre-school families come for, and what a primary family can book to
+            see a campus before applying. The parent picks the slot themselves from a calendar of what is published.
+            You do not have to do anything for any of this to happen.
           </p>
         </Beat>
         <Beat cue="At the desk" tone="do">
@@ -237,9 +238,9 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         </Beat>
         <Beat cue="Pre-school" tone="care">
           <p>
-            Nursery, Reception and the other pre-school grades sit nothing. Their morning is a <strong>play date</strong>{" "}
-            or a <strong>visit</strong>: check them in, and the decision is made by the people who met the child. No
-            code, no launch, no marks.
+            Nursery, Reception and the other pre-school grades sit nothing. Their morning is a{" "}
+            <strong>visit</strong>: check them in, and the decision is made by the people who met the child. No code,
+            no launch, no marks.
           </p>
         </Beat>
       </Scene>
@@ -548,8 +549,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         head={["Word", "Means"]}
         rows={[
           ["Assessment", "The sitting a primary or secondary applicant does on a computer."],
-          ["Play date", "A pre-school child’s morning with us. No marks, no computer."],
-          ["Visit", "A family coming to see a campus before deciding."],
+          ["Visit", "A family coming to see a campus — a pre-school child’s morning with us, or a primary family looking around before they apply. No marks, no computer."],
           ["Attempt", "One child’s sitting of one paper, from launch to marked."],
           ["Learning profile", "What the result says about the child, in competencies rather than a mark."],
           ["Deferred", "Paused at the family’s request, with a date to come back to them."],

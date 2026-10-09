@@ -31,7 +31,7 @@ export function BookingCard({
         <p className="text-xs font-semibold tracking-wide uppercase opacity-90">
           {/* "School visit" rather than "Visit" only here: on a card with
               nothing else on it, the bare word reads like an instruction. */}
-          {noun === "assessment" ? "Assessment" : noun === "visit" ? "School visit" : "Play date"}
+          {noun === "assessment" ? "Assessment" : noun === "interview" ? "Interview" : "School visit"}
         </p>
         <p className="mt-1 text-xl font-bold">{formatDateLong(startsAt)}</p>
         <p className="text-lg">{formatTime(startsAt)}</p>

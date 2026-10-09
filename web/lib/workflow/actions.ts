@@ -244,10 +244,11 @@ export async function onBookingCreated(
   const live = { booking_id: booking.id, booking_status: ["booked"] };
 
   if (booking.kind === "visit") {
-    // A pre-school family books a play date, a primary family books a visit,
-    // and a scholarship child comes for an interview. One stored kind, three
-    // words and three template pairs — `visit_confirmed` is approved with Zavu
-    // for the look-around door and is left alone.
+    // A pre-school family and a primary family looking around both book a
+    // visit; a scholarship child comes for an interview. One stored kind, two
+    // words and two template pairs — the pre-school track used to have a
+    // third, `playdate_*`, and now shares the `visit_*` pair that was already
+    // approved with Zavu for the look-around door.
     //
     // The award is read here rather than passed in because this is the only
     // branch a scholarship child reaches: the assessment path below pays
@@ -359,7 +360,7 @@ export async function onBookingCreated(
  * For an assessment the application does not move: launching and marking
  * carry it on from here.
  *
- * A visit or a play date has no such step, and until now nothing moved it
+ * A visit has no such step, and until now nothing moved it
  * either — so the family arrived, was met, and the application sat in
  * `visit_booked`, which has no edge to a decision. Staff could not record
  * what they had just decided in the room. Arriving is that step: it is the
@@ -429,7 +430,7 @@ export async function onNoShow(
 
   if (booking.kind === "visit") {
     // Back to the start of the booking track only when the visit *was* the
-    // stage. A pre-school family's play date is booked from
+    // stage. A pre-school family's visit is booked from
     // `awaiting_decision`, which has no way back to `new_enquiry`, and the
     // old unconditional move threw "Illegal transition" at the person
     // recording the no-show. Either way somebody rings them.
@@ -439,11 +440,11 @@ export async function onNoShow(
       expectedStatus: app.status,
       newStatus: moved,
       nextAction: moved ? bookingTrackNextAction(app.requires_assessment) : null,
-      event: { type: "booking.no_show", summary: app.requires_assessment ? "Did not attend visit" : "Did not attend play date", payload: { booking_id: booking.id } },
+      event: { type: "booking.no_show", summary: "Did not attend visit", payload: { booking_id: booking.id } },
       tasks: [
         {
           type: "follow_up_no_show",
-          title: `Follow up missed ${app.requires_assessment ? "visit" : "play date"} — ${app.child_first_name}`,
+          title: `Follow up missed visit — ${app.child_first_name}`,
           details: "The family did not arrive. Call to find out whether they still want to come, and book a new time with them.",
           priority: "normal",
           dueAt: hoursFromNow(72),

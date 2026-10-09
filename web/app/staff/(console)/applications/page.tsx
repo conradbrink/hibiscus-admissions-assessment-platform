@@ -5,6 +5,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDate, formatDateTime } from "@/lib/format-date";
+import { formatMonth, startLabel } from "@/lib/start-month";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
@@ -17,6 +18,10 @@ type Search = {
   status?: string;
   group?: string;
   campus?: string;
+  /** `applications.intake_id` — the term a child is starting. */
+  intake?: string;
+  /** `applications.start_month`, for the campuses that take children monthly. */
+  month?: string;
   mine?: string;
   page?: string;
 };
@@ -41,7 +46,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   let query = supabase
     .from("applications")
     .select(
-      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, requires_assessment, campuses(name), grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
+      "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes!applications_intake_id_fkey(label), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -49,6 +54,11 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   if (statuses) query = query.in("status", statuses);
   else query = query.neq("status", "withdrawn");
   if (sp.campus) query = query.eq("campus_id", sp.campus);
+  // Term and month compose rather than exclude each other: a campus that takes
+  // children monthly still has them on a term, so "Term 1, 2027" and "March
+  // 2027" together is a question somebody asks.
+  if (sp.intake) query = query.eq("intake_id", sp.intake);
+  if (sp.month) query = query.eq("start_month", sp.month);
   if (sp.mine === "1") query = query.eq("owner_staff_id", userId);
   if (sp.q) {
     const q = sp.q.trim();
@@ -57,10 +67,15 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     );
   }
 
-  const [{ data: rows, count, error }, { data: campuses }, { data: pipeline }] = await Promise.all([
+  const [{ data: rows, count, error }, { data: campuses }, { data: pipeline }, { data: intakes }, { data: monthRows }] = await Promise.all([
     query,
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
     supabase.from("v_pipeline_counts").select("status, applications"),
+    supabase.from("intakes").select("id, label, starts_on").order("starts_on"),
+    // The months children are actually starting, rather than every month a
+    // calendar could offer: a filter for a month nobody is joining in is a
+    // filter that always returns nothing.
+    supabase.from("applications").select("start_month").not("start_month", "is", null),
   ]);
   if (error) throw new Error(error.message);
 
@@ -82,6 +97,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   const scholars = new Set(
     (awards ?? []).filter((a) => isScholarshipCode(one(a.promotions)?.code ?? null)).map((a) => a.application_id)
   );
+  const months = [...new Set((monthRows ?? []).map((r) => r.start_month).filter((m): m is string => Boolean(m)))].sort();
   const countByStatus = new Map<string, number>();
   for (const r of pipeline ?? []) countByStatus.set(r.status, (countByStatus.get(r.status) ?? 0) + r.applications);
   const groupCount = (keys: readonly ApplicationStatus[]) => keys.reduce((n, s) => n + (countByStatus.get(s) ?? 0), 0);
@@ -138,6 +154,18 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </NativeSelect>
+        <NativeSelect name="intake" defaultValue={sp.intake ?? ""} className="w-40">
+          <option value="">Any term</option>
+          {(intakes ?? []).map((i) => (
+            <option key={i.id} value={i.id}>{i.label}</option>
+          ))}
+        </NativeSelect>
+        <NativeSelect name="month" defaultValue={sp.month ?? ""} className="w-40">
+          <option value="">Any month</option>
+          {months.map((m) => (
+            <option key={m} value={m}>{formatMonth(m)}</option>
+          ))}
+        </NativeSelect>
         <NativeSelect name="status" defaultValue={sp.status ?? ""} className="w-52">
           <option value="">Any status{sp.group ? " in group" : ""}</option>
           {(group ? group.statuses : (Object.keys(STATUS_LABELS) as ApplicationStatus[])).map((s) => (
@@ -158,6 +186,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 <th className="px-3 py-2 font-medium">Child</th>
                 <th className="px-3 py-2 font-medium">Parent</th>
                 <th className="px-3 py-2 font-medium">Campus · Grade</th>
+                <th className="px-3 py-2 font-medium">Starting</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Next action</th>
                 <th className="px-3 py-2 font-medium">Owner</th>
@@ -170,6 +199,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                 const grade = one(r.grades);
                 const contact = one(r.contacts);
                 const owner = one(r.staff_profiles);
+                const intake = one(r.intakes);
                 const na = isNextAction(r.next_action)
                   ? nextActionCopy(r.next_action, { requiresAssessment: r.requires_assessment, bookingKind: null, scholarship: scholars.has(r.id) }).staffLabel
                   : "—";
@@ -186,6 +216,13 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                       <span className="block text-xs text-muted-foreground">{contact?.email}</span>
                     </td>
                     <td className="px-3 py-2">{campus?.name} · {grade?.name}</td>
+                    {/* The month where the campus takes children monthly, the
+                        term otherwise — the same answer the applicant page and
+                        the offer letter give, from the same helper. */}
+                    <td className="px-3 py-2">
+                      {intake ? startLabel(r, intake) : "—"}
+                      {r.start_month && intake ? <span className="block text-xs text-muted-foreground">{intake.label}</span> : null}
+                    </td>
                     <td className="px-3 py-2">
                       <StatusBadge status={r.status} />
                       {(flagsFor.get(r.id) ?? []).filter((f) => f.kind !== "waiting_on_school").length ? (

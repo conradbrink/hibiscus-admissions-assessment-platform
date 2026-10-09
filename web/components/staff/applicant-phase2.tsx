@@ -16,6 +16,7 @@ import { PaymentPanel } from "@/components/staff/payment-panel";
 import { TrialWeekStatus } from "@/components/staff/trial-week-status";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { feeLinesFor, feeSnapshotFrom } from "@/lib/offers/snapshot";
+import type { PromotionFeeSnapshot } from "@/lib/promotions/apply";
 import { can, type PermissionSet } from "@/lib/permissions";
 import type { ComputedProfile } from "@/lib/profile/compute";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
@@ -25,8 +26,9 @@ import type { StaffContext } from "@/lib/staff/session";
 import type { ApplicationRow, BenchmarkBand, TrialWeekRow } from "@/lib/supabase/types";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
-import { checkIn, recordDecision, resumeDeferred, setDayPattern, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
+import { checkIn, recordDecision, resumeDeferred, setDayPattern, setScholarship, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import { formatMonth, type MonthChoice } from "@/lib/start-month";
+import { awardLabelOf } from "@/lib/promotions/scholarship";
 
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
@@ -48,6 +50,7 @@ export async function ApplicantPhase2({
   decision,
   dayPattern,
   startMonth,
+  scholarshipBand,
   booking,
 }: {
   supabase: StaffContext["supabase"];
@@ -89,6 +92,20 @@ export async function ApplicantPhase2({
    * letter names and what the first-day emails count from.
    */
   startMonth: { value: string | null; canSet: boolean; choices: MonthChoice[] } | null;
+  /**
+   * The scholarship band this child holds and the bands that could replace it.
+   * `code` is whatever promotion is on the application, which is not always a
+   * scholarship — a child may hold an ordinary deal, and the box has to say so
+   * rather than quietly call it "no scholarship" and offer to clear it.
+   */
+  scholarshipBand: {
+    code: string | null;
+    /** `application_promotions.promotion_id`, for comparing against an offer's. */
+    promotionId: string | null;
+    isScholarship: boolean;
+    canSet: boolean;
+    choices: string[];
+  } | null;
 }) {
   const canSeePayments = can(permissions, "offers.read") || can(permissions, "finance.read");
   const [{ data: attempts }, { data: profile }, { data: decisions }, { data: offers }, { data: subjects }, { data: competencies }, { data: paymentRequest }, { data: payments }] = await Promise.all([
@@ -150,6 +167,23 @@ export async function ApplicantPhase2({
 
   const canApprove = can(permissions, "offers.approve");
   const liveOffer = (offers ?? []).find((o) => ["draft", "pending_approval", "sent", "viewed", "expired"].includes(o.status)) ?? null;
+  // The most recent letter *of any status*, which is not the same question as
+  // `liveOffer`: a withdrawn one is not live, and withdrawing is exactly what
+  // staff are told to do before re-pricing. Reading only the live offer left
+  // the band box silent in the one state the advice creates — the screen said
+  // nothing about generating, and somebody flipped the band off and on
+  // instead, twice, trying to make the letter catch up.
+  const newestOffer = (offers ?? [])[0] ?? null;
+  // Compared by id rather than by the code in the stored snapshot: the column
+  // is typed and the snapshot's shape is not.
+  const bandMovedSinceOffer = Boolean(
+    newestOffer && scholarshipBand && newestOffer.promotion_id !== scholarshipBand.promotionId
+  );
+  // `promotion` rides on the stored snapshot but not on `FeeSnapshot` itself,
+  // so this reads it the way `promotionVariables` and `fullyWaived` already do.
+  const offerPricedUnder = awardLabelOf(
+    (feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null
+  );
   const computed = profile ? (profile.computed as unknown as ComputedProfile) : null;
   const narrative = profile ? NARRATIVE_SCHEMA.safeParse(profile.narrative) : null;
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
@@ -418,6 +452,65 @@ export async function ApplicantPhase2({
                     Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next offer letter quotes. While this is
                     undecided the letter shows both rates and asks the family to confirm; either way, tuition is invoiced
                     and is not payable to accept the offer. An offer already sent keeps the fees it was drafted with.
+                  </p>
+                </ActionForm>
+              ) : null}
+            </div>
+          ) : null}
+          {scholarshipBand ? (
+            <div className="mb-4 rounded-lg border border-border p-3">
+              <h3 className="font-semibold">Scholarship</h3>
+              <p className="mt-1">
+                {scholarshipBand.isScholarship
+                  ? `${awardLabelOf(scholarshipBand.code)} of tuition`
+                  : scholarshipBand.code
+                    ? `No scholarship. This applicant holds the ${scholarshipBand.code} deal.`
+                    : "No scholarship"}
+              </p>
+              {bandMovedSinceOffer ? (
+                <p className="mt-2 rounded-lg bg-warning/15 px-3 py-2 text-xs text-warning-foreground">
+                  {offerPricedUnder
+                    ? `The most recent letter was priced at ${offerPricedUnder}, not this. `
+                    : "The most recent letter was priced under a different deal to this one. "}
+                  {liveOffer
+                    ? "Press Generate offer to re-price it."
+                    : "Nothing is drafted now — press Generate offer below to issue one at the band above."}
+                </p>
+              ) : null}
+              {scholarshipBand.canSet ? (
+                <ActionForm action={setScholarship} label="Save" variant="outline" size="sm" className="mt-2">
+                  {idField}
+                  <NativeSelect
+                    name="code"
+                    defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}
+                    aria-label="Scholarship band"
+                  >
+                    {/* A child on an ordinary deal starts on "keep", so saving
+                        without choosing cannot take the deal off them. */}
+                    {scholarshipBand.code && !scholarshipBand.isScholarship ? (
+                      <option value="keep">Keep the {scholarshipBand.code} deal</option>
+                    ) : null}
+                    <option value="">
+                      {scholarshipBand.code && !scholarshipBand.isScholarship
+                        ? `Remove the ${scholarshipBand.code} deal`
+                        : "No scholarship"}
+                    </option>
+                    {scholarshipBand.choices.map((c) => (
+                      <option key={c} value={c}>{awardLabelOf(c)}</option>
+                    ))}
+                  </NativeSelect>
+                  <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
+                  <p className="text-xs text-muted-foreground">
+                    {liveOffer && liveOffer.status !== "draft"
+                      ? "An offer has already gone to this family and keeps the fees it was drafted with. To put the new band in front of them, withdraw that offer and issue a fresh one."
+                      : liveOffer
+                        ? "The draft offer below still shows the old fees. Press Generate offer again to re-price it."
+                        : newestOffer
+                          ? "Changing the band here does not rewrite a letter. Press Generate offer below to draft one at the new band."
+                          : "Decides the tuition the next offer letter quotes and the figure the scholarship messages name."}
+                    {scholarshipBand.code && !scholarshipBand.isScholarship
+                      ? " Awarding a scholarship here replaces the deal this applicant holds; there is only ever one."
+                      : ""}
                   </p>
                 </ActionForm>
               ) : null}

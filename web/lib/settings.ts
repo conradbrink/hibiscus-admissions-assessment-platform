@@ -179,7 +179,12 @@ export const DEFAULT_SETTINGS: Settings = {
   crmStaleContactDays: 30,
 };
 
-const KEYS: Record<keyof Settings, string> = {
+/**
+ * Exported so the settings screen's field catalogue can be checked against it:
+ * a setting the engine reads but nothing labels falls back to a raw JSON box,
+ * and a test asserts that never happens by accident.
+ */
+export const KEYS: Record<keyof Settings, string> = {
   bookingTokenDays: "booking_token_days",
   nextStepTokenDays: "next_step_token_days",
   assessmentReminderHours: "assessment_reminder_hours",

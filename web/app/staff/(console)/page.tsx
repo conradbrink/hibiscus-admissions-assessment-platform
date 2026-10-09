@@ -7,7 +7,7 @@ import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
 import { bookingNounTitle } from "@/lib/booking/noun";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { formatDate, formatTime, toSchoolDateString } from "@/lib/format-date";
-import { bookedRowLabel, bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
+import { bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
 import { orientationProgress } from "@/lib/orientation";
 import { requireStaff } from "@/lib/staff/session";
 
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
   const today = toSchoolDateString(now);
   const weekEnd = new Date(now);
   weekEnd.setDate(weekEnd.getDate() + 7);
-  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: deferredDueSoon }, { count: playDatesThisWeek }, { count: failedMessages }] =
+  const [{ data: countsRaw }, { data: todays }, { data: myTasks }, { data: myCampuses }, { data: offered }, { count: deferredDueSoon }, { count: visitsThisWeek }, { count: failedMessages }] =
     await Promise.all([
       supabase.rpc("dashboard_counts"),
       // Both kinds. A pre-school campus books no assessments, so a board
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
   // Which of today's arrivals hold a scholarship. The board query is rooted at
   // bookings, so the ids come out of the embed; it is capped at 50 rows, so
   // this is one bounded lookup. Without it the board labels a Form 3
-  // scholarship student's interview a "Play date".
+  // scholarship student's interview a "Visit".
   const boardAppIds = (todays ?? []).map((b) => one(b.applications)?.id).filter((id): id is string => Boolean(id));
   const { data: boardAwards } = boardAppIds.length
     ? await supabase.from("application_promotions").select("application_id, promotions(code)").in("application_id", boardAppIds)
@@ -149,14 +149,14 @@ export default async function DashboardPage() {
 
   const pipeline = [
     { label: "New enquiries", value: n("new_enquiries"), href: "/staff/applications?group=enquiry" },
-    // One status, two words: `visit_booked` holds a primary family's look
-    // around and a pre-school family's play date alike.
-    { label: bookedRowLabel(kinds), value: n("visits_booked"), href: "/staff/applications?status=visit_booked" },
+    // One status, one word now: `visit_booked` holds a primary family's look
+    // around and a pre-school family's visit alike.
+    { label: "Visits booked", value: n("visits_booked"), href: "/staff/applications?status=visit_booked" },
     ...(kinds.assessment
       ? [{ label: "Assessments this week", value: n("assessments_this_week"), href: "/staff/assessments/today" }]
       : []),
-    ...(kinds.playDate
-      ? [{ label: "Play dates this week", value: playDatesThisWeek ?? 0, href: "/staff/applications?status=visit_booked" }]
+    ...(kinds.visit
+      ? [{ label: "Visits this week", value: visitsThisWeek ?? 0, href: "/staff/applications?status=visit_booked" }]
       : []),
     { label: "Awaiting a decision", value: n("awaiting_decision"), href: "/staff/decisions" },
     { label: "Offers out with parents", value: n("offers_outstanding"), href: "/staff/applications?status=offer_sent" },
@@ -333,8 +333,8 @@ export default async function DashboardPage() {
                 <p className="mt-1 text-lg leading-snug font-semibold">Everything is up to date.</p>
                 <p className="mt-1 text-sm opacity-80">
                   {kinds.assessment ? `${n("assessments_this_week")} assessments` : null}
-                  {kinds.assessment && kinds.playDate ? " and " : null}
-                  {kinds.playDate ? `${playDatesThisWeek ?? 0} play dates` : null}
+                  {kinds.assessment && kinds.visit ? " and " : null}
+                  {kinds.visit ? `${visitsThisWeek ?? 0} visits` : null}
                   {" booked this week."}
                 </p>
               </>

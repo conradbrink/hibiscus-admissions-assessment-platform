@@ -21,6 +21,11 @@ function PromotionForm({ promo, effects, lists, redemptions }: { promo: Promotio
   const waived = (code: string) => effects.some((e) => e.kind === "waive_fee" && e.fee_code === code);
   const discount = effects.find((e) => (e.kind === "discount_fixed" || e.kind === "discount_percent") && e.fee_code === "admission");
   const gifts = effects.filter((e) => e.kind === "gift").map((e) => e.label).join("\n");
+  // One percentage drives all three tuition lines, so any of them answers for
+  // the band. Term first because it is the line every campus bills.
+  const tuition = effects.find((e) => e.kind === "discount_percent" && e.fee_code === "tuition_term");
+  const tuitionPercent = tuition ? String(Number(tuition.percent)) : "";
+  const firstMonth = effects.some((e) => e.kind === "require_at_acceptance" && e.fee_code === "tuition_month");
   const discountValue = discount ? (discount.kind === "discount_fixed" ? (Number(discount.amount_minor) / 100).toFixed(2) : String(Number(discount.percent))) : "";
   const cap = promo?.max_redemptions;
   return (
@@ -75,6 +80,24 @@ function PromotionForm({ promo, effects, lists, redemptions }: { promo: Promotio
             <Input name="admissionDiscountValue" defaultValue={discountValue} placeholder="500 or 10" inputMode="decimal" className="h-8 md:h-8" />
           </label>
         </div>
+        <div className="grid gap-2 md:grid-cols-3">
+          <label className="space-y-1 text-xs">
+            <span className="font-medium">Scholarship — % off tuition</span>
+            <Input name="tuitionPercent" defaultValue={tuitionPercent} placeholder="None" inputMode="decimal" maxLength={10} className="h-8 md:h-8" />
+            <span className="block text-muted-foreground">
+              One figure, applied to the term, year and month rates together, so the letter agrees with itself whichever
+              one the campus bills. This is what makes a promotion a scholarship band.
+            </span>
+          </label>
+          <label className="space-y-1 text-xs md:col-span-2">
+            <span className="font-medium">First month payable to confirm the place</span>
+            <span className="block"><input type="checkbox" name="firstMonthAtAcceptance" value="1" defaultChecked={firstMonth} /> require it at acceptance</span>
+            <span className="block text-muted-foreground">
+              Only with a tuition percentage above. Without it a fully waived scholarship costs nothing to accept, which
+              is how a place gets held by somebody who never meant to take it.
+            </span>
+          </label>
+        </div>
         <label className="block space-y-1 text-xs">
           <span className="font-medium">Gifts, one per line (as the parent will read them)</span>
           <Textarea name="gifts" rows={3} defaultValue={gifts} placeholder={"P1,000 uniform voucher\nHibiscus hat and T-shirt"} />
@@ -122,7 +145,7 @@ export default async function PromotionsPage() {
     <>
       <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Promotions"
-        description="Deals that change an offer: waived fees, a discount on the admission fee, and gifts. A deal with a code is typed by the parent at enquiry; a deal without one applies by its rules. Either way it is applied when the offer is drafted, shown on the letter, and staff can still change it before approval. A fully waived offer skips the payment step."
+        description="Deals that change an offer: waived fees, a discount on the admission fee, a scholarship percentage off tuition, and gifts. The scholarship bands a child can be put on are promotions here, and their percentage is the tuition figure below. A deal with a code is typed by the parent at enquiry; a deal without one applies by its rules. Either way it is applied when the offer is drafted, shown on the letter, and staff can still change it before approval. A fully waived offer skips the payment step."
       />
 
       <div className="space-y-6">
