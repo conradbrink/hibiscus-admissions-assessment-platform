@@ -22,12 +22,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const APPLICANT_COOKIE = "hbs_hr_applicant";
 export const REFEREE_COOKIE = "hbs_hr_referee";
+export const PAYSLIP_COOKIE = "hbs_hr_payslip";
 
 const APPLICANT_DOMAIN = "hr-applicant";
 const REFEREE_DOMAIN = "hr-referee";
+const PAYSLIP_DOMAIN = "hr-payslip";
 
 export type ApplicantSession = { applicationId: string; issuedAt: number; expiresAt: number };
 export type RefereeSession = { referenceRequestId: string; issuedAt: number; expiresAt: number };
+export type PayslipSession = { payslipId: string; issuedAt: number; expiresAt: number };
 
 export function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
@@ -90,4 +93,13 @@ export function encodeRefereeSession(s: RefereeSession, secret: string): string 
 export function decodeRefereeSession(value: string | undefined | null, secret: string, now = Date.now()): RefereeSession | null {
   const d = decode(value, secret, REFEREE_DOMAIN, now);
   return d ? { referenceRequestId: d.subject, issuedAt: d.issuedAt, expiresAt: d.expiresAt } : null;
+}
+
+export function encodePayslipSession(s: PayslipSession, secret: string): string {
+  return encode(s.payslipId, s.issuedAt, s.expiresAt, secret, PAYSLIP_DOMAIN);
+}
+
+export function decodePayslipSession(value: string | undefined | null, secret: string, now = Date.now()): PayslipSession | null {
+  const d = decode(value, secret, PAYSLIP_DOMAIN, now);
+  return d ? { payslipId: d.subject, issuedAt: d.issuedAt, expiresAt: d.expiresAt } : null;
 }

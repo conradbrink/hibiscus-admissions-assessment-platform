@@ -93,6 +93,9 @@ after the admissions suite. See `docs/hr/README.md`.
 | `20261012090200_hr_communications_and_tokens` | `hr_email_templates` (seeded, plain English), `hr_email_messages`, `hr_publish_email_template()`, `hr_access_tokens` with the subject check, `hr_consume_token()` |
 | `20261012090300_hr_question_banks` | Data only: the Pre-school, Primary and Secondary banks, core and pool, each question with a five-band rubric |
 | `20261012090400_hr_recruitment_engine` | `hr_commit_stage()` (compare-and-set, the only stage writer after submission) and `hr_anonymise_applicant()`, both service role only |
+| `20261012090500_hr_employees` | Departments, `hr_employees` (numbered `HIS-00001`, linked to the application they were hired from), `hr_employee_private` (needs the sensitive permission), contracts, employee documents with expiry dates, `hr_can_read_employee()` |
+| `20261012090600_hr_payroll` | Pay item catalogue, effective-dated compensation and pay items, bank details, tax years and brackets (seeded as drafts; frozen once published), timesheets, payroll runs (four-eyes check: the preparer cannot approve), payslips and lines (frozen once approved), overrides, `hr_can_read_pay()`; every pay table is read through `hr_has_strict()` |
+| `20261012090700_hr_leave_and_disciplinary` | Leave types, entitlements and requests; disciplinary cases, an append-only case record and warnings; the payslip and leave decision email templates |
 
 ## Rules for new migrations
 

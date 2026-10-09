@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { CalendarClock, Inbox, Megaphone, ShieldAlert, Star, UserRoundSearch } from "lucide-react";
+import { CalendarClock, CalendarDays, Inbox, Megaphone, ShieldAlert, Star, UserRoundSearch, Wallet } from "lucide-react";
 import { FlagChips, ScoreBadge } from "@/components/recruitment/badges";
 import { PageTitle } from "@/components/staff/page-title";
 import { StatTile } from "@/components/staff/stat-tile";
-import { formatDateTime, hoursAgoIso } from "@/lib/format-date";
+import { formatDate, formatDateTime, hoursAgoIso } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { FLAG_META } from "@/lib/scoring/flags";
-import { requireStaff } from "@/lib/staff/session";
+import { requireStaff, type StaffContext } from "@/lib/staff/session";
+import { expiringSoon } from "@/lib/employees";
+import { periodLabel } from "@/lib/payroll/period";
 
 /**
  * What needs a person today: new applications to read, references still out,
@@ -18,7 +20,12 @@ export default async function DashboardPage() {
   const ctx = await requireStaff();
   const first = (ctx.profile.full_name || ctx.profile.email).split(/[\s@]/)[0];
   if (!can(ctx.permissions, "hr.recruitment.read")) {
-    return <PageTitle title={`Welcome, ${first}`} description="Your HR pages are in the menu on the left." />;
+    return (
+      <>
+        <PageTitle title={`Good to see you, ${first}`} description="What needs you today. Your HR pages are in the menu on the left." />
+        <PeopleAndPay ctx={ctx} />
+      </>
+    );
   }
   const s = ctx.supabase;
   const now = hoursAgoIso(0);
@@ -47,7 +54,9 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageTitle title={`Good to see you, ${first}`} description="Recruitment at a glance. Everything here is a click away from the applicant." />
+      <PageTitle title={`Good to see you, ${first}`} description="What needs you today. Everything here is a click away." />
+      <PeopleAndPay ctx={ctx} />
+      <h2 className="mb-3 text-lg font-semibold">Recruitment</h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatTile label="Open vacancies" value={vacancies.count ?? 0} icon={Megaphone} href="/staff/recruitment/vacancies" />
         <StatTile label="To review" value={review.count ?? 0} icon={Inbox} tone="info" href="/staff/recruitment/pipeline" />
@@ -104,5 +113,61 @@ export default async function DashboardPage() {
         </section>
       </div>
     </>
+  );
+}
+
+/** Leave to decide, payroll to approve, and dates coming up: contracts, probations, registrations and permits. */
+async function PeopleAndPay({ ctx }: { ctx: StaffContext }) {
+  const may = {
+    employees: can(ctx.permissions, "hr.employees.read"),
+    leave: can(ctx.permissions, "hr.leave.approve"),
+    payroll: can(ctx.permissions, "hr.payroll.read"),
+  };
+  if (!may.employees && !may.leave && !may.payroll) return null;
+  const s = ctx.supabase;
+  const none = Promise.resolve({ data: null, count: null });
+  const [leave, runs, coming] = await Promise.all([
+    may.leave ? s.from("hr_leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending") : none,
+    may.payroll ? s.from("hr_payroll_runs").select("id, period, campus_id").eq("status", "calculated").order("period") : none,
+    may.employees ? expiringSoon(s, 60) : Promise.resolve([]),
+  ]);
+  const waiting = runs.data ?? [];
+  return (
+    <div className="mb-8 grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div className="grid grid-cols-2 content-start gap-3">
+        {may.leave ? <StatTile label="Leave to decide" value={leave.count ?? 0} icon={CalendarDays} tone="warning" href="/staff/leave" /> : null}
+        {may.payroll ? (
+          <StatTile
+            label="Payroll to approve"
+            value={waiting.length}
+            icon={Wallet}
+            tone="warning"
+            href={waiting.length === 1 ? `/staff/payroll/runs/${waiting[0].id}` : "/staff/payroll"}
+            hint={waiting.length ? waiting.map((r) => periodLabel(r.period)).join(", ") : undefined}
+          />
+        ) : null}
+      </div>
+      {may.employees ? (
+        <section className="surface p-5">
+          <h2 className="font-semibold">Coming up in the next 60 days</h2>
+          {coming.length ? (
+            <ul className="mt-3 divide-y divide-border/70">
+              {coming.slice(0, 8).map((c, i) => (
+                <li key={i}>
+                  <Link href={`/staff/employees/${c.employeeId}`} className="flex items-center justify-between gap-3 rounded-lg py-2.5 hover:bg-muted/50">
+                    <span>
+                      <span className="font-medium">{c.name}</span> <span className="text-sm text-muted-foreground">{c.what.toLowerCase()}</span>
+                    </span>
+                    <span className="text-sm text-muted-foreground tabular-nums">{formatDate(c.on)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">No contracts, probations, registrations or permits end in the next 60 days.</p>
+          )}
+        </section>
+      ) : null}
+    </div>
   );
 }

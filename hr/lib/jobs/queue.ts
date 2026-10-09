@@ -17,6 +17,8 @@ export type JobSpec =
   | { type: "ai_integrity_check"; payload: { application_id: string } }
   | { type: "score_recompute"; payload: { application_id: string } }
   | { type: "interview_email"; payload: { interview_id: string; kind: "invite" | "changed" | "cancelled" } }
+  | { type: "payslip_send"; payload: { payslip_id: string } }
+  | { type: "leave_decision_email"; payload: { leave_request_id: string } }
   | { type: "staff_alert"; payload: { key: string; application_id: string; vars: Record<string, string>; permission: string } };
 
 export type SendEmailPayload = {

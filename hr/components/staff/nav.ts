@@ -20,7 +20,22 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/recruitment/question-banks", label: "Question banks", icon: "questions", permission: "hr.questions.write" },
     ],
   },
-  // People, Pay and Admin join the rail with the employee and payroll stage.
+  {
+    label: "People",
+    items: [
+      { href: "/staff/employees", label: "Employees", icon: "employees", permission: "hr.employees.read" },
+      { href: "/staff/leave", label: "Leave", icon: "leave", permission: "hr.leave.approve" },
+      { href: "/staff/disciplinary", label: "Disciplinary", icon: "disciplinary", permission: "hr.disciplinary.read" },
+    ],
+  },
+  {
+    label: "Pay",
+    items: [
+      { href: "/staff/timesheets", label: "Timesheets", icon: "timesheets", permission: "hr.timesheets.write" },
+      { href: "/staff/payroll", label: "Payroll", icon: "payroll", permission: "hr.payroll.read" },
+      { href: "/staff/payroll/tax-years", label: "Tax tables", icon: "settings", permission: "hr.tax_tables.write" },
+    ],
+  },
 ];
 
 export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {

@@ -3,6 +3,7 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { wrapHtml } from "@/lib/email/layout";
 import { getEmailProvider, type OutboundEmail } from "@/lib/email/provider";
 import { renderHtml, renderSubject, renderText, type TemplateVariables } from "@/lib/email/render";
+import { redactLinks } from "@/lib/email/redact";
 
 /**
  * Sends one HR email from the active version of a template.
@@ -58,8 +59,10 @@ export async function sendTemplate(admin: AdminClient, input: SendTemplateInput)
       template_version: template.version,
       to_email: input.to,
       subject,
-      body_html: html,
-      body_text: text,
+      // The dev adapter delivers nothing, so on a developer's machine the
+      // stored copy keeps its links: that is how the journey is walked.
+      body_html: provider.name === "dev" ? html : redactLinks(html),
+      body_text: provider.name === "dev" ? text : redactLinks(text),
       provider: provider.name,
       status: "queued",
     })

@@ -4,11 +4,15 @@ import { redirect } from "next/navigation";
 import {
   APPLICANT_COOKIE,
   decodeApplicantSession,
+  decodePayslipSession,
   decodeRefereeSession,
   encodeApplicantSession,
+  encodePayslipSession,
   encodeRefereeSession,
+  PAYSLIP_COOKIE,
   REFEREE_COOKIE,
   type ApplicantSession,
+  type PayslipSession,
   type RefereeSession,
 } from "@/lib/tokens/session";
 
@@ -24,6 +28,8 @@ const cookieBase = { httpOnly: true, secure: process.env.NODE_ENV === "productio
 // the emailed link brings them back.
 const APPLICANT_TTL_MINUTES = 24 * 60;
 const REFEREE_TTL_MINUTES = 2 * 60;
+// Long enough to read and download a payslip; the emailed link opens it again.
+const PAYSLIP_TTL_MINUTES = 30;
 
 export async function startApplicantSession(applicationId: string): Promise<void> {
   const now = Date.now();
@@ -75,4 +81,19 @@ export async function requireRefereeSession(): Promise<RefereeSession> {
 export async function endRefereeSession(): Promise<void> {
   const store = await cookies();
   store.delete({ name: REFEREE_COOKIE, path: "/reference" });
+}
+
+export async function startPayslipSession(payslipId: string): Promise<void> {
+  const now = Date.now();
+  const store = await cookies();
+  store.set(
+    PAYSLIP_COOKIE,
+    encodePayslipSession({ payslipId, issuedAt: now, expiresAt: now + PAYSLIP_TTL_MINUTES * 60_000 }, secret()),
+    { ...cookieBase, path: "/payslip", maxAge: PAYSLIP_TTL_MINUTES * 60 }
+  );
+}
+
+export async function readPayslipSession(): Promise<PayslipSession | null> {
+  const store = await cookies();
+  return decodePayslipSession(store.get(PAYSLIP_COOKIE)?.value, secret());
 }

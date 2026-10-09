@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { staffActor } from "@/lib/audit";
 import { HrError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { moveStage, sendOffer } from "@/lib/recruitment/engine";
 import { hireApplicant } from "@/lib/employees/hire";
@@ -284,13 +285,15 @@ export async function sendOfferAction(applicationId: string, _: StaffActionState
 
 export async function hireAction(applicationId: string, _: StaffActionState, formData: FormData): Promise<StaffActionState> {
   let employeeId: string | null = null;
+  let toEmployee = false;
   const state = await guarded(async () => {
     const ctx = await requireStaffAction("hr.recruitment.hire");
+    toEmployee = can(ctx.permissions, "hr.employees.read");
     const app = await applicationFor(ctx, applicationId);
     const startDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a start date.").parse(formData.get("start_date"));
     employeeId = await hireApplicant(createAdminClient(), staffActor(ctx), app, { startDate });
     revalidatePath(`/staff/recruitment/applications/${app.id}`);
   });
-  if (employeeId && state.ok) redirect(`/staff/recruitment/applications/${applicationId}?hired=1`);
+  if (employeeId && state.ok) redirect(toEmployee ? `/staff/employees/${employeeId}` : `/staff/recruitment/applications/${applicationId}?hired=1`);
   return state;
 }

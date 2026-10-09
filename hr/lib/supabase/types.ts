@@ -567,6 +567,337 @@ export type HrAccessTokenRow = {
   created_at: string;
 };
 
+
+// ---------------------------------------------------------------------------
+// HR: employees
+// ---------------------------------------------------------------------------
+
+export type EmploymentStatus = "active" | "on_leave" | "suspended" | "terminated";
+
+export type HrDepartmentRow = { id: string; name: string; created_at: string };
+
+export type HrEmployeeRow = {
+  id: string;
+  employee_number: string;
+  campus_id: string;
+  staff_profile_id: string | null;
+  hr_application_id: string | null;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  position_title: string;
+  department_id: string | null;
+  manager_id: string | null;
+  is_teaching: boolean;
+  employment_status: EmploymentStatus;
+  employment_type: EmploymentType;
+  start_date: string;
+  probation_end_date: string | null;
+  end_date: string | null;
+  termination_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HrEmployeePrivateRow = {
+  employee_id: string;
+  id_number: string | null;
+  passport_number: string | null;
+  date_of_birth: string | null;
+  nationality: string | null;
+  address: string | null;
+  next_of_kin_name: string | null;
+  next_of_kin_phone: string | null;
+  tax_number: string | null;
+  registration_body: RegistrationBody | null;
+  registration_number: string | null;
+  registration_expires_on: string | null;
+  permit_type: string | null;
+  permit_expires_on: string | null;
+  police_clearance_on: string | null;
+  updated_at: string;
+};
+
+export type HrEmployeeContractRow = {
+  id: string;
+  employee_id: string;
+  contract_type: EmploymentType;
+  starts_on: string;
+  ends_on: string | null;
+  probation_months: number | null;
+  hours_per_week: number | null;
+  notice_weeks: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type EmployeeDocumentCategory = "contract" | "id" | "qualification" | "registration" | "permit" | "police_clearance" | "disciplinary" | "other";
+
+export type HrEmployeeDocumentRow = {
+  id: string;
+  employee_id: string;
+  category: EmployeeDocumentCategory;
+  file_name: string;
+  storage_path: string;
+  mime: DocumentMime;
+  size_bytes: number;
+  sha256: string;
+  expires_on: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// HR: pay
+// ---------------------------------------------------------------------------
+
+export type PayItemKind = "earning" | "allowance" | "deduction" | "employer_contribution";
+
+export type HrPayItemRow = {
+  code: string;
+  label: string;
+  kind: PayItemKind;
+  taxable: boolean;
+  pre_tax: boolean;
+  country: Country | null;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type HrEmployeeCompensationRow = {
+  id: string;
+  employee_id: string;
+  effective_from: string;
+  pay_basis: "monthly" | "hourly";
+  basic_monthly_minor: number;
+  hourly_rate_minor: number;
+  normal_hours_per_month: number;
+  currency: Currency;
+  tax_residency: "resident" | "non_resident";
+  medical_aid_members: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type HrEmployeePayItemRow = {
+  id: string;
+  employee_id: string;
+  item_code: string;
+  amount_minor: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type HrEmployeeBankRow = {
+  employee_id: string;
+  bank_name: string;
+  branch_code: string | null;
+  account_name: string;
+  account_number: string;
+  verified_by: string | null;
+  verified_at: string | null;
+  updated_at: string;
+};
+
+export type HrTaxYearRow = {
+  id: string;
+  country: Country;
+  code: string;
+  starts_on: string;
+  ends_on: string;
+  status: "draft" | "published" | "retired";
+  parameters: Json;
+  source_note: string | null;
+  published_by: string | null;
+  published_at: string | null;
+  created_at: string;
+};
+
+export type HrTaxBracketRow = {
+  id: string;
+  tax_year_id: string;
+  residency: "resident" | "non_resident";
+  lower_minor: number;
+  upper_minor: number | null;
+  base_tax_minor: number;
+  rate: number;
+};
+
+export type HrTimesheetPeriodRow = {
+  id: string;
+  campus_id: string;
+  period: string;
+  status: "open" | "approved";
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+};
+
+export type HrTimesheetEntryRow = {
+  id: string;
+  period_id: string;
+  employee_id: string;
+  days_worked: number;
+  normal_hours: number;
+  overtime_hours: number;
+  sunday_hours: number;
+  public_holiday_hours: number;
+  unpaid_days: number;
+  notes: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type PayrollRunStatus = "draft" | "calculated" | "approved" | "locked";
+
+export type HrPayrollRunRow = {
+  id: string;
+  campus_id: string;
+  period: string;
+  country: Country;
+  currency: Currency;
+  tax_year_id: string | null;
+  status: PayrollRunStatus;
+  totals: Json;
+  prepared_by: string | null;
+  prepared_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  created_at: string;
+};
+
+export type HrPayslipRow = {
+  id: string;
+  run_id: string;
+  employee_id: string;
+  employee_snapshot: Json;
+  gross_minor: number;
+  taxable_minor: number;
+  paye_minor: number;
+  uif_employee_minor: number;
+  uif_employer_minor: number;
+  sdl_minor: number;
+  deductions_minor: number;
+  net_minor: number;
+  employer_cost_minor: number;
+  calc_version: string;
+  inputs: Json;
+  warnings: string[];
+  created_at: string;
+};
+
+export type HrPayslipLineRow = {
+  id: string;
+  payslip_id: string;
+  code: string;
+  label: string;
+  kind: "earning" | "deduction" | "tax" | "employer";
+  computed_minor: number;
+  effective_minor: number;
+  override_reason: string | null;
+  overridden_by: string | null;
+  sort_order: number;
+};
+
+export type HrPayslipOverrideRow = {
+  id: string;
+  run_id: string;
+  employee_id: string;
+  code: string;
+  amount_minor: number;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// HR: leave and disciplinary
+// ---------------------------------------------------------------------------
+
+export type HrLeaveTypeRow = {
+  code: string;
+  name: string;
+  country: Country | null;
+  days_per_year: number;
+  paid: boolean;
+  needs_document: boolean;
+  is_active: boolean;
+  sort_order: number;
+};
+
+export type HrLeaveEntitlementRow = { id: string; employee_id: string; leave_type_code: string; year: number; days: number; note: string | null };
+
+export type LeaveStatus = "pending" | "approved" | "declined" | "cancelled";
+
+export type HrLeaveRequestRow = {
+  id: string;
+  employee_id: string;
+  leave_type_code: string;
+  starts_on: string;
+  ends_on: string;
+  days: number;
+  reason: string | null;
+  status: LeaveStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type CaseCategory = "misconduct" | "poor_performance" | "absence" | "safeguarding" | "grievance" | "other";
+export type CaseStatus = "open" | "hearing_scheduled" | "outcome_given" | "appealed" | "closed";
+export type CaseOutcome = "no_action" | "verbal_warning" | "written_warning" | "final_written_warning" | "dismissal" | "other";
+
+export type HrDisciplinaryCaseRow = {
+  id: string;
+  employee_id: string;
+  category: CaseCategory;
+  summary: string;
+  details: string | null;
+  status: CaseStatus;
+  outcome: CaseOutcome | null;
+  outcome_note: string | null;
+  opened_by: string | null;
+  opened_at: string;
+  closed_at: string | null;
+};
+
+export type CaseEventKind = "note" | "evidence" | "hearing_scheduled" | "hearing_held" | "outcome" | "appeal" | "closed";
+
+export type HrCaseEventRow = {
+  id: number;
+  case_id: string;
+  kind: CaseEventKind;
+  body: string;
+  occurs_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type WarningLevel = "verbal" | "written" | "final_written";
+
+export type HrWarningRow = {
+  id: string;
+  employee_id: string;
+  case_id: string | null;
+  level: WarningLevel;
+  issued_on: string;
+  expires_on: string;
+  reason: string;
+  acknowledged_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 // ---------------------------------------------------------------------------
 // The Database type supabase-js reads
 // ---------------------------------------------------------------------------
@@ -726,6 +1057,56 @@ export type Database = {
         HrAccessTokenRow,
         "hr_application_id" | "hr_reference_request_id" | "hr_payslip_id" | "max_uses" | "use_count" | "revoked_at" | "created_reason"
       >;
+
+      hr_departments: TableOf<HrDepartmentRow>;
+      hr_employees: TableOf<
+        HrEmployeeRow,
+        | "employee_number"
+        | "staff_profile_id"
+        | "hr_application_id"
+        | "email"
+        | "phone"
+        | "department_id"
+        | "manager_id"
+        | "is_teaching"
+        | "employment_status"
+        | "employment_type"
+        | "probation_end_date"
+        | "end_date"
+        | "termination_reason"
+        | "created_by",
+        [Rel<"hr_employees_campus_id_fkey", "campus_id", "campuses">]
+      >;
+      hr_employee_private: TableOf<HrEmployeePrivateRow, Exclude<keyof HrEmployeePrivateRow, "employee_id">>;
+      hr_employee_contracts: TableOf<HrEmployeeContractRow, "ends_on" | "probation_months" | "hours_per_week" | "notice_weeks" | "notes" | "created_by">;
+      hr_employee_documents: TableOf<HrEmployeeDocumentRow, "expires_on" | "uploaded_by" | "uploaded_at">;
+      hr_pay_items: TableOf<HrPayItemRow, "taxable" | "pre_tax" | "country" | "is_active" | "sort_order">;
+      hr_employee_compensation: TableOf<
+        HrEmployeeCompensationRow,
+        "pay_basis" | "basic_monthly_minor" | "hourly_rate_minor" | "normal_hours_per_month" | "tax_residency" | "medical_aid_members" | "notes" | "created_by"
+      >;
+      hr_employee_pay_items: TableOf<HrEmployeePayItemRow, "effective_to" | "created_by">;
+      hr_employee_bank: TableOf<HrEmployeeBankRow, "branch_code" | "verified_by" | "verified_at">;
+      hr_tax_years: TableOf<HrTaxYearRow, "status" | "parameters" | "source_note" | "published_by" | "published_at">;
+      hr_tax_brackets: TableOf<HrTaxBracketRow, "upper_minor">;
+      hr_timesheet_periods: TableOf<HrTimesheetPeriodRow, "status" | "approved_by" | "approved_at">;
+      hr_timesheet_entries: TableOf<
+        HrTimesheetEntryRow,
+        "days_worked" | "normal_hours" | "overtime_hours" | "sunday_hours" | "public_holiday_hours" | "unpaid_days" | "notes" | "updated_by"
+      >;
+      hr_payroll_runs: TableOf<
+        HrPayrollRunRow,
+        "tax_year_id" | "status" | "totals" | "prepared_by" | "prepared_at" | "approved_by" | "approved_at" | "locked_by" | "locked_at"
+      >;
+      hr_payslips: TableOf<HrPayslipRow, "uif_employee_minor" | "uif_employer_minor" | "sdl_minor" | "warnings">;
+      hr_payslip_lines: TableOf<HrPayslipLineRow, "override_reason" | "overridden_by" | "sort_order">;
+      hr_payslip_overrides: TableOf<HrPayslipOverrideRow, "created_by">;
+      hr_leave_types: TableOf<HrLeaveTypeRow, "country" | "days_per_year" | "paid" | "needs_document" | "is_active" | "sort_order">;
+      hr_leave_entitlements: TableOf<HrLeaveEntitlementRow, "note">;
+      hr_leave_requests: TableOf<HrLeaveRequestRow, "reason" | "status" | "decided_by" | "decided_at" | "decision_note" | "created_by">;
+      hr_disciplinary_cases: TableOf<HrDisciplinaryCaseRow, "details" | "status" | "outcome" | "outcome_note" | "opened_by" | "opened_at" | "closed_at">;
+      hr_case_events: TableOf<HrCaseEventRow, "occurs_at" | "created_by">;
+      hr_warnings: TableOf<HrWarningRow, "case_id" | "acknowledged_at" | "created_by">;
     };
     Views: Record<string, never>;
     Functions: {

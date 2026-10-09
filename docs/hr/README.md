@@ -11,6 +11,7 @@ admissions console, and admissions screens never appear in it.
 | Application form | `/apply` (reached by an emailed link, `/h/<token>`) |
 | Referee form | `/reference` (reached by an emailed link, `/r/<token>`) |
 | Staff console | `/staff` (the same email and password as admissions) |
+| Employee payslip | `/payslip` (reached by an emailed link, `/p/<token>`) |
 
 Rules for working on it: `hr/AGENTS.md`. Design notes: `TIME_TO_VALUE.md`
 (the application form) and `OBJECTIONS.md` (the careers page).
@@ -52,12 +53,62 @@ Rules for working on it: `hr/AGENTS.md`. Design notes: `TIME_TO_VALUE.md`
    and withdrawn applicants are anonymised after 12 months (24 with
    talent-pool consent). Hired applicants are kept.
 
-## Phase 2: employees and pay (next)
+## Phase 2: employees and pay (built)
 
-Employee records (created on hire), contracts and probation, documents with
-expiry dates, leave, disciplinary cases with hearings and warnings,
-timesheets, payroll with Botswana PAYE and South African PAYE, UIF and SDL
-from versioned tax tables, payslips printed in bulk per month, and exports.
+1. **Employees.** Pressing Hire on a shortlisted applicant creates their
+   employee record (number `HIS-00001` onwards) and carries over their
+   teacher registration, work permit and police clearance. People who joined
+   before the system are added under Employees. Each person's page shows
+   their details, contracts, personal details (only with the personal details
+   permission), pay, leave and disciplinary record.
+2. **Pay set-up.** Basic pay (monthly or hourly) starts from a date, so a
+   raise never changes an old month. Allowances and deductions (housing,
+   transport, pension, medical aid, staff loans, school fees and others)
+   also have start and end dates. A change of bank details must be confirmed
+   by a second person.
+3. **Timesheets.** One sheet per school per month. Monthly staff only need a
+   row for overtime (1.5 times), Sunday or public holiday work (2 times) or
+   unpaid days. Hourly staff need their hours.
+4. **Payroll.** One run per school per month: work out pay, check it,
+   correct any line with a reason, then **a second person approves it**. The
+   database refuses the preparer as approver, and nothing in an approved run
+   can change. Tax is worked out by the annualised method: Botswana PAYE
+   (resident and non-resident), South African PAYE with rebates by age and
+   medical tax credits, UIF up to its ceiling and SDL when the payroll is
+   above the threshold. Pension and retirement contributions reduce tax up to
+   the legal limit.
+5. **Tax tables.** Stored as data, one per tax year. Each new year arrives as
+   a **draft**, which payroll refuses. A payroll officer checks every figure
+   against the SARS or BURS table, corrects it if needed, and publishes it.
+   A published table cannot change. **The 2026/27 tables are seeded as drafts
+   and must be checked before the first payroll.**
+6. **Payslips.** The whole month prints as one PDF, one page per person.
+   After approval, HR can email everyone a link to their own payslip; the
+   link opens that one payslip only, for 60 days.
+7. **Exports.** For an approved run: the bank payment file, a journal for the
+   accounts, and the tax figures (EMP201 for South Africa, the PAYE return
+   for Botswana), as CSV.
+8. **Leave.** Annual, sick, family responsibility (South Africa),
+   compassionate (Botswana), maternity, parental, study and unpaid. Days left
+   are worked out from the year's allowance (a share of it for someone who
+   starts part way through the year) and the leave already approved. HR
+   records requests and approves or declines them; the employee is emailed
+   the decision.
+9. **Disciplinary.** A case per matter, with a record that can only be added
+   to: notes, evidence, the hearing, the outcome and any appeal. A verbal or
+   written warning counts for 6 months and a final written warning for 12,
+   then stays on the record as expired.
+10. **The dashboard** shows leave waiting for a decision, payroll waiting for
+    approval, and contracts, probations, registrations and permits ending in
+    the next 60 days.
+
+**Who sees pay.** Salaries, bank details, payroll runs and payslips need the
+payroll permissions, checked by `hr_has_strict()`, which ignores the
+admissions `admin` permission. HR staff without them see none of it.
+
+**Not built yet:** uploading documents to an employee's file (the table and
+expiry dates are ready), performance and probation reviews, and staff asking
+for leave themselves.
 
 ## Deploying
 

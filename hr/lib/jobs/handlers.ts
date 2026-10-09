@@ -8,6 +8,8 @@ import { checkIntegrity, markApplication } from "@/lib/recruitment/marking";
 import { emailReferee, expireReference } from "@/lib/references";
 import { recomputeScore } from "@/lib/scoring/recompute";
 import { staffWithPermission } from "@/lib/staff/recipients";
+import { sendPayslipEmail } from "@/lib/payroll/payslips";
+import { sendLeaveDecisionEmail } from "@/lib/leave";
 
 export type HandlerOutcome = { status: "done" } | { status: "skipped"; reason: string };
 
@@ -107,6 +109,9 @@ export const HANDLERS: { [K in JobSpec["type"]]: Handler<K> } = {
     }
     return { status: "done" };
   },
+
+  payslip_send: (admin, p, job) => sendPayslipEmail(admin, p.payslip_id, job.idempotency_key),
+  leave_decision_email: (admin, p, job) => sendLeaveDecisionEmail(admin, p.leave_request_id, job.idempotency_key),
 
   async staff_alert(admin, p, job) {
     const { data: application } = await admin.from("hr_applications").select("campus_id").eq("id", p.application_id).maybeSingle();

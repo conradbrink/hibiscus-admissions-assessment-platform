@@ -554,7 +554,7 @@ export default async function ApplicationPage({ params, searchParams }: { params
               <ActionForm action={sendOfferAction.bind(null, a.id)} label="Email the offer" variant="outline" size="lg" confirm="Email this applicant an offer for the post?">
                 <textarea name="note" rows={2} placeholder="Optional line for the email, e.g. the starting salary agreed" className="w-full rounded-lg border border-input bg-card px-2 py-1.5 text-sm" />
               </ActionForm>
-              <ActionForm action={hireAction.bind(null, a.id)} label="Mark as hired" size="lg" confirm="Mark this applicant as hired?">
+              <ActionForm action={hireAction.bind(null, a.id)} label="Mark as hired" size="lg" confirm="Mark this applicant as hired? This also creates their employee record.">
                 <label className="block text-sm">
                   <span className="mb-1 block text-muted-foreground">Start date</span>
                   <input type="date" name="start_date" required className="h-9 w-full rounded-lg border border-input bg-card px-2 text-sm" />

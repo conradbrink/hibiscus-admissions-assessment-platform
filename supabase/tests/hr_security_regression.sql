@@ -48,6 +48,12 @@ declare
   v_count int;
   v_bool boolean;
   v_text text;
+  e_a uuid;
+  e_b uuid;
+  run_a uuid;
+  slip_a uuid;
+  case_a uuid;
+  ty uuid;
 begin
   -- -------------------------------------------------------------------------
   -- Fixtures, as the service role
@@ -260,6 +266,133 @@ begin
   begin
     perform public.hr_anonymise_applicant(app_hired);
     v_fail := v_fail || E'\n  - H9: a hired applicant was anonymised';
+  exception when raise_exception then null;
+  end;
+
+  -- -------------------------------------------------------------------------
+  -- Employees, pay and discipline
+  -- -------------------------------------------------------------------------
+  perform pg_temp.service();
+  insert into public.hr_employees (employee_number, campus_id, first_name, last_name, position_title, start_date)
+    values ('', c_a, 'Edna', 'Employee', 'Teacher', '2026-01-01') returning id into e_a;
+  insert into public.hr_employees (employee_number, campus_id, first_name, last_name, position_title, start_date)
+    values ('', c_b, 'Eric', 'Employee', 'Teacher', '2026-01-01') returning id into e_b;
+  insert into public.hr_employee_private (employee_id, id_number) values (e_a, '1234567');
+  insert into public.hr_employee_compensation (employee_id, effective_from, basic_monthly_minor, currency) values (e_a, '2026-01-01', 1850000, 'BWP');
+  insert into public.hr_employee_bank (employee_id, bank_name, account_name, account_number) values (e_a, 'FNB', 'E Employee', '62000000001');
+  insert into public.hr_payroll_runs (campus_id, period, country, currency, status, prepared_by, prepared_at)
+    values (c_a, '2026-10', 'BW', 'BWP', 'calculated', u_payroll, now()) returning id into run_a;
+  insert into public.hr_payslips (run_id, employee_id, employee_snapshot, gross_minor, taxable_minor, paye_minor, deductions_minor, net_minor, employer_cost_minor, calc_version, inputs)
+    values (run_a, e_a, '{}', 1850000, 1850000, 200000, 200000, 1650000, 1850000, 'test', '{}') returning id into slip_a;
+  insert into public.hr_payslip_lines (payslip_id, code, label, kind, computed_minor, effective_minor) values (slip_a, 'BASIC', 'Basic salary', 'earning', 1850000, 1850000);
+  insert into public.hr_disciplinary_cases (employee_id, category, summary) values (e_a, 'absence', 'Late on five days') returning id into case_a;
+  insert into public.hr_case_events (case_id, kind, body) values (case_a, 'note', 'Opened');
+
+  -- H18. HR staff read employees but no pay: no salary, bank, run or payslip.
+  perform pg_temp.impersonate(u_hr_staff);
+  select count(*) into v_count from public.hr_employees where id in (e_a, e_b);
+  if v_count <> 2 then v_fail := v_fail || E'\n  - H18: hr_staff saw ' || v_count || ' of 2 employees'; end if;
+  select (select count(*) from public.hr_employee_compensation) + (select count(*) from public.hr_employee_bank)
+       + (select count(*) from public.hr_payroll_runs) + (select count(*) from public.hr_payslips) + (select count(*) from public.hr_payslip_lines)
+    into v_count;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H18: hr_staff read ' || v_count || ' pay rows'; end if;
+  select count(*) into v_count from public.hr_employee_private;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H18: hr_staff read private details without the sensitive permission'; end if;
+  select count(*) into v_count from public.hr_disciplinary_cases where id = case_a;
+  if v_count <> 1 then v_fail := v_fail || E'\n  - H18: hr_staff could not read a disciplinary case they hold the permission for'; end if;
+
+  -- The control: the payroll officer reads all of it, but no discipline.
+  perform pg_temp.impersonate(u_payroll);
+  select (select count(*) from public.hr_employee_compensation where employee_id = e_a) + (select count(*) from public.hr_employee_bank where employee_id = e_a)
+       + (select count(*) from public.hr_payroll_runs where id = run_a) + (select count(*) from public.hr_payslips where id = slip_a)
+    into v_count;
+  if v_count <> 4 then v_fail := v_fail || E'\n  - H18: the payroll officer read ' || v_count || ' of 4 pay rows'; end if;
+  select count(*) into v_count from public.hr_disciplinary_cases;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H18: the payroll officer read disciplinary cases'; end if;
+
+  -- H19. The admissions super administrator holds `admin`, which is not enough for pay.
+  perform pg_temp.impersonate(u_admin);
+  select (select count(*) from public.hr_employee_compensation) + (select count(*) from public.hr_employee_bank)
+       + (select count(*) from public.hr_payroll_runs) + (select count(*) from public.hr_payslips)
+    into v_count;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H19: admin read ' || v_count || ' pay rows'; end if;
+
+  -- H20. The HR manager reads private details; an interviewer and admissions staff read no employee at all.
+  perform pg_temp.impersonate(u_hr_manager);
+  select count(*) into v_count from public.hr_employee_private where employee_id = e_a;
+  if v_count <> 1 then v_fail := v_fail || E'\n  - H20: the HR manager could not read private details'; end if;
+  perform pg_temp.impersonate(u_interviewer);
+  select count(*) into v_count from public.hr_employees;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H20: an interviewer read employees'; end if;
+  perform pg_temp.impersonate(u_admissions);
+  select count(*) into v_count from public.hr_employees;
+  if v_count <> 0 then v_fail := v_fail || E'\n  - H20: admissions staff read employees'; end if;
+
+  -- H21. Staff never write pay directly, even the HR manager.
+  perform pg_temp.impersonate(u_hr_manager);
+  begin
+    insert into public.hr_employee_compensation (employee_id, effective_from, basic_monthly_minor, currency) values (e_a, '2026-11-01', 9900000, 'BWP');
+    v_fail := v_fail || E'\n  - H21: a member of staff wrote a salary directly';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.hr_payroll_runs set status = 'approved', approved_by = u_hr_manager where id = run_a;
+    get diagnostics v_count = row_count;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - H21: a member of staff approved a run directly'; end if;
+  exception when insufficient_privilege then null;
+  end;
+
+  -- H22. Four eyes: the preparer cannot approve, even as the service role.
+  perform pg_temp.service();
+  begin
+    update public.hr_payroll_runs set status = 'approved', approved_by = u_payroll, approved_at = now() where id = run_a;
+    v_fail := v_fail || E'\n  - H22: the person who prepared a run approved it';
+  exception when check_violation then null;
+  end;
+
+  -- H23. An approved run is frozen: payslips, lines and status.
+  update public.hr_payroll_runs set status = 'approved', approved_by = u_hr_manager, approved_at = now() where id = run_a;
+  begin
+    update public.hr_payslips set net_minor = 9999999 where id = slip_a;
+    v_fail := v_fail || E'\n  - H23: a payslip in an approved run changed';
+  exception when raise_exception then null;
+  end;
+  begin
+    insert into public.hr_payslip_lines (payslip_id, code, label, kind, computed_minor, effective_minor) values (slip_a, 'BONUS', 'Bonus', 'earning', 100, 100);
+    v_fail := v_fail || E'\n  - H23: a line was added to an approved run';
+  exception when raise_exception then null;
+  end;
+  begin
+    update public.hr_payroll_runs set status = 'calculated' where id = run_a;
+    v_fail := v_fail || E'\n  - H23: an approved run went back to calculated';
+  exception when raise_exception then null;
+  end;
+  update public.hr_payroll_runs set status = 'locked', locked_by = u_hr_manager, locked_at = now() where id = run_a;
+  begin
+    update public.hr_payroll_runs set totals = '{"x": 1}' where id = run_a;
+    v_fail := v_fail || E'\n  - H23: a locked run changed';
+  exception when raise_exception then null;
+  end;
+
+  -- H24. A published tax year cannot change; a draft can.
+  insert into public.hr_tax_years (country, code, starts_on, ends_on, parameters) values ('BW', 'BW-TEST', '2099-07-01', '2100-06-30', '{"pensionCapRate": 0.15}') returning id into ty;
+  insert into public.hr_tax_brackets (tax_year_id, residency, lower_minor, upper_minor, base_tax_minor, rate) values (ty, 'resident', 0, null, 0, 0.1);
+  update public.hr_tax_years set status = 'published' where id = ty;
+  begin
+    update public.hr_tax_years set parameters = '{"pensionCapRate": 0.5}' where id = ty;
+    v_fail := v_fail || E'\n  - H24: a published tax year changed';
+  exception when raise_exception then null;
+  end;
+  begin
+    update public.hr_tax_brackets set rate = 0.01 where tax_year_id = ty;
+    v_fail := v_fail || E'\n  - H24: a bracket of a published tax year changed';
+  exception when raise_exception then null;
+  end;
+
+  -- H25. A disciplinary record cannot be rewritten.
+  begin
+    update public.hr_case_events set body = 'Something else' where case_id = case_a;
+    v_fail := v_fail || E'\n  - H25: a case record entry was rewritten';
   exception when raise_exception then null;
   end;
 

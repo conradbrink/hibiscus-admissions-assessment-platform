@@ -80,6 +80,13 @@ details and payslips are guarded by `hr_has_strict()`, which does not, and
 `STRICT_CODES` in `lib/permissions.ts` makes the screens agree. Do not
 "simplify" either back.
 
+Payroll is worked out only by `lib/payroll/calculate.ts`, a pure function in
+integer minor units, from a **published** tax table. Two people are needed:
+the database refuses the preparer as approver, and freezes an approved run
+and a published tax year. A correction goes into the next month's run, never
+into an approved one. Stored copies of emails have magic links removed
+(`lib/email/redact.ts`), so a payslip link is never readable by staff.
+
 ## No wording in code, in plain English
 
 Every email an applicant, referee or employee receives is a row in

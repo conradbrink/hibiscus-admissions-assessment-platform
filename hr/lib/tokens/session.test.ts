@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   decodeApplicantSession,
+  decodePayslipSession,
   decodeRefereeSession,
   encodeApplicantSession,
+  encodePayslipSession,
   encodeRefereeSession,
 } from "@/lib/tokens/session";
 
@@ -32,7 +34,7 @@ describe("the applicant cookie", () => {
   });
 });
 
-describe("the two cookies cannot be swapped", () => {
+describe("the cookies cannot be swapped", () => {
   it("an applicant cookie is not a referee cookie", () => {
     const applicant = encodeApplicantSession({ applicationId: "req-1", issuedAt: now, expiresAt: now + 60_000 }, SECRET);
     expect(decodeRefereeSession(applicant, SECRET, now)).toBeNull();
@@ -43,5 +45,14 @@ describe("the two cookies cannot be swapped", () => {
     // their own could read their references.
     const referee = encodeRefereeSession({ referenceRequestId: "app-1", issuedAt: now, expiresAt: now + 60_000 }, SECRET);
     expect(decodeApplicantSession(referee, SECRET, now)).toBeNull();
+  });
+
+  it("a payslip cookie opens no application or reference, and they open no payslip", () => {
+    const payslip = encodePayslipSession({ payslipId: "x-1", issuedAt: now, expiresAt: now + 60_000 }, SECRET);
+    expect(decodeApplicantSession(payslip, SECRET, now)).toBeNull();
+    expect(decodeRefereeSession(payslip, SECRET, now)).toBeNull();
+    expect(decodePayslipSession(payslip, SECRET, now)?.payslipId).toBe("x-1");
+    const applicant = encodeApplicantSession({ applicationId: "x-1", issuedAt: now, expiresAt: now + 60_000 }, SECRET);
+    expect(decodePayslipSession(applicant, SECRET, now)).toBeNull();
   });
 });
