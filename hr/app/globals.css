@@ -5,9 +5,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-geist-sans);
+  --font-heading: var(--font-head);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -54,59 +54,81 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   /* One soft shadow for every raised card, so surfaces read as one system. */
-  --shadow-soft: 0 10px 30px -14px oklch(0.35 0.06 220 / 0.22), 0 1px 2px oklch(0.35 0.06 220 / 0.06);
-  --shadow-lift: 0 18px 50px -20px oklch(0.35 0.08 220 / 0.32);
+  --shadow-soft: 0 10px 30px -16px rgb(23 32 51 / 0.18), 0 1px 2px rgb(23 32 51 / 0.05);
+  --shadow-lift: 0 30px 60px -30px rgb(23 32 51 / 0.45);
+  --color-navy: var(--navy);
+  --color-phase-preschool: var(--phase-preschool);
+  --color-phase-primary: var(--phase-primary);
+  --color-phase-secondary: var(--phase-secondary);
+  --color-phase-general: var(--phase-general);
 }
 
 :root {
   /*
-   * The console's palette: calm teal on soft, cool surfaces, in the manner
-   * of the CoachPro dashboard the school chose as its reference. Status
-   * colours are unchanged: green means done, blue informational, amber
-   * attention, red genuine failure. Letters and emails keep the brand
-   * orange from the logo; the screen is the calmer of the two.
+   * The palette of hibiscusschools.com, so the HR app looks like the rest of
+   * the school. Navy is the structural colour (headings, the sidebar's
+   * text, dark panels). Bottle green is for main actions only: buttons,
+   * links, the active menu item. Everything else is white or light grey.
+   * The phase colours (blue pre-school, green primary, purple secondary)
+   * appear only as small dots and tags, as they do on the website, and
+   * each has a darker "ink" shade for text, because the bright shades are
+   * too light to read on white.
+   *
+   * Status colours keep their meaning: green done, blue information,
+   * orange attention, red a real failure.
    */
-  --background: oklch(0.985 0.006 210);
-  --foreground: oklch(0.25 0.03 230);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.03 230);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.03 230);
-  --primary: oklch(0.55 0.085 200);
-  --primary-foreground: oklch(0.99 0.005 200);
-  --secondary: oklch(0.95 0.015 205);
-  --secondary-foreground: oklch(0.32 0.04 220);
-  --muted: oklch(0.955 0.01 210);
-  --muted-foreground: oklch(0.52 0.03 225);
-  --accent: oklch(0.93 0.035 200);
-  --accent-foreground: oklch(0.35 0.06 210);
-  --destructive: oklch(0.577 0.22 27.325);
-  --border: oklch(0.92 0.012 215);
-  --input: oklch(0.9 0.014 215);
-  --ring: oklch(0.55 0.085 200);
-  --success: oklch(0.6 0.15 150);
-  --success-foreground: oklch(0.99 0.01 150);
-  --info: oklch(0.58 0.12 240);
-  --info-foreground: oklch(0.99 0.01 240);
-  --warning: oklch(0.78 0.16 80);
-  --warning-foreground: oklch(0.3 0.06 60);
-  --chart-1: oklch(0.55 0.085 200);
-  --chart-2: oklch(0.58 0.12 240);
-  --chart-3: oklch(0.6 0.15 150);
-  --chart-4: oklch(0.78 0.16 80);
-  --chart-5: oklch(0.6 0.02 60);
-  --radius: 0.9rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.36 0.035 225);
-  --sidebar-primary: oklch(0.55 0.085 200);
-  --sidebar-primary-foreground: oklch(0.99 0.005 200);
-  --sidebar-accent: oklch(0.55 0.085 200);
-  --sidebar-accent-foreground: oklch(0.99 0.005 200);
-  --sidebar-border: oklch(0.93 0.01 215);
-  --sidebar-ring: oklch(0.55 0.085 200);
+  --navy: #172033;
+  --background: #f6f8fb;
+  --foreground: #172033;
+  --card: #ffffff;
+  --card-foreground: #172033;
+  --popover: #ffffff;
+  --popover-foreground: #172033;
+  --primary: #006a4e;
+  --primary-foreground: #ffffff;
+  --secondary: #eef1f6;
+  --secondary-foreground: #172033;
+  --muted: #eef1f6;
+  /* #4b5563 on white is 7.56:1, so small grey text stays easy to read. */
+  --muted-foreground: #4b5563;
+  --accent: #e6f1ed;
+  --accent-foreground: #00553e;
+  --destructive: #c62828;
+  --border: #e3e8ef;
+  --input: #cbd2dc;
+  --ring: #006a4e;
+  --success: #2e7d32;
+  --success-foreground: #ffffff;
+  --info: #1b7fa8;
+  --info-foreground: #ffffff;
+  --warning: #f47a35;
+  --warning-foreground: #8a3a0c;
+  --chart-1: #006a4e;
+  --chart-2: #1b7fa8;
+  --chart-3: #8e44ad;
+  --chart-4: #f47a35;
+  --chart-5: #6b7280;
+  --phase-preschool: #1b7fa8;
+  --phase-primary: #2e7d32;
+  --phase-secondary: #8e44ad;
+  --phase-general: #c05617;
+  --radius: 0.875rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #374151;
+  --sidebar-primary: #006a4e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #006a4e;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #e3e8ef;
+  --sidebar-ring: #006a4e;
+  --brand-mark: #006a4e;
 }
 
 @layer base {
+  h1, h2, h3 {
+    font-family: var(--font-heading);
+    color: var(--navy);
+  }
   * {
     @apply border-border outline-ring/50;
   }
@@ -120,13 +142,7 @@
   }
   body {
     @apply text-foreground;
-    /* The soft wash behind every shell: cool teal at the top left, a hint of
-       lavender at the bottom right, fixed so it never scrolls with the page. */
     background-color: var(--background);
-    background-image:
-      radial-gradient(1200px 700px at 8% -10%, oklch(0.9 0.05 200 / 0.9), transparent 60%),
-      radial-gradient(900px 600px at 100% 100%, oklch(0.9 0.05 300 / 0.7), transparent 55%);
-    background-attachment: fixed;
   }
 }
 
@@ -221,22 +237,8 @@
  * shade of the same hue, and the logo orange is kept for rules and marks.
  */
 .theme-public {
-  --background: oklch(0.985 0.006 75);
-  --foreground: oklch(0.24 0.02 50);
-  --card: oklch(0.995 0.003 75);
-  --card-foreground: oklch(0.24 0.02 50);
-  --primary: oklch(0.53 0.16 40);
-  --primary-foreground: oklch(0.99 0.008 70);
-  --ring: oklch(0.53 0.16 40);
-  --secondary: oklch(0.955 0.018 65);
-  --secondary-foreground: oklch(0.32 0.05 45);
-  --muted: oklch(0.96 0.01 70);
-  --muted-foreground: oklch(0.45 0.025 50);
-  --accent: oklch(0.95 0.03 60);
-  --accent-foreground: oklch(0.42 0.12 40);
-  --border: oklch(0.91 0.015 65);
-  --input: oklch(0.88 0.018 65);
-  --brand-mark: #e8632b;
+  /* The careers pages sit on white, like the website's own pages. */
+  --background: #ffffff;
   background: var(--background);
   color: var(--foreground);
 }

@@ -4,7 +4,7 @@ import { EmptyState, PageTitle } from "@/components/staff/page-title";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDate } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
-import { PHASE_LABELS } from "@/lib/recruitment/public";
+import { PhaseTag } from "@/components/recruitment/phase-tag";
 import { requireStaff } from "@/lib/staff/session";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +63,10 @@ export default async function VacanciesPage() {
                       <Link href={`/staff/recruitment/vacancies/${v.id}`} className="font-medium hover:text-primary hover:underline">
                         {v.title}
                       </Link>
-                      <span className="block text-xs text-muted-foreground">{PHASE_LABELS[v.phase]}{v.subject ? ` · ${v.subject}` : ""}</span>
+                      <span className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        <PhaseTag phase={v.phase} />
+                        {v.subject}
+                      </span>
                     </td>
                     <td>{campusName.get(v.campus_id) ?? ""}</td>
                     <td>

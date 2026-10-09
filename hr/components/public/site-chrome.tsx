@@ -17,10 +17,10 @@ export function SiteHeader({ section = "Careers" }: { section?: string }) {
 
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-border/80">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <footer className="mt-24 bg-navy text-white/80">
+      <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm sm:flex-row sm:items-center sm:justify-between">
         <p>Hibiscus International Schools · Human Resources</p>
-        <Link href="/staff/login" className="underline-offset-2 hover:underline">
+        <Link href="/staff/login" className="rounded-sm text-white underline-offset-2 hover:underline focus-visible:ring-3 focus-visible:ring-white/40 focus-visible:outline-none">
           Staff sign in
         </Link>
       </div>

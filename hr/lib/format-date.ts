@@ -57,25 +57,25 @@ function parse(value: string | Date | null | undefined): Date | null {
 /** "Saturday 12 September 2026" */
 export function formatDateLong(value: string | Date | null | undefined): string {
   const d = parse(value);
-  return d ? DATE_LONG.format(d) : "—";
+  return d ? DATE_LONG.format(d) : "Not set";
 }
 
 /** "12 Sep 2026" */
 export function formatDate(value: string | Date | null | undefined): string {
   const d = parse(value);
-  return d ? DATE_SHORT.format(d) : "—";
+  return d ? DATE_SHORT.format(d) : "Not set";
 }
 
 /** "09:00" */
 export function formatTime(value: string | Date | null | undefined): string {
   const d = parse(value);
-  return d ? TIME.format(d) : "—";
+  return d ? TIME.format(d) : "Not set";
 }
 
 /** "12 Sep 2026, 09:00" */
 export function formatDateTime(value: string | Date | null | undefined): string {
   const d = parse(value);
-  return d ? DATE_TIME.format(d) : "—";
+  return d ? DATE_TIME.format(d) : "Not set";
 }
 
 /** True once an instant is in the past. Lives here so components stay pure. */

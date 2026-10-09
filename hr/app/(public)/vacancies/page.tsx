@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { BEFORE_YOU_START, CAREERS_HERO, FAQ, PROCESS_STEPS } from "@/content/careers";
 import { formatDate } from "@/lib/format-date";
+import { PhaseTag } from "@/components/recruitment/phase-tag";
 import { EMPLOYMENT_LABELS, listOpenVacancies, PHASE_LABELS } from "@/lib/recruitment/public";
 import { cn } from "@/lib/utils";
 
@@ -91,9 +92,12 @@ export default async function VacanciesPage({ searchParams }: { searchParams: Pr
                 >
                   <div>
                     <p className="text-lg font-semibold tracking-tight group-hover:text-primary">{v.title}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {v.campus.name} · {PHASE_LABELS[v.phase]}
-                      {v.subject ? ` · ${v.subject}` : ""} · {EMPLOYMENT_LABELS[v.employment_type]}
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                      <PhaseTag phase={v.phase} />
+                      <span>
+                        {v.campus.name}
+                        {v.subject ? ` · ${v.subject}` : ""} · {EMPLOYMENT_LABELS[v.employment_type]}
+                      </span>
                     </p>
                     {v.summary ? <p className="mt-2 max-w-[70ch] text-[15px] text-foreground/85">{v.summary}</p> : null}
                   </div>

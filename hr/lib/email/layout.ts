@@ -19,10 +19,10 @@ function logoUrl(): string {
  * because CSS variables do not exist in email.
  */
 
-const BRAND = "#e8632b";
-const INK = "#2a231f";
-const MUTED = "#6b625c";
-const PAPER = "#fbf9f5";
+const BRAND = "#006A4E";
+const INK = "#172033";
+const MUTED = "#4B5563";
+const PAPER = "#F6F8FB";
 
 const BUTTON_STYLE = `display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;padding:14px 24px;border-radius:12px;`;
 

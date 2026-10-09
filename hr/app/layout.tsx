@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Open_Sans, Poppins } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+// The website's fonts: Poppins for headings, Open Sans for everything else.
+const body = Open_Sans({ variable: "--font-body", subsets: ["latin"] });
+const head = Poppins({ variable: "--font-head", subsets: ["latin"], weight: ["600", "700"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 /**
@@ -23,12 +25,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#e8632b",
+  themeColor: "#172033",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-GB" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en-GB" className={`${body.variable} ${head.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-background">{children}</body>
     </html>
   );
