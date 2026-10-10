@@ -51,7 +51,7 @@ export function MedicalForm({
         {area("allergies", "Allergies")}
         {area("medicalConditions", "Medical conditions")}
         {area("medication", "Regular medication")}
-        {area("vaccinationNotes", "Vaccinations", "Anything the vaccination card does not show, e.g. an outstanding dose.")}
+        {area("vaccinationNotes", "Vaccinations", "Any vaccination still to be given, e.g. an outstanding dose.")}
         {area("medicalNotes", "Anything else the school should know")}
       </fieldset>
       {state.error ? <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{state.error}</p> : null}

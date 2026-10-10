@@ -137,7 +137,7 @@
     },
     {
       "key": "payment_reminder",
-      "body": "Hi {{1}}, {{2}} is due for {{3}}'s place by {{4}}. Tap below to pay securely.",
+      "body": "Hi {{1}}, {{2}} is due for {{3}}'s place by {{4}}. Tap below to pay securely. If you have already paid, please ignore this message.",
       "parameters": [
         "parent_first_name",
         "amount_due",
