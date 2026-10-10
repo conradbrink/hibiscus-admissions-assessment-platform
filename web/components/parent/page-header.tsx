@@ -12,13 +12,16 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("mb-6 space-y-1.5", className)}>
+    <div className={cn("mb-7 space-y-3", className)}>
       {eyebrow ? (
-        <p className="text-xs font-semibold tracking-wide text-primary uppercase">{eyebrow}</p>
+        <p className="text-[0.71875rem] leading-snug font-semibold tracking-[0.16em] text-primary uppercase">{eyebrow}</p>
       ) : null}
-      <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
+      {/* The website's page title: Poppins ExtraBold, tight, navy. */}
+      <h1 className="font-heading text-[1.75rem] leading-[1.08] font-extrabold tracking-[-0.03em] text-navy sm:text-[2.25rem]">
+        {title}
+      </h1>
       {description ? (
-        <p className="text-base leading-relaxed text-muted-foreground">{description}</p>
+        <p className="text-base leading-[1.7] text-[#4b5563]">{description}</p>
       ) : null}
     </div>
   );

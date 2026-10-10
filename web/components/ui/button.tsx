@@ -29,15 +29,33 @@ const buttonVariants = cva(
         /**
          * The parent-facing size. Full width, tall enough to hit with a
          * thumb, and large text: a parent on a phone should never have to
-         * aim. Nothing on the staff side uses it.
+         * aim. Nothing on the staff side uses it. Inside the parent shell it
+         * becomes the website's button: a Poppins pill, 48px at least. The
+         * kiosk, which shares the size, keeps its rounded rectangle.
          */
-        parent: "h-14 w-full gap-2 rounded-xl px-5 text-base font-semibold [&_svg:not([class*='size-'])]:size-5",
+        parent:
+          "h-14 w-full gap-2 rounded-xl px-5 text-base font-semibold [&_svg:not([class*='size-'])]:size-5 parent:h-auto parent:min-h-12 parent:rounded-full parent:px-6 parent:py-3.5 parent:font-heading parent:text-[0.96875rem] parent:leading-tight",
         icon: "size-8",
         "icon-xs": "size-6 rounded-[min(var(--radius-md),10px)] [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7 rounded-[min(var(--radius-md),12px)]",
         "icon-lg": "size-9",
       },
     },
+    compoundVariants: [
+      // The website's two buttons, in the parent shell only: green with a
+      // green shadow, and white with a navy border that fills navy on hover.
+      {
+        variant: "default",
+        size: "parent",
+        class: "parent:shadow-[0_8px_20px_-10px_rgb(0_106_78/0.55)] parent:hover:bg-[#00553e]",
+      },
+      {
+        variant: "outline",
+        size: "parent",
+        class:
+          "parent:border-[1.5px] parent:border-navy parent:bg-white parent:text-navy parent:hover:bg-navy parent:hover:text-white",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",
