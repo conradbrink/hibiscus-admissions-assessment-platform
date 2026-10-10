@@ -88,7 +88,7 @@ export function validateCampaignBody(subject: string, html: string, text: string
   return [...validateTemplate(subject, CAMPAIGN_VARIABLES), ...validateTemplate(html, CAMPAIGN_VARIABLES), ...validateTemplate(text, CAMPAIGN_VARIABLES)];
 }
 
-const UNSUBSCRIBE_HTML = '<p style="font-size:12px;color:#6b625c;margin-top:24px;">You are receiving this because you told Hibiscus International Schools we may write to you. <a href="{{unsubscribe_link}}">Stop marketing email</a>.</p>';
+const UNSUBSCRIBE_HTML = '<p style="font-size:12px;color:#6b7280;margin-top:24px;">You are receiving this because you told Hibiscus International Schools we may write to you. <a href="{{unsubscribe_link}}">Stop marketing email</a>.</p>';
 const UNSUBSCRIBE_TEXT = "\n\nYou are receiving this because you told Hibiscus International Schools we may write to you. To stop marketing email: {{unsubscribe_link}}";
 
 /**

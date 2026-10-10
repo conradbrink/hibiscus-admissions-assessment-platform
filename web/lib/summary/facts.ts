@@ -88,6 +88,9 @@ const MILESTONES: Array<[string, string]> = [
   ["booking.no_show", "Did not arrive"],
   ["booking.checked_in", "Checked in"],
   ["assessment.completed", "Assessment completed"],
+  // History only: the pre-school free trial week was removed on 10 October
+  // 2026 and nothing raises these any more, but timelines from before then
+  // still carry them and should still read back.
   ["trial_week.offered", "Free trial week offered"],
   ["trial_week.attended", "Free trial week attended"],
   ["trial_week.no_show", "Did not come to the trial week"],

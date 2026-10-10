@@ -1047,10 +1047,10 @@ begin
     if v_id is null then v_fail := v_fail || E'\n  - ' || ('29 control: super admin could not publish an agreement'); end if;
     select count(*) into v_count from public.agreement_templates where key = 'sec_new' and is_active;
     if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('29 control: published agreement is not the one active version'); end if;
-    -- Birth certificate, vaccination card, parent ID for every grade; school
-    -- report and transfer certificate from Stage 1 up.
+    -- Birth certificate and parent ID for every grade; the vaccination card
+    -- for pre-school only; school report and transfer certificate from Stage 1 up.
     select count(*) into v_count from public.required_document_codes(60);
-    if v_count <> 5 then v_fail := v_fail || E'\n  - ' || ('29: required_document_codes(60) returned ' || v_count || ', expected 5'); end if;
+    if v_count <> 4 then v_fail := v_fail || E'\n  - ' || ('29: required_document_codes(60) returned ' || v_count || ', expected 4'); end if;
     select count(*) into v_count from public.required_document_codes(10);
     if v_count <> 3 then v_fail := v_fail || E'\n  - ' || ('29: required_document_codes(10) returned ' || v_count || ', expected 3'); end if;
     -- The parent's own ID is asked of everybody, whatever the grade.

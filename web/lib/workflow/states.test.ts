@@ -187,6 +187,9 @@ describe("state machine", () => {
     for (let i = 1; i < path.length; i++) expect(canTransition(path[i - 1], path[i])).toBe(true);
     // A bank transfer settles without a processing step.
     expect(canTransition("payment_required", "paid")).toBe(true);
+    // An accepted offer that was wrong is withdrawn before anything is paid, and re-issued.
+    expect(canTransition("payment_required", "offer_draft")).toBe(true);
+    expect(canTransition("payment_processing", "offer_draft")).toBe(false);
     // Once submitted, registration does not reopen: corrections are a task.
     expect(canTransition("registration_complete", "registration_incomplete")).toBe(false);
     // An accepted offer goes to payment and nowhere else.

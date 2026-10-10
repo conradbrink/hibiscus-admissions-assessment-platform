@@ -590,7 +590,11 @@ export type DrainRunRow = {
 
 export type TrialWeekStatus = "invited" | "confirmed" | "attended" | "no_show" | "cancelled";
 
-/** A pre-school family's free trial week: offered from the review queue, then what came of it. */
+/**
+ * A pre-school family's free trial week: offered from the review queue, then
+ * what came of it. History only: the trial week was removed on 10 October
+ * 2026 and nothing writes this table any more, but the rows are kept.
+ */
 export type TrialWeekRow = {
   id: string;
   application_id: string;

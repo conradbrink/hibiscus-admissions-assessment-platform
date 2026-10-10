@@ -37,7 +37,7 @@ export async function GET(request: Request): Promise<Response> {
   const checksum = processChecksum(paygateId, payment.provider_ref, payment.company_ref, key);
   const action = `${apiUrl}process.trans`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Going to the payment page</title>
-<style>body{font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;color:#1f2937;background:#f8fafc}main{text-align:center;padding:24px}button{margin-top:16px;padding:10px 18px;font-size:16px;border-radius:8px;border:1px solid #cbd5e1;background:#fff}</style></head>
+<style>body{font-family:'Open Sans',system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;color:#374151;background:#f6f8fb}main{text-align:center;padding:24px}button{margin-top:16px;min-height:48px;padding:14px 26px;font:600 16px/1.2 'Poppins','Open Sans',system-ui,sans-serif;border-radius:999px;border:0;background:#006a4e;color:#fff;cursor:pointer}button:focus-visible{outline:3px solid #1b7fa8;outline-offset:3px}</style></head>
 <body><main><p>Taking you to the secure payment page…</p>
 <form method="post" action="${escapeHtml(action)}" id="f">
 <input type="hidden" name="PAY_REQUEST_ID" value="${escapeHtml(payment.provider_ref)}">

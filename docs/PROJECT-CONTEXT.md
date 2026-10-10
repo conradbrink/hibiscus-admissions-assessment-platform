@@ -747,19 +747,16 @@ What it deliberately does not do: capture email replies (the provider seam
 has no inbound email), send free-text WhatsApp, or let a person set a
 lifecycle stage without marking it manual.
 
-### The pre-schools' free trial week
+### The pre-schools' free trial week (removed)
 
-A child joining Nursery to Pre-Reception sits no assessment, and the
-pre-schools like the family to try a week before anybody decides. On the
-review queue, a pre-school enquiry carries **Invite to a free trial week**:
-a Monday (the Friday follows), an optional line for the parent, and the
-family is emailed the dates (`trial_week_invitation`, with a WhatsApp
-companion once approved). The application stays where it is, its next
-action reads "free trial week" until the week is over, a task asks somebody
-to see it through, and the family is tagged `free-trial-week` in the CRM.
-Afterwards the queue records confirmed, attended, did not come or cancelled,
-and the decision is taken as before with the week behind it
-(`lib/workflow/trial-week.ts`, `trial_weeks`).
+The free trial week for Nursery to Pre-Reception was removed on 10 October
+2026, at the school's request. The review queue and the applicant page no
+longer offer it, and its email, its WhatsApp companion and the three event
+follow-up templates that advertised it are deactivated
+(`20261010120000_no_more_trial_week`). The `trial_weeks` table is kept as
+history, read-only, and old timelines still show the `trial_week.*` events.
+A pre-school family books a visit, and the decision is taken on the review
+queue as before.
 
 ### Three more things the school owns
 
