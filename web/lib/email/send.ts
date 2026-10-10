@@ -199,9 +199,9 @@ export type SendTemplatedOptions = {
   outstandingItems?: string | null;
   allReceived?: boolean;
   /**
-   * Values the moment itself knows and the graph does not: the dates of a
-   * trial week, say. Laid over the graph's variables, never under them, so a
-   * caller cannot rename the parent.
+   * Values the moment itself knows and the graph does not. Laid over the
+   * graph's variables, never under them, so a caller cannot rename the
+   * parent.
    */
   variables?: Record<string, string | null>;
 };
