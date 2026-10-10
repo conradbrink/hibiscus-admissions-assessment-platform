@@ -87,6 +87,15 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
   if (!job.application_id) {
     return { outcome: "failed", error: "send_email job missing application", retryable: false };
   }
+  // A reminder names one payment request. Once that request is paid or
+  // cancelled (an accepted offer withdrawn and re-issued) the reminder is
+  // about money nobody owes, even while the application is back at
+  // payment_required for the corrected offer.
+  if (payload.template_key === "payment_reminder" && payload.payment_request_id) {
+    const { data: request } = await admin.from("payment_requests").select("status").eq("id", payload.payment_request_id).maybeSingle();
+    if (!request) return { outcome: "skipped", reason: "payment request missing" };
+    if (!["required", "failed", "partially_paid"].includes(request.status)) return { outcome: "skipped", reason: `payment request is ${request.status}` };
+  }
   const links = (payload.links ?? []).filter((l): l is LinkPurpose => (LINK_PURPOSES as string[]).includes(l));
   const result = await sendTemplatedEmail(admin, {
     applicationId: job.application_id,

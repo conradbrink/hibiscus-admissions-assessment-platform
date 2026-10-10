@@ -27,15 +27,15 @@ export default async function OffersPage() {
   const { data: apps } = await supabase
     .from("applications")
     .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name, sort_order), intakes(label)")
-    .in("status", ["approved", "offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "waitlisted", "declined"])
+    .in("status", ["approved", "offer_pending_approval", "offer_draft", "offer_sent", "offer_expired", "payment_required", "waitlisted", "declined"])
     .order("status_changed_at", { ascending: true });
   const ids = (apps ?? []).map((a) => a.id);
   const [{ data: offers }, { data: profiles }, { data: tasks }, { data: applied }, { data: promotions }] = ids.length
     ? await Promise.all([
-        supabase.from("offers").select("*").in("application_id", ids).in("status", ["draft", "pending_approval", "sent", "viewed", "expired"]),
+        supabase.from("offers").select("*").in("application_id", ids).in("status", ["draft", "pending_approval", "sent", "viewed", "expired", "accepted"]),
         supabase.from("learning_profiles").select("application_id, narrative_source, validation_status, published_at").in("application_id", ids),
         supabase.from("tasks").select("application_id, type").in("application_id", ids).eq("status", "open").eq("type", "send_outcome"),
-        supabase.from("application_promotions").select("application_id, source, reason, promotions(name, code)").in("application_id", ids),
+        supabase.from("application_promotions").select("application_id, promotion_id, source, reason, promotions(name, code)").in("application_id", ids),
         supabase.from("promotions").select("id, name, code").eq("is_active", true).order("name"),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
@@ -51,7 +51,12 @@ export default async function OffersPage() {
   const toApprove = (apps ?? []).filter((a) => a.status === "offer_pending_approval");
   const blocked = (apps ?? []).filter((a) => a.status === "offer_draft");
   const outcomes = (apps ?? []).filter((a) => (a.status === "waitlisted" || a.status === "declined") && outcomePending.has(a.id));
-  const sent = (apps ?? []).filter((a) => a.status === "offer_sent" || a.status === "offer_expired");
+  // Accepted but unpaid stays here: until money moves, a wrong offer can
+  // still be withdrawn and re-issued.
+  const sent = (apps ?? []).filter((a) => a.status === "offer_sent" || a.status === "offer_expired" || a.status === "payment_required");
+  /** The deal on the application is no longer the one the letter was drafted with. */
+  const dealChanged = (a: { id: string }, o: { promotion_id: string | null } | undefined) =>
+    !!o && (dealByApp.get(a.id)?.promotion_id ?? null) !== (o.promotion_id ?? null);
 
   const fees = (o: { fees: unknown } | undefined) => feeSnapshotFrom(o?.fees);
 
@@ -164,6 +169,7 @@ export default async function OffersPage() {
                     </div>
                   </div>
                   <Deal a={a} />
+                  {dealChanged(a, o) ? <p className="mt-2 text-sm text-warning-foreground">The scholarship or promotion changed after this letter was drafted. Generate the offer again before approving it.</p> : null}
                   {o?.conditions ? <p className="mt-3 text-sm"><span className="font-semibold">Conditions on this offer:</span> {o.conditions}</p> : null}
                   {canApprove ? (
                     <details className="mt-3 text-sm">
@@ -244,7 +250,7 @@ export default async function OffersPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">Sent and expired ({sent.length})</h2>
+        <h2 className="mb-2 text-sm font-semibold">Sent, expired and accepted but unpaid ({sent.length})</h2>
         {sent.length ? (
           <div className="overflow-x-auto surface">
             <table className="data-table">
@@ -255,13 +261,16 @@ export default async function OffersPage() {
                   return (
                     <tr key={a.id}>
                       <td className="px-3 py-2"><Link href={`/staff/applications/${a.id}`} className="font-medium hover:underline">{a.child_first_name} {a.child_last_name}</Link><span className="ml-2 text-xs text-muted-foreground">{one(a.grades)?.name} · {one(a.campuses)?.name}</span></td>
-                      <td className="px-3 py-2"><Badge variant={o?.status === "viewed" ? "info" : o?.status === "expired" ? "warning" : "secondary"}>{o?.status ?? a.status}</Badge></td>
+                      <td className="px-3 py-2">
+                        <Badge variant={o?.status === "viewed" ? "info" : o?.status === "expired" ? "warning" : "secondary"}>{o?.status === "accepted" ? "accepted, unpaid" : (o?.status ?? a.status)}</Badge>
+                        {dealChanged(a, o) ? <p className="mt-1 text-xs text-warning-foreground">Scholarship or promotion changed since this offer was drafted. Withdraw and re-issue it.</p> : null}
+                      </td>
                       <td className="px-3 py-2 text-xs">{o?.sent_at ? formatDate(o.sent_at) : "—"}</td>
                       <td className="px-3 py-2 text-xs">{o?.first_viewed_at ? formatDate(o.first_viewed_at) : "not yet"}</td>
                       <td className="px-3 py-2 text-xs">{o?.expires_at ? formatDate(o.expires_at) : "—"}</td>
                       <td className="px-3 py-2">
                         {canApprove && o ? (
-                          <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="xs" variant="ghost" className="flex items-center gap-2" confirm="Withdraw this offer? The parent's link will stop working and you can issue a corrected one.">
+                          <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="xs" variant="ghost" className="flex items-center gap-2" confirm={o.status === "accepted" ? "Withdraw this accepted offer? Its payment request is cancelled, the parent's link stops working, and you can issue a corrected one for the parent to accept again." : "Withdraw this offer? The parent's link will stop working and you can issue a corrected one."}>
                             <input type="hidden" name="applicationId" value={a.id} /><input type="hidden" name="offerId" value={o.id} />
                             <Input name="reason" placeholder="Why" className="h-7 w-40 md:h-7" required />
                           </ActionForm>

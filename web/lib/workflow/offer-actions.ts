@@ -204,11 +204,19 @@ export async function onOfferDrafted(
 export async function onOfferApproved(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
-  offer: Pick<OfferRow, "id" | "status" | "template_id" | "conditions" | "fees">,
+  offer: Pick<OfferRow, "id" | "status" | "template_id" | "conditions" | "fees" | "promotion_id">,
   actor: Actor
 ): Promise<void> {
   if (app.status !== "offer_pending_approval" || offer.status !== "pending_approval") {
     throw new WorkflowError("This offer is not waiting for approval", "status_conflict");
+  }
+  // The letter is a snapshot taken when it was drafted. A scholarship or
+  // promotion changed since then is not in it, and sending it anyway is how a
+  // family was offered 40% after the school had agreed 50%.
+  const { data: current, error: pErr } = await admin.from("application_promotions").select("promotion_id").eq("application_id", app.id).maybeSingle();
+  if (pErr) throw new WorkflowError(pErr.message, "database");
+  if ((current?.promotion_id ?? null) !== (offer.promotion_id ?? null)) {
+    throw new WorkflowError("The scholarship or promotion changed after this offer was drafted. Generate the offer again, then approve it.", "status_conflict");
   }
   if (app.requires_assessment) {
     const { data: profile } = await admin
@@ -350,7 +358,15 @@ export async function onOfferExpired(
   });
 }
 
-/** Staff take an offer back to correct and re-issue it. Its reminders skip themselves. */
+/**
+ * Staff take an offer back to correct and re-issue it. Its reminders skip themselves.
+ *
+ * An accepted offer can be taken back too, while nothing has been paid: the
+ * scholarship changed after the letter was drafted and the parent accepted
+ * the old figure. The open payment request is cancelled with it, so its
+ * reminders and overdue task skip themselves, and the acceptance stays on
+ * record against the old offer.
+ */
 export async function onOfferWithdrawn(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
@@ -358,24 +374,73 @@ export async function onOfferWithdrawn(
   reason: string,
   actor: Actor
 ): Promise<void> {
-  const fromStatuses = ["offer_sent", "offer_pending_approval", "offer_draft", "offer_expired"];
+  const fromStatuses = ["offer_sent", "offer_pending_approval", "offer_draft", "offer_expired", "payment_required"];
   if (!fromStatuses.includes(app.status)) throw new WorkflowError(`Application is ${app.status}`, "status_conflict");
-  const { error } = await admin
+  const accepted = app.status === "payment_required";
+  if (accepted !== (offer.status === "accepted")) throw new WorkflowError(`This offer is ${offer.status}`, "status_conflict");
+  const cancelledRequestId = accepted ? await cancelUnpaidRequest(admin, app.id, offer.id) : null;
+  const { data: flipped, error } = await admin
     .from("offers")
     .update({ status: "withdrawn", withdrawn_reason: reason })
     .eq("id", offer.id)
-    .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"]);
+    .in("status", accepted ? ["accepted"] : ["draft", "pending_approval", "sent", "viewed", "expired"])
+    .select("id");
   if (error) throw new WorkflowError(error.message, "database");
+  if (!flipped?.length) throw new WorkflowError("This offer changed while you were looking at it. Reload and try again.", "status_conflict");
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
     newStatus: "offer_draft",
     nextAction: "await_offer",
-    event: { type: "offer.withdrawn", summary: `Offer withdrawn: ${reason}`, payload: { offer_id: offer.id, reason } },
-    resolveTaskTypes: ["approve_offer", "follow_up_expired_offer"],
-    audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason } },
+    event: {
+      type: "offer.withdrawn",
+      summary: `Offer withdrawn: ${reason}`,
+      payload: { offer_id: offer.id, reason, ...(cancelledRequestId ? { cancelled_payment_request_id: cancelledRequestId } : {}) },
+    },
+    resolveTaskTypes: ["approve_offer", "follow_up_expired_offer", "payment_overdue"],
+    audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason, accepted } },
     actor,
   });
+}
+
+/**
+ * Cancels the payment request an accepted offer opened, refusing if any
+ * money has moved or might still move: a payment received, being processed,
+ * or a checkout the gateway could still complete. Those are settled or
+ * refunded first; a withdrawal never strands a parent's money.
+ */
+async function cancelUnpaidRequest(admin: AdminClient, applicationId: string, offerId: string): Promise<string | null> {
+  const { data: requests, error } = await admin
+    .from("payment_requests")
+    .select("id, status, paid_minor")
+    .eq("application_id", applicationId)
+    .eq("offer_id", offerId);
+  if (error) throw new WorkflowError(error.message, "database");
+  const open = (requests ?? []).filter((r) => r.status !== "cancelled");
+  if (open.some((r) => !["required", "failed"].includes(r.status) || Number(r.paid_minor) > 0)) {
+    throw new WorkflowError("Money has been paid against this offer. Record a refund before withdrawing it.", "status_conflict");
+  }
+  if (open.length === 0) return null;
+  const ids = open.map((r) => r.id);
+  const { count, error: pErr } = await admin
+    .from("payments")
+    .select("id", { count: "exact", head: true })
+    .in("payment_request_id", ids)
+    .in("status", ["pending", "processing", "succeeded"])
+    .gt("amount_minor", 0);
+  if (pErr) throw new WorkflowError(pErr.message, "database");
+  if ((count ?? 0) > 0) {
+    throw new WorkflowError("A payment for this offer is pending or received. Wait for it to settle, or record a refund, before withdrawing.", "status_conflict");
+  }
+  const { data: cancelled, error: cErr } = await admin
+    .from("payment_requests")
+    .update({ status: "cancelled" })
+    .in("id", ids)
+    .in("status", ["required", "failed"])
+    .select("id");
+  if (cErr) throw new WorkflowError(cErr.message, "database");
+  if ((cancelled?.length ?? 0) !== ids.length) throw new WorkflowError("The payment changed while you were looking at it. Reload and try again.", "status_conflict");
+  return ids[0];
 }
 
 /**

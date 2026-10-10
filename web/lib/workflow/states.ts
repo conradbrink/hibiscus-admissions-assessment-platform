@@ -66,7 +66,10 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
   offer_expired: ["offer_sent", "offer_draft"],
   offer_declined: ["offer_draft"],
   offer_accepted: ["payment_required"],
-  payment_required: ["payment_processing", "paid"],
+  // Back to draft: an accepted offer that turned out to be wrong (the
+  // scholarship changed after it was drafted) is withdrawn while nothing has
+  // been paid, and a corrected one is issued.
+  payment_required: ["payment_processing", "paid", "offer_draft"],
   payment_processing: ["paid", "payment_required"],
   paid: ["registration_incomplete"],
   registration_incomplete: ["registration_complete"],
