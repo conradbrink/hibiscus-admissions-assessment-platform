@@ -18,17 +18,17 @@ describe("smsLength", () => {
     const withEmoji = smsLength("See you soon! 🙂");
     expect(withEmoji.encoding).toBe("unicode");
     expect(withEmoji.singleLimit).toBe(70);
-    expect(smsLength("your child’s trial").encoding).toBe("unicode");
+    expect(smsLength("your child’s visit").encoding).toBe("unicode");
     expect(smsLength("a".repeat(71) + "’").parts).toBe(2);
   });
   it("keeps a straight apostrophe in plain text", () => {
-    expect(smsLength("your child's free one-week trial").encoding).toBe("gsm");
+    expect(smsLength("your child's follow-up campus visit").encoding).toBe("gsm");
   });
   it("has no parts when there is nothing to send", () => {
     expect(smsLength("").parts).toBe(0);
   });
   it("counts the school's thank-you SMS as one message", () => {
-    const text = "Hi Neo, thank you for coming to our Bana Tlokweng Open Day. Your child is welcome to a free one-week trial at Hibiscus Bana Tlokweng. See you soon!";
+    const text = "Hi Neo, thank you for coming to our Bana Tlokweng Open Day. Your child is welcome to book a campus visit at Hibiscus Bana Tlokweng. See you soon!";
     expect(smsLength(text)).toMatchObject({ encoding: "gsm", parts: 1 });
   });
 });

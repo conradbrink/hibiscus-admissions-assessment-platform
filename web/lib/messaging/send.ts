@@ -35,7 +35,7 @@ export type SendCompanionOptions = {
   paymentRequestId?: string | null;
   paymentId?: string | null;
   missingDocuments?: string | null;
-  /** The email's own extra values (a trial week's dates), so both channels say the same. */
+  /** The email's own extra values (ones the graph does not know), so both channels say the same. */
   variables?: Record<string, string | null>;
   /** Who asked: the job drain after an email, or a member of staff by hand. */
   trigger: "companion" | "manual";
