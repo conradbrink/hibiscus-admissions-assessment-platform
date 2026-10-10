@@ -79,7 +79,7 @@ change.
 | `…20260929090000_campaign_claim_marker_cleared` (29 Sep) | Clears the `claimed` marker a campaign batch left on recipients it had sent or failed, which showed in the CSV export as the reason for every sent parent and in place of the provider's error for failed ones. The send now clears it with the status |
 | `…20260929100000_per_application_interview_window` (29 Sep) | `applications.interview_window_from` and `_to`: an interview window of the application's own. The booking page offers only sessions inside it, the booking is refused outside it, and the scholarship letter and WhatsApp name its last day. Null ends fall back to no earliest day and the `scholarship_interview_deadline` setting. Set by the import only; staff have no grant |
 | `…20261010120100_ignore_this_if_you_have_already_paid` (10 Oct) | `payment_reminder` v+1: the line telling a parent who has paid to ignore the reminder covers any payment, not only bank transfers, and is the last line before the sign-off. Built from the active version with `replace()`. The WhatsApp companion's new wording is in `zavu-templates.json` for Meta's approval |
-| `…20261010120200_vaccination_card_pre_school_only` (10 Oct) | `vaccination_card` is asked up to Reception (`grade_sort_max = 50`): primary from Stage 1 and secondary no longer upload one. Security suite case 29 counts four documents at Stage 1 |
+| `…20261010120200_vaccination_card_pre_school_only` (10 Oct) | `vaccination_card` is asked of pre-school only (`grade_sort_max = 40`): Reception, primary and secondary no longer upload one. Security suite case 29 counts four documents at Stage 1 |
 
 ## Rules for new migrations
 
