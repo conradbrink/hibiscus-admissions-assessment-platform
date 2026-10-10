@@ -74,7 +74,7 @@ export default function JoinPage() {
             </span>
             <span className="min-w-0">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="text-lg font-semibold">{title}</span>
+                <span className={primary ? "font-heading text-lg font-semibold" : "font-heading text-lg font-semibold text-navy"}>{title}</span>
                 {badge ? (
                   <span className={primary ? "rounded-full bg-primary-foreground/20 px-2 py-0.5 text-xs font-medium" : "rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"}>
                     {badge}

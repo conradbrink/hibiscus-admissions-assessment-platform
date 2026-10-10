@@ -12,14 +12,15 @@ import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
  * none, the school's name stands in.
  */
 export const SCHOOL_NAME = "Hibiscus International Schools";
-export const BRAND = "#e8632b";
+export const BRAND = "#006a4e";
+const NAVY = "#172033";
 
 const s = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", borderBottomWidth: 2, borderBottomColor: BRAND, paddingBottom: 10, marginBottom: 14 },
   logo: { width: 110 },
-  wordmark: { fontSize: 12, fontFamily: "Helvetica-Bold", color: BRAND, letterSpacing: 1 },
+  wordmark: { fontSize: 12, fontFamily: "Helvetica-Bold", color: NAVY, letterSpacing: 1 },
   right: { textAlign: "right", fontSize: 9, color: "#6b7280", lineHeight: 1.35 },
-  rightHead: { fontFamily: "Helvetica-Bold", color: "#1f2937" },
+  rightHead: { fontFamily: "Helvetica-Bold", color: NAVY },
   docLine: { fontSize: 8.5, color: "#6b7280", textAlign: "right", marginTop: -8, marginBottom: 10 },
   footer: { position: "absolute", bottom: 24, left: 44, right: 44, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.3, paddingRight: 40 },
   pageNo: { position: "absolute", bottom: 24, right: 44, fontSize: 8, color: "#9ca3af" },
