@@ -63,7 +63,10 @@ begin
     -- News a family should not read off a phone notification between other
     -- things. Email, and a call from the campus where the school can manage it.
     ('outcome_declined',   'not news to deliver by notification'),
-    ('outcome_waitlisted', 'not news to deliver by notification');
+    ('outcome_waitlisted', 'not news to deliver by notification'),
+    -- A one-off correction to the families told "play date". The school asked
+    -- for it by email only, and nothing in the workflow routes to it.
+    ('playdate_now_visit', 'one-off notice, sent by email as the school asked');
 
   -- Eight of the nine were filled the same day this check was written: the
   -- school submitted them to Zavu and the rows followed. `offer_expired` is
