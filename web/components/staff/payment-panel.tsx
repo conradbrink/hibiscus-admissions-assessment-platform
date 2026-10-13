@@ -132,7 +132,7 @@ export function PaymentPanel({
       ) : null}
 
       {canWrite && open && request.status !== "processing" ? (
-        <ActionForm action={recordEft} label="Record bank transfer" size={focus ? "lg" : "sm"} variant={focus ? "default" : "outline"} className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-4">
+        <ActionForm action={recordEft} label={focus ? "Record payment" : "Record bank transfer"} size={focus ? "lg" : "sm"} variant={focus ? "default" : "outline"} className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-4">
           {idField}
           <Input name="amount" placeholder={`Amount (${request.currency})`} defaultValue={(outstanding / 100).toFixed(2)} inputMode="decimal" className="h-8 md:h-8" required />
           <Input name="receivedOn" type="date" className="h-8 md:h-8" required />

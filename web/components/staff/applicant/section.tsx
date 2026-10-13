@@ -2,47 +2,60 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * A record kept one click away: a heading that opens. The applicant page puts
- * everything that is not the next step behind one of these, so the page reads
- * as the job first and the history second.
- *
- * A native `<details>`, so it needs no client code, works with the keyboard
- * and can be opened from a link to its id.
+ * The page's records, grouped the way staff think about them: the workflow
+ * (what is being done), information (what is on file), history (what has
+ * happened). One quiet panel per group, one line per record, each opening in
+ * place — so the page reads as three things rather than a dozen equal cards.
  */
-export function Section({
+export function Group({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={className} aria-label={title}>
+      <h2 className="mb-1.5 px-1 text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{title}</h2>
+      <div className="divide-y divide-border rounded-xl border border-border bg-card">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * One record in a group: its name, a few words of where it stands, and the
+ * detail when opened. A native `<details>`, so it needs no client code, works
+ * with the keyboard, and can be opened from a link (see OpenSectionLink).
+ */
+export function Row({
   id,
   title,
   meta,
   open = false,
-  className,
   children,
 }: {
   id?: string;
   title: string;
-  /** A count or a few words beside the heading: "3 open", "sent 12 October". */
+  /** Where it stands, in a few words: "3 open", "pending approval · P 1,590". */
   meta?: React.ReactNode;
   open?: boolean;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <details id={id} open={open} className={cn("group surface scroll-mt-20", className)}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 select-none [&::-webkit-details-marker]:hidden">
-        <span className="text-sm font-semibold">{title}</span>
-        {meta ? <span className="min-w-0 truncate text-xs text-muted-foreground">{meta}</span> : null}
-        <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+    <details id={id} open={open} className="group scroll-mt-24 first:rounded-t-xl last:rounded-b-xl">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 select-none hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+        <span className="w-32 shrink-0 text-sm font-medium sm:w-40">{title}</span>
+        {meta ? <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{meta}</span> : <span className="flex-1" />}
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
-      <div className="border-t border-border px-4 py-3 text-sm">{children}</div>
+      <div className="border-t border-border/70 px-4 py-3 text-sm">{children}</div>
     </details>
   );
 }
 
-/** A small card for the side column: a quiet label, then its contents. */
-export function SideCard({ title, className, children }: { title: string; className?: string; children: React.ReactNode }) {
+/** A labelled block inside the side panel. */
+export function PanelBlock({ title, aside, className, children }: { title: string; aside?: React.ReactNode; className?: string; children: React.ReactNode }) {
   return (
-    <section className={cn("surface p-4 text-sm", className)}>
-      <h2 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
-      <div className="mt-2">{children}</div>
-    </section>
+    <div className={cn("pt-4 first:pt-0", className)}>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <h2 className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{title}</h2>
+        {aside}
+      </div>
+      {children}
+    </div>
   );
 }

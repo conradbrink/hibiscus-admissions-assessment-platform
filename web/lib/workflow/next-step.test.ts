@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
-import { journeyStageOf, nextStep, type ApplicantFacts, type NextStep } from "@/lib/workflow/next-step";
+import { journeyMilestones, journeyStageOf, nextStep, type ApplicantFacts, type NextStep } from "@/lib/workflow/next-step";
 import { TRANSITIONS } from "@/lib/workflow/states";
 
 const NOW = new Date("2026-10-13T08:00:00+02:00");
@@ -34,13 +34,13 @@ const booked = { status: "booked" as const, kind: "assessment" as const, startsA
 const CASES: Array<[string, Partial<ApplicantFacts>, { status: string; stage: NextStep["stage"]; action: NextStep["action"]; label: string | null }]> = [
   ["new enquiry (pre-school)", { status: "awaiting_decision", requiresAssessment: false, noun: "visit" }, { status: "Awaiting decision", stage: "decision", action: "decide", label: "Review enquiry" }],
   ["assessment not booked", { status: "new_enquiry" }, { status: "New enquiry", stage: "enquiry", action: "book", label: "Book assessment" }],
-  ["callback requested", { status: "callback_requested" }, { status: "Callback requested", stage: "enquiry", action: "call_parent", label: "Called — done" }],
+  ["callback requested", { status: "callback_requested" }, { status: "Callback requested", stage: "enquiry", action: "call_parent", label: "Mark call done" }],
   ["assessment booked", { status: "assessment_booked", booking: booked }, { status: "Assessment booked", stage: "assessment", action: "check_in", label: "Check in" }],
   ["applicant arrived", { status: "assessment_booked", booking: { ...booked, status: "checked_in" } }, { status: "Arrived", stage: "assessment", action: "launch", label: "Start assessment" }],
   [
     "assessment launched, code not typed",
     { status: "assessment_in_progress", booking: { ...booked, status: "in_progress" }, attempt: { status: "ready", markingStatus: "pending", startedAt: null } },
-    { status: "Waiting to start", stage: "assessment", action: "new_code", label: "New code" },
+    { status: "Waiting to start", stage: "assessment", action: "new_code", label: "Issue a new code" },
   ],
   [
     "assessment in progress",
@@ -50,12 +50,12 @@ const CASES: Array<[string, Partial<ApplicantFacts>, { status: string; stage: Ne
   [
     "assessment completed, writing to mark",
     { status: "assessment_completed", attempt: { status: "submitted", markingStatus: "awaiting_rubric", startedAt: null }, hasSat: true },
-    { status: "Assessment completed", stage: "assessment", action: "mark_writing", label: "Mark answers" },
+    { status: "Assessment completed", stage: "assessment", action: "mark_writing", label: "Mark written answers" },
   ],
   [
     "assessment completed, decision required",
     { status: "staff_review", attempt: { status: "marked", markingStatus: "complete", startedAt: null }, hasSat: true },
-    { status: "Staff review", stage: "decision", action: "decide", label: "Review assessment & decide" },
+    { status: "Staff review", stage: "decision", action: "decide", label: "Make decision" },
   ],
   ["accepted", { status: "approved", hasSat: true, hasDecision: true }, { status: "Accepted", stage: "offer", action: "generate_offer", label: "Create offer" }],
   [
@@ -64,19 +64,19 @@ const CASES: Array<[string, Partial<ApplicantFacts>, { status: string; stage: Ne
     { status: "Offer pending approval", stage: "offer", action: "approve_offer", label: "Approve & send offer" },
   ],
   ["waitlisted, letter not sent", { status: "waitlisted", outcomeLetterPending: true, hasDecision: true }, { status: "Waitlisted", stage: "decision", action: "send_outcome", label: "Send waitlist letter" }],
-  ["waitlisted", { status: "waitlisted", hasDecision: true }, { status: "Waitlisted", stage: "decision", action: "follow_up", label: "Set follow-up" }],
+  ["waitlisted", { status: "waitlisted", hasDecision: true }, { status: "Waitlisted", stage: "decision", action: "follow_up", label: "Set follow-up date" }],
   ["declined, letter not sent", { status: "declined", outcomeLetterPending: true, hasDecision: true }, { status: "Declined", stage: "decision", action: "send_outcome", label: "Send decline letter" }],
   ["declined", { status: "declined", hasDecision: true }, { status: "Declined", stage: "decision", action: null, label: null }],
   [
     "offer sent",
     { status: "offer_sent", offer: { status: "sent", sentAt: NOW.toISOString(), viewedAt: null, expiresAt: TOMORROW } },
-    { status: "Offer sent", stage: "offer", action: "resend_link", label: "Email a fresh link" },
+    { status: "Offer sent", stage: "offer", action: "resend_link", label: "Email parent a fresh link" },
   ],
-  ["offer expired", { status: "offer_expired", offer: { status: "expired", sentAt: null, viewedAt: null, expiresAt: null } }, { status: "Offer expired", stage: "offer", action: "reissue_offer", label: "Withdraw & re-draft" }],
+  ["offer expired", { status: "offer_expired", offer: { status: "expired", sentAt: null, viewedAt: null, expiresAt: null } }, { status: "Offer expired", stage: "offer", action: "reissue_offer", label: "Withdraw expired offer" }],
   ["offer declined by the parent", { status: "offer_declined" }, { status: "Offer declined", stage: "offer", action: "withdraw", label: "Withdraw application" }],
   ["offer accepted", { status: "offer_accepted" }, { status: "Offer accepted", stage: "payment", action: "record_payment", label: "Record payment" }],
   ["payment pending", { status: "payment_required", payment: { status: "required", dueAt: TOMORROW } }, { status: "Payment required", stage: "payment", action: "record_payment", label: "Record payment" }],
-  ["payment received, registration open", { status: "registration_incomplete" }, { status: "Registration incomplete", stage: "registered", action: "registration_reminder", label: "Send a reminder" }],
+  ["payment received, registration open", { status: "registration_incomplete" }, { status: "Registration incomplete", stage: "registered", action: "registration_reminder", label: "Send registration reminder" }],
   ["payment received, ready to register", { status: "registration_complete" }, { status: "Registration complete", stage: "registered", action: "register", label: "Register student" }],
   ["registered", { status: "enrolled" }, { status: "Enrolled", stage: "registered", action: null, label: null }],
   ["no-show", { status: "no_show" }, { status: "No-show", stage: "assessment", action: "book", label: "Rebook assessment" }],
@@ -213,5 +213,31 @@ describe("review findings on the first cut", () => {
   it("has one rule for check-in, deferred included", () => {
     expect(canCheckIn("booked", "deferred")).toBe(false);
     expect(nextStep(facts({ status: "deferred", booking: booked })).action).toBe("resume");
+  });
+});
+
+describe("buttons say what they do", () => {
+  it("says the offer goes out only when creating it sends it", () => {
+    expect(nextStep(facts({ status: "approved" })).actionLabel).toBe("Create offer");
+    expect(nextStep(facts({ status: "approved", offerAutoApprove: true })).actionLabel).toBe("Create & send offer");
+  });
+});
+
+describe("journey milestones", () => {
+  const ev = (type: string, at: string, actor_type = "system", actor_id: string | null = null, payload: unknown = {}) => ({ type, occurred_at: at, actor_type, actor_id, payload });
+  it("names when each stage was reached and by whom, newest first", () => {
+    const m = journeyMilestones(
+      [
+        ev("decision.made", "2026-10-13T09:55:00Z", "staff", "u1", { outcome: "approved" }),
+        ev("decision.made", "2026-10-12T09:00:00Z", "system", null, { outcome: "waitlisted" }),
+        ev("booking.checked_in", "2026-10-10T08:00:00Z", "staff", "u2"),
+        ev("enquiry.created", "2026-10-01T08:00:00Z", "parent"),
+      ],
+      (id) => (id === "u1" ? "Fiona Makopola" : null)
+    );
+    expect(m.decision).toEqual({ at: "2026-10-13T09:55:00Z", label: "Accepted", by: "Fiona Makopola" });
+    expect(m.assessment?.label).toBe("Visited");
+    expect(m.enquiry?.by).toBe("the parent");
+    expect(m.offer).toBeUndefined();
   });
 });

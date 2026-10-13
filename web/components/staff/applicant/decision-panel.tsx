@@ -10,6 +10,13 @@ import { nextMonday } from "@/lib/workflow/trial-week-dates";
 
 type Choice = "approved" | "waitlisted" | "declined" | "trial_week";
 
+const SAVE_LABEL: Record<Choice, string> = {
+  approved: "Accept applicant",
+  waitlisted: "Add to waitlist",
+  declined: "Decline application",
+  trial_week: "Invite to trial week",
+};
+
 /**
  * Make the admission decision, on the applicant's own page.
  *
@@ -55,7 +62,8 @@ export function DecisionPanel({
   return (
     <ActionForm
       action={action}
-      label="Save decision"
+      // The button says what saving does, once there is something to save.
+      label={choice ? SAVE_LABEL[choice] : "Choose a decision"}
       size="lg"
       className="space-y-3"
       // A note typed and then refused (too short, a stale page) must survive.

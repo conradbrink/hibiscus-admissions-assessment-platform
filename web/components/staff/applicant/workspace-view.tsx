@@ -4,11 +4,10 @@ import { ActionForm } from "@/components/staff/action-form";
 import { DecisionFields } from "@/components/staff/decision-fields";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { LinkReveal } from "@/components/staff/link-reveal";
-import { EmptyState } from "@/components/staff/page-title";
 import { PriorityBadge } from "@/components/staff/status-badge";
 import { SummaryPanel } from "@/components/staff/summary-panel";
 import { JourneyBar } from "@/components/staff/applicant/journey-bar";
-import { NextStepCard, type DecisionRights } from "@/components/staff/applicant/next-step-card";
+import { NextStepCard, StickyStep, type DecisionRights } from "@/components/staff/applicant/next-step-card";
 import { OpenSectionLink } from "@/components/staff/applicant/open-section-link";
 import {
   AssessmentPanel,
@@ -16,24 +15,28 @@ import {
   DecisionHistory,
   DocumentsRecord,
   OfferRecord,
+  shownOffer,
   PaymentRecord,
   RegistrationRecord,
   WhatsAppRecord,
   type OfferSettings,
 } from "@/components/staff/applicant/records";
-import { Section, SideCard } from "@/components/staff/applicant/section";
+import { Group, PanelBlock, Row } from "@/components/staff/applicant/section";
+import { StickyActionBar } from "@/components/staff/applicant/sticky-action-bar";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MobileInput } from "@/components/ui/mobile-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate, formatDateLong, formatDateTime, toSchoolDateString } from "@/lib/format-date";
+import { formatDate, formatDateTime, toSchoolDateString } from "@/lib/format-date";
 import { heardFromLabel } from "@/lib/heard-from";
 import { can, type PermissionSet } from "@/lib/permissions";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { cn } from "@/lib/utils";
+import { feeSnapshotFrom } from "@/lib/offers/snapshot";
+import { formatMoney } from "@/lib/money";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
@@ -184,7 +187,9 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
     noShowAllowed && !noShowUnderStep ? <span key="no-show">{noShowButton}</span> : null,
     // Booking for a family who rings, whatever the step says: a pre-school
     // enquiry waiting on a decision still books its visit here.
-    canWrite && !terminal && !booking && eligibleSessions.length > 0 && step.action !== "book" ? (
+    // An assessment only while booking one is still the stage; a child who
+    // has sat is not offered a second sitting from here.
+    canWrite && !terminal && !booking && eligibleSessions.length > 0 && step.action !== "book" && (!app.requires_assessment || statusAfterBooking(app.status, "assessment") !== null) ? (
       <details key="book" className="text-sm">
         <summary className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "cursor-pointer list-none")}>Book {bookWord}</summary>
         <ActionForm action={rescheduleByStaff} label="Book selected" variant="outline" size="sm" className="mt-2 flex flex-wrap items-start gap-2 space-y-0">
@@ -225,8 +230,6 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const assessmentBehind = !["enquiry", "assessment", "decision"].includes(step.stage) && !booking;
   const result = assessmentResult(w);
 
-  const openOffer = ["approved", "offer_draft", "offer_pending_approval"].includes(app.status);
-  const openRegistration = ["registration_incomplete", "registration_complete"].includes(app.status);
   const latestDecision = w.decisions[0] ?? null;
   const optedIn = Boolean(contact?.whatsapp_opt_in);
   const statusVariant = step.status.tone === "default" ? "default" : step.status.tone;
@@ -241,7 +244,8 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
     const canChangeStage = canWrite && app.status !== "enrolled";
     if (!canDefer && !canWithdraw && !canMoveCampus && !canChangeStage && !canDelete) return null;
     return (
-      <Section title="More actions" meta="defer, withdraw, change campus or stage, delete">
+      <Group title="More actions">
+        <Row title="Defer, withdraw, change" meta="less common, and some of them final">
         <div className="space-y-5">
           {canDefer || canWithdraw ? (
             <div>
@@ -249,7 +253,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               <p className="mt-0.5 text-xs text-muted-foreground">For a family who wants a place later, or who is no longer applying. Both keep the record and the figures.</p>
               <ActionForm
                 action={recordDecision}
-                label="Save"
+                label="Save — defer or withdraw"
                 size="sm"
                 variant="outline"
                 className="mt-2 max-w-md"
@@ -277,7 +281,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               {canMoveCampus ? (
                 <div>
                   <h3 className="font-semibold">Change campus</h3>
-                  <ActionForm action={changeCampus} label="Move" variant="outline" size="sm" className="mt-2" confirm="Move this family to another campus? Open tasks move with them, and the stage must be one the new campus teaches.">
+                  <ActionForm action={changeCampus} label="Move to campus" variant="outline" size="sm" className="mt-2" confirm="Move this family to another campus? Open tasks move with them, and the stage must be one the new campus teaches.">
                     {idField}
                     <NativeSelect name="campusId" defaultValue={app.campus_id} aria-label="Campus">
                       {w.otherCampuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -294,7 +298,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               {canChangeStage ? (
                 <div>
                   <h3 className="font-semibold">Change stage</h3>
-                  <ActionForm action={changeGrade} label="Change" variant="outline" size="sm" className="mt-2">
+                  <ActionForm action={changeGrade} label="Change stage" variant="outline" size="sm" className="mt-2">
                     {idField}
                     <NativeSelect name="gradeId" defaultValue={app.grade_id} aria-label="Stage">
                       {campusGrades.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -311,13 +315,13 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               administrator holds alone. Withdrawing is what staff want
               almost always; this is for a record that should never have existed. */}
           {canDelete ? (
-            <div className="rounded-lg border border-destructive/40 p-3">
+            <div className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3">
               <h3 className="font-semibold text-destructive">Delete applicant</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Removes the child, the family, their documents, assessments, offers and payments. It cannot be undone; only an
                 audit line remains. Use <strong>Withdraw</strong> for a family no longer applying.
               </p>
-              <ActionForm action={deleteApplicant} label="Delete permanently" variant="destructive" size="sm" className="mt-2 max-w-md" confirm={`Delete ${app.reference} and everything attached to it? This cannot be undone.`}>
+              <ActionForm action={deleteApplicant} label="Delete applicant permanently" variant="destructive" size="sm" className="mt-2 max-w-md" confirm={`Delete ${app.reference} and everything attached to it? This cannot be undone.`}>
                 {idField}
                 <Input name="reason" placeholder="Why is this being deleted?" required minLength={3} maxLength={300} />
                 <Input name="confirm" placeholder={`Type ${app.reference} to confirm`} required pattern={app.reference} autoComplete="off" aria-label={`Type ${app.reference} to confirm`} />
@@ -325,14 +329,100 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
             </div>
           ) : null}
         </div>
-      </Section>
+        </Row>
+      </Group>
     );
   };
 
+  // Open tasks about this child, each assignable and closable from here, and
+  // one written by hand. The campus is not asked for: a task about this child
+  // belongs to the campus they applied to.
+  const tasksBlock = (
+    <>
+      {w.openTasks.length ? (
+        <ul className="space-y-2">
+          {w.openTasks.map((t) => (
+            <li key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{t.title}</p>
+                {t.details ? <p className="mt-0.5 text-xs whitespace-pre-line text-muted-foreground">{t.details}</p> : null}
+                {t.type === "callback" && w.callbackRequest ? (
+                  <p className="mt-0.5 text-xs whitespace-pre-line">
+                    Best time to call: {w.callbackRequest.preferred_time?.trim() || "not given"}
+                    {w.callbackRequest.message?.trim() ? ` · “${w.callbackRequest.message.trim()}”` : ""}
+                  </p>
+                ) : null}
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t.due_at ? `Due ${formatDateTime(t.due_at)}` : "No due date"} · {one(t.staff_profiles)?.full_name ?? "Unassigned"}
+                </p>
+              </div>
+              <PriorityBadge priority={t.priority} />
+              {canWrite ? (
+                <ActionForm action={assignTask} label="Assign" size="xs" variant="outline" resetOnSubmit={false} className="flex items-center gap-1 space-y-0">
+                  <input type="hidden" name="taskId" value={t.id} />
+                  {idField}
+                  <NativeSelect name="assigneeStaffId" defaultValue={t.assignee_staff_id ?? ""} className="h-7 w-40 py-0 text-xs md:h-7" aria-label="Assignee">
+                    <option value="">Unassigned</option>
+                    {w.staff.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                  </NativeSelect>
+                </ActionForm>
+              ) : null}
+              {canWrite ? (
+                t.type === "callback" && app.status === "callback_requested" ? (
+                  <ActionForm action={completeCallback} label="Mark call done" size="xs" variant="success">{idField}</ActionForm>
+                ) : (
+                  <ActionForm action={completeTask} label="Mark task done" size="xs" variant="success">
+                    <input type="hidden" name="taskId" value={t.id} />
+                    {idField}
+                  </ActionForm>
+                )
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-muted-foreground">Nothing open.</p>
+      )}
+      {w.tasks.length > w.openTasks.length ? <p className="mt-2 text-xs text-muted-foreground">{w.tasks.length - w.openTasks.length} completed</p> : null}
+      {canAddTask && !terminal ? (
+        <details className="mt-3 border-t border-border pt-3">
+          <summary className="cursor-pointer text-xs font-medium text-primary">Add a task</summary>
+          <ActionForm action={addApplicantTask} label="Add task" size="xs" className="mt-2 space-y-2">
+            {idField}
+            <Input name="title" placeholder="What needs doing" required minLength={3} maxLength={200} />
+            <Input name="details" placeholder="Any detail (optional)" maxLength={2000} />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
+                {/* Left blank, the database gives it to this applicant's
+                    owner, or the campus owner (tasks_set_default_assignee). */}
+                <option value="">Their owner (automatic)</option>
+                {w.staff.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+              </NativeSelect>
+              <Input type="date" name="dueOn" aria-label="Due on" />
+              <NativeSelect name="priority" defaultValue="normal" aria-label="Priority">
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+              </NativeSelect>
+            </div>
+          </ActionForm>
+        </details>
+      ) : null}
+    </>
+  );
+
+  const offerShown = shownOffer(w);
+  const offerMeta = offerShown
+    ? [offerShown.status.replace("_", " "), (() => { const f = feeSnapshotFrom(offerShown.fees); return f ? `${formatMoney(f.payable_at_acceptance_minor, f.currency)} on acceptance` : null; })()].filter(Boolean).join(" · ")
+    : w.offers?.length ? "withdrawn" : "not yet";
+  const showPayment = w.canSeePayments && (Boolean(w.paymentRequest) || ["offer_accepted", "payment_required", "payment_processing", "paid"].includes(app.status));
+  const flags = w.summary?.flags ?? [];
+  const notesShown = 2;
+
   return (
     <>
-      {/* 1. Who */}
-      <header className="mb-4">
+      {/* 1–2. Who, and their status */}
+      <header className="mb-5">
         <Link href={back.href} className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
           <ChevronLeft className="size-3.5" aria-hidden /> {back.label}
         </Link>
@@ -342,18 +432,32 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               {app.child_first_name} {app.child_last_name}
             </h1>
             <p className="mt-1 text-sm text-foreground/80">
-              {grade?.name} · {campus?.name} · {startLabel(app, { label: intake?.label ?? "" })}
+              {grade?.name} · {campus?.name} · Starts {startLabel(app, { label: intake?.label ?? "" })}
             </p>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{app.reference}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              <span className="font-mono">{app.reference}</span>
+              {w.lastUpdated ? <> · Last updated {formatDateTime(w.lastUpdated.at)}{w.lastUpdated.by ? ` by ${w.lastUpdated.by}` : ""}</> : null}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {app.has_special_needs ? <Badge variant="warning">Additional needs</Badge> : null}
-            <Badge variant={statusVariant} className="h-7 px-3 text-sm">{step.status.label}</Badge>
-          </div>
+          <Badge variant={statusVariant} className="h-7 px-3 text-sm">{step.status.label}</Badge>
         </div>
+        {/* What needs noticing, worked out by code from the record: a repeat
+            no-show, an overdue payment, a sibling applying. The summary's
+            prose said the same things at length; the flags are the part
+            that changes what somebody does. */}
+        {app.has_special_needs || flags.length ? (
+          <ul className="mt-3 flex flex-wrap gap-1.5">
+            {app.has_special_needs ? <li><Badge variant="warning">Additional needs</Badge></li> : null}
+            {flags.map((f) => (
+              <li key={f.kind} title={f.evidence}>
+                <Badge variant={f.kind === "waiting_on_school" || f.kind === "sibling_applying" ? "secondary" : f.kind === "payment_overdue" || f.kind === "overdue_task" ? "destructive" : "warning"}>{f.label}</Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </header>
 
-      {/* 2. Where */}
+      {/* Where */}
       <JourneyBar
         stage={step.stage}
         halted={step.halted}
@@ -362,10 +466,11 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         // A pre-school family can be decided without ever visiting; the bar
         // does not tick a visit that never happened.
         skipped={!app.requires_assessment && !w.lastBooking && w.trials.length === 0 ? ["assessment"] : []}
+        milestones={w.milestones}
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:grid-rows-[auto_1fr] lg:items-start">
-        {/* 3–4. What to do, and the work of the day */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:grid-rows-[auto_1fr] lg:items-start">
+        {/* 3–4. What to do now, and the work of the day */}
         <div className="min-w-0 space-y-5">
           <NextStepCard
             w={w}
@@ -374,336 +479,299 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
             eligibleSessions={eligibleSessions}
             parentSees={parentNext ? `${parentNext.parentTitle} ${parentNext.parentDetail}` : null}
             secondary={noShowUnderStep ? noShowButton : null}
+            offerSettings={offerSettings}
           />
           {/* The work of the day while the assessment is the stage; a record,
               one click away, once the family has moved past it. */}
-          {showAssessment && !assessmentBehind ? (
-            <AssessmentPanel w={w} secondary={bookingTools.length ? bookingTools : null} />
-          ) : null}
+          {showAssessment && !assessmentBehind ? <AssessmentPanel w={w} secondary={bookingTools.length ? bookingTools : null} /> : null}
         </div>
 
-        {/* 5. The family, and the people on it */}
-        <aside className="min-w-0 space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <SideCard title="Parent">
-            <p className="font-medium">{contact?.first_name} {contact?.last_name}</p>
-            {contact?.email ? <a href={`mailto:${contact.email}`} className="block truncate text-muted-foreground hover:text-primary hover:underline">{contact.email}</a> : null}
-            <p className="text-muted-foreground">{contact?.mobile ?? "No mobile"}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              WhatsApp updates: {optedIn ? <span className="font-medium text-success">On</span> : "Off"}
-              {!optedIn && contact?.whatsapp_opt_out_at ? ` since ${formatDate(contact.whatsapp_opt_out_at)}` : ""}
-            </p>
-            <div className="mt-3 flex gap-2">
-              {contact?.email ? (
-                <a href={`mailto:${contact.email}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1")}>
-                  <Mail aria-hidden /> Email
-                </a>
-              ) : null}
-              <OpenSectionLink target="whatsapp" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1 no-underline")}>
-                <MessageCircle aria-hidden /> WhatsApp
-              </OpenSectionLink>
-            </div>
-            {canWrite && !terminal ? (
-              // Enquiry forms are filled in on phones, in a hurry: a name in
-              // the wrong box, a number typed before the country was asked
-              // for. Each is silent until a family says they heard nothing.
-              <details className="mt-3 border-t border-border pt-3 text-xs">
-                <summary className="cursor-pointer font-medium text-primary">Links and corrections</summary>
-                <div className="mt-3 space-y-3">
-                  <ActionForm action={resendLink} label="Email a fresh link" variant="outline" size="sm">{idField}</ActionForm>
-                  <LinkReveal applicationId={app.id} action={generateLinkForStaff} />
-                  {w.tokens[0] ? (
-                    <p className="text-muted-foreground">
-                      Last link {formatDate(w.tokens[0].created_at)}, valid until {formatDate(w.tokens[0].expires_at)}, used {w.tokens[0].use_count}×
-                    </p>
-                  ) : null}
-                  {contact?.mobile_normalised ? (
-                    <ActionForm
-                      action={setWhatsAppOptInByStaff}
-                      label={optedIn ? "Turn WhatsApp updates off" : "Turn WhatsApp updates on"}
-                      variant="ghost"
-                      size="sm"
-                      confirm={optedIn ? undefined : "Only if the parent asked for WhatsApp updates. Continue?"}
-                    >
-                      {idField}
-                      <input type="hidden" name="optIn" value={optedIn ? "0" : "1"} />
-                    </ActionForm>
-                  ) : null}
-                  <details>
-                    <summary className="cursor-pointer font-medium text-primary">Correct the child&rsquo;s name or date of birth</summary>
-                    <ActionForm action={updateChildDetails} label="Save the child's details" variant="outline" size="sm" className="mt-2 space-y-2">
-                      {idField}
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input name="childFirstName" defaultValue={app.child_first_name} placeholder="First name" required autoComplete="off" aria-label="Child's first name" />
-                        <Input name="childLastName" defaultValue={app.child_last_name} placeholder="Surname" required autoComplete="off" aria-label="Child's surname" />
-                      </div>
-                      <Input name="childDateOfBirth" type="date" defaultValue={app.child_date_of_birth} required aria-label="Child's date of birth" />
-                      <p className="text-muted-foreground">
-                        The name is on every letter and message. Changing the date of birth does <strong>not</strong> change the stage.
-                      </p>
-                    </ActionForm>
-                  </details>
-                  <details>
-                    <summary className="cursor-pointer font-medium text-primary">Correct the parent&rsquo;s name or email</summary>
-                    <ActionForm action={updateParentIdentity} label="Save details" variant="outline" size="sm" className="mt-2 space-y-2">
-                      {idField}
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input name="firstName" defaultValue={contact?.first_name ?? ""} placeholder="First name" required autoComplete="off" aria-label="Parent's first name" />
-                        <Input name="lastName" defaultValue={contact?.last_name ?? ""} placeholder="Last name" required autoComplete="off" aria-label="Parent's last name" />
-                      </div>
-                      <Input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="Email address" required autoComplete="off" aria-label="Parent's email address" />
-                      <p className="text-muted-foreground">Changing the email sends nothing. Email a fresh link afterwards.</p>
-                    </ActionForm>
-                  </details>
-                  <details>
-                    <summary className="cursor-pointer font-medium text-primary">Correct the mobile number</summary>
-                    <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
-                      {idField}
-                      <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
-                    </ActionForm>
-                  </details>
+        {/* 5. The applicant and the people on it: one quiet panel */}
+        <aside className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <div className="divide-y divide-border rounded-xl border border-border bg-card p-4 text-sm [&>*]:pb-4 [&>*:last-child]:pb-0">
+            <PanelBlock title="Applicant">
+              <p className="font-medium">{app.child_first_name} {app.child_last_name}</p>
+              <p className="text-muted-foreground">{grade?.name}{w.recommendedGrade && w.recommendedGrade.id !== app.grade_id ? ` (age suggests ${w.recommendedGrade.name})` : ""}</p>
+              <p className="text-muted-foreground">{campus?.name}</p>
+              <p className="text-muted-foreground">Starts {startLabel(app, { label: intake?.label ?? "" })}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Born {formatDate(app.child_date_of_birth)} · came via {app.entry_route.replace(/_/g, " ")} · heard about us: {heardFromLabel(app.heard_from, app.heard_from_detail)}
+              </p>
+              {/* Said by the family at enquiry. It changes how the day is
+                  arranged, and it is never an input to a decision. */}
+              {app.has_special_needs ? (
+                <div className="mt-2 rounded-lg bg-warning/15 px-3 py-2 text-xs">
+                  <p className="font-semibold text-warning-foreground">Additional needs</p>
+                  <p className="mt-0.5">{app.special_needs_detail?.trim() || "The family said their child has additional needs, without details."}</p>
+                  <p className="mt-1 text-muted-foreground">Arrange the sitting around it. It plays no part in the decision.</p>
                 </div>
-              </details>
-            ) : null}
-          </SideCard>
+              ) : null}
+            </PanelBlock>
 
-          <SideCard title="Child">
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-              <dt className="text-muted-foreground">Born</dt>
-              <dd>{formatDateLong(app.child_date_of_birth).replace(/^\w+, /, "")}</dd>
-              <dt className="text-muted-foreground">Stage</dt>
-              <dd>
-                {grade?.name}
-                {w.recommendedGrade && w.recommendedGrade.id !== app.grade_id ? (
-                  <span className="block text-xs text-muted-foreground">Age suggests {w.recommendedGrade.name}</span>
+            <PanelBlock title="Parent">
+              <p className="font-medium">{contact?.first_name} {contact?.last_name}</p>
+              {contact?.email ? <a href={`mailto:${contact.email}`} className="block truncate text-muted-foreground hover:text-primary hover:underline">{contact.email}</a> : null}
+              <p className="text-muted-foreground">{contact?.mobile ?? "No mobile"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                WhatsApp updates: {optedIn ? <span className="font-medium text-success">On</span> : "Off"}
+                {!optedIn && contact?.whatsapp_opt_out_at ? ` since ${formatDate(contact.whatsapp_opt_out_at)}` : ""}
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                {contact?.email ? (
+                  <a href={`mailto:${contact.email}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1")}>
+                    <Mail aria-hidden /> Email
+                  </a>
                 ) : null}
-              </dd>
-              <dt className="text-muted-foreground">Campus</dt>
-              <dd>{campus?.name}</dd>
-              <dt className="text-muted-foreground">Starts</dt>
-              <dd>{startLabel(app, { label: intake?.label ?? "" })}</dd>
-            </dl>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Came via {app.entry_route.replace(/_/g, " ")} · heard about us: {heardFromLabel(app.heard_from, app.heard_from_detail)}
-            </p>
-            {/* Said by the family at enquiry. It changes how the day is
-                arranged, and it is never an input to a decision. */}
-            {app.has_special_needs ? (
-              <div className="mt-3 rounded-lg bg-warning/15 px-3 py-2 text-xs">
-                <p className="font-semibold text-warning-foreground">Additional needs</p>
-                <p className="mt-0.5">{app.special_needs_detail?.trim() || "The family said their child has additional needs, without details."}</p>
-                <p className="mt-1 text-muted-foreground">Arrange the sitting around it. It plays no part in the decision.</p>
+                <OpenSectionLink target="communications" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1 no-underline")}>
+                  <MessageCircle aria-hidden /> WhatsApp
+                </OpenSectionLink>
               </div>
-            ) : null}
-          </SideCard>
-
-          <SideCard title="Owner">
-            {canWrite ? (
-              <ActionForm action={assignOwner} label="Assign" variant="outline" size="sm" resetOnSubmit={false} className="flex items-center gap-2 space-y-0">
-                {idField}
-                <NativeSelect name="ownerStaffId" defaultValue={app.owner_staff_id ?? ""} aria-label="Owner" className="min-w-0 flex-1">
-                  <option value="">Unassigned</option>
-                  {w.staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-                </NativeSelect>
-              </ActionForm>
-            ) : (
-              <p>{owner?.full_name ?? "Unassigned"}</p>
-            )}
-          </SideCard>
-
-          <SideCard title="Notes">
-            <p className="-mt-1 mb-2 text-xs text-muted-foreground">Internal — staff only. Never shown to the family.</p>
-            {canWrite ? (
-              <ActionForm action={addNote} label="Save note" size="sm" variant="outline">
-                {idField}
-                <Textarea name="body" rows={2} placeholder="Add a note…" required aria-label="Internal note" />
-              </ActionForm>
-            ) : null}
-            {w.notes.length ? (
-              <ul className="mt-3 space-y-2">
-                {w.notes.map((n) => (
-                  <li key={n.id} className="rounded-lg bg-muted/60 p-2.5">
-                    <p className="whitespace-pre-wrap">{n.body}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{one(n.staff_profiles)?.full_name} · {formatDateTime(n.created_at)}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </SideCard>
-        </aside>
-
-        {/* 6–7. The records, one click away */}
-        <div className="min-w-0 space-y-3 lg:col-start-1">
-          {showAssessment && assessmentBehind ? (
-            <Section title={app.requires_assessment ? "Assessment" : w.noun === "interview" ? "Interview" : "Visit"} meta={result ? `${result.percent}% · ${result.label}` : undefined}>
-              <AssessmentPanel w={w} bare />
-            </Section>
-          ) : null}
-
-          <Section title="Tasks" meta={w.openTasks.length ? `${w.openTasks.length} open` : "none open"}>
-            {w.openTasks.length ? (
-              <ul className="space-y-2">
-                {w.openTasks.map((t) => (
-                  <li key={t.id} className="flex flex-wrap items-start gap-3 rounded-lg border border-border p-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">{t.title}</p>
-                      {t.details ? <p className="mt-0.5 text-xs whitespace-pre-line text-muted-foreground">{t.details}</p> : null}
-                      {t.type === "callback" && w.callbackRequest ? (
-                        <p className="mt-0.5 text-xs whitespace-pre-line">
-                          Best time to call: {w.callbackRequest.preferred_time?.trim() || "not given"}
-                          {w.callbackRequest.message?.trim() ? ` · “${w.callbackRequest.message.trim()}”` : ""}
-                        </p>
-                      ) : null}
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t.due_at ? `Due ${formatDateTime(t.due_at)}` : "No due date"} · {one(t.staff_profiles)?.full_name ?? "Unassigned"}
+              {canWrite && !terminal ? (
+                // Enquiry forms are filled in on phones, in a hurry: a name in
+                // the wrong box, a number typed before the country was asked
+                // for. Each is silent until a family says they heard nothing.
+                <details className="mt-2.5 text-xs">
+                  <summary className="cursor-pointer font-medium text-primary">Links and corrections</summary>
+                  <div className="mt-3 space-y-3">
+                    <ActionForm action={resendLink} label="Email parent a fresh link" variant="outline" size="sm">{idField}</ActionForm>
+                    <LinkReveal applicationId={app.id} action={generateLinkForStaff} />
+                    {w.tokens[0] ? (
+                      <p className="text-muted-foreground">
+                        Last link {formatDate(w.tokens[0].created_at)}, valid until {formatDate(w.tokens[0].expires_at)}, used {w.tokens[0].use_count}×
                       </p>
-                    </div>
-                    <PriorityBadge priority={t.priority} />
-                    {canWrite ? (
-                      <ActionForm action={assignTask} label="Assign" size="xs" variant="outline" resetOnSubmit={false} className="flex items-center gap-1 space-y-0">
-                        <input type="hidden" name="taskId" value={t.id} />
+                    ) : null}
+                    {contact?.mobile_normalised ? (
+                      <ActionForm
+                        action={setWhatsAppOptInByStaff}
+                        label={optedIn ? "Turn WhatsApp updates off" : "Turn WhatsApp updates on"}
+                        variant="ghost"
+                        size="sm"
+                        confirm={optedIn ? undefined : "Only if the parent asked for WhatsApp updates. Continue?"}
+                      >
                         {idField}
-                        <NativeSelect name="assigneeStaffId" defaultValue={t.assignee_staff_id ?? ""} className="h-7 w-40 py-0 text-xs md:h-7" aria-label="Assignee">
-                          <option value="">Unassigned</option>
-                          {w.staff.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-                        </NativeSelect>
+                        <input type="hidden" name="optIn" value={optedIn ? "0" : "1"} />
                       </ActionForm>
                     ) : null}
-                    {canWrite ? (
-                      t.type === "callback" && app.status === "callback_requested" ? (
-                        <ActionForm action={completeCallback} label="Called — done" size="xs" variant="success">{idField}</ActionForm>
-                      ) : (
-                        <ActionForm action={completeTask} label="Done" size="xs" variant="success">
-                          <input type="hidden" name="taskId" value={t.id} />
-                          {idField}
-                        </ActionForm>
-                      )
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">Nothing open.</p>
-            )}
-            {w.tasks.length > w.openTasks.length ? <p className="mt-2 text-xs text-muted-foreground">{w.tasks.length - w.openTasks.length} completed</p> : null}
-            {/* The campus is not asked for: a task about this child belongs to
-                the campus they applied to. */}
-            {canAddTask && !terminal ? (
-              <details className="mt-3 border-t border-border pt-3">
-                <summary className="cursor-pointer text-xs font-medium text-primary">Add a task</summary>
-                <ActionForm action={addApplicantTask} label="Add task" size="xs" className="mt-2 space-y-2">
-                  {idField}
-                  <Input name="title" placeholder="What needs doing" required minLength={3} maxLength={200} />
-                  <Input name="details" placeholder="Any detail (optional)" maxLength={2000} />
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
-                      {/* Left blank, the database gives it to this applicant's
-                          owner, or the campus owner (tasks_set_default_assignee). */}
-                      <option value="">Their owner (automatic)</option>
+                    <details>
+                      <summary className="cursor-pointer font-medium text-primary">Correct the child&rsquo;s name or date of birth</summary>
+                      <ActionForm action={updateChildDetails} label="Save the child's details" variant="outline" size="sm" className="mt-2 space-y-2">
+                        {idField}
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input name="childFirstName" defaultValue={app.child_first_name} placeholder="First name" required autoComplete="off" aria-label="Child's first name" />
+                          <Input name="childLastName" defaultValue={app.child_last_name} placeholder="Surname" required autoComplete="off" aria-label="Child's surname" />
+                        </div>
+                        <Input name="childDateOfBirth" type="date" defaultValue={app.child_date_of_birth} required aria-label="Child's date of birth" />
+                        <p className="text-muted-foreground">The name is on every letter and message. Changing the date of birth does <strong>not</strong> change the stage.</p>
+                      </ActionForm>
+                    </details>
+                    <details>
+                      <summary className="cursor-pointer font-medium text-primary">Correct the parent&rsquo;s name or email</summary>
+                      <ActionForm action={updateParentIdentity} label="Save details" variant="outline" size="sm" className="mt-2 space-y-2">
+                        {idField}
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input name="firstName" defaultValue={contact?.first_name ?? ""} placeholder="First name" required autoComplete="off" aria-label="Parent's first name" />
+                          <Input name="lastName" defaultValue={contact?.last_name ?? ""} placeholder="Last name" required autoComplete="off" aria-label="Parent's last name" />
+                        </div>
+                        <Input name="email" type="email" defaultValue={contact?.email ?? ""} placeholder="Email address" required autoComplete="off" aria-label="Parent's email address" />
+                        <p className="text-muted-foreground">Changing the email sends nothing. Email a fresh link afterwards.</p>
+                      </ActionForm>
+                    </details>
+                    <details>
+                      <summary className="cursor-pointer font-medium text-primary">Correct the mobile number</summary>
+                      <ActionForm action={updateParentMobile} label="Save number" variant="outline" size="sm" className="mt-2">
+                        {idField}
+                        <MobileInput name="mobile" defaultValue={contact?.mobile_normalised ?? contact?.mobile ?? null} required autoComplete="off" />
+                      </ActionForm>
+                    </details>
+                  </div>
+                </details>
+              ) : null}
+            </PanelBlock>
+
+            <PanelBlock title="Owner">
+              <p>{owner?.full_name ?? "Unassigned"}</p>
+              {canWrite ? (
+                <details className="mt-1 text-xs">
+                  <summary className="cursor-pointer font-medium text-primary">Change</summary>
+                  <ActionForm action={assignOwner} label="Assign" variant="outline" size="sm" resetOnSubmit={false} className="mt-2 flex items-center gap-2 space-y-0">
+                    {idField}
+                    <NativeSelect name="ownerStaffId" defaultValue={app.owner_staff_id ?? ""} aria-label="Owner" className="min-w-0 flex-1">
+                      <option value="">Unassigned</option>
                       {w.staff.map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
                     </NativeSelect>
-                    <Input type="date" name="dueOn" aria-label="Due on" />
-                    <NativeSelect name="priority" defaultValue="normal" aria-label="Priority">
-                      <option value="low">Low</option>
-                      <option value="normal">Normal</option>
-                      <option value="high">High</option>
-                    </NativeSelect>
-                  </div>
+                  </ActionForm>
+                </details>
+              ) : null}
+            </PanelBlock>
+
+            <PanelBlock title={`Notes${w.notes.length ? ` · ${w.notes.length}` : ""}`} className="text-xs">
+              <p className="-mt-1 mb-2 text-muted-foreground">Internal — staff only, never shown to the family.</p>
+              {canWrite ? (
+                <ActionForm action={addNote} label="Save note" size="xs" variant="outline">
+                  {idField}
+                  <Textarea name="body" rows={2} placeholder="Add a note…" required aria-label="Internal note" className="text-sm" />
                 </ActionForm>
-              </details>
-            ) : null}
-          </Section>
-
-          <Section title="Decision" meta={latestDecision ? `${latestDecision.final_outcome.replace("_", " ")} · ${formatDate(latestDecision.decided_at)}` : "none yet"}>
-            <DecisionHistory w={w} />
-          </Section>
-
-          <Section id="offer" title="Offer" meta={w.liveOffer ? w.liveOffer.status.replace("_", " ") : undefined} open={openOffer}>
-            <OfferRecord w={w} permissions={permissions} settings={offerSettings} />
-          </Section>
-
-          <Section title="Payment" meta={w.paymentRequest ? w.paymentRequest.status.replace("_", " ") : undefined}>
-            <PaymentRecord w={w} permissions={permissions} />
-          </Section>
-
-          <Section title="Registration" open={openRegistration}>
-            <RegistrationRecord w={w} />
-          </Section>
-
-          <Section id="whatsapp" title="WhatsApp" meta={w.messages.length ? `${w.messages.length} message${w.messages.length === 1 ? "" : "s"}` : optedIn ? undefined : "updates off"}>
-            <WhatsAppRecord w={w} permissions={permissions} />
-          </Section>
-
-          <Section title="Documents">
-            <DocumentsRecord w={w} permissions={permissions} />
-          </Section>
-
-          {w.summary ? (
-            <Section title="Summary" meta={w.summary.flags.length ? `${w.summary.flags.length} to note` : undefined}>
-              <SummaryPanel applicationId={app.id} view={w.summary} action={refreshSummary} />
-            </Section>
-          ) : null}
-
-          <Section title="Activity & history" meta={`${w.events.length} event${w.events.length === 1 ? "" : "s"}`}>
-            {w.events.length ? (
-              <ol className="-mx-4 -my-3 divide-y divide-border">
-                {w.events.map((e) => (
-                  <li key={e.id} className="flex gap-3 px-4 py-2">
-                    <span className="w-32 shrink-0 text-xs text-muted-foreground">{formatDateTime(e.occurred_at)}</span>
-                    <span className="min-w-0 flex-1">
-                      {e.summary}
-                      <span className="ml-2 text-xs text-muted-foreground">{e.actor_type}</span>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <EmptyState>No events yet.</EmptyState>
-            )}
-          </Section>
-
-          <Section title="Emails" meta={`${w.emails.length}`}>
-            {w.emails.length ? (
-              <ul className="-mx-4 -my-3 divide-y divide-border">
-                {w.emails.map((m) => (
-                  <li key={m.id} className="flex items-start gap-3 px-4 py-2">
-                    <span className="w-32 shrink-0 text-xs text-muted-foreground">{formatDateTime(m.sent_at ?? m.created_at)}</span>
-                    <span className="min-w-0 flex-1">
-                      <Link href={`/staff/admin/dev-outbox/${m.id}`} className="block truncate hover:underline">{m.subject}</Link>
-                      {/* Why it did not arrive, in the provider's words: the
-                          person reading is deciding whether to telephone. */}
-                      {m.error ? <span className="mt-0.5 block text-xs text-destructive">{m.error}</span> : null}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {m.status}{m.opened_at ? " · opened" : ""}{m.clicked_at ? " · clicked" : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState>No emails sent yet.</EmptyState>
-            )}
-          </Section>
-
-          {w.audit ? (
-            <Section title="Audit trail">
-              {w.audit.length ? (
-                <ul className="-mx-4 -my-3 divide-y divide-border">
-                  {w.audit.map((a) => (
-                    <li key={a.id} className="flex gap-3 px-4 py-2 text-xs">
-                      <span className="w-32 shrink-0 text-muted-foreground">{formatDateTime(a.occurred_at)}</span>
-                      <span className="flex-1"><span className="font-mono">{a.action}</span> · {a.actor_label ?? a.actor_type}</span>
+              ) : null}
+              {w.notes.length ? (
+                <ul className="mt-2 space-y-1.5">
+                  {w.notes.slice(0, notesShown).map((n) => (
+                    <li key={n.id} className="rounded-md bg-muted/60 px-2.5 py-2">
+                      <p className="text-sm whitespace-pre-wrap">{n.body}</p>
+                      <p className="mt-0.5 text-muted-foreground">{one(n.staff_profiles)?.full_name} · {formatDateTime(n.created_at)}</p>
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {w.notes.length > notesShown ? (
+                <details className="mt-1.5">
+                  <summary className="cursor-pointer font-medium text-primary">{w.notes.length - notesShown} earlier</summary>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {w.notes.slice(notesShown).map((n) => (
+                      <li key={n.id} className="rounded-md bg-muted/60 px-2.5 py-2">
+                        <p className="text-sm whitespace-pre-wrap">{n.body}</p>
+                        <p className="mt-0.5 text-muted-foreground">{one(n.staff_profiles)?.full_name} · {formatDateTime(n.created_at)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </PanelBlock>
+          </div>
+        </aside>
+
+        {/* 6–7. The records, grouped, one line each */}
+        <div className="min-w-0 space-y-5 lg:col-start-1">
+          <Group title="Workflow">
+            {showAssessment && assessmentBehind ? (
+              <Row title={app.requires_assessment ? "Assessment" : w.noun === "interview" ? "Interview" : "Visit"} meta={result ? `${result.percent}% · ${result.label}` : undefined}>
+                <AssessmentPanel w={w} bare />
+              </Row>
+            ) : null}
+            <Row title="Tasks" meta={w.openTasks.length ? `${w.openTasks.length} open` : "none open"}>
+              {tasksBlock}
+            </Row>
+            <Row title="Decision" meta={latestDecision ? `${latestDecision.final_outcome === "approved" ? "accepted" : latestDecision.final_outcome.replace("_", " ")} · ${formatDate(latestDecision.decided_at)}` : "none yet"}>
+              <DecisionHistory w={w} />
+            </Row>
+            {/* Closed by default: while the offer is the stage, its summary and
+                buttons are already in the Next step above. */}
+            <Row id="offer" title="Offer" meta={offerMeta}>
+              <OfferRecord w={w} permissions={permissions} settings={offerSettings} />
+            </Row>
+            {showPayment ? (
+              <Row title="Payment" meta={w.paymentRequest ? w.paymentRequest.status.replace("_", " ") : undefined}>
+                <PaymentRecord w={w} permissions={permissions} />
+              </Row>
+            ) : null}
+            {w.registrationState ? (
+              <Row
+                title="Registration"
+                meta={`${Object.values(w.registrationState.sections).filter(Boolean).length} of ${Object.keys(w.registrationState.sections).length} sections done${w.registrationState.missingDocuments.length ? ` · ${w.registrationState.missingDocuments.length} document${w.registrationState.missingDocuments.length === 1 ? "" : "s"} missing` : ""}`}
+              >
+                <RegistrationRecord w={w} />
+              </Row>
+            ) : null}
+          </Group>
+
+          <Group title="Information">
+            <Row title="Documents" meta="letters, receipts, reports, registration">
+              <DocumentsRecord w={w} permissions={permissions} />
+            </Row>
+            {/* The flags are at the top of the page; this is the written
+                summary behind them, and the refresh that stores them for the
+                applicant list. */}
+            {w.summary ? (
+              <Row title="Summary" meta={w.summary.headline}>
+                <SummaryPanel applicationId={app.id} view={w.summary} action={refreshSummary} bare />
+              </Row>
+            ) : null}
+          </Group>
+
+          <Group title="History">
+            <Row title="Activity" meta={`${w.events.length} event${w.events.length === 1 ? "" : "s"}`}>
+              {w.events.length ? (
+                <ol className="-mx-4 -my-3 divide-y divide-border">
+                  {w.events.map((e) => (
+                    <li key={e.id} className="flex gap-3 px-4 py-2">
+                      <span className="w-32 shrink-0 text-xs text-muted-foreground">{formatDateTime(e.occurred_at)}</span>
+                      <span className="min-w-0 flex-1">
+                        {e.summary}
+                        <span className="ml-2 text-xs text-muted-foreground">{e.actor_type}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
               ) : (
-                <EmptyState>Nothing recorded.</EmptyState>
+                <p className="text-muted-foreground">No events yet.</p>
               )}
-            </Section>
-          ) : null}
+            </Row>
+            <Row id="communications" title="Communications" meta={`${w.messages.length} WhatsApp · ${w.emails.length} email${w.emails.length === 1 ? "" : "s"}`}>
+              <div className="space-y-5">
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">WhatsApp</h3>
+                    {!optedIn ? <span className="text-xs text-muted-foreground">Updates are off for this parent</span> : null}
+                  </div>
+                  <WhatsAppRecord w={w} permissions={permissions} />
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Email</h3>
+                    {contact?.email ? (
+                      <a href={`mailto:${contact.email}`} className={buttonVariants({ variant: "outline", size: "xs" })}>
+                        <Mail aria-hidden /> Email parent
+                      </a>
+                    ) : null}
+                  </div>
+                  {w.emails.length ? (
+                    <ul className="divide-y divide-border rounded-lg border border-border">
+                      {w.emails.map((m) => (
+                        <li key={m.id} className="flex items-start gap-3 px-3 py-2">
+                          <span className="w-28 shrink-0 text-xs text-muted-foreground">{formatDateTime(m.sent_at ?? m.created_at)}</span>
+                          <span className="min-w-0 flex-1">
+                            <Link href={`/staff/admin/dev-outbox/${m.id}`} className="block truncate hover:underline">{m.subject}</Link>
+                            {/* Why it did not arrive, in the provider's words: the
+                                person reading is deciding whether to telephone. */}
+                            {m.error ? <span className="mt-0.5 block text-xs text-destructive">{m.error}</span> : null}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {m.status}{m.opened_at ? " · opened" : ""}{m.clicked_at ? " · clicked" : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">No emails sent yet.</p>
+                  )}
+                </div>
+              </div>
+            </Row>
+            {w.audit ? (
+              <Row title="Audit trail" meta={`${w.audit.length} entr${w.audit.length === 1 ? "y" : "ies"}`}>
+                {w.audit.length ? (
+                  <ul className="-mx-4 -my-3 divide-y divide-border">
+                    {w.audit.map((a) => (
+                      <li key={a.id} className="flex gap-3 px-4 py-2 text-xs">
+                        <span className="w-32 shrink-0 text-muted-foreground">{formatDateTime(a.occurred_at)}</span>
+                        <span className="flex-1"><span className="font-mono">{a.action}</span> · {a.actor_label ?? a.actor_type}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">Nothing recorded.</p>
+                )}
+              </Row>
+            ) : null}
+          </Group>
 
           {moreActions()}
         </div>
       </div>
+
+      {/* The next step, kept in reach once the card above has scrolled away. */}
+      <StickyActionBar targetId="next-step">
+        <StickyStep w={w} permissions={permissions} offerSettings={offerSettings} />
+      </StickyActionBar>
     </>
   );
 }

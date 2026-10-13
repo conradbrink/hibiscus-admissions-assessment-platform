@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Eye, Pencil } from "lucide-react";
 import { ActionForm } from "@/components/staff/action-form";
 import { MessagesPanel } from "@/components/staff/messages-panel";
 import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
@@ -20,13 +21,14 @@ import type { PromotionFeeSnapshot } from "@/lib/promotions/apply";
 import { awardLabelOf } from "@/lib/promotions/scholarship";
 import { SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import type { RuleResult } from "@/lib/rules/evaluate";
-import { formatMonth, type MonthChoice } from "@/lib/start-month";
+import { formatMonth, startLabel, type MonthChoice } from "@/lib/start-month";
 import type { BenchmarkBand } from "@/lib/supabase/types";
 import { APPOINTMENT_LABELS, APPOINTMENT_STATE, APPOINTMENT_STEPS } from "@/lib/workflow/appointment";
 import { cn } from "@/lib/utils";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { sendWhatsAppTemplate, setDayPattern, setScholarship, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import type { ApplicantWorkspace } from "@/app/staff/(console)/applications/[id]/load";
+import { ModalPanel } from "@/components/staff/applicant/modal-panel";
 
 /**
  * The records behind each stage of the journey, for the applicant page's
@@ -277,9 +279,88 @@ export type OfferSettings = {
 };
 
 /** The letter and the three things that decide what it says: the starting month, the day pattern and the scholarship. */
-export function OfferRecord({ w, permissions, settings }: { w: ApplicantWorkspace; permissions: PermissionSet; settings: OfferSettings }) {
+/** Where the child starts, as the letter will say it: the chosen month at a monthly campus, otherwise the term. */
+export function offerStart(w: ApplicantWorkspace, settings: OfferSettings): string {
+  return settings.startMonth?.value ? formatMonth(settings.startMonth.value) : startLabel(w.app, { label: w.intake?.label ?? "" });
+}
+
+function scholarshipText(band: OfferSettings["scholarshipBand"]): string {
+  if (!band) return "None";
+  return band.isScholarship ? `${awardLabelOf(band.code)} of tuition` : band.code ? `None (holds the ${band.code} deal)` : "None";
+}
+
+/**
+ * The offer at a glance: when the child starts, the day pattern, any
+ * scholarship, and what the letter charges. `brief` keeps it to the three
+ * lines the Next step needs: start, tuition, and what is payable to accept.
+ */
+/**
+ * The letter worth showing: the one in play, or once the family has said yes
+ * the one they accepted (no longer "live", but still what they are paying).
+ */
+export function shownOffer(w: ApplicantWorkspace) {
+  return w.liveOffer ?? (w.offers ?? []).find((o) => o.status === "accepted") ?? null;
+}
+
+export function OfferSummary({ w, settings, brief = false }: { w: ApplicantWorkspace; settings: OfferSettings; brief?: boolean }) {
+  const offer = shownOffer(w);
+  const fees = offer ? feeSnapshotFrom(offer.fees) : null;
+  const lines = fees ? feeLinesFor(fees, settings.dayPattern?.value ?? null) : [];
+  const shown = brief ? lines.filter((l) => l.code.startsWith("tuition")) : lines;
+  const row = (label: string, value: React.ReactNode, strong = false) => (
+    <div key={label} className="flex items-baseline justify-between gap-4 py-1">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn("text-right tabular-nums", strong && "font-semibold")}>{value}</dd>
+    </div>
+  );
+  return (
+    <dl className="divide-y divide-border/60 text-sm">
+      {row("Starts", offerStart(w, settings))}
+      {!brief && settings.dayPattern ? row("Attendance", settings.dayPattern.value === "half" ? "Half day" : settings.dayPattern.value === "full" ? "Full day" : "Not decided — both rates quoted") : null}
+      {!brief && (settings.scholarshipBand || w.heldCode) ? row("Scholarship", scholarshipText(settings.scholarshipBand)) : null}
+      {fees ? (
+        <>
+          {shown.map((l) => row(l.label, formatMoney(l.amount_minor, fees.currency)))}
+          {row("Payable on acceptance", formatMoney(fees.payable_at_acceptance_minor, fees.currency), true)}
+        </>
+      ) : offer ? (
+        row("Fees", <span className="text-warning-foreground">No fee schedule covers this campus, stage and year</span>)
+      ) : null}
+      {!brief && offer?.conditions ? row("Conditions", offer.conditions) : null}
+      {!brief && offer && offer.status !== "draft" && offer.status !== "pending_approval"
+        ? row(
+            "Letter",
+            offer.status === "accepted"
+              ? [`accepted${offer.sent_at ? ` (sent ${formatDate(offer.sent_at)})` : ""}`]
+              : [offer.sent_at ? `sent ${formatDate(offer.sent_at)}` : null, offer.first_viewed_at ? `opened ${formatDate(offer.first_viewed_at)}` : "not opened", offer.expires_at ? `open until ${formatDate(offer.expires_at)}` : null]
+              .filter(Boolean)
+              .join(" · ")
+          )
+        : null}
+    </dl>
+  );
+}
+
+/** The letter exactly as the parent reads it. */
+export function OfferPreview({ w }: { w: ApplicantWorkspace }) {
+  const offer = shownOffer(w);
+  if (!offer) return null;
+  return (
+    <ModalPanel label="Preview" title="The offer as the parent reads it" icon={<Eye aria-hidden />} wide>
+      <div className="prose prose-sm max-w-none rounded-lg border border-border bg-background p-4" dangerouslySetInnerHTML={{ __html: offer.rendered_html + offer.terms_html }} />
+    </ModalPanel>
+  );
+}
+
+/**
+ * Everything that changes what the next letter says, one click away: the
+ * starting month, half or full day, the scholarship, the conditions, and
+ * withdrawing a letter to correct it.
+ */
+export function OfferEditor({ w, permissions, settings }: { w: ApplicantWorkspace; permissions: PermissionSet; settings: OfferSettings }) {
   const { dayPattern, startMonth, scholarshipBand } = settings;
   const canApprove = can(permissions, "offers.approve");
+  if (!canApprove && !startMonth?.canSet && !dayPattern?.canSet && !scholarshipBand?.canSet) return null;
   const liveOffer = w.liveOffer;
   const offers = w.offers;
   // The most recent letter of any status: a withdrawn one is not live, and
@@ -288,168 +369,119 @@ export function OfferRecord({ w, permissions, settings }: { w: ApplicantWorkspac
   const bandMovedSinceOffer = Boolean(newestOffer && scholarshipBand && newestOffer.promotion_id !== scholarshipBand.promotionId);
   const offerPricedUnder = awardLabelOf((feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null);
   const idField = <input type="hidden" name="applicationId" value={w.app.id} />;
+  // Conditions are given when a letter is drafted: on the draft or the one
+  // waiting for approval, or when there is none yet and one can be created.
+  const canDraft = canApprove && (liveOffer ? liveOffer.status === "draft" || liveOffer.status === "pending_approval" : ["approved", "offer_draft"].includes(w.app.status));
+  const field = "space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0";
 
   return (
-    <div className="space-y-4">
-      {startMonth || dayPattern || scholarshipBand ? (
-        <div className="grid gap-3 md:grid-cols-3">
-          {startMonth ? (
-            <div className="rounded-lg border border-border p-3">
-              <h3 className="text-xs font-semibold text-muted-foreground">Starting month</h3>
-              <p className="mt-0.5 font-medium">{startMonth.value ? formatMonth(startMonth.value) : "Not chosen — the letter names the term"}</p>
-              {startMonth.canSet ? (
-                <ActionForm action={setStartMonth} label="Save" variant="outline" size="xs" className="mt-2">
-                  {idField}
-                  <NativeSelect name="startMonth" defaultValue={startMonth.value ?? ""} aria-label="Starting month">
-                    <option value="">Not chosen yet</option>
-                    {startMonth.value && !startMonth.choices.some((c) => c.value === startMonth.value) ? (
-                      <option value={startMonth.value}>{formatMonth(startMonth.value)}</option>
-                    ) : null}
-                    {startMonth.choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </NativeSelect>
-                  <p className="text-xs text-muted-foreground">What the next letter names and the first-day emails count from. A letter already sent keeps its month.</p>
-                </ActionForm>
-              ) : null}
-            </div>
-          ) : null}
-          {dayPattern ? (
-            <div className="rounded-lg border border-border p-3">
-              <h3 className="text-xs font-semibold text-muted-foreground">Full or half day</h3>
-              <p className="mt-0.5 font-medium">{dayPattern.value === "half" ? "Half day" : dayPattern.value === "full" ? "Full day" : "Not decided yet"}</p>
-              {dayPattern.canSet ? (
-                <ActionForm action={setDayPattern} label="Save" variant="outline" size="xs" className="mt-2">
-                  {idField}
-                  <NativeSelect name="dayPattern" defaultValue={dayPattern.value ?? ""} aria-label="Full or half day">
-                    <option value="">Not decided yet</option>
-                    <option value="half">Half day</option>
-                    <option value="full">Full day</option>
-                  </NativeSelect>
-                  <p className="text-xs text-muted-foreground">
-                    Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next letter quotes; undecided, it shows both. A letter already sent keeps its fees.
-                  </p>
-                </ActionForm>
-              ) : null}
-            </div>
-          ) : null}
-          {scholarshipBand ? (
-            <div className="rounded-lg border border-border p-3">
-              <h3 className="text-xs font-semibold text-muted-foreground">Scholarship</h3>
-              <p className="mt-0.5 font-medium">
-                {scholarshipBand.isScholarship
-                  ? `${awardLabelOf(scholarshipBand.code)} of tuition`
-                  : scholarshipBand.code
-                    ? `None. Holds the ${scholarshipBand.code} deal.`
-                    : "None"}
+    <ModalPanel label="Edit offer" title="Edit offer" description="What the next letter says. A letter already sent keeps what it was drafted with." icon={<Pencil aria-hidden />}>
+      <div className="space-y-4">
+        {startMonth?.canSet ? (
+          <ActionForm action={setStartMonth} label="Save starting month" variant="outline" size="sm" className={field}>
+            {idField}
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="startMonth">Starting month</label>
+            <NativeSelect id="startMonth" name="startMonth" defaultValue={startMonth.value ?? ""}>
+              <option value="">Not chosen — the letter names the term</option>
+              {startMonth.value && !startMonth.choices.some((c) => c.value === startMonth.value) ? <option value={startMonth.value}>{formatMonth(startMonth.value)}</option> : null}
+              {startMonth.choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </NativeSelect>
+          </ActionForm>
+        ) : null}
+        {dayPattern?.canSet ? (
+          <ActionForm action={setDayPattern} label="Save attendance" variant="outline" size="sm" className={field}>
+            {idField}
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="dayPattern">Full or half day</label>
+            <NativeSelect id="dayPattern" name="dayPattern" defaultValue={dayPattern.value ?? ""}>
+              <option value="">Not decided — the letter quotes both rates</option>
+              <option value="half">Half day</option>
+              <option value="full">Full day</option>
+            </NativeSelect>
+            <p className="text-xs text-muted-foreground">Decides which {dayPattern.unit === "month" ? "monthly" : "term"} fee the next letter quotes.</p>
+          </ActionForm>
+        ) : null}
+        {scholarshipBand?.canSet ? (
+          <ActionForm action={setScholarship} label="Save scholarship" variant="outline" size="sm" className={field}>
+            {idField}
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="scholarship">Scholarship</label>
+            {bandMovedSinceOffer ? (
+              <p className="rounded-lg bg-warning/15 px-2 py-1.5 text-xs text-warning-foreground">
+                {offerPricedUnder ? `The most recent letter was priced at ${offerPricedUnder}, not this. ` : "The most recent letter was priced under a different deal. "}
+                {liveOffer ? "Re-draft the offer to re-price it." : "Nothing is drafted now — create an offer to issue one at this band."}
               </p>
-              {bandMovedSinceOffer ? (
-                <p className="mt-2 rounded-lg bg-warning/15 px-2 py-1.5 text-xs text-warning-foreground">
-                  {offerPricedUnder ? `The most recent letter was priced at ${offerPricedUnder}, not this. ` : "The most recent letter was priced under a different deal. "}
-                  {liveOffer ? "Create the offer again to re-price it." : "Nothing is drafted now — create an offer to issue one at this band."}
-                </p>
-              ) : null}
-              {scholarshipBand.canSet ? (
-                <ActionForm action={setScholarship} label="Save" variant="outline" size="xs" className="mt-2">
-                  {idField}
-                  <NativeSelect
-                    name="code"
-                    defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}
-                    aria-label="Scholarship band"
-                  >
-                    {/* A child on an ordinary deal starts on "keep", so saving
-                        without choosing cannot take the deal off them. */}
-                    {scholarshipBand.code && !scholarshipBand.isScholarship ? <option value="keep">Keep the {scholarshipBand.code} deal</option> : null}
-                    <option value="">{scholarshipBand.code && !scholarshipBand.isScholarship ? `Remove the ${scholarshipBand.code} deal` : "No scholarship"}</option>
-                    {scholarshipBand.choices.map((c) => <option key={c} value={c}>{awardLabelOf(c)}</option>)}
-                  </NativeSelect>
-                  <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
-                  <p className="text-xs text-muted-foreground">
-                    {liveOffer && liveOffer.status !== "draft"
-                      ? "A letter already with the family keeps its fees. To change them, withdraw it and issue a fresh one."
-                      : newestOffer
-                        ? "Changing the band does not rewrite a letter. Create the offer again to re-price it."
-                        : "Decides the tuition the next letter quotes."}
-                    {scholarshipBand.code && !scholarshipBand.isScholarship ? " Awarding a scholarship replaces the deal; there is only ever one." : ""}
-                  </p>
-                </ActionForm>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {offers === null ? (
-        <p className="text-muted-foreground">You do not have permission to see offers.</p>
-      ) : liveOffer ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={liveOffer.status === "viewed" || liveOffer.status === "sent" ? "info" : liveOffer.status === "expired" ? "warning" : "secondary"}>
-              {liveOffer.status.replace("_", " ")}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              Drafted {formatDateTime(liveOffer.created_at)}
-              {liveOffer.sent_at ? ` · sent ${formatDateTime(liveOffer.sent_at)}` : ""}
-              {liveOffer.first_viewed_at ? ` · opened ${formatDateTime(liveOffer.first_viewed_at)}` : ""}
-              {liveOffer.expires_at ? ` · open until ${formatDate(liveOffer.expires_at)}` : ""}
-            </span>
+            ) : null}
+            <NativeSelect id="scholarship" name="code" defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}>
+              {/* A child on an ordinary deal starts on "keep", so saving
+                  without choosing cannot take the deal off them. */}
+              {scholarshipBand.code && !scholarshipBand.isScholarship ? <option value="keep">Keep the {scholarshipBand.code} deal</option> : null}
+              <option value="">{scholarshipBand.code && !scholarshipBand.isScholarship ? `Remove the ${scholarshipBand.code} deal` : "No scholarship"}</option>
+              {scholarshipBand.choices.map((c) => <option key={c} value={c}>{awardLabelOf(c)}</option>)}
+            </NativeSelect>
+            <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
+            <p className="text-xs text-muted-foreground">
+              {liveOffer && liveOffer.status !== "draft"
+                ? "A letter already with the family keeps its fees. To change them, withdraw it and issue a fresh one."
+                : newestOffer
+                  ? "Changing the band does not rewrite a letter. Re-draft the offer to re-price it."
+                  : "Decides the tuition the next letter quotes."}
+              {scholarshipBand.code && !scholarshipBand.isScholarship ? " Awarding a scholarship replaces the deal; there is only ever one." : ""}
+            </p>
+          </ActionForm>
+        ) : null}
+        {canDraft ? (
+          <ActionForm
+            action={generateOffer}
+            label={liveOffer ? "Re-draft offer with these conditions" : "Create offer with these conditions"}
+            variant="outline"
+            size="sm"
+            className={field}
+            confirm={liveOffer ? "Re-draft this offer? It still waits for approval." : undefined}
+          >
+            {idField}
+            <OfferConditionsFields grades={w.grades} currentGradeSort={w.grade?.sort_order ?? 0} compact />
+          </ActionForm>
+        ) : null}
+        {canApprove && liveOffer && liveOffer.status !== "expired" ? (
+          // Withdrawing is a correction, not the next step: it sits here,
+          // quietly, rather than beside Approve.
+          <ActionForm action={withdrawOffer} label="Withdraw offer to correct it" size="sm" variant="ghost" className={field} confirm="Withdraw this offer? The parent's link stops working and a corrected one can be issued.">
+            {idField}<input type="hidden" name="offerId" value={liveOffer.id} />
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="withdrawReason">Withdraw this letter</label>
+            <Input id="withdrawReason" name="reason" placeholder="Why" required minLength={3} />
+          </ActionForm>
+        ) : null}
+        {offers && offers.filter((o) => o.id !== liveOffer?.id).length ? (
+          <div className={field}>
+            <p className="text-xs font-semibold text-muted-foreground">Earlier offers</p>
+            <ul className="text-xs text-muted-foreground">
+              {offers.filter((o) => o.id !== liveOffer?.id).map((o) => (
+                <li key={o.id}>{o.status} · drafted {formatDate(o.created_at)}{o.withdrawn_reason ? ` · ${o.withdrawn_reason}` : ""}</li>
+              ))}
+            </ul>
           </div>
-          {(() => {
-            const f = feeSnapshotFrom(liveOffer.fees);
-            return f ? (
-              <ul className="rounded-lg border border-border p-2 text-xs">
-                {feeLinesFor(f, dayPattern?.value ?? null).map((l) => (
-                  <li key={l.code} className="flex justify-between"><span>{l.label}</span><span className="tabular-nums">{formatMoney(l.amount_minor, f.currency)}</span></li>
-                ))}
-                <li className="mt-1 flex justify-between border-t border-border pt-1 font-semibold">
-                  <span>Payable on acceptance</span><span className="tabular-nums">{formatMoney(f.payable_at_acceptance_minor, f.currency)}</span>
-                </li>
-              </ul>
-            ) : (
-              <p className="text-warning-foreground">
-                No fee schedule covers this campus, grade and year, so the offer cannot be sent.{" "}
-                <Link href="/staff/admin/fees" className="text-primary underline underline-offset-2">Configure fees</Link>, then create the offer again.
-              </p>
-            );
-          })()}
-          {liveOffer.conditions ? <p className="text-xs"><span className="font-medium">Conditions:</span> {liveOffer.conditions}</p> : null}
-          {canApprove && (liveOffer.status === "draft" || liveOffer.status === "pending_approval") ? (
-            <details className="text-xs">
-              <summary className="cursor-pointer text-primary">{liveOffer.conditions ? "Change the conditions" : "Add conditions"}</summary>
-              <ActionForm action={generateOffer} label="Apply conditions and re-draft" size="sm" variant="outline" className="mt-2 space-y-3" confirm="Re-draft this offer with these conditions? It still waits for approval.">
-                {idField}
-                <OfferConditionsFields grades={w.grades} currentGradeSort={w.grade?.sort_order ?? 0} compact />
-              </ActionForm>
-            </details>
-          ) : null}
-          <details>
-            <summary className="cursor-pointer text-primary">Preview as the parent reads it</summary>
-            <div className="prose prose-sm mt-2 max-w-none rounded-lg border border-border bg-background p-4" dangerouslySetInnerHTML={{ __html: liveOffer.rendered_html + liveOffer.terms_html }} />
-          </details>
-          {canApprove && liveOffer.status !== "expired" ? (
-            // Withdrawing is a correction, not the next step: it sits here,
-            // quietly, rather than beside Approve.
-            <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground">Withdraw this offer to correct it</summary>
-              <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="sm" variant="outline" className="mt-2 flex flex-wrap items-center gap-2 space-y-0" confirm="Withdraw this offer? The parent's link stops working and a corrected one can be issued.">
-                {idField}<input type="hidden" name="offerId" value={liveOffer.id} />
-                <Input name="reason" placeholder="Why" className="h-8 w-56" required minLength={3} />
-              </ActionForm>
-            </details>
-          ) : null}
-        </div>
-      ) : (
-        <p className="text-muted-foreground">
-          {offers.length ? `${offers.length} earlier offer${offers.length === 1 ? "" : "s"} withdrawn. ` : ""}
+        ) : null}
+        {canApprove ? <Link href="/staff/offers" className="inline-block text-xs text-primary underline underline-offset-2">All offers</Link> : null}
+      </div>
+    </ModalPanel>
+  );
+}
+
+/** The Offer row in the page's workflow group: the summary and the two buttons. */
+export function OfferRecord({ w, permissions, settings }: { w: ApplicantWorkspace; permissions: PermissionSet; settings: OfferSettings }) {
+  if (w.offers === null) return <p className="text-muted-foreground">You do not have permission to see offers.</p>;
+  return (
+    <div className="space-y-3">
+      <OfferSummary w={w} settings={settings} />
+      {!shownOffer(w) ? (
+        <p className="text-xs text-muted-foreground">
+          {w.offers.length ? `${w.offers.length} earlier offer${w.offers.length === 1 ? "" : "s"} withdrawn. ` : ""}
           {w.app.status === "waitlisted" || w.app.status === "declined" ? "No offer for this outcome." : "No offer yet; one is drafted when the applicant is accepted."}
         </p>
-      )}
-      {offers && offers.length > 1 ? (
-        <ul className="text-xs text-muted-foreground">
-          {offers.filter((o) => o.id !== liveOffer?.id).map((o) => (
-            <li key={o.id}>{o.status} · drafted {formatDate(o.created_at)}{o.withdrawn_reason ? ` · ${o.withdrawn_reason}` : ""}</li>
-          ))}
-        </ul>
       ) : null}
-      {canApprove ? <Link href="/staff/offers" className="inline-block text-xs text-primary underline underline-offset-2">All offers</Link> : null}
+      <div className="flex flex-wrap gap-2">
+        <OfferPreview w={w} />
+        <OfferEditor w={w} permissions={permissions} settings={settings} />
+      </div>
     </div>
   );
 }

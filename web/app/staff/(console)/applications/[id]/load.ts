@@ -6,7 +6,7 @@ import { registrationCompleteness } from "@/lib/registration/completeness";
 import { getSettings } from "@/lib/settings";
 import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
+import { actorName, journeyMilestones, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
 
 /**
  * Everything the applicant page shows, read once through the staff client
@@ -196,14 +196,21 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     payment: paymentRequest ? { status: paymentRequest.status, dueAt: paymentRequest.due_at } : null,
     trial: trials?.[0] ? { status: trials[0].status, startsOn: trials[0].starts_on, endsOn: trials[0].ends_on } : null,
     deferredUntil: app.deferred_until,
+    offerAutoApprove: settings.offerAutoApprove,
     followUpDueAt: openTasks.map((t) => t.due_at).filter((d): d is string => Boolean(d)).sort()[0] ?? null,
     hasSat: (attempts ?? []).some((a) => a.status === "submitted" || a.status === "marked"),
     hasDecision: (decisions ?? []).length > 0,
     now: new Date(),
   };
 
+  const staffName = (staffId: string) => (staff ?? []).find((m) => m.id === staffId)?.full_name ?? null;
+  const latest = events?.[0] ?? null;
+
   return {
     app,
+    milestones: journeyMilestones(events ?? [], staffName),
+    // The newest thing on the timeline: when the record last moved, and who moved it.
+    lastUpdated: latest ? { at: latest.occurred_at, by: actorName(latest, staffName) } : null,
     campus,
     grade,
     intake,
