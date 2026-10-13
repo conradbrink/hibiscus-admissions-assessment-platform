@@ -107,6 +107,8 @@ export type ApplicantFacts = {
   /** The newest free trial week, or null. */
   trial: { status: TrialWeekStatus; startsOn: string; endsOn: string } | null;
   deferredUntil: string | null;
+  /** The `offer_auto_approve` setting: creating an offer also sends it. */
+  offerAutoApprove?: boolean;
   /** The earliest open task with a due date: a follow-up already set, so it is not asked for twice. */
   followUpDueAt: string | null;
   /** Whether a sitting was ever handed in, for where a paused family sits on the bar. */
@@ -232,7 +234,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Call the parent",
         detail: "Mark it done once you have spoken to them.",
         action: "call_parent",
-        actionLabel: "Called — done",
+        actionLabel: "Mark call done",
         tone: "action",
       });
 
@@ -288,7 +290,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
           title: "Type the code on the assessment computer",
           detail: "Lost the code, or did it expire? Issue a new one.",
           action: "new_code",
-          actionLabel: "New code",
+          actionLabel: "Issue a new code",
           tone: "action",
         });
       }
@@ -308,7 +310,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
           title: "Mark the written answers",
           detail: "The decision follows once every answer is marked.",
           action: "mark_writing",
-          actionLabel: "Mark answers",
+          actionLabel: "Mark written answers",
           tone: "action",
         });
       }
@@ -350,7 +352,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Review the assessment and decide",
         detail: f.status === "staff_review" ? "The admission rules passed this to a person." : null,
         action: "decide",
-        actionLabel: f.hasSat ? "Review assessment & decide" : "Make decision",
+        actionLabel: "Make decision",
         tone: "action",
       });
     }
@@ -365,7 +367,9 @@ export function nextStep(f: ApplicantFacts): NextStep {
             ? "The last draft had no fee schedule. Set the fees for this campus and stage, then create it again."
             : "It is checked and approved before it goes to the parent.",
         action: "generate_offer",
-        actionLabel: "Create offer",
+        // Only says "send" when it does: with offer_auto_approve on, creating
+        // the offer approves and sends it in the same step.
+        actionLabel: f.offerAutoApprove ? "Create & send offer" : "Create offer",
         tone: "action",
       });
 
@@ -392,7 +396,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
           .filter(Boolean)
           .join(" · "),
         action: "resend_link",
-        actionLabel: "Email a fresh link",
+        actionLabel: "Email parent a fresh link",
         tone: "waiting",
       });
 
@@ -402,7 +406,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Withdraw the expired offer, then create a fresh one",
         detail: "Or close the application under More actions if the family has gone elsewhere.",
         action: "reissue_offer",
-        actionLabel: "Withdraw & re-draft",
+        actionLabel: "Withdraw expired offer",
         tone: "action",
       });
 
@@ -435,7 +439,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Waiting for the gateway to confirm",
         detail: "Check it with the gateway if it is taking long.",
         action: "record_payment",
-        actionLabel: "Check payment",
+        actionLabel: "Check payment status",
         tone: "waiting",
       });
 
@@ -455,7 +459,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Waiting for the parent to complete registration",
         detail: "Their link asks only for what the school does not have yet.",
         action: "registration_reminder",
-        actionLabel: "Send a reminder",
+        actionLabel: "Send registration reminder",
         tone: "waiting",
       });
 
@@ -507,7 +511,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         title: "Set a follow-up date",
         detail: "Accept them from here when a place opens.",
         action: "follow_up",
-        actionLabel: "Set follow-up",
+        actionLabel: "Set follow-up date",
         tone: "paused",
         halted: "paused",
       });
@@ -556,4 +560,82 @@ export function nextStep(f: ApplicantFacts): NextStep {
         halted: "closed",
       });
   }
+}
+
+// ---------------------------------------------------------------------------
+// When each stage was reached, and by whom
+// ---------------------------------------------------------------------------
+
+export type Milestone = { at: string; label: string; by: string | null };
+
+type EventLike = { type: string; occurred_at: string; actor_type: string; actor_id: string | null; payload: unknown };
+
+type StageRule = { type: string; label: string | ((payload: Record<string, unknown>, e: EventLike & { summary?: string }) => string) };
+
+/**
+ * The events that mark each stage done, in order of preference: the first
+ * rule with a match wins, and within it the newest event. `undoneBy` names
+ * events that take a stage back: an offer sent and then withdrawn is not an
+ * offer out, so the newest of the stage's events decides.
+ */
+const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: string[] }> = {
+  enquiry: { rules: [{ type: "enquiry.created", label: "Enquiry received" }] },
+  assessment: {
+    rules: [
+      { type: "assessment.completed", label: "Assessment completed" },
+      // The same event for both kinds of booking; its summary says which.
+      { type: "booking.checked_in", label: (_p, e) => (/visit/i.test(e.summary ?? "") ? "Visited" : "Checked in") },
+    ],
+  },
+  decision: {
+    rules: [
+      {
+        type: "decision.made",
+        label: (p) => (p.outcome === "approved" ? "Accepted" : p.outcome === "waitlisted" ? "Waitlisted" : p.outcome === "declined" ? "Declined" : "Decided"),
+      },
+    ],
+  },
+  offer: {
+    rules: [
+      { type: "offer.accepted", label: "Offer accepted" },
+      { type: "offer.sent", label: "Offer sent" },
+    ],
+    undoneBy: ["offer.withdrawn"],
+  },
+  payment: { rules: [{ type: "payment.confirmed", label: "Paid" }] },
+  registered: { rules: [{ type: "enrolment.completed", label: "Registered" }] },
+};
+
+/** Every event type the milestones read, for the query that fetches them. */
+export const MILESTONE_EVENT_TYPES: string[] = [
+  ...new Set(Object.values(STAGE_EVENTS).flatMap((x) => [...x.rules.map((r) => r.type), ...(x.undoneBy ?? [])])),
+];
+
+/**
+ * What the journey bar writes under each stage: when it was reached and who
+ * did it. Events come newest first, so a re-decision or a re-sent offer
+ * shows the latest.
+ */
+export function journeyMilestones(events: readonly (EventLike & { summary?: string })[], nameOf: (staffId: string) => string | null): Partial<Record<JourneyStage, Milestone>> {
+  const out: Partial<Record<JourneyStage, Milestone>> = {};
+  for (const stage of Object.keys(STAGE_EVENTS) as JourneyStage[]) {
+    const { rules, undoneBy = [] } = STAGE_EVENTS[stage];
+    const newest = events.find((x) => undoneBy.includes(x.type) || rules.some((r) => r.type === x.type));
+    if (!newest || undoneBy.includes(newest.type)) continue;
+    for (const rule of rules) {
+      const e = events.find((x) => x.type === rule.type);
+      if (!e) continue;
+      const payload = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
+      out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payload, e), by: actorName(e, nameOf) };
+      break;
+    }
+  }
+  return out;
+}
+
+/** "Fiona Makopola", "the parent", "the admission rules", or null when nobody in particular. */
+export function actorName(e: Pick<EventLike, "type" | "actor_type" | "actor_id">, nameOf: (staffId: string) => string | null): string | null {
+  if (e.actor_type === "staff") return e.actor_id ? nameOf(e.actor_id) : null;
+  if (e.actor_type === "parent") return "the parent";
+  return e.type.startsWith("decision.") ? "the admission rules" : null;
 }

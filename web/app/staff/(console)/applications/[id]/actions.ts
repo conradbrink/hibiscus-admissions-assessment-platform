@@ -37,7 +37,7 @@ import {
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
-import { isNextAction, type NextAction } from "@/lib/workflow/states";
+import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
 
@@ -145,6 +145,13 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
     const booking = await loadLiveBooking(admin, parsed.applicationId);
     const { data: session } = await admin.from("sessions").select("id, kind, starts_at").eq("id", parsed.sessionId).single();
     if (!session) throw new Error("Session not found");
+    // A first assessment booking only while booking one is still the stage.
+    // From later on (sat and waiting for a decision, an offer out) the
+    // booking would be made, its confirmation and reminders queued, and the
+    // status left where it was: a second sitting nobody asked for.
+    if (session.kind === "assessment" && !booking && statusAfterBooking(app.status, "assessment") === null) {
+      throw new Error("This child is past the assessment stage, so an assessment cannot be booked for them here.");
+    }
     try {
       await onSessionChosen(admin, app, booking, session, ctx.actor);
     } catch (e) {

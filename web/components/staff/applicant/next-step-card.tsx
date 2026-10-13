@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
-import { ActionForm } from "@/components/staff/action-form";
+import { ActionForm, type StaffActionState } from "@/components/staff/action-form";
+import { JumpToStep } from "@/components/staff/applicant/sticky-action-bar";
+import { Badge } from "@/components/ui/badge";
 import { DecisionFields } from "@/components/staff/decision-fields";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
-import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { TrialWeekStatus } from "@/components/staff/trial-week-status";
 import { buttonVariants } from "@/components/ui/button";
@@ -14,8 +15,7 @@ import { can, type PermissionCode, type PermissionSet } from "@/lib/permissions"
 import { cn } from "@/lib/utils";
 import type { NextStep, PrimaryAction } from "@/lib/workflow/next-step";
 import { DecisionPanel } from "@/components/staff/applicant/decision-panel";
-import { OpenSectionLink } from "@/components/staff/applicant/open-section-link";
-import { ApproveOfferForm, assessmentResult, bandClass, rulesRecommendation } from "@/components/staff/applicant/records";
+import { ApproveOfferForm, assessmentResult, bandClass, OfferEditor, OfferPreview, OfferSummary, rulesRecommendation, type OfferSettings } from "@/components/staff/applicant/records";
 import { generateOffer, sendOutcome, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
 import { confirmEnrolment, sendRegistrationReminder } from "@/app/staff/(console)/registrations/actions";
@@ -90,10 +90,12 @@ export function NextStepCard({
   eligibleSessions,
   parentSees,
   secondary,
+  offerSettings,
 }: {
   w: ApplicantWorkspace;
   permissions: PermissionSet;
   decision: DecisionRights;
+  offerSettings: OfferSettings;
   eligibleSessions: Array<{ id: string; starts_at: string; location: string | null }>;
   /** What the parent's own page tells them, so staff and family read the same thing. */
   parentSees: string | null;
@@ -122,6 +124,7 @@ export function NextStepCard({
 
   return (
     <section
+      id="next-step"
       aria-labelledby="next-step-heading"
       className={cn("surface border-l-4 p-5 sm:p-6", TONE_ACCENT[step.tone])}
     >
@@ -136,7 +139,7 @@ export function NextStepCard({
       {step.action ? (
         <div className="mt-4">
           {allowed ? (
-            <PrimaryActionArea action={step.action} label={step.actionLabel ?? ""} w={w} permissions={permissions} decision={decision} eligibleSessions={eligibleSessions} variant={main} idField={idField} />
+            <PrimaryActionArea action={step.action} label={step.actionLabel ?? ""} w={w} permissions={permissions} decision={decision} eligibleSessions={eligibleSessions} variant={main} idField={idField} offerSettings={offerSettings} />
           ) : (
             <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
               This is for {NEEDS[step.action].who} to do. Your account cannot {step.actionLabel?.toLowerCase() ?? "do it"}.
@@ -167,7 +170,9 @@ function PrimaryActionArea({
   eligibleSessions,
   variant,
   idField,
+  offerSettings,
 }: {
+  offerSettings: OfferSettings;
   action: PrimaryAction;
   label: string;
   w: ApplicantWorkspace;
@@ -279,23 +284,26 @@ function PrimaryActionArea({
 
     case "generate_offer":
       return (
-        <ActionForm action={generateOffer} label={label} size="lg" variant={variant} className="space-y-3">
-          {idField}
-          <details className="text-sm">
-            <summary className="cursor-pointer text-primary">Add conditions (optional)</summary>
-            <div className="mt-2"><OfferConditionsFields grades={w.grades} currentGradeSort={w.grade?.sort_order ?? 0} compact /></div>
-          </details>
-          <p className="text-xs text-muted-foreground">
-            Check the start month, day pattern and scholarship under <OpenSectionLink target="offer">Offer</OpenSectionLink> first: the letter reads them.
-          </p>
-        </ActionForm>
+        <div className="space-y-4">
+          <div className="max-w-md"><OfferSummary w={w} settings={offerSettings} brief /></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionForm action={generateOffer} label={label} size="lg" variant={variant}>{idField}</ActionForm>
+            {/* Start month, day pattern, scholarship and conditions: the letter
+                reads them, so they are one click away rather than in the way. */}
+            <OfferEditor w={w} permissions={permissions} settings={offerSettings} />
+          </div>
+        </div>
       );
 
     case "approve_offer":
       return (
-        <div className="flex flex-wrap items-center gap-3">
-          <ApproveOfferForm w={w} primary />
-          <OpenSectionLink target="offer" className="text-sm">Preview the letter and fees</OpenSectionLink>
+        <div className="space-y-4">
+          <div className="max-w-md"><OfferSummary w={w} settings={offerSettings} brief /></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ApproveOfferForm w={w} primary />
+            <OfferPreview w={w} />
+            <OfferEditor w={w} permissions={permissions} settings={offerSettings} />
+          </div>
         </div>
       );
 
@@ -309,7 +317,15 @@ function PrimaryActionArea({
       ) : null;
 
     case "resend_link":
-      return <ActionForm action={resendLink} label={label} size="lg" variant={variant}>{idField}</ActionForm>;
+      return (
+        <div className="space-y-4">
+          {w.liveOffer ? <div className="max-w-md"><OfferSummary w={w} settings={offerSettings} brief /></div> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionForm action={resendLink} label={label} size="lg" variant={variant}>{idField}</ActionForm>
+            <OfferPreview w={w} />
+          </div>
+        </div>
+      );
 
     case "send_outcome":
       return (
@@ -373,4 +389,53 @@ function PrimaryActionArea({
         </ActionForm>
       );
   }
+}
+
+/** Steps whose whole action is one press, so the sticky bar can carry the real button. */
+const ONE_PRESS: Partial<Record<PrimaryAction, (state: StaffActionState, formData: FormData) => Promise<StaffActionState>>> = {
+  call_parent: completeCallback,
+  check_in: checkIn,
+  generate_offer: generateOffer,
+  send_outcome: sendOutcome,
+  resend_link: resendLink,
+  registration_reminder: sendRegistrationReminder,
+  register: confirmEnrolment,
+  resume: resumeDeferred,
+};
+
+/**
+ * The sticky bar's contents: where the applicant is, and the same next step
+ * as the card above — the real button where the step is one press, and a way
+ * back to the card where it needs a form (a decision, a payment, a booking).
+ */
+export function StickyStep({ w, permissions, offerSettings }: { w: ApplicantWorkspace; permissions: PermissionSet; offerSettings: OfferSettings }) {
+  const step = w.step;
+  const allowed = step.action ? can(permissions, NEEDS[step.action].permission) : false;
+  const idField = <input type="hidden" name="applicationId" value={w.app.id} />;
+  const statusVariant = step.status.tone === "default" ? "default" : step.status.tone;
+  const onePress = step.action ? ONE_PRESS[step.action] : undefined;
+
+  let primary: React.ReactNode = null;
+  if (step.action && step.actionLabel && allowed) {
+    if (step.action === "approve_offer") primary = <ApproveOfferForm w={w} />;
+    else if (onePress) primary = <ActionForm action={onePress} label={step.actionLabel} size="sm" variant={step.tone === "waiting" ? "outline" : "default"} confirm={step.action === "register" ? "Register this child as a student? Their record is created from the registration." : step.action === "send_outcome" ? `${step.actionLabel}? It is emailed to the parent now.` : undefined}>{idField}</ActionForm>;
+    else if (step.action === "launch") primary = <LaunchDialog applicationId={w.app.id} childName={w.app.child_first_name} action={launchAttempt} label={step.actionLabel} />;
+    else if (step.action === "new_code" && w.latestAttempt?.status === "ready") primary = <LaunchDialog applicationId={w.app.id} childName={w.app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={w.latestAttempt.id} label={step.actionLabel} />;
+    else if ((step.action === "open_sitting" || step.action === "mark_writing") && w.latestAttempt) primary = <Link href={`/staff/assessments/attempts/${w.latestAttempt.id}`} className={buttonVariants({ size: "sm", variant: step.tone === "waiting" ? "outline" : "default" })}>{step.actionLabel}</Link>;
+    else primary = <JumpToStep targetId="next-step" label={step.actionLabel} className={buttonVariants({ size: "sm", variant: step.action === "withdraw" ? "destructive" : "default" })} />;
+  }
+
+  return (
+    <>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {step.tone === "done" ? <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden /> : <Badge variant={statusVariant} className="shrink-0">{step.status.label}</Badge>}
+        <span className="truncate text-sm font-medium">{step.title}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {step.action === "approve_offer" || (step.action === "resend_link" && w.liveOffer) ? <OfferPreview w={w} /> : null}
+        {step.action === "approve_offer" || step.action === "generate_offer" ? <OfferEditor w={w} permissions={permissions} settings={offerSettings} /> : null}
+        {primary}
+      </div>
+    </>
+  );
 }

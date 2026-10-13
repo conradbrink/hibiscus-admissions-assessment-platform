@@ -9,9 +9,20 @@ import type { SummaryView } from "@/lib/summary/generate";
  * either the system's plain wording or, when the switch is on and the
  * validator passed, the model's — and says which.
  */
-export function SummaryPanel({ applicationId, view, action }: { applicationId: string; view: SummaryView; action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState> }) {
+export function SummaryPanel({
+  applicationId,
+  view,
+  action,
+  bare = false,
+}: {
+  applicationId: string;
+  view: SummaryView;
+  action: (state: StaffActionState, formData: FormData) => Promise<StaffActionState>;
+  /** Inside a row that already gives it a frame. */
+  bare?: boolean;
+}) {
   return (
-    <section className="surface p-4" aria-label="Summary">
+    <section className={bare ? undefined : "surface p-4"} aria-label="Summary">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Summary</p>
