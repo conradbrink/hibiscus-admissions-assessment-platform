@@ -81,10 +81,10 @@ const DAY_MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
   timeZone: SCHOOL_TIMEZONE,
 });
 
-/** "7 Sept", for a label where the year is already plain from what is around it. */
-export function formatDayMonth(value: string | Date | null | undefined): string {
+/** "7 Sept", for a label where the year is plain from what is around it; "7 Sept 2025" with `withYear`. */
+export function formatDayMonth(value: string | Date | null | undefined, withYear = false): string {
   const d = parse(value);
-  return d ? DAY_MONTH.format(d) : "—";
+  return d ? (withYear ? DAY_MONTH_YEAR : DAY_MONTH).format(d) : "—";
 }
 
 /** "15 Jul to 13 Oct 2026", with the first year written only when the range crosses one. */

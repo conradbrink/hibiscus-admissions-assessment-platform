@@ -1,4 +1,4 @@
-import { conversion, cycleTimes, funnelCounts, rate, type Breakdown, type FactRow, type FunnelCounts } from "@/lib/analytics/breakdown";
+import { conversion, cycleTimes, funnelCounts, rate, wholePercent, type Breakdown, type FactRow, type FunnelCounts } from "@/lib/analytics/breakdown";
 
 /**
  * The reading layer over the funnel: a handful of headline figures, each
@@ -29,7 +29,7 @@ export type Delta = { abs: number; pct: number | null; direction: "up" | "down" 
  */
 export function delta(current: number | null, previous: number | null, kind: "count" | "fraction" | "days" = "count"): Delta | null {
   if (current === null || previous === null) return null;
-  const abs = kind === "fraction" ? (Math.round(current * 100) - Math.round(previous * 100)) / 100 : current - previous;
+  const abs = kind === "fraction" ? (wholePercent(current) - wholePercent(previous)) / 100 : current - previous;
   const direction = Math.abs(abs) < 1e-9 ? "flat" : abs > 0 ? "up" : "down";
   if (kind === "fraction") return { abs, pct: null, direction };
   return { abs, pct: previous === 0 ? null : abs / previous, direction };

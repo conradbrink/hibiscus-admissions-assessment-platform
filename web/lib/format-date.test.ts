@@ -12,6 +12,7 @@ describe("date ranges", () => {
 
   it("names a day without its year", () => {
     expect(formatDayMonth("2026-07-13")).toBe("13 Jul");
+    expect(formatDayMonth("2025-10-13", true)).toBe("13 Oct 2025");
     expect(formatDayMonth(null)).toBe("—");
   });
 

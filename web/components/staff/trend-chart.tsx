@@ -16,7 +16,7 @@ export function TrendChart({ series }: { series: Array<{ week: string; enquiries
   // "13 Oct … 12 Oct" over the past year reads as one week; the year goes in
   // whenever the weeks cross one.
   const crossesYear = series[0].week.slice(0, 4) !== series[series.length - 1].week.slice(0, 4);
-  const weekLabel = (week: string) => (crossesYear ? `${formatDayMonth(week)} ${week.slice(0, 4)}` : formatDayMonth(week));
+  const weekLabel = (week: string) => formatDayMonth(week, crossesYear);
   return (
     <div className="@container">
       <div className="grid grid-cols-1 gap-x-10 gap-y-6 @2xl:grid-cols-2">

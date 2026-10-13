@@ -20,7 +20,7 @@ import {
   type FactRow,
 } from "@/lib/analytics/breakdown";
 import { conversionSteps, deferredSummary, delta, funnelStages, headline, previousRange, shares, weakestStep, type ConversionStepKey } from "@/lib/analytics/compare";
-import { activePreset, DEFAULT_PRESET, RANGE_PRESETS, rangeFor } from "@/lib/analytics/ranges";
+import { activePreset, RANGE_PRESETS, rangeFor, resolveRange } from "@/lib/analytics/ranges";
 import { formatDateRange, toSchoolDateString } from "@/lib/format-date";
 import { can, canAccessPath } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
@@ -70,16 +70,6 @@ function drillDowns(campus: string | undefined): Record<ConversionStepKey, { hre
   };
 }
 
-/**
- * A real calendar day in YYYY-MM-DD. The shape alone let 2026-13-01 through
- * to `previousRange`, which threw on the invalid date instead of falling back.
- */
-function isCalendarDate(s: string | undefined): s is string {
-  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(`${s}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
-}
-
 function SectionHeading({ id, title, description }: { id: string; title: string; description?: string }) {
   return (
     <div className="mb-5">
@@ -101,9 +91,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const { supabase, permissions } = await requireStaff("analytics.read");
   const today = new Date();
-  const fallback = rangeFor(RANGE_PRESETS.find((p) => p.key === DEFAULT_PRESET)!, today);
-  const to = isCalendarDate(sp.to) ? sp.to : fallback.to;
-  const from = isCalendarDate(sp.from) ? sp.from : fallback.from;
+  const { from, to } = resolveRange(sp.from, sp.to, today);
   const chosen = activePreset(from, to, today);
   const dim: Dimension = (DIMENSIONS as readonly string[]).includes(sp.dim ?? "") ? (sp.dim as Dimension) : "campus";
   const prev = previousRange(from, to);
@@ -122,8 +110,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     supabase.from("learning_profiles").select("application_id, narrative_source, validation_status").not("published_at", "is", null).gte("created_at", `${from}T00:00:00+02:00`),
   ]);
 
-  const campusKnown = !sp.campus || (campuses ?? []).some((c) => c.id === sp.campus);
-  const campusName = sp.campus ? ((campuses ?? []).find((c) => c.id === sp.campus)?.name ?? "Campus not available") : null;
+  const chosenCampus = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus) : undefined;
+  // A campus missing from the list (archived, or the list did not load) still
+  // has its name on its own rows; only one with neither is "not available".
+  // Offered in the select either way, so "All campuses" is a change to make.
+  const campusListed = !sp.campus || Boolean(chosenCampus);
+  const campusName = sp.campus ? (chosenCampus?.name ?? (rows as FactRow[] | null)?.[0]?.campus_name ?? "Campus not available") : null;
   // The links keep the campus and, once somebody has chosen one, the breakdown.
   const keep = { ...(sp.campus ? { campus: sp.campus } : {}), ...(sp.dim ? { dim } : {}) };
 
@@ -150,7 +142,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const toolbar = (
     <div className="mb-5 flex flex-wrap items-center gap-2">
-      {(campuses ?? []).length > 1 || !campusKnown ? (
+      {(campuses ?? []).length > 1 || !campusListed ? (
         <ParamSelect
           name="campus"
           label="Campus"
@@ -158,7 +150,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           options={[
             { value: "", label: "All campuses" },
             ...(campuses ?? []).map((c) => ({ value: c.id, label: c.name })),
-            ...(campusKnown ? [] : [{ value: sp.campus!, label: "Campus not available" }]),
+            ...(campusListed ? [] : [{ value: sp.campus!, label: campusName ?? "Campus not available" }]),
           ]}
           className="h-8 w-44 rounded-lg py-0 text-[13px] md:h-8 md:text-[13px]"
         />
