@@ -6,7 +6,7 @@ import { requireStaff } from "@/lib/staff/session";
 /**
  * The console shell: the rail on the left, full height and still while the
  * page scrolls, and the greeting strip and the page on a flat light grey to
- * its right. `staff-console` switches on the school's own palette (see
+ * its right. `staff-console` tightens the corners for a working tool (see
  * globals.css). The proxy has already refused anyone signed out or without
  * access to this path; this loads who they are for the rail and the bell.
  */
