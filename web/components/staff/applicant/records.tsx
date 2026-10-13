@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { sendWhatsAppTemplate, setDayPattern, setScholarship, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import type { ApplicantWorkspace } from "@/app/staff/(console)/applications/[id]/load";
-import { ModalPanel } from "@/components/staff/applicant/modal-panel";
+import { PanelButton, type PanelSpec } from "@/components/staff/applicant/modal-panel";
 
 /**
  * The records behind each stage of the journey, for the applicant page's
@@ -305,51 +305,101 @@ export function shownOffer(w: ApplicantWorkspace) {
 export function OfferSummary({ w, settings, brief = false }: { w: ApplicantWorkspace; settings: OfferSettings; brief?: boolean }) {
   const offer = shownOffer(w);
   const fees = offer ? feeSnapshotFrom(offer.fees) : null;
-  const lines = fees ? feeLinesFor(fees, settings.dayPattern?.value ?? null) : [];
-  const shown = brief ? lines.filter((l) => l.code.startsWith("tuition")) : lines;
+  // A letter that has gone out is read from what it froze, not from the
+  // application today: staff may since have changed the month or the day
+  // pattern, and the parent's letter still says what it said. A draft or a
+  // letter awaiting approval is rendered again at approval, so it follows
+  // the current settings.
+  const frozen = Boolean(offer && offer.status !== "draft" && offer.status !== "pending_approval");
+  const vars = (frozen && offer?.variables && typeof offer.variables === "object" ? offer.variables : {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof vars[k] === "string" && vars[k] ? (vars[k] as string) : null);
   const row = (label: string, value: React.ReactNode, strong = false) => (
     <div key={label} className="flex items-baseline justify-between gap-4 py-1">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className={cn("text-right tabular-nums", strong && "font-semibold")}>{value}</dd>
     </div>
   );
+
+  let feeRows: React.ReactNode[] = [];
+  let payable: string | null = null;
+  if (fees && frozen) {
+    const tuition: Array<[string, string | null]> = [
+      ["Monthly tuition", str("tuition_month")],
+      ["Monthly tuition, half day", str("tuition_month_half")],
+      ["Monthly tuition, full day", str("tuition_month_full")],
+      ["Term tuition", str("tuition_term")],
+      ["Term tuition, half day", str("tuition_term_half")],
+      ["Term tuition, full day", str("tuition_term_full")],
+    ];
+    feeRows = [
+      ...tuition.filter(([, v]) => v).map(([label, v]) => row(label, v)),
+      ...(brief ? [] : fees.lines.filter((l) => !l.code.startsWith("tuition")).map((l) => row(l.label, formatMoney(l.amount_minor, fees.currency)))),
+    ];
+    payable = str("amount_due") ?? formatMoney(fees.payable_at_acceptance_minor, fees.currency);
+  } else if (fees) {
+    const lines = feeLinesFor(fees, settings.dayPattern?.value ?? null);
+    feeRows = (brief ? lines.filter((l) => l.code.startsWith("tuition")) : lines).map((l) => row(l.label, formatMoney(l.amount_minor, fees.currency)));
+    payable = formatMoney(fees.payable_at_acceptance_minor, fees.currency);
+  }
+  const letterScholarship = frozen ? awardLabelOf((fees as PromotionFeeSnapshot | null)?.promotion?.code ?? null) : null;
+
   return (
     <dl className="divide-y divide-border/60 text-sm">
-      {row("Starts", offerStart(w, settings))}
-      {!brief && settings.dayPattern ? row("Attendance", settings.dayPattern.value === "half" ? "Half day" : settings.dayPattern.value === "full" ? "Full day" : "Not decided — both rates quoted") : null}
-      {!brief && (settings.scholarshipBand || w.heldCode) ? row("Scholarship", scholarshipText(settings.scholarshipBand)) : null}
+      {row("Starts", (frozen && str("intake")) || offerStart(w, settings))}
+      {!brief && !frozen && settings.dayPattern ? row("Attendance", settings.dayPattern.value === "half" ? "Half day" : settings.dayPattern.value === "full" ? "Full day" : "Not decided — both rates quoted") : null}
+      {!brief && (frozen ? row("Scholarship", letterScholarship ? `${letterScholarship} of tuition` : "None") : settings.scholarshipBand || w.heldCode ? row("Scholarship", scholarshipText(settings.scholarshipBand)) : null)}
       {fees ? (
         <>
-          {shown.map((l) => row(l.label, formatMoney(l.amount_minor, fees.currency)))}
-          {row("Payable on acceptance", formatMoney(fees.payable_at_acceptance_minor, fees.currency), true)}
+          {feeRows}
+          {row("Payable on acceptance", payable, true)}
         </>
       ) : offer ? (
-        row("Fees", <span className="text-warning-foreground">No fee schedule covers this campus, stage and year</span>)
+        row(
+          "Fees",
+          <span className="text-warning-foreground">
+            No fee schedule covers this campus, stage and year, so the offer cannot be sent.{" "}
+            <Link href="/staff/admin/fees" className="text-primary underline underline-offset-2">Configure fees</Link>
+          </span>
+        )
       ) : null}
       {!brief && offer?.conditions ? row("Conditions", offer.conditions) : null}
-      {!brief && offer && offer.status !== "draft" && offer.status !== "pending_approval"
+      {!brief && frozen && offer
         ? row(
             "Letter",
             offer.status === "accepted"
-              ? [`accepted${offer.sent_at ? ` (sent ${formatDate(offer.sent_at)})` : ""}`]
+              ? `accepted${offer.sent_at ? ` (sent ${formatDate(offer.sent_at)})` : ""}`
               : [offer.sent_at ? `sent ${formatDate(offer.sent_at)}` : null, offer.first_viewed_at ? `opened ${formatDate(offer.first_viewed_at)}` : "not opened", offer.expires_at ? `open until ${formatDate(offer.expires_at)}` : null]
-              .filter(Boolean)
-              .join(" · ")
+                  .filter(Boolean)
+                  .join(" · ")
           )
         : null}
     </dl>
   );
 }
 
-/** The letter exactly as the parent reads it. */
-export function OfferPreview({ w }: { w: ApplicantWorkspace }) {
+/** The letter exactly as the parent reads it: the panel's content, rendered once by the page. */
+export function offerPreviewPanel(w: ApplicantWorkspace): PanelSpec | null {
   const offer = shownOffer(w);
   if (!offer) return null;
-  return (
-    <ModalPanel label="Preview" title="The offer as the parent reads it" icon={<Eye aria-hidden />} wide>
-      <div className="prose prose-sm max-w-none rounded-lg border border-border bg-background p-4" dangerouslySetInnerHTML={{ __html: offer.rendered_html + offer.terms_html }} />
-    </ModalPanel>
-  );
+  return {
+    title: "The offer as the parent reads it",
+    wide: true,
+    content: <div className="prose prose-sm max-w-none rounded-lg border border-border bg-background p-4" dangerouslySetInnerHTML={{ __html: offer.rendered_html + offer.terms_html }} />,
+  };
+}
+
+/** Opens the letter preview, where there is a letter. */
+export function OfferPreview({ w }: { w: ApplicantWorkspace }) {
+  return shownOffer(w) ? <PanelButton name="offer-preview" label="Preview" icon={<Eye aria-hidden />} /> : null;
+}
+
+/** Opens the offer editor, for whoever may change something in it. */
+export function OfferEditor({ w, permissions, settings }: { w: ApplicantWorkspace; permissions: PermissionSet; settings: OfferSettings }) {
+  return canEditOffer(w, permissions, settings) ? <PanelButton name="offer-edit" label="Edit offer" icon={<Pencil aria-hidden />} /> : null;
+}
+
+function canEditOffer(w: ApplicantWorkspace, permissions: PermissionSet, settings: OfferSettings): boolean {
+  return can(permissions, "offers.approve") || Boolean(settings.startMonth?.canSet || settings.dayPattern?.canSet || settings.scholarshipBand?.canSet);
 }
 
 /**
@@ -357,10 +407,10 @@ export function OfferPreview({ w }: { w: ApplicantWorkspace }) {
  * starting month, half or full day, the scholarship, the conditions, and
  * withdrawing a letter to correct it.
  */
-export function OfferEditor({ w, permissions, settings }: { w: ApplicantWorkspace; permissions: PermissionSet; settings: OfferSettings }) {
+export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionSet, settings: OfferSettings): PanelSpec | null {
+  if (!canEditOffer(w, permissions, settings)) return null;
   const { dayPattern, startMonth, scholarshipBand } = settings;
   const canApprove = can(permissions, "offers.approve");
-  if (!canApprove && !startMonth?.canSet && !dayPattern?.canSet && !scholarshipBand?.canSet) return null;
   const liveOffer = w.liveOffer;
   const offers = w.offers;
   // The most recent letter of any status: a withdrawn one is not live, and
@@ -374,8 +424,10 @@ export function OfferEditor({ w, permissions, settings }: { w: ApplicantWorkspac
   const canDraft = canApprove && (liveOffer ? liveOffer.status === "draft" || liveOffer.status === "pending_approval" : ["approved", "offer_draft"].includes(w.app.status));
   const field = "space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0";
 
-  return (
-    <ModalPanel label="Edit offer" title="Edit offer" description="What the next letter says. A letter already sent keeps what it was drafted with." icon={<Pencil aria-hidden />}>
+  return {
+    title: "Edit offer",
+    description: "What the next letter says. A letter already sent keeps what it was drafted with.",
+    content: (
       <div className="space-y-4">
         {startMonth?.canSet ? (
           <ActionForm action={setStartMonth} label="Save starting month" variant="outline" size="sm" className={field}>
@@ -462,8 +514,8 @@ export function OfferEditor({ w, permissions, settings }: { w: ApplicantWorkspac
         ) : null}
         {canApprove ? <Link href="/staff/offers" className="inline-block text-xs text-primary underline underline-offset-2">All offers</Link> : null}
       </div>
-    </ModalPanel>
-  );
+    ),
+  };
 }
 
 /** The Offer row in the page's workflow group: the summary and the two buttons. */

@@ -14,6 +14,8 @@ import {
   assessmentResult,
   DecisionHistory,
   DocumentsRecord,
+  offerEditorPanel,
+  offerPreviewPanel,
   OfferRecord,
   shownOffer,
   PaymentRecord,
@@ -23,6 +25,7 @@ import {
 } from "@/components/staff/applicant/records";
 import { Group, PanelBlock, Row } from "@/components/staff/applicant/section";
 import { StickyActionBar } from "@/components/staff/applicant/sticky-action-bar";
+import { PanelHost } from "@/components/staff/applicant/modal-panel";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -420,7 +423,9 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const notesShown = 2;
 
   return (
-    <>
+    // The offer's letter and editor, rendered once; every Preview and Edit
+    // offer button on the page opens these.
+    <PanelHost panels={{ "offer-preview": offerPreviewPanel(w), "offer-edit": offerEditorPanel(w, permissions, offerSettings) }}>
       {/* 1–2. Who, and their status */}
       <header className="mb-5">
         <Link href={back.href} className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
@@ -772,6 +777,6 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
       <StickyActionBar targetId="next-step">
         <StickyStep w={w} permissions={permissions} offerSettings={offerSettings} />
       </StickyActionBar>
-    </>
+    </PanelHost>
   );
 }

@@ -570,40 +570,63 @@ export type Milestone = { at: string; label: string; by: string | null };
 
 type EventLike = { type: string; occurred_at: string; actor_type: string; actor_id: string | null; payload: unknown };
 
-/** The event that marks each stage done, newest first; the first match wins. */
-const STAGE_EVENTS: Record<JourneyStage, Array<{ type: string; label: string | ((payload: Record<string, unknown>) => string) }>> = {
-  enquiry: [{ type: "enquiry.created", label: "Enquiry received" }],
-  assessment: [
-    { type: "assessment.completed", label: "Assessment completed" },
-    { type: "booking.checked_in", label: "Visited" },
-  ],
-  decision: [
-    {
-      type: "decision.made",
-      label: (p) => (p.outcome === "approved" ? "Accepted" : p.outcome === "waitlisted" ? "Waitlisted" : p.outcome === "declined" ? "Declined" : "Decided"),
-    },
-  ],
-  offer: [
-    { type: "offer.accepted", label: "Offer accepted" },
-    { type: "offer.sent", label: "Offer sent" },
-  ],
-  payment: [{ type: "payment.confirmed", label: "Paid" }],
-  registered: [{ type: "enrolment.completed", label: "Registered" }],
+type StageRule = { type: string; label: string | ((payload: Record<string, unknown>, e: EventLike & { summary?: string }) => string) };
+
+/**
+ * The events that mark each stage done, in order of preference: the first
+ * rule with a match wins, and within it the newest event. `undoneBy` names
+ * events that take a stage back: an offer sent and then withdrawn is not an
+ * offer out, so the newest of the stage's events decides.
+ */
+const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: string[] }> = {
+  enquiry: { rules: [{ type: "enquiry.created", label: "Enquiry received" }] },
+  assessment: {
+    rules: [
+      { type: "assessment.completed", label: "Assessment completed" },
+      // The same event for both kinds of booking; its summary says which.
+      { type: "booking.checked_in", label: (_p, e) => (/visit/i.test(e.summary ?? "") ? "Visited" : "Checked in") },
+    ],
+  },
+  decision: {
+    rules: [
+      {
+        type: "decision.made",
+        label: (p) => (p.outcome === "approved" ? "Accepted" : p.outcome === "waitlisted" ? "Waitlisted" : p.outcome === "declined" ? "Declined" : "Decided"),
+      },
+    ],
+  },
+  offer: {
+    rules: [
+      { type: "offer.accepted", label: "Offer accepted" },
+      { type: "offer.sent", label: "Offer sent" },
+    ],
+    undoneBy: ["offer.withdrawn"],
+  },
+  payment: { rules: [{ type: "payment.confirmed", label: "Paid" }] },
+  registered: { rules: [{ type: "enrolment.completed", label: "Registered" }] },
 };
+
+/** Every event type the milestones read, for the query that fetches them. */
+export const MILESTONE_EVENT_TYPES: string[] = [
+  ...new Set(Object.values(STAGE_EVENTS).flatMap((x) => [...x.rules.map((r) => r.type), ...(x.undoneBy ?? [])])),
+];
 
 /**
  * What the journey bar writes under each stage: when it was reached and who
- * did it. Read from the timeline the page already loads, newest first, so a
- * re-decision or a re-sent offer shows the latest.
+ * did it. Events come newest first, so a re-decision or a re-sent offer
+ * shows the latest.
  */
-export function journeyMilestones(events: readonly EventLike[], nameOf: (staffId: string) => string | null): Partial<Record<JourneyStage, Milestone>> {
+export function journeyMilestones(events: readonly (EventLike & { summary?: string })[], nameOf: (staffId: string) => string | null): Partial<Record<JourneyStage, Milestone>> {
   const out: Partial<Record<JourneyStage, Milestone>> = {};
   for (const stage of Object.keys(STAGE_EVENTS) as JourneyStage[]) {
-    for (const rule of STAGE_EVENTS[stage]) {
+    const { rules, undoneBy = [] } = STAGE_EVENTS[stage];
+    const newest = events.find((x) => undoneBy.includes(x.type) || rules.some((r) => r.type === x.type));
+    if (!newest || undoneBy.includes(newest.type)) continue;
+    for (const rule of rules) {
       const e = events.find((x) => x.type === rule.type);
       if (!e) continue;
       const payload = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
-      out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payload), by: actorName(e, nameOf) };
+      out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payload, e), by: actorName(e, nameOf) };
       break;
     }
   }

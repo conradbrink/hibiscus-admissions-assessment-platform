@@ -6,7 +6,7 @@ import { registrationCompleteness } from "@/lib/registration/completeness";
 import { getSettings } from "@/lib/settings";
 import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { actorName, journeyMilestones, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
+import { actorName, journeyMilestones, MILESTONE_EVENT_TYPES, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
 
 /**
  * Everything the applicant page shows, read once through the staff client
@@ -134,7 +134,7 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
   ]);
 
   const latestAttempt = attempts?.[0] ?? null;
-  const [{ data: scores }, { data: messageEvents }, registrationRows] = await Promise.all([
+  const [{ data: scores }, { data: messageEvents }, registrationRows, { data: milestoneEvents }] = await Promise.all([
     latestAttempt ? supabase.from("attempt_scores").select("*").eq("attempt_id", latestAttempt.id) : Promise.resolve({ data: [] }),
     // The trail behind those messages, read separately so a message with a
     // long delivery history cannot push another out of the fifty above.
@@ -151,7 +151,23 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
           supabase.from("agreement_acceptances").select("*").eq("application_id", id),
         ])
       : null,
+    // The events the journey bar dates its stages by, read on their own: the
+    // timeline above stops at the newest hundred, and on a long-running
+    // family the enquiry and the assessment fall off the end of it.
+    supabase
+      .from("application_events")
+      .select("type, occurred_at, actor_type, actor_id, payload, summary")
+      .eq("application_id", id)
+      .in("type", MILESTONE_EVENT_TYPES)
+      .order("id", { ascending: false }),
   ]);
+  // Everybody who acted on this record, by name, leavers included: the
+  // active-staff list above is for choosing an owner, and a decision made by
+  // somebody who has since left still has a name.
+  const actorIds = [...new Set([...(events ?? []), ...(milestoneEvents ?? [])].map((e) => e.actor_id).filter((x): x is string => Boolean(x)))];
+  const { data: actors } = actorIds.length
+    ? await supabase.from("staff_profiles").select("id, full_name").in("id", actorIds)
+    : { data: [] as Array<{ id: string; full_name: string }> };
 
   const campus = one(app.campuses);
   const grade = one(app.grades);
@@ -203,12 +219,12 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     now: new Date(),
   };
 
-  const staffName = (staffId: string) => (staff ?? []).find((m) => m.id === staffId)?.full_name ?? null;
+  const staffName = (staffId: string) => (actors ?? []).find((m) => m.id === staffId)?.full_name ?? null;
   const latest = events?.[0] ?? null;
 
   return {
     app,
-    milestones: journeyMilestones(events ?? [], staffName),
+    milestones: journeyMilestones(milestoneEvents ?? [], staffName),
     // The newest thing on the timeline: when the record last moved, and who moved it.
     lastUpdated: latest ? { at: latest.occurred_at, by: actorName(latest, staffName) } : null,
     campus,

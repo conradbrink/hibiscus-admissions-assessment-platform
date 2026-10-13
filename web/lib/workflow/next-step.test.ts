@@ -230,7 +230,7 @@ describe("journey milestones", () => {
       [
         ev("decision.made", "2026-10-13T09:55:00Z", "staff", "u1", { outcome: "approved" }),
         ev("decision.made", "2026-10-12T09:00:00Z", "system", null, { outcome: "waitlisted" }),
-        ev("booking.checked_in", "2026-10-10T08:00:00Z", "staff", "u2"),
+        { ...ev("booking.checked_in", "2026-10-10T08:00:00Z", "staff", "u2"), summary: "Arrived for visit" },
         ev("enquiry.created", "2026-10-01T08:00:00Z", "parent"),
       ],
       (id) => (id === "u1" ? "Fiona Makopola" : null)
@@ -239,5 +239,19 @@ describe("journey milestones", () => {
     expect(m.assessment?.label).toBe("Visited");
     expect(m.enquiry?.by).toBe("the parent");
     expect(m.offer).toBeUndefined();
+  });
+});
+
+describe("journey milestones, after review", () => {
+  const ev = (type: string, at: string, summary = "", payload: unknown = {}) => ({ type, occurred_at: at, actor_type: "staff", actor_id: "u1", payload, summary });
+  it("does not report a letter that was withdrawn", () => {
+    const m = journeyMilestones([ev("offer.withdrawn", "2026-10-12T10:00:00Z"), ev("offer.sent", "2026-10-10T10:00:00Z")], () => "Fiona");
+    expect(m.offer).toBeUndefined();
+    const again = journeyMilestones([ev("offer.sent", "2026-10-13T10:00:00Z"), ev("offer.withdrawn", "2026-10-12T10:00:00Z"), ev("offer.sent", "2026-10-10T10:00:00Z")], () => "Fiona");
+    expect(again.offer?.at).toBe("2026-10-13T10:00:00Z");
+  });
+  it("calls an assessment check-in a check-in, and a visit a visit", () => {
+    expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for assessment")], () => null).assessment?.label).toBe("Checked in");
+    expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for visit")], () => null).assessment?.label).toBe("Visited");
   });
 });

@@ -46,7 +46,16 @@ export function JumpToStep({ targetId, label, className }: { targetId: string; l
       onClick={() => {
         const el = document.getElementById(targetId);
         el?.scrollIntoView({ behavior: "smooth", block: "start" });
-        el?.querySelector<HTMLElement>("input, textarea, select, button")?.focus({ preventScroll: true });
+        // The first control a person would use. Not just "input": the first
+        // one in every form is the hidden applicationId, which cannot take
+        // focus, and focus left on this button is lost once the bar goes
+        // inert. The card itself is the fallback.
+        const target =
+          el?.querySelector<HTMLElement>(
+            'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href]'
+          ) ?? el;
+        if (target === el) el?.setAttribute("tabindex", "-1");
+        target?.focus({ preventScroll: true });
       }}
     >
       {label}
