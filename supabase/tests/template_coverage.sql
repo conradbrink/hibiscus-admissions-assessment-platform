@@ -66,7 +66,9 @@ begin
     ('outcome_waitlisted', 'not news to deliver by notification'),
     -- A one-off correction to the families told "play date". The school asked
     -- for it by email only, and nothing in the workflow routes to it.
-    ('playdate_now_visit', 'one-off notice, sent by email as the school asked');
+    ('playdate_now_visit', 'one-off notice, sent by email as the school asked'),
+    -- Bad news arriving unprompted, the same question as the outcomes above.
+    ('visit_cancelled_offer_expired', 'the offer lapsed — not news to deliver by notification');
 
   -- Eight of the nine were filled the same day this check was written: the
   -- school submitted them to Zavu and the rows followed. `offer_expired` is
