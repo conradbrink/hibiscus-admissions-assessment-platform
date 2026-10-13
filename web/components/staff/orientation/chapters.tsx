@@ -127,8 +127,8 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         </Beat>
         <Beat cue="At the desk" tone="do">
           <p>
-            A family in front of you, or on the phone? <Where>Applicants</Where> &rarr;{" "}
-            <Press>Add an applicant</Press>. It creates the same application their own form would, and sends them the
+            A family in front of you, or on the phone? <Where>Admissions</Where> &rarr;{" "}
+            <Press>Add applicant</Press>. It creates the same application their own form would, and sends them the
             same emails — so never write one down &ldquo;for now&rdquo; to re-do later.
           </p>
         </Beat>
@@ -148,7 +148,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
       <Scene where="Int. The applicant's profile — where you will spend your day">
         <Beat cue="Getting there">
           <p>
-            <Where>Applicants</Where>, then search by the child&rsquo;s name, the parent&rsquo;s name or the reference.
+            <Where>Admissions</Where>, then search by the child&rsquo;s name, the parent&rsquo;s name or the reference.
             Every list in the system — the day&rsquo;s board, tasks, the review queue — leads to this one page.
           </p>
         </Beat>
@@ -186,7 +186,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         </Beat>
         <Beat cue="Go and look" tone="do">
           <p>
-            <GoLook href="/staff/applications">Open Applicants</GoLook>, pick any child, and find all four corners
+            <GoLook href="/staff/applications">Open Admissions</GoLook>, pick any child, and find all four corners
             before you move on.
           </p>
         </Beat>
@@ -199,7 +199,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
       <Scene where="Int. Reception — 08:55, the first family arrives">
         <Beat cue="On screen">
           <p>
-            <Where>Assessment day</Where> in the menu, or <Press>Open check-in board</Press> on the dashboard. The day
+            <Where>Admissions &rarr; Assessment</Where>, on <em>Today&rsquo;s assessments</em>, or <Press>Open check-in board</Press> on the dashboard. The day
             is split by session: each sitting&rsquo;s time, campus, room, how full it is and which assessor is on it.
             Under each, the children booked — with the parent&rsquo;s name and mobile, so you can ring the one who has
             not arrived without leaving the page.
@@ -273,7 +273,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
           <p>
             Once everything is marked the rules engine runs: a hard-fail rule violated declines, a review rule violated
             refers to a person, everything met approves — or waitlists, when the grade is full. The child reaches the{" "}
-            <Where>Review queue</Where> only when a person is genuinely needed.
+            review queue, under <Where>Admissions &rarr; Decision</Where>, only when a person is genuinely needed.
           </p>
           <p>
             The <strong>Learning profile</strong> tab turns the marks into words — below, approaching, meeting,
@@ -341,7 +341,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         </Beat>
         <Beat cue="The queue" tone="do">
           <p>
-            <GoLook href="/staff/decisions">Review queue</GoLook> is the same decision, gathered: everyone waiting on a
+            The <GoLook href="/staff/decisions">review queue</GoLook>, under Admissions &rarr; Decision, is the same decision, gathered: everyone waiting on a
             person, oldest first. Working from there rather than from search is how a family stops waiting three weeks
             for a yes.
           </p>
@@ -352,7 +352,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
 
   "offer-and-money": () => (
     <>
-      <Scene where="Int. Offers & outcomes">
+      <Scene where="Int. Admissions — the Offer stage">
         <Beat cue="On screen">
           <p>
             Every draft waiting for approval, everything sent, and what each family did with it — opened, accepted,
@@ -392,7 +392,7 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         <Beat cue="House rule" tone="care">
           <p>
             A place is <strong>paid</strong> only on a verified gateway payment or a transfer recorded by finance under{" "}
-            <Where>Payments</Where>. Never mark anything paid on a promise, a screenshot or a phone call.
+            <Where>Admissions &rarr; Enrolment &rarr; Payments</Where>. Never mark anything paid on a promise, a screenshot or a phone call.
           </p>
         </Beat>
       </Scene>
@@ -423,10 +423,11 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
         </Beat>
         <Beat cue="After that">
           <p>
-            <Where>Students</Where> — every enrolled child and where they are now. <Where>Onboarding</Where> — what each
-            new family still owes us and what we owe them, through to the first day and the first-week check-in.{" "}
-            <Where>Re-enrolment</Where> — each term, asking whether the child is coming back and checking what we hold
-            is still true. <Where>Student export</Where> — a batch file for the school&rsquo;s other system.
+            <Where>Students</Where> — every enrolled child and where they are now, with two more tabs beside the list.{" "}
+            <Where>Onboarding</Where> — what each new family still owes us and what we owe them, through to the first
+            day and the first-week check-in. <Where>Re-enrolment</Where> — each term, asking whether the child is coming
+            back and checking what we hold is still true. And under <Where>Admissions &rarr; Enrolment</Where>,{" "}
+            <em>Student export</em> — a batch file for the school&rsquo;s other system.
           </p>
         </Beat>
       </Scene>

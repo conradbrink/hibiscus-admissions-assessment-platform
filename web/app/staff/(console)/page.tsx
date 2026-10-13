@@ -248,7 +248,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 lg:space-y-10">
-      {/* Until it is finished. Then it goes, along with the menu item. */}
+      {/* Until it is finished. Then it goes; the sidebar footer keeps a way back. */}
       {!profile.orientation_completed_at ? (
         <Link
           href={`/staff/orientation/${orientation.remaining[0]?.slug ?? ""}`}

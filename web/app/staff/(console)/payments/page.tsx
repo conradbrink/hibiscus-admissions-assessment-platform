@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { daysAgoDateString, formatDateTime } from "@/lib/format-date";
@@ -100,7 +101,12 @@ export default async function PaymentsPage() {
 
   return (
     <>
-      <PageTitle title="Payments" description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here." />
+      <AdmissionsHeader
+        ctx={{ supabase, permissions }}
+        stage="enrolment"
+        view="payments"
+        description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here."
+      />
       {groups.map((g) => (
         <section key={g.key} className="mb-8">
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>

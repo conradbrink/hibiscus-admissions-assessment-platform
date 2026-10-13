@@ -33,7 +33,7 @@ import { awardLabelOf } from "@/lib/promotions/scholarship";
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
  * the applicant page. Reads through the staff client so RLS applies; the
- * actions are the same ones the Offers & outcomes queue uses.
+ * actions are the same ones the offers board (Admissions → Offer) uses.
  */
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -241,9 +241,9 @@ export async function ApplicantPhase2({
               </div>
             ) : (
               <p className="text-muted-foreground">
-                Not sat yet. Start it from here, or on the day from the{" "}
-                <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
-                , which lists every child booked in that morning.
+                Not sat yet. Start it from here, or on the day from{" "}
+                <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">Today&rsquo;s assessments</Link>
+                {" "}under Admissions, which lists every child booked in that morning.
               </p>
             )}
             {/* The code and the link, on the page the office is already
@@ -404,7 +404,7 @@ export async function ApplicantPhase2({
           ) : (
             <p className="text-muted-foreground">
               {app.status === "staff_review" || app.status === "awaiting_decision"
-                ? <>Waiting for a person. Decide above, or in the <Link href="/staff/decisions" className="text-primary underline underline-offset-2">review queue</Link>.</>
+                ? <>Waiting for a person. Decide above, or in the <Link href="/staff/decisions" className="text-primary underline underline-offset-2">review queue</Link> under Admissions → Decision.</>
                 : "No decision yet."}
             </p>
           )}
@@ -567,7 +567,7 @@ export async function ApplicantPhase2({
                     {idField}<input type="hidden" name="offerId" value={liveOffer.id} />
                     <Input name="reason" placeholder="Why" className="h-8 w-44 md:h-8" required minLength={3} />
                   </ActionForm>
-                  <Link href="/staff/offers" className="text-xs text-primary underline underline-offset-2">Offers & outcomes</Link>
+                  <Link href="/staff/offers" className="text-xs text-primary underline underline-offset-2">All offers</Link>
                 </div>
               ) : null}
             </div>

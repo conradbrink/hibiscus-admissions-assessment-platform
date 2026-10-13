@@ -202,7 +202,7 @@ export async function applyDecision(
       tasks.push({
         type: "send_outcome",
         title: `Send ${spec.outcome} outcome to ${app.child_first_name}'s parent`,
-        details: "Review the wording and the learning profile, then click Send on the Offers & outcomes page.",
+        details: "Review the wording and the learning profile, then click Send under Admissions → Offer (Outcomes to send).",
         priority: "normal",
       });
     }

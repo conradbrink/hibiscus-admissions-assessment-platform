@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { daysAgoDateString, formatDateTime } from "@/lib/format-date";
@@ -14,7 +15,7 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * same rule the parent's review page uses. Campus scoping applies.
  */
 export default async function RegistrationsPage() {
-  const { supabase } = await requireStaff("applications.read");
+  const { supabase, permissions } = await requireStaff("applications.read");
   const since = `${daysAgoDateString(30)}T00:00:00+02:00`;
   const { data: apps } = await supabase
     .from("applications")
@@ -55,7 +56,12 @@ export default async function RegistrationsPage() {
 
   return (
     <>
-      <PageTitle title="Registrations" description="The last stretch: what each family still has to give, the documents to check, and enrolment to confirm." />
+      <AdmissionsHeader
+        ctx={{ supabase, permissions }}
+        stage="enrolment"
+        view="registrations"
+        description="The last stretch: what each family still has to give, the documents to check, and enrolment to confirm."
+      />
       {groups.map((g) => (
         <section key={g.key} className="mb-8">
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>

@@ -1,5 +1,6 @@
 import type { PermissionCode, PermissionSet } from "@/lib/permissions";
-import { canAccessPath } from "@/lib/permissions";
+import { can, canAccessPath } from "@/lib/permissions";
+import { ADMISSIONS_ENTRIES, ADMISSIONS_PATHS } from "@/lib/workflow/stages";
 
 /**
  * The staff navigation, as data. Each item names the permission it needs;
@@ -8,8 +9,11 @@ import { canAccessPath } from "@/lib/permissions";
  * imported, because the sidebar (a client component) resolves them and the
  * layout (a server component) hands the groups across.
  *
- * Fourteen destinations and one Settings hub: the day's work on the left,
- * everything the process is configured from behind one door.
+ * Five places and one Settings hub. Admissions, Students and Insights are
+ * areas: one menu item each for several pages, which their own tabs move
+ * between (the stage bar in `lib/workflow/stages.ts`, and `STUDENT_TABS` and
+ * `INSIGHT_TABS` below). An area opens on the first of its pages the person
+ * may see, and stays lit on all of them.
  */
 export type NavIcon =
   | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
@@ -29,63 +33,54 @@ export type NavItem = {
   permission?: PermissionCode;
   /** One line on the Settings hub saying what lives behind the link. */
   blurb?: string;
+  /**
+   * An area's pages, in the order to try them: the item opens on the first
+   * the person may see and is shown only if there is one. `href` is then
+   * just the default.
+   */
+  entries?: ReadonlyArray<{ href: string; permission: PermissionCode }>;
+  /** Further paths that light the item up: the other pages of its area. */
+  match?: readonly string[];
+  /** Lit only on its own address, not on everything under it: the dashboard, at the root of the console. */
+  exact?: boolean;
 };
 
 export type NavGroup = {
   label: string | null;
   items: NavItem[];
+  /** Drawn below a rule, apart from the day's work: Settings. */
+  separated?: boolean;
 };
+
+/** A tab of an area: one of the pages its menu item stands for. */
+export type AreaTab = { href: string; label: string; permission: PermissionCode };
+
+export const STUDENT_TABS: readonly AreaTab[] = [
+  { href: "/staff/students", label: "All students", permission: "students.read" },
+  { href: "/staff/onboarding", label: "Onboarding", permission: "students.read" },
+  { href: "/staff/reenrolment", label: "Re-enrolment", permission: "reenrolment.write" },
+];
+
+export const INSIGHT_TABS: readonly AreaTab[] = [
+  { href: "/staff/analytics", label: "Analytics", permission: "analytics.read" },
+  { href: "/staff/analytics/forecast", label: "Forecast", permission: "analytics.read" },
+];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
     items: [
-      { href: "/staff", label: "Dashboard", icon: "dashboard", permission: "applications.read" },
-      { href: "/staff/applications", label: "Applicants", icon: "applicants", permission: "applications.read" },
-      { href: "/staff/assessments/today", label: "Assessment day", icon: "assessment", permission: "assessments.deliver" },
+      { href: "/staff", label: "Dashboard", icon: "dashboard", permission: "applications.read", exact: true },
+      { href: "/staff/applications", label: "Admissions", icon: "applicants", entries: ADMISSIONS_ENTRIES, match: ADMISSIONS_PATHS },
+      { href: "/staff/students", label: "Students", icon: "students", entries: STUDENT_TABS, match: STUDENT_TABS.map((t) => t.href) },
       { href: "/staff/tasks", label: "Tasks", icon: "tasks", permission: "applications.read" },
-    ],
-  },
-  {
-    label: "Decisions",
-    items: [
-      { href: "/staff/decisions", label: "Review queue", icon: "decisions", permission: "applications.read" },
-      { href: "/staff/offers", label: "Offers", icon: "offers", permission: "offers.read" },
-    ],
-  },
-  {
-    label: "Enrolment",
-    items: [
-      { href: "/staff/payments", label: "Payments", icon: "payments", permission: "finance.read" },
-      { href: "/staff/registrations", label: "Registrations", icon: "registrations", permission: "applications.read" },
-      { href: "/staff/enrolment/exports", label: "Student export", icon: "export", permission: "data.export" },
-    ],
-  },
-  {
-    label: "The school",
-    items: [
-      { href: "/staff/students", label: "Students", icon: "students", permission: "students.read" },
-      { href: "/staff/onboarding", label: "Onboarding", icon: "onboarding", permission: "students.read" },
-      { href: "/staff/reenrolment", label: "Re-enrolment", icon: "reenrolment", permission: "reenrolment.write" },
-    ],
-  },
-  {
-    label: "Insight",
-    items: [
-      { href: "/staff/analytics", label: "Analytics", icon: "analytics", permission: "analytics.read" },
-      { href: "/staff/analytics/forecast", label: "Forecast", icon: "forecast", permission: "analytics.read" },
+      { href: "/staff/analytics", label: "Insights", icon: "analytics", entries: INSIGHT_TABS, match: ["/staff/analytics"] },
     ],
   },
   {
     label: null,
+    separated: true,
     items: [{ href: "/staff/admin", label: "Settings", icon: "settings", permission: "applications.read" }],
-  },
-  // Its own group, and last. It carries no permission — everybody who can
-  // sign in may read it — and `visibleNavGroups` drops it the moment the
-  // person has finished, which is the point of it being here at all.
-  {
-    label: null,
-    items: [{ href: "/staff/orientation", label: "Orientation", icon: "orientation" }],
   },
 ];
 
@@ -153,16 +148,22 @@ function allowed(permissions: PermissionSet, item: NavItem): boolean {
   return (item.permission === undefined || permissions.has("admin") || permissions.has(item.permission)) && canAccessPath(permissions, item.href);
 }
 
-export function visibleNavGroups(permissions: PermissionSet, options?: { orientationDone?: boolean }): NavGroup[] {
+/** An area's first page this person may open, or null when they may open none of them. */
+function areaHref(permissions: PermissionSet, item: NavItem): string | null {
+  const entry = (item.entries ?? []).find((e) => can(permissions, e.permission) && canAccessPath(permissions, e.href.split("?")[0]));
+  return entry?.href ?? null;
+}
+
+export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
   const groups = NAV_GROUPS.map((group) => ({
-    label: group.label,
-    items: group.items.filter(
-      (item) =>
-        allowed(permissions, item) &&
-        // Finished it? It goes away. Still reachable by its address, and by
-        // the link on the account page, for looking something up.
-        !(item.href === "/staff/orientation" && options?.orientationDone)
-    ),
+    ...group,
+    items: group.items.flatMap((item) => {
+      if (item.entries) {
+        const href = areaHref(permissions, item);
+        return href ? [{ ...item, href }] : [];
+      }
+      return allowed(permissions, item) ? [item] : [];
+    }),
   }));
   // The Settings door only shows when something is behind it for this person.
   return groups
@@ -170,19 +171,31 @@ export function visibleNavGroups(permissions: PermissionSet, options?: { orienta
     .filter((g) => g.items.length > 0);
 }
 
+/** The tabs of an area this person may open, with the one on screen marked. */
+export function visibleAreaTabs(permissions: PermissionSet, tabs: readonly AreaTab[], current: string): Array<AreaTab & { active: boolean }> {
+  return tabs.filter((t) => can(permissions, t.permission) && canAccessPath(permissions, t.href)).map((t) => ({ ...t, active: t.href === current }));
+}
+
 export function visibleSettingsSections(permissions: PermissionSet): NavGroup[] {
   return SETTINGS_SECTIONS.map((group) => ({ label: group.label, items: group.items.filter((item) => allowed(permissions, item)) })).filter((g) => g.items.length > 0);
 }
 
-/** Longest-prefix match so /staff/applications/123 lights up "Applicants", not "Dashboard". */
+/**
+ * The item to light up: the one whose own address or area path is the longest
+ * match, so /staff/applications/123 lights "Admissions", not "Dashboard", and
+ * /staff/analytics/forecast lights "Insights".
+ */
 export function activeHref(pathname: string, groups: NavGroup[]): string | null {
-  let best: string | null = null;
+  let best: { href: string; length: number } | null = null;
   for (const g of groups) {
     for (const item of g.items) {
-      if (pathname === item.href || pathname.startsWith(item.href + "/")) {
-        if (!best || item.href.length > best.length) best = item.href;
+      const own = item.href.split("?")[0];
+      const paths = item.exact ? [] : [own, ...(item.match ?? [])];
+      if (item.exact && pathname === own && (!best || own.length > best.length)) best = { href: item.href, length: own.length };
+      for (const path of paths) {
+        if ((pathname === path || pathname.startsWith(path + "/")) && (!best || path.length > best.length)) best = { href: item.href, length: path.length };
       }
     }
   }
-  return best;
+  return best?.href ?? null;
 }

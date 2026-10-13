@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BarList, FunnelChart, Headline, PctBar } from "@/components/staff/charts";
-import { PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { INSIGHT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
 import { TrendChart } from "@/components/staff/trend-chart";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -143,9 +144,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (rowsError) {
     return (
       <>
-        <PageTitle title="Analytics" description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}.`}>
-          <Link href="/staff/analytics/forecast" className="text-sm underline">Forecast</Link>
-        </PageTitle>
+        <AreaHeader
+          title="Insights"
+          tabsLabel="Pages"
+          tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
+          description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}.`}
+        />
         {filters}
         <section className="surface border-destructive/40 p-4">
           <h2 className="mb-1 text-sm font-semibold text-destructive">These numbers could not be worked out</h2>
@@ -161,9 +165,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageTitle title="Analytics" description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}, compared with ${prev.from} to ${prev.to}.`}>
-        <Link href="/staff/analytics/forecast" className="text-sm underline">Forecast</Link>
-      </PageTitle>
+      <AreaHeader
+        title="Insights"
+        tabsLabel="Pages"
+        tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
+        description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}, compared with ${prev.from} to ${prev.to}.`}
+      />
       {filters}
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -182,7 +182,7 @@ export async function onOfferDrafted(
       {
         type: "approve_offer",
         title: `Approve and send ${app.child_first_name}'s offer`,
-        details: "Check the learning profile and the offer together on the Offers & outcomes page, then Approve & send.",
+        details: "Check the learning profile and the offer together under Admissions → Offer (Needs approval), then Approve & send.",
         priority: "high",
       },
     ],

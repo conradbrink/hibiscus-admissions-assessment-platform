@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,8 @@ function TrialWeekPanel({ applicationId, childName, trial, canDecide }: { applic
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
- * The review queue: everything a person must decide. Referrals from the
+ * The review queue, under Admissions → Decision: everything a person must
+ * decide. Referrals from the
  * rules engine come with the rule that referred them highlighted; pre-school
  * enquiries come with nothing to score, only capacity.
  */
@@ -83,7 +85,12 @@ export default async function DecisionsPage() {
 
   return (
     <>
-      <PageTitle title="Review queue" description={`${apps?.length ?? 0} application${apps?.length === 1 ? "" : "s"} waiting for a person's decision. Oldest first. A pre-school family can be invited to a free trial week before you decide.`} />
+      <AdmissionsHeader
+        ctx={{ supabase, permissions }}
+        stage="decision"
+        view="queue"
+        description={`${apps?.length ?? 0} application${apps?.length === 1 ? "" : "s"} waiting for a person's decision. Oldest first. A pre-school family can be invited to a free trial week before you decide.`}
+      />
       {apps?.length ? (
         <div className="space-y-4">
           {apps.map((a) => {
@@ -136,7 +143,7 @@ export default async function DecisionsPage() {
                 ) : null}
 
                 {canDecide ? (
-                  <ActionForm action={recordReviewOutcome} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3" confirm="Record this decision? It is audited, and a decline or waitlist is emailed to the parent once you press Send on the Offers & outcomes page.">
+                  <ActionForm action={recordReviewOutcome} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3" confirm="Record this decision? It is audited, and a decline or waitlist is emailed to the parent once you press Send under Admissions → Offer.">
                     <input type="hidden" name="applicationId" value={a.id} />
                     <NativeSelect name="outcome" defaultValue="approved" className="h-9 w-40 md:h-9">
                       <option value="approved">Approve</option>

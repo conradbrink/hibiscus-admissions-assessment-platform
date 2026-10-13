@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { FilterChips } from "@/components/staff/filter-chips";
+import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,11 +18,29 @@ import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
+/** What the page is narrowed to: everything, or one kind of work. */
+const SHOWS = [
+  { key: "all", label: "All" },
+  { key: "drafting", label: "Needs drafting" },
+  { key: "approval", label: "Needs approval" },
+  { key: "outcomes", label: "Outcomes to send" },
+  { key: "waiting", label: "Waiting for parent" },
+  { key: "expiring", label: "Expiring" },
+] as const;
+type Show = (typeof SHOWS)[number]["key"];
+
+/** An offer this close to its expiry is chased rather than waited on: the dashboard's "expiring within 3 days". */
+const EXPIRING_WITHIN_MS = 3 * 86_400_000;
+
 /**
- * Offers & outcomes: everything a person must approve or send before it
- * reaches a parent. Four lists, oldest first in each.
+ * The offers board, under Admissions → Offer: everything a person must
+ * approve or send before it reaches a parent, and the offers out with
+ * parents. Oldest first in each list; the filters along the top narrow the
+ * page to one kind of work.
  */
-export default async function OffersPage() {
+export default async function OffersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  const sp = await searchParams;
+  const show: Show = SHOWS.some((x) => x.key === sp.show) ? (sp.show as Show) : "all";
   const { supabase, permissions } = await requireStaff("offers.read");
   const canApprove = can(permissions, "offers.approve");
 
@@ -52,6 +72,22 @@ export default async function OffersPage() {
   const blocked = (apps ?? []).filter((a) => a.status === "offer_draft");
   const outcomes = (apps ?? []).filter((a) => (a.status === "waitlisted" || a.status === "declined") && outcomePending.has(a.id));
   const sent = (apps ?? []).filter((a) => a.status === "offer_sent" || a.status === "offer_expired");
+  // Out with parents, split by how soon somebody has to act: an expired offer,
+  // or one that expires within three days, is chased; the rest are waited on.
+  const soon = new Date().getTime() + EXPIRING_WITHIN_MS;
+  const isExpiring = (a: (typeof sent)[number]) => {
+    const expires = offerByApp.get(a.id)?.expires_at;
+    return a.status === "offer_expired" || (expires ? new Date(expires).getTime() < soon : false);
+  };
+  const expiring = sent.filter(isExpiring);
+  const waiting = sent.filter((a) => !isExpiring(a));
+  const shown = (k: Exclude<Show, "all">) => show === "all" || show === k;
+  const chips = SHOWS.map((x) => ({
+    label: x.label,
+    href: x.key === "all" ? "/staff/offers" : `/staff/offers?show=${x.key}`,
+    active: x.key === show,
+    count: { all: undefined, drafting: drafting.length + blocked.length, approval: toApprove.length, outcomes: outcomes.length, waiting: waiting.length, expiring: expiring.length }[x.key],
+  }));
 
   const fees = (o: { fees: unknown } | undefined) => feeSnapshotFrom(o?.fees);
 
@@ -105,11 +141,54 @@ export default async function OffersPage() {
     );
   };
 
+  /** Offers out with parents: when each went, whether it was opened, and when it lapses. A render helper, called rather than mounted. */
+  const sentOffers = ({ title, note, rows, empty }: { title: string; note?: string; rows: App[]; empty: string }) => (
+    <section className="mb-8">
+      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+      {note ? <p className="mb-2 text-xs text-muted-foreground">{note}</p> : null}
+      {rows.length ? (
+        <div className="overflow-x-auto surface">
+          <table className="data-table">
+            <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Sent</th><th className="px-3 py-2 font-medium">Opened</th><th className="px-3 py-2 font-medium">Expires</th><th className="px-3 py-2"></th></tr></thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((a) => {
+                const o = offerByApp.get(a.id);
+                return (
+                  <tr key={a.id}>
+                    <td className="px-3 py-2"><Link href={`/staff/applications/${a.id}`} className="font-medium hover:underline">{a.child_first_name} {a.child_last_name}</Link><span className="ml-2 text-xs text-muted-foreground">{one(a.grades)?.name} · {one(a.campuses)?.name}</span></td>
+                    <td className="px-3 py-2"><Badge variant={o?.status === "viewed" ? "info" : o?.status === "expired" ? "warning" : "secondary"}>{o?.status ?? a.status}</Badge></td>
+                    <td className="px-3 py-2 text-xs">{o?.sent_at ? formatDate(o.sent_at) : "—"}</td>
+                    <td className="px-3 py-2 text-xs">{o?.first_viewed_at ? formatDate(o.first_viewed_at) : "not yet"}</td>
+                    <td className="px-3 py-2 text-xs">{o?.expires_at ? formatDate(o.expires_at) : "—"}</td>
+                    <td className="px-3 py-2">
+                      {canApprove && o ? (
+                        <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="xs" variant="ghost" className="flex items-center gap-2" confirm="Withdraw this offer? The parent's link will stop working and you can issue a corrected one.">
+                          <input type="hidden" name="applicationId" value={a.id} /><input type="hidden" name="offerId" value={o.id} />
+                          <Input name="reason" placeholder="Why" className="h-7 w-40 md:h-7" required />
+                        </ActionForm>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : <EmptyState>{empty}</EmptyState>}
+    </section>
+  );
+
   return (
     <>
-      <PageTitle title="Offers & outcomes" description="Nothing here reaches a parent until a person approves or sends it. The switches under Workflow settings can automate each list later." />
+      <AdmissionsHeader
+        ctx={{ supabase, permissions }}
+        stage="offer"
+        view="offers"
+        description="Offers and outcome letters. Nothing here reaches a parent until a person approves or sends it. The switches under Workflow settings can automate each list later."
+      />
+      <FilterChips label="Show" chips={chips} />
 
-      {drafting.length ? (
+      {shown("drafting") && drafting.length ? (
         <section className="mb-8">
           <h2 className="mb-2 text-sm font-semibold">Approved, offer being drafted ({drafting.length})</h2>
           <p className="mb-2 text-xs text-muted-foreground">The letter drafts itself within a minute of the decision and then appears under Offers to approve. If one is still here after refreshing, draft it by hand.</p>
@@ -128,6 +207,7 @@ export default async function OffersPage() {
         </section>
       ) : null}
 
+      {shown("approval") ? (
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold">Offers to approve ({toApprove.length})</h2>
         {toApprove.length ? (
@@ -197,7 +277,9 @@ export default async function OffersPage() {
           </div>
         ) : <EmptyState>Nothing waiting for approval.</EmptyState>}
       </section>
+      ) : null}
 
+      {shown("drafting") ? (
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold">Offers that cannot be sent yet ({blocked.length})</h2>
         <p className="mb-2 text-xs text-muted-foreground">Approved, but no active fee schedule covers the campus, grade and year. Configure fees, then generate again.</p>
@@ -217,7 +299,9 @@ export default async function OffersPage() {
           </div>
         ) : <EmptyState>None.</EmptyState>}
       </section>
+      ) : null}
 
+      {shown("outcomes") ? (
       <section className="mb-8">
         <h2 className="mb-2 text-sm font-semibold">Outcomes to send ({outcomes.length})</h2>
         {outcomes.length ? (
@@ -242,39 +326,10 @@ export default async function OffersPage() {
           </div>
         ) : <EmptyState>Nothing waiting to be sent.</EmptyState>}
       </section>
+      ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold">Sent and expired ({sent.length})</h2>
-        {sent.length ? (
-          <div className="overflow-x-auto surface">
-            <table className="data-table">
-              <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Sent</th><th className="px-3 py-2 font-medium">Opened</th><th className="px-3 py-2 font-medium">Expires</th><th className="px-3 py-2"></th></tr></thead>
-              <tbody className="divide-y divide-border">
-                {sent.map((a) => {
-                  const o = offerByApp.get(a.id);
-                  return (
-                    <tr key={a.id}>
-                      <td className="px-3 py-2"><Link href={`/staff/applications/${a.id}`} className="font-medium hover:underline">{a.child_first_name} {a.child_last_name}</Link><span className="ml-2 text-xs text-muted-foreground">{one(a.grades)?.name} · {one(a.campuses)?.name}</span></td>
-                      <td className="px-3 py-2"><Badge variant={o?.status === "viewed" ? "info" : o?.status === "expired" ? "warning" : "secondary"}>{o?.status ?? a.status}</Badge></td>
-                      <td className="px-3 py-2 text-xs">{o?.sent_at ? formatDate(o.sent_at) : "—"}</td>
-                      <td className="px-3 py-2 text-xs">{o?.first_viewed_at ? formatDate(o.first_viewed_at) : "not yet"}</td>
-                      <td className="px-3 py-2 text-xs">{o?.expires_at ? formatDate(o.expires_at) : "—"}</td>
-                      <td className="px-3 py-2">
-                        {canApprove && o ? (
-                          <ActionForm action={withdrawOffer} label="Withdraw & re-draft" size="xs" variant="ghost" className="flex items-center gap-2" confirm="Withdraw this offer? The parent's link will stop working and you can issue a corrected one.">
-                            <input type="hidden" name="applicationId" value={a.id} /><input type="hidden" name="offerId" value={o.id} />
-                            <Input name="reason" placeholder="Why" className="h-7 w-40 md:h-7" required />
-                          </ActionForm>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : <EmptyState>No offers out.</EmptyState>}
-      </section>
+      {shown("expiring") ? sentOffers({ title: `Expiring or expired (${expiring.length})`, note: "Expired, or expiring within 3 days.", rows: expiring, empty: "Nothing about to expire." }) : null}
+      {shown("waiting") ? sentOffers({ title: `Waiting for parent (${waiting.length})`, rows: waiting, empty: "No offers out." }) : null}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -23,7 +24,7 @@ function isTemplateBatch(columnsSnapshot: unknown): boolean {
  */
 export default async function ExportsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const { supabase } = await requireStaff("data.export");
+  const { supabase, permissions } = await requireStaff("data.export");
   const includeExported = sp.all === "1";
 
   let q = supabase
@@ -47,7 +48,12 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageTitle title="Student export" description="Enrolled students as a CSV or JSON file for the student management system. Each download is a batch; records remember which batch carried them." />
+      <AdmissionsHeader
+        ctx={{ supabase, permissions }}
+        stage="enrolment"
+        view="export"
+        description="Enrolled students as a CSV or JSON file for the student management system. Each download is a batch; records remember which batch carried them."
+      />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
         <NativeSelect name="campus" defaultValue={sp.campus ?? ""} className="w-44">

@@ -7,6 +7,7 @@ import { SummaryPanel } from "@/components/staff/summary-panel";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { PauseOrClose } from "@/components/staff/pause-or-close";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -228,12 +229,19 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const closedTasks = (tasks ?? []).filter((t) => t.status !== "open");
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
+  // Back to the stage this child is in, on the first of its screens this
+  // person may open: from a decision to the review queue, from an offer to
+  // the offers. Paused and closed applications go back to the full list.
+  const stage = stageOf(app.status);
+  const stageView = stage ? visibleViews(permissions, stage)[0] : undefined;
+  const backToStage = stage && stageView ? { href: stageView.href, label: stageLabel(stage) } : { href: "/staff/applications", label: "Admissions" };
 
   return (
     <>
       <PageTitle
         title={`${app.child_first_name} ${app.child_last_name}`}
         description={`${grade?.name} · ${campus?.name} · ${startLabel(app, { label: intake?.label ?? "" })} · ${app.reference}`}
+        back={backToStage}
       >
         <StatusBadge status={app.status} />
       </PageTitle>
