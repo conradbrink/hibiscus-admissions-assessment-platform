@@ -13,11 +13,15 @@ import { cn } from "@/lib/utils";
  */
 export function TrendChart({ series }: { series: Array<{ week: string; enquiries: number; enrolments: number }> }) {
   if (series.length === 0) return null;
+  // "13 Oct … 12 Oct" over the past year reads as one week; the year goes in
+  // whenever the weeks cross one.
+  const crossesYear = series[0].week.slice(0, 4) !== series[series.length - 1].week.slice(0, 4);
+  const weekLabel = (week: string) => formatDayMonth(week, crossesYear);
   return (
     <div className="@container">
       <div className="grid grid-cols-1 gap-x-10 gap-y-6 @2xl:grid-cols-2">
-        <WeeklyBars series={series} field="enquiries" label="Enquiries" one="enquiry" tone="bg-primary/35" />
-        <WeeklyBars series={series} field="enrolments" label="Enrolments" one="enrolment" tone="bg-primary" />
+        <WeeklyBars series={series} field="enquiries" label="Enquiries" one="enquiry" tone="bg-primary/35" weekLabel={weekLabel} />
+        <WeeklyBars series={series} field="enrolments" label="Enrolments" one="enrolment" tone="bg-primary" weekLabel={weekLabel} />
       </div>
     </div>
   );
@@ -29,6 +33,7 @@ function WeeklyBars({
   label,
   one,
   tone,
+  weekLabel,
 }: {
   series: Array<{ week: string; enquiries: number; enrolments: number }>;
   field: "enquiries" | "enrolments";
@@ -36,6 +41,7 @@ function WeeklyBars({
   /** The singular, for a week with exactly one. */
   one: string;
   tone: string;
+  weekLabel: (week: string) => string;
 }) {
   const values = series.map((s) => s[field]);
   const max = Math.max(0, ...values);
@@ -45,18 +51,20 @@ function WeeklyBars({
       <figcaption className="flex items-baseline justify-between gap-3">
         <span className="text-sm font-medium text-foreground">{label}</span>
         <span className="text-xs text-muted-foreground">
-          {max > 0 ? `Peak ${max}, week of ${formatDayMonth(series[peak].week)}` : "None in this period"}
+          {max > 0 ? `Peak ${max}, week of ${weekLabel(series[peak].week)}` : "None in this period"}
         </span>
       </figcaption>
       <div
         role="img"
-        aria-label={`${label} per week, from the week of ${formatDayMonth(series[0].week)}: ${values.join(", ")}`}
-        className="mt-3 flex h-24 items-end gap-0.5 border-b border-border"
+        aria-label={`${label} per week, from the week of ${weekLabel(series[0].week)}: ${values.join(", ")}`}
+        // Past about a year the 2px gaps alone would be wider than a narrow
+        // chart and squeeze every bar to nothing, so long ranges drop them.
+        className={cn("mt-3 flex h-24 items-end border-b border-border", series.length > 60 ? "gap-0" : "gap-0.5")}
       >
         {series.map((s) => {
           const v = s[field];
           return (
-            <div key={s.week} className="flex h-full min-w-0 flex-1 items-end justify-center" title={`Week of ${formatDayMonth(s.week)}: ${v} ${v === 1 ? one : label.toLowerCase()}`}>
+            <div key={s.week} className="flex h-full min-w-0 flex-1 items-end justify-center" title={`Week of ${weekLabel(s.week)}: ${v} ${v === 1 ? one : label.toLowerCase()}`}>
               <div
                 className={cn("w-full max-w-6 rounded-t-[4px]", tone)}
                 style={{ height: v > 0 ? `max(2px, ${(v / max) * 100}%)` : 0 }}
@@ -66,8 +74,8 @@ function WeeklyBars({
         })}
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground tabular-nums">
-        <span>{formatDayMonth(series[0].week)}</span>
-        <span>{formatDayMonth(series[series.length - 1].week)}</span>
+        <span>{weekLabel(series[0].week)}</span>
+        <span>{weekLabel(series[series.length - 1].week)}</span>
       </div>
     </figure>
   );

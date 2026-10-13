@@ -21,7 +21,7 @@ import {
   type FactRow,
 } from "@/lib/analytics/breakdown";
 import { conversionSteps, deferredSummary, delta, funnelStages, headline, previousRange, shares, weakestStep, type ConversionStepKey } from "@/lib/analytics/compare";
-import { activePreset, DEFAULT_PRESET, RANGE_PRESETS, rangeFor } from "@/lib/analytics/ranges";
+import { activePreset, RANGE_PRESETS, rangeFor, resolveRange } from "@/lib/analytics/ranges";
 import { formatDateRange, toSchoolDateString } from "@/lib/format-date";
 import { can, canAccessPath } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
@@ -92,9 +92,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const { supabase, permissions } = await requireStaff("analytics.read");
   const today = new Date();
-  const fallback = rangeFor(RANGE_PRESETS.find((p) => p.key === DEFAULT_PRESET)!, today);
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to! : fallback.to;
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from! : fallback.from;
+  const { from, to } = resolveRange(sp.from, sp.to, today);
   const chosen = activePreset(from, to, today);
   const dim: Dimension = (DIMENSIONS as readonly string[]).includes(sp.dim ?? "") ? (sp.dim as Dimension) : "campus";
   const prev = previousRange(from, to);
@@ -105,7 +103,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     return q;
   };
 
-  const [{ data: rows, error: rowsError }, { data: prevRows }, { data: effort }, { data: campuses }, { data: profiles }] = await Promise.all([
+  const [{ data: rows, error: rowsError }, { data: prevRows, error: prevError }, { data: effort }, { data: campuses }, { data: profiles, error: profilesError }] = await Promise.all([
     facts({ from, to }),
     facts(prev),
     supabase.from("v_funnel_effort").select("*").maybeSingle(),
@@ -113,7 +111,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     supabase.from("learning_profiles").select("application_id, narrative_source, validation_status").not("published_at", "is", null).gte("created_at", `${from}T00:00:00+02:00`),
   ]);
 
-  const campusName = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus)?.name : null;
+  const chosenCampus = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus) : undefined;
+  // A campus missing from the list (archived, or the list did not load) still
+  // has its name on its own rows; only one with neither is "not available".
+  // Offered in the select either way, so "All campuses" is a change to make.
+  const campusListed = !sp.campus || Boolean(chosenCampus);
+  const campusName = sp.campus ? (chosenCampus?.name ?? (rows as FactRow[] | null)?.[0]?.campus_name ?? "Campus not available") : null;
   // The links keep the campus and, once somebody has chosen one, the breakdown.
   const keep = { ...(sp.campus ? { campus: sp.campus } : {}), ...(sp.dim ? { dim } : {}) };
 
@@ -123,7 +126,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       title="Insights"
       tabsLabel="Pages"
       tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
-      description={`${campusName ?? "All campuses"} · families who enquired ${formatDateRange(from, to)}, compared with ${formatDateRange(prev.from, prev.to)}.`}
+      description={`${campusName ?? "All campuses"} · families who enquired ${formatDateRange(from, to)}${prevError ? ". The period before could not be read, so nothing is compared." : `, compared with ${formatDateRange(prev.from, prev.to)}.`}`}
       viewActions={
         can(permissions, "data.export") ? (
           <a
@@ -140,12 +143,16 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const toolbar = (
     <div className="mb-5 flex flex-wrap items-center gap-2">
-      {(campuses ?? []).length > 1 ? (
+      {(campuses ?? []).length > 1 || !campusListed ? (
         <ParamSelect
           name="campus"
           label="Campus"
           value={sp.campus ?? ""}
-          options={[{ value: "", label: "All campuses" }, ...(campuses ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+          options={[
+            { value: "", label: "All campuses" },
+            ...(campuses ?? []).map((c) => ({ value: c.id, label: c.name })),
+            ...(campusListed ? [] : [{ value: sp.campus!, label: campusName ?? "Campus not available" }]),
+          ]}
           className="h-8 w-44 rounded-lg py-0 text-[13px] md:h-8 md:text-[13px]"
         />
       ) : null}
@@ -211,31 +218,38 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   }
 
   const all = (rows ?? []) as FactRow[];
-  const before = (prevRows ?? []) as FactRow[];
+  // A failed read of the period before is no comparison, never a period of zeros.
+  const before = prevError ? null : ((prevRows ?? []) as FactRow[]);
   const now = headline(all);
-  const then = headline(before);
+  const then = before ? headline(before) : null;
   const counts = funnelCounts(all);
   const stages = funnelStages(counts);
   const assessedNow = all.filter((r) => r.requires_assessment).length;
-  const steps = conversionSteps(counts, assessedNow, funnelCounts(before), before.filter((r) => r.requires_assessment).length);
+  const steps = conversionSteps(
+    { counts, assessed: assessedNow },
+    before ? { counts: funnelCounts(before), assessed: before.filter((r) => r.requires_assessment).length } : null
+  );
   const weakest = weakestStep(steps);
   const weakestDetail = steps.find((s) => s.key === weakest) ?? null;
   // Ninety days is "soon enough to matter for the intake being planned", and
   // the same window the page already defaults to looking back over.
   const deferred = deferredSummary(all, toSchoolDateString(new Date(today.getTime() + 90 * 86_400_000)));
   const cycle = cycleTimes(all);
-  const prevCycle = cycleTimes(before);
+  const prevCycle = before ? cycleTimes(before) : null;
   const groups = groupBy(all, dim);
   const heard = shares(groupBy(all, "heard_from"));
   const byCampus = shares(groupBy(all, "campus"));
   const byGrade = shares(groupBy(all, "grade"));
   const series = weeklySeries(all, from, to);
   const pe = parentEffort(all, ENQUIRY_FIELDS);
-  const profileStats = {
-    published: (profiles ?? []).length,
-    ai: (profiles ?? []).filter((p) => p.narrative_source === "ai").length,
-    fellBack: (profiles ?? []).filter((p) => p.validation_status === "failed").length,
-  };
+  // Unread is shown as unknown rather than as "0 published".
+  const profileStats = profilesError
+    ? null
+    : {
+        published: (profiles ?? []).length,
+        ai: (profiles ?? []).filter((p) => p.narrative_source === "ai").length,
+        fellBack: (profiles ?? []).filter((p) => p.validation_status === "failed").length,
+      };
   const toOffer = now.medianDaysToOffer;
 
   return (
@@ -245,16 +259,16 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         {toolbar}
 
         <section aria-label="Headline figures" className={cn(PANEL, "mb-6 grid grid-cols-2 gap-px overflow-hidden bg-border/80 @xl:grid-cols-3 @4xl:grid-cols-6")}>
-          <Headline label="Enquiries" value={fmtCount(now.enquiries)} delta={delta(now.enquiries, then.enquiries)} />
-          <Headline label="Enrolled" value={fmtCount(now.enrolled)} delta={delta(now.enrolled, then.enrolled)} />
-          <Headline label="Enrolment rate" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then.enquiryToEnrolment, "fraction")} kind="fraction" hint="of enquiries, enrolled" />
-          <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then.offerAcceptance, "fraction")} kind="fraction" hint="of offers sent" />
-          <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then.noShowRate, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" />
+          <Headline label="Enquiries" value={fmtCount(now.enquiries)} delta={delta(now.enquiries, then?.enquiries ?? null)} />
+          <Headline label="Enrolled" value={fmtCount(now.enrolled)} delta={delta(now.enrolled, then?.enrolled ?? null)} />
+          <Headline label="Enrolment rate" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then?.enquiryToEnrolment ?? null, "fraction")} kind="fraction" hint="of enquiries, enrolled" />
+          <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then?.offerAcceptance ?? null, "fraction")} kind="fraction" hint="of offers sent" />
+          <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then?.noShowRate ?? null, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" />
           <Headline
             label="Days to an offer"
             value={toOffer === null ? "—" : toOffer < 1 ? fmtDays(toOffer) : toOffer.toFixed(1)}
             unit={toOffer !== null && toOffer >= 1 ? "days" : undefined}
-            delta={delta(toOffer, then.medianDaysToOffer, "days")}
+            delta={delta(toOffer, then?.medianDaysToOffer ?? null, "days")}
             kind="days"
             goodWhen="down"
             hint="from enquiry, the median of each step added together"
@@ -282,7 +296,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                   <p>
                     <span className="font-medium text-foreground">{fmtCount(deferred.count)} deferred</span>
                     {deferred.dueWithin > 0 ? `, ${fmtCount(deferred.dueWithin)} due back within 90 days` : ", none due back within 90 days"}.
-                    Paused at the family&rsquo;s request, so counted in neither the funnel nor the forecast.
+                    Paused at the family&rsquo;s request. They count in the stages they reached, and the forecast leaves them out.
                   </p>
                 ) : null}
               </div>
@@ -384,13 +398,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                     </thead>
                     <tbody>
                       {[
-                        ["Enquiry → booking", cycle.enquiryToBooking, prevCycle.enquiryToBooking],
-                        ["Booking → assessment", cycle.bookingToAssessment, prevCycle.bookingToAssessment],
-                        ["Assessment → decision", cycle.assessmentToDecision, prevCycle.assessmentToDecision],
-                        ["Decision → offer", cycle.decisionToOffer, prevCycle.decisionToOffer],
-                        ["Offer → acceptance", cycle.offerToAcceptance, prevCycle.offerToAcceptance],
-                        ["Acceptance → payment", cycle.acceptanceToPayment, prevCycle.acceptanceToPayment],
-                        ["Payment → enrolment", cycle.paymentToEnrolment, prevCycle.paymentToEnrolment],
+                        ["Enquiry → booking", cycle.enquiryToBooking, prevCycle?.enquiryToBooking ?? null],
+                        ["Booking → assessment", cycle.bookingToAssessment, prevCycle?.bookingToAssessment ?? null],
+                        ["Assessment → decision", cycle.assessmentToDecision, prevCycle?.assessmentToDecision ?? null],
+                        ["Decision → offer", cycle.decisionToOffer, prevCycle?.decisionToOffer ?? null],
+                        ["Offer → acceptance", cycle.offerToAcceptance, prevCycle?.offerToAcceptance ?? null],
+                        ["Acceptance → payment", cycle.acceptanceToPayment, prevCycle?.acceptanceToPayment ?? null],
+                        ["Payment → enrolment", cycle.paymentToEnrolment, prevCycle?.paymentToEnrolment ?? null],
                       ].map(([label, cur, prv]) => (
                         <tr key={label as string} className="border-t border-border/70">
                           <td className="py-1.5 text-muted-foreground">{label as string}</td>
@@ -413,7 +427,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                     <dt className="text-muted-foreground">Entered by staff, not the parent</dt><dd className="text-right tabular-nums">{pct(pe.staffAssisted)}</dd>
                     <dt className="text-muted-foreground">Messages per applicant</dt><dd className="text-right tabular-nums">{pe.messagesPerApplicant === null ? "—" : pe.messagesPerApplicant.toFixed(1)}</dd>
                     <dt className="text-muted-foreground">Registration already filled in</dt><dd className="text-right tabular-nums">{pct(pe.prefilledAtRegistration)}</dd>
-                    <dt className="text-muted-foreground">Learning profiles published</dt><dd className="text-right tabular-nums">{profileStats.published} ({pct(profileStats.published ? profileStats.ai / profileStats.published : null)} with an AI narrative, {profileStats.fellBack} rejected by the validator)</dd>
+                    <dt className="text-muted-foreground">Learning profiles published</dt><dd className="text-right tabular-nums">{profileStats ? `${profileStats.published} (${pct(profileStats.published ? profileStats.ai / profileStats.published : null)} with an AI narrative, ${profileStats.fellBack} rejected by the validator)` : "—"}</dd>
                   </dl>
                 </div>
               </div>

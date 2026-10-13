@@ -1,6 +1,6 @@
 import { breakdownCsvRows, DIMENSIONS, groupBy, type Dimension, type FactRow } from "@/lib/analytics/breakdown";
+import { resolveRange } from "@/lib/analytics/ranges";
 import { toCsv } from "@/lib/enrolment/export";
-import { daysAgoDateString, toSchoolDateString } from "@/lib/format-date";
 import { requireStaff } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const ctx = await requireStaff("data.export");
   const sp = new URL(request.url).searchParams;
-  const to = /^\d{4}-\d{2}-\d{2}$/.test(sp.get("to") ?? "") ? sp.get("to")! : toSchoolDateString(new Date());
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(sp.get("from") ?? "") ? sp.get("from")! : daysAgoDateString(90);
+  // The page's own reading of the range, so a date it would correct (2026-02-30,
+  // a backwards range) is corrected here too rather than refused by Postgres.
+  const { from, to } = resolveRange(sp.get("from"), sp.get("to"), new Date());
   const dim: Dimension = (DIMENSIONS as readonly string[]).includes(sp.get("dim") ?? "") ? (sp.get("dim") as Dimension) : "campus";
   const campus = sp.get("campus");
 

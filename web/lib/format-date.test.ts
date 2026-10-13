@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateRange, formatDayMonth } from "@/lib/format-date";
+import { formatDate, formatDateRange, formatDayMonth } from "@/lib/format-date";
 
 describe("date ranges", () => {
   it("writes the year once when the range sits inside one", () => {
@@ -12,6 +12,24 @@ describe("date ranges", () => {
 
   it("names a day without its year", () => {
     expect(formatDayMonth("2026-07-13")).toBe("13 Jul");
+    expect(formatDayMonth("2025-10-13", true)).toBe("13 Oct 2025");
     expect(formatDayMonth(null)).toBe("—");
+  });
+
+  it("names the same day wherever the server or reader is", () => {
+    // Read as the host's own midnight, every date-only string was a day early
+    // anywhere ahead of the school's UTC+2.
+    const host = process.env.TZ;
+    try {
+      for (const tz of ["Asia/Tokyo", "Africa/Nairobi", "Africa/Gaborone", "UTC", "America/New_York"]) {
+        process.env.TZ = tz;
+        expect(formatDateRange("2026-07-15", "2026-10-13")).toBe("15 Jul to 13 Oct 2026");
+        expect(formatDayMonth("2026-07-13")).toBe("13 Jul");
+        expect(formatDate("2026-07-15")).toBe("15 Jul 2026");
+      }
+    } finally {
+      if (host === undefined) delete process.env.TZ;
+      else process.env.TZ = host;
+    }
   });
 });

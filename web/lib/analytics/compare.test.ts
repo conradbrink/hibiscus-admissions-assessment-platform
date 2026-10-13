@@ -36,6 +36,12 @@ describe("comparison", () => {
     expect(fmtDelta(delta(6.02, 6, "days"), "days")).toBe("no change");
     expect(shownDirection(delta(null, 3))).toBeNull();
   });
+  it("compares percentages as they are shown, so the change agrees with the figures", () => {
+    // 62/71 and 45/52 both read "87%"; the raw difference rounded to "+1 pt".
+    expect(fmtDelta(delta(62 / 71, 45 / 52, "fraction"), "fraction")).toBe("no change");
+    // 7/8 reads "88%" and 160/183 "87%"; the raw difference rounded to nothing.
+    expect(fmtDelta(delta(7 / 8, 160 / 183, "fraction"), "fraction")).toBe("+1 pt");
+  });
   it("draws the funnel with share of enquiries and step conversion", () => {
     const rows = [
       row({ booked_at: "2026-08-04T00:00:00Z", attended_at: "2026-08-10T00:00:00Z", assessed_at: "2026-08-10T00:00:00Z", decided_at: "2026-08-11T00:00:00Z", decision_outcome: "approved", offered_at: "2026-08-12T00:00:00Z", accepted_at: "2026-08-13T00:00:00Z", paid_at: "2026-08-14T00:00:00Z", enrolled_at: "2026-08-20T00:00:00Z", status: "enrolled" }),
@@ -69,12 +75,18 @@ describe("where applicants are lost", () => {
   it("lists the step conversions with the period before and what each started from", () => {
     const now = [row(attended), row(attended), row(booked), row({}), row({ requires_assessment: false })];
     const before = [row(attended), row({})];
-    const steps = conversionSteps(funnelCounts(now), 4, funnelCounts(before), 2);
+    const steps = conversionSteps({ counts: funnelCounts(now), assessed: 4 }, { counts: funnelCounts(before), assessed: 2 });
     expect(steps.map((s) => s.key)).toEqual(["enquiryToBooking", "bookingToAttendance", "approvalRate", "offerToAcceptance", "acceptanceToPayment", "paymentToEnrolment"]);
     // Booking is out of the families who needed an assessment, not all enquiries.
     expect(steps[0]).toMatchObject({ label: "Enquiry → booking", stage: "bookings", from: 4, rate: 0.75, previous: 0.5 });
     expect(steps[1]).toMatchObject({ stage: "attended", from: 3, rate: 2 / 3, previous: 1 });
     expect(steps[5]).toMatchObject({ stage: "enrolled", from: 0, rate: null, previous: null });
+    expect(steps.filter((s) => s.chosenBySchool).map((s) => s.key)).toEqual(["approvalRate"]);
+  });
+
+  it("has no period before when it could not be read, rather than one of zeros", () => {
+    const steps = conversionSteps({ counts: funnelCounts([row(attended), row({})]), assessed: 2 }, null);
+    expect(steps[0]).toMatchObject({ rate: 0.5, previous: null });
   });
 
   it("marks the lowest conversion as the weakest step", () => {
@@ -97,6 +109,16 @@ describe("where applicants are lost", () => {
     ).toBe("enquiryToBooking");
     expect(weakestStep([{ key: "paymentToEnrolment", from: 4, rate: 0 }])).toBeNull();
     expect(weakestStep([])).toBeNull();
+  });
+
+  it("never calls the school's own decision a lost applicant", () => {
+    // A selective campus approving 58% has not lost the other 42%.
+    expect(
+      weakestStep([
+        { key: "enquiryToBooking", from: 300, rate: 0.62 },
+        { key: "approvalRate", from: 80, rate: 0.58, chosenBySchool: true },
+      ])
+    ).toBe("enquiryToBooking");
   });
 
   it("gives a tie to the earlier step", () => {
