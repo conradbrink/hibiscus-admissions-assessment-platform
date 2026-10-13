@@ -20,10 +20,16 @@ export function previousRange(from: string, to: string): { from: string; to: str
 
 export type Delta = { abs: number; pct: number | null; direction: "up" | "down" | "flat" };
 
-/** The change from `previous` to `current`; percentages compare as points, counts as a ratio. */
+/**
+ * The change from `previous` to `current`; percentages compare as points, counts as a ratio.
+ *
+ * Percentages are shown whole, so they are compared as shown: 86.5% and 87.3%
+ * both read "87%", and a "+1 pt" between two equal figures would contradict
+ * the screen it sits on.
+ */
 export function delta(current: number | null, previous: number | null, kind: "count" | "fraction" | "days" = "count"): Delta | null {
   if (current === null || previous === null) return null;
-  const abs = current - previous;
+  const abs = kind === "fraction" ? (Math.round(current * 100) - Math.round(previous * 100)) / 100 : current - previous;
   const direction = Math.abs(abs) < 1e-9 ? "flat" : abs > 0 ? "up" : "down";
   if (kind === "fraction") return { abs, pct: null, direction };
   return { abs, pct: previous === 0 ? null : abs / previous, direction };
@@ -118,9 +124,9 @@ export function shares(groups: Breakdown[]): Share[] {
 /**
  * The direction of a change as it reads once rounded for display.
  *
- * A conversion that moved from 87.4% to 87.1% is "down" to the arithmetic and
- * "−0 pts" on the screen, which looks like a fault and says nothing. Whatever
- * rounds to zero is no change, so the colour and the words agree.
+ * A median that moved by 0.02 days is "down" to the arithmetic and "−0.0d" on
+ * the screen, which looks like a fault and says nothing. Whatever rounds to
+ * zero is no change, so the colour and the words agree.
  */
 export function shownDirection(d: Delta | null, kind: "count" | "fraction" | "days" = "count"): Delta["direction"] | null {
   if (!d) return null;
@@ -159,16 +165,20 @@ export type ConversionStep = {
   from: number;
   rate: number | null;
   previous: number | null;
+  /** The school's own decision rather than a family's, so never called a loss. */
+  chosenBySchool: boolean;
 };
 
 /**
  * The step-to-step conversions the specification names, this period and the
  * one before, with how many families each step started from. The rates are
  * `conversion()`'s own; this only puts them in the order they are read.
+ * `before` is null when the period before could not be read: no comparison,
+ * rather than a comparison with nothing.
  */
-export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: FunnelCounts, beforeAssessed: number): ConversionStep[] {
+export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: FunnelCounts | null, beforeAssessed: number): ConversionStep[] {
   const cur = conversion(now, nowAssessed);
-  const prev = conversion(before, beforeAssessed);
+  const prev = before ? conversion(before, beforeAssessed) : null;
   const steps: Array<[ConversionStepKey, string, FunnelStage["key"], number]> = [
     ["enquiryToBooking", "Enquiry → booking", "bookings", nowAssessed],
     ["bookingToAttendance", "Booking → attended", "attended", now.bookings],
@@ -177,7 +187,7 @@ export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: 
     ["acceptanceToPayment", "Accepted → paid", "paid", now.accepted],
     ["paymentToEnrolment", "Paid → enrolled", "enrolled", now.paid],
   ];
-  return steps.map(([key, label, stage, from]) => ({ key, label, stage, from, rate: cur[key], previous: prev[key] }));
+  return steps.map(([key, label, stage, from]) => ({ key, label, stage, from, rate: cur[key], previous: prev ? prev[key] : null, chosenBySchool: key === "approvalRate" }));
 }
 
 /**
@@ -188,12 +198,14 @@ export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: 
  * the funnel" is not news. A step that fewer than `minFamilies` could take is
  * left out: two families paid and neither has enrolled yet is 0%, and calling
  * that the weakest point in admissions would be noise rather than a finding.
- * A tie goes to the earlier step, where the families are lost first.
+ * A step the school chooses (approving a decision) is never a candidate:
+ * a selective campus declining a family has not lost an applicant. A tie
+ * goes to the earlier step, where the families are lost first.
  */
-export function weakestStep(steps: ReadonlyArray<Pick<ConversionStep, "key" | "from" | "rate">>, minFamilies = 5): ConversionStepKey | null {
+export function weakestStep(steps: ReadonlyArray<Pick<ConversionStep, "key" | "from" | "rate"> & { chosenBySchool?: boolean }>, minFamilies = 5): ConversionStepKey | null {
   let weakest: { key: ConversionStepKey; rate: number } | null = null;
   for (const s of steps) {
-    if (s.rate === null || s.from < minFamilies) continue;
+    if (s.rate === null || s.from < minFamilies || s.chosenBySchool) continue;
     if (!weakest || s.rate < weakest.rate) weakest = { key: s.key, rate: s.rate };
   }
   return weakest?.key ?? null;

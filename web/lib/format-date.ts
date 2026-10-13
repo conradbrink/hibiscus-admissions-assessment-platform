@@ -42,13 +42,15 @@ const DATE_TIME = new Intl.DateTimeFormat("en-GB", {
 
 function parse(value: string | Date | null | undefined): Date | null {
   if (!value) return null;
-  // A date-only string is parsed by ECMAScript as UTC midnight, which renders
-  // as the previous day anywhere behind UTC. Botswana is ahead, so today it
-  // would be fine — but pinning local parsing costs nothing and stops a
-  // reader in another zone seeing a birthday a day early.
+  // A date-only string is a day in the school's calendar, so it is read as
+  // midnight there (UTC+2, as `endOfSchoolDay` explains) and then formatted
+  // there. ECMAScript reads it as UTC midnight, the previous day to anyone
+  // behind UTC; reading it as the host's own midnight, as this once did, made
+  // it the previous day to anyone ahead of UTC+2, a birthday a day early in
+  // Nairobi and a week label a day early on a server in Tokyo.
   const s =
     typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-      ? `${value}T00:00:00`
+      ? `${value}T00:00:00+02:00`
       : value;
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
