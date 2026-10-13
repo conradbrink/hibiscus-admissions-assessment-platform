@@ -273,7 +273,19 @@ export async function onStaffDecision(
   });
 }
 
-/** Staff (or the automation switch) sends the waitlist or decline email. */
+/**
+ * Staff (or the automation switch) sends the waitlist or decline email.
+ *
+ * A decline also cancels any booking the family still has ahead of them, a
+ * visit or a sitting they are no longer coming to: the seat goes back, and
+ * the reminders, which hold only while the booking is `booked`, stop. It
+ * happens here, when the letter goes, rather than when the decision is
+ * recorded, on the school's instruction of 13 October 2026. With automatic
+ * sending off the letter can wait days for Send, and a family whose visit
+ * disappeared first would not know why. There is no email of its own, as
+ * with a deferral: the decline letter is the message. A waitlisted family
+ * keeps their booking, and one already under way or attended is left alone.
+ */
 export async function onOutcomeSent(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
@@ -291,12 +303,37 @@ export async function onOutcomeSent(
     .eq("application_id", app.id)
     .not("published_at", "is", null)
     .limit(1);
+
+  // After the reads and before the commit, raising rather than reporting: if
+  // it fails, nothing is sent and the task stays open, so pressing Send again
+  // retries both, and the update only ever touches what is still booked.
+  let bookingsCancelled = 0;
+  if (app.status === "declined") {
+    const { data: cancelled, error } = await admin
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Application declined" })
+      .eq("application_id", app.id)
+      .eq("status", "booked")
+      .select("id");
+    if (error) {
+      throw new WorkflowError(
+        `The decline letter was not sent: we could not cancel the family's booking (${error.message}). Nothing has changed — please try again.`,
+        "database"
+      );
+    }
+    bookingsCancelled = cancelled?.length ?? 0;
+  }
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
     newStatus: app.status,
     nextAction: shareProfile && profile?.length ? "view_profile" : "none",
-    event: { type: "outcome.sent", summary: `${app.status === "waitlisted" ? "Waitlist" : "Decline"} email sent`, payload: { template_key: key } },
+    event: {
+      type: "outcome.sent",
+      summary: `${app.status === "waitlisted" ? "Waitlist" : "Decline"} email sent${bookingsCancelled ? ", and their booking cancelled" : ""}`,
+      payload: { template_key: key, bookings_cancelled: bookingsCancelled || undefined },
+    },
     resolveTaskTypes: ["send_outcome"],
     jobs: [
       {
@@ -305,7 +342,7 @@ export async function onOutcomeSent(
         idempotencyKey: `email:${app.id}:${key}:${Date.now()}`,
       },
     ],
-    audit: { action: "outcome.sent", after: { template_key: key } },
+    audit: { action: "outcome.sent", after: bookingsCancelled ? { template_key: key, bookings_cancelled: bookingsCancelled } : { template_key: key } },
     actor,
   });
 }

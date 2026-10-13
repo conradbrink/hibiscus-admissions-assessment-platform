@@ -46,6 +46,7 @@ export function DecisionFields({
   hasHadTrial = false,
   bookingWillBeCancelled,
   autoSendOutcomes = false,
+  upcomingBooking = false,
 }: {
   canRecordOutcome: boolean;
   /** The graph allows it from here: not for a child already waitlisted. */
@@ -61,6 +62,8 @@ export function DecisionFields({
   bookingWillBeCancelled?: boolean;
   /** The `auto_send_outcomes` switch: a waitlist or decline letter goes the moment it is recorded. */
   autoSendOutcomes?: boolean;
+  /** A visit or sitting still ahead of them, which sending a decline letter cancels (`onOutcomeSent`). */
+  upcomingBooking?: boolean;
 }) {
   // In the order the select lists them. The first is the default.
   const offered = (
@@ -163,6 +166,9 @@ export function DecisionFields({
               {autoSendOutcomes
                 ? `The ${outcome === "waitlisted" ? "waitlist" : "decline"} letter is emailed to the parent as soon as you record this: outcome letters are sent automatically (Workflow settings).`
                 : `Nothing is emailed yet. The ${outcome === "waitlisted" ? "waitlist" : "decline"} letter waits under Admissions → Offer, in Outcomes to send, until somebody presses Send.`}
+              {outcome === "declined" && upcomingBooking
+                ? " Their booking is cancelled when the letter goes, so the seat goes back and the reminders stop."
+                : ""}
             </p>
           ) : null}
           <Textarea name="reason" placeholder="Reason (required)" rows={2} required minLength={5} />

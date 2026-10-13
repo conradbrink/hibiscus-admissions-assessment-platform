@@ -151,11 +151,28 @@ export default async function DecisionsPage() {
                 ) : null}
 
                 {canDecide ? (
-                  <ActionForm action={recordReviewOutcome} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3" confirm={
-                      settings.autoSendOutcomes
-                        ? "Record this decision? It is audited, and a decline or waitlist letter is emailed to the parent now."
-                        : "Record this decision? It is audited, and a decline or waitlist is emailed to the parent once you press Send under Admissions → Offer."
-                    }>
+                  <ActionForm
+                    action={recordReviewOutcome}
+                    label="Record decision"
+                    size="sm"
+                    className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3"
+                    confirm="Record this decision? It is audited."
+                    // The same words as the applicant page's form, answer by answer.
+                    confirmBy={{
+                      field: "outcome",
+                      messages: {
+                        approved: "Approve? It is audited, and the offer is drafted for a person to approve and send.",
+                        waitlisted: settings.autoSendOutcomes
+                          ? "Waitlist? It is audited, and the waitlist letter is emailed to the parent now."
+                          : "Waitlist? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                        declined:
+                          (settings.autoSendOutcomes
+                            ? "Decline? It is audited, and the decline letter is emailed to the parent now."
+                            : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.") +
+                          " Any booking they still have is cancelled when the letter goes.",
+                      },
+                    }}
+                  >
                     <input type="hidden" name="applicationId" value={a.id} />
                     <NativeSelect name="outcome" defaultValue="approved" className="h-9 w-40 md:h-9">
                       <option value="approved">Approve</option>

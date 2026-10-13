@@ -319,7 +319,18 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
                     {" "}<Link href={`/staff/admin/templates/${a.status === "waitlisted" ? "outcome_waitlisted" : "outcome_declined"}`} className="text-primary underline underline-offset-2">Check the wording</Link>.
                   </p>
                   {canApprove ? (
-                    <ActionForm action={sendOutcome} label="Send" size="sm" variant="success" className="mt-3" confirm="Send this outcome email to the parent now?">
+                    <ActionForm
+                      action={sendOutcome}
+                      label="Send"
+                      size="sm"
+                      variant="success"
+                      className="mt-3"
+                      confirm={
+                        a.status === "declined"
+                          ? "Send the decline email to the parent now? Any booking they still have is cancelled, so the seat goes back."
+                          : "Send the waitlist email to the parent now?"
+                      }
+                    >
                       <input type="hidden" name="applicationId" value={a.id} />
                     </ActionForm>
                   ) : null}

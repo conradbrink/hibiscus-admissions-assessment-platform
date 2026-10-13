@@ -196,6 +196,8 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     trial: (trials ?? [])[0] ?? null,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
     autoSendOutcomes: settings.autoSendOutcomes,
+    // Only one not yet under way: that is what the decline letter cancels.
+    upcomingBooking: booking?.status === "booked",
     deferred:
       app.status === "deferred"
         ? { until: app.deferred_until, reason: app.deferred_reason, canResume: canWrite }

@@ -81,6 +81,8 @@ export async function ApplicantPhase2({
     bookingWillBeCancelled: boolean;
     /** The `auto_send_outcomes` switch, so the form says truthfully when a waitlist or decline letter goes. */
     autoSendOutcomes: boolean;
+    /** A booking still ahead of them, which the decline letter cancels when it goes. */
+    upcomingBooking: boolean;
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
   };
@@ -374,9 +376,11 @@ export async function ApplicantPhase2({
                     waitlisted: decision.autoSendOutcomes
                       ? "Waitlist? It is audited, and the waitlist letter is emailed to the parent now."
                       : "Waitlist? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
-                    declined: decision.autoSendOutcomes
-                      ? "Decline? It is audited, and the decline letter is emailed to the parent now."
-                      : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                    declined:
+                      (decision.autoSendOutcomes
+                        ? "Decline? It is audited, and the decline letter is emailed to the parent now."
+                        : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.") +
+                      (decision.upcomingBooking ? " Their booking is cancelled when the letter goes." : ""),
                     deferred: decision.bookingWillBeCancelled
                       ? "Defer this family? Their booking is cancelled and the seat goes back."
                       : "Defer this family? We will message them around the date you chose.",
@@ -395,6 +399,7 @@ export async function ApplicantPhase2({
                   hasHadTrial={decision.hasHadTrial}
                   bookingWillBeCancelled={decision.bookingWillBeCancelled}
                   autoSendOutcomes={decision.autoSendOutcomes}
+                  upcomingBooking={decision.upcomingBooking}
                 />
               </ActionForm>
             </div>
