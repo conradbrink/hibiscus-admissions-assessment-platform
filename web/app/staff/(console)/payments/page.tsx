@@ -23,7 +23,19 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * Campus scoping applies through the policies, which now read
  * `payment_requests.campus_id` directly rather than joining the application.
  */
-export default async function PaymentsPage() {
+/**
+ * The dashboard's two payment counts, as views of this page. Each holds the
+ * same requests its count does, of either kind, so the number clicked is the
+ * number found.
+ */
+const SHOWS = {
+  overdue: { title: "Overdue", note: "Owed, past the date it was due.", match: (r: { status: string; due_at: string | null }, now: number) => ["required", "failed", "partially_paid"].includes(r.status) && r.due_at !== null && new Date(r.due_at).getTime() < now },
+  failed: { title: "Not completed", note: "The parent has been emailed a link to try again.", match: (r: { status: string }) => r.status === "failed" },
+} as const;
+
+export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
+  const sp = await searchParams;
+  const show = sp.show && Object.hasOwn(SHOWS, sp.show) ? SHOWS[sp.show as keyof typeof SHOWS] : null;
   const { supabase, permissions, userId } = await requireStaff("finance.read");
   // The stage bar's reads, started now so they run beside the page's own.
   const header = loadAdmissionsHeaderData(supabase, userId);
@@ -47,21 +59,24 @@ export default async function PaymentsPage() {
   const admissions = (requests ?? []).filter((r) => r.kind === "admission");
   const extras = (requests ?? []).filter((r) => r.kind === "extras");
 
-  const groups: Array<{ key: string; title: string; note?: string; rows: NonNullable<typeof requests> }> = [
-    { key: "outstanding", title: "Outstanding", note: "Overdue first.", rows: admissions.filter((r) => r.status === "required" || r.status === "partially_paid") },
-    { key: "processing", title: "Being confirmed", note: "Online payments the gateway has not yet confirmed. Checked automatically every few minutes.", rows: admissions.filter((r) => r.status === "processing") },
-    { key: "failed", title: "Not completed", note: "The parent has been emailed a link to try again.", rows: admissions.filter((r) => r.status === "failed") },
-    { key: "paid", title: "Paid in the last 30 days", rows: admissions.filter((r) => r.status === "paid") },
-    {
-      key: "extras",
-      title: "Optional extras",
-      // Read-only on purpose: every write on the panel below moves an
-      // application, and an extras order has none. Recording a transfer against
-      // one is the next change, not a thing to fake here.
-      note: "Stationery, transport, lunch and aftercare a family ordered in the portal. Paid online by the family; not chased.",
-      rows: extras,
-    },
-  ];
+  const now = new Date().getTime();
+  const groups: Array<{ key: string; title: string; note?: string; rows: NonNullable<typeof requests> }> = show
+    ? [{ key: "shown", title: show.title, note: show.note, rows: (requests ?? []).filter((r) => show.match(r, now)) }]
+    : [
+      { key: "outstanding", title: "Outstanding", note: "Overdue first.", rows: admissions.filter((r) => r.status === "required" || r.status === "partially_paid") },
+      { key: "processing", title: "Being confirmed", note: "Online payments the gateway has not yet confirmed. Checked automatically every few minutes.", rows: admissions.filter((r) => r.status === "processing") },
+      { key: "failed", title: "Not completed", note: "The parent has been emailed a link to try again.", rows: admissions.filter((r) => r.status === "failed") },
+      { key: "paid", title: "Paid in the last 30 days", rows: admissions.filter((r) => r.status === "paid") },
+      {
+        key: "extras",
+        title: "Optional extras",
+        // Read-only on purpose: every write on the panel below moves an
+        // application, and an extras order has none. Recording a transfer against
+        // one is the next change, not a thing to fake here.
+        note: "Stationery, transport, lunch and aftercare a family ordered in the portal. Paid online by the family; not chased.",
+        rows: extras,
+      },
+      ];
 
   const Head = ({ r }: { r: NonNullable<typeof requests>[number] }) => {
     const a = one(r.applications);
@@ -110,6 +125,11 @@ export default async function PaymentsPage() {
         view="payments"
         description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here."
       />
+      {show ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Only what the dashboard counted. <Link href="/staff/payments" className="text-primary underline underline-offset-2">Show all payments</Link>
+        </p>
+      ) : null}
       {groups.map((g) => (
         <section key={g.key} className="mb-8">
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>

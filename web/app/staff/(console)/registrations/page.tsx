@@ -66,7 +66,7 @@ export default async function RegistrationsPage() {
         description="The last stretch: what each family still has to give, the documents to check, and enrolment to confirm."
       />
       {groups.map((g) => (
-        <section key={g.key} className="mb-8">
+        <section key={g.key} id={g.key} className="mb-8 scroll-mt-6">
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>
           {g.note ? <p className="mb-2 text-xs text-muted-foreground">{g.note}</p> : null}
           {g.rows.length ? (

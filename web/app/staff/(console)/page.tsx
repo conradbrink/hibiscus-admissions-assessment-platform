@@ -152,16 +152,18 @@ export default async function DashboardPage() {
   );
 
   // Everything the old "Needs attention" list and its reminder card counted,
-  // each with the link it had, grouped by the kind of work. A group shows
+  // grouped by the kind of work. Each link opens a view holding the same
+  // rows its count does: "4 enquiries" that opened a list of 35 read as a
+  // broken number, not a filter left off. A group shows
   // only while one of its counts is above zero, and leads with the first
   // that is; the rest sit under it as their own links.
   const areas: AttentionArea[] = [
     {
       title: "Enquiries",
       metrics: [
-        { count: n("unbooked_over_48h"), one: "enquiry not booked after 48 hours", many: "enquiries not booked after 48 hours", href: "/staff/applications?status=new_enquiry", action: "Follow up" },
-        { count: n("callbacks_open"), one: "callback requested", many: "callbacks requested", href: "/staff/tasks?type=callback", action: "Call back" },
-        { count: deferredDueSoon ?? 0, one: "deferred family due back", many: "deferred families due back", href: "/staff/applications?status=deferred", action: "Get back in touch" },
+        { count: n("unbooked_over_48h"), one: "enquiry not booked after 48 hours", many: "enquiries not booked after 48 hours", href: "/staff/applications?status=new_enquiry&waiting=48h", action: "Follow up" },
+        { count: n("callbacks_open"), one: "callback requested", many: "callbacks requested", href: "/staff/tasks?filter=open&type=callback", action: "Call back" },
+        { count: deferredDueSoon ?? 0, one: "deferred family due back", many: "deferred families due back", href: `/staff/applications?status=deferred&due_by=${toSchoolDateString(weekEnd)}`, action: "Get back in touch" },
       ],
     },
     {
@@ -175,36 +177,36 @@ export default async function DashboardPage() {
       title: "Decisions",
       metrics: [
         { count: n("awaiting_decision"), one: "applicant waiting for a decision", many: "applicants waiting for a decision", href: "/staff/decisions", action: "Review applicants" },
-        { count: n("waitlist_places"), one: "waitlist place available", many: "waitlist places available", href: "/staff/tasks?type=waitlist_place_available", action: "Review the waitlist" },
+        { count: n("waitlist_places"), one: "waitlist place available", many: "waitlist places available", href: "/staff/tasks?filter=open&type=waitlist_place_available", action: "Review the waitlist" },
       ],
     },
     {
       title: "Offers",
       metrics: [
-        { count: n("offers_to_approve"), one: "offer waiting for approval", many: "offers waiting for approval", href: "/staff/offers", action: "Approve offers" },
-        { count: n("offers_blocked"), one: "offer blocked: no fee schedule", many: "offers blocked: no fee schedule", href: "/staff/offers", action: "Review offers", urgent: true },
-        { count: n("outcomes_to_send"), one: "outcome to send", many: "outcomes to send", href: "/staff/offers", action: "Send outcomes" },
-        { count: n("offers_expiring_3d"), one: "offer expiring within 3 days", many: "offers expiring within 3 days", href: "/staff/offers", action: "Review offers" },
+        { count: n("offers_to_approve"), one: "offer waiting for approval", many: "offers waiting for approval", href: "/staff/offers?show=approval", action: "Approve offers" },
+        { count: n("offers_blocked"), one: "offer blocked: no fee schedule", many: "offers blocked: no fee schedule", href: "/staff/offers?show=drafting", action: "Review offers", urgent: true },
+        { count: n("outcomes_to_send"), one: "outcome to send", many: "outcomes to send", href: "/staff/offers?show=outcomes", action: "Send outcomes" },
+        { count: n("offers_expiring_3d"), one: "offer expiring within 3 days", many: "offers expiring within 3 days", href: "/staff/offers?show=expiring", action: "Review offers" },
       ],
     },
     {
       title: "Payments",
       metrics: [
-        { count: n("payments_overdue"), one: "payment overdue", many: "payments overdue", href: "/staff/payments", action: "Follow up", urgent: true },
-        { count: n("payments_failed"), one: "payment that did not complete", many: "payments that did not complete", href: "/staff/payments", action: "Follow up" },
+        { count: n("payments_overdue"), one: "payment overdue", many: "payments overdue", href: "/staff/payments?show=overdue", action: "Follow up", urgent: true },
+        { count: n("payments_failed"), one: "payment that did not complete", many: "payments that did not complete", href: "/staff/payments?show=failed", action: "Follow up" },
       ],
     },
     {
       title: "Enrolments",
       metrics: [
-        { count: n("enrolments_to_confirm"), one: "enrolment to confirm", many: "enrolments to confirm", href: "/staff/registrations", action: "Confirm enrolments" },
+        { count: n("enrolments_to_confirm"), one: "enrolment to confirm", many: "enrolments to confirm", href: "/staff/registrations#confirm", action: "Confirm enrolments" },
         { count: n("documents_missing"), one: "parent still to upload documents", many: "parents still to upload documents", href: "/staff/registrations", action: "Complete registration" },
       ],
     },
     {
       title: "Messages",
       metrics: [
-        { count: n("parent_replies"), one: "WhatsApp reply to read", many: "WhatsApp replies to read", href: "/staff/tasks?type=parent_replied", action: "Reply" },
+        { count: n("parent_replies"), one: "WhatsApp reply to read", many: "WhatsApp replies to read", href: "/staff/tasks?filter=open&type=parent_replied", action: "Reply" },
         // A template the provider is refusing. It went unnoticed for a day once
         // because a failed WhatsApp is silent everywhere else: the parent simply
         // never hears from us, and the funnel looks normal.

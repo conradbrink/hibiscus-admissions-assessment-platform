@@ -6,7 +6,11 @@ import { StatusBadge } from "@/components/staff/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-import { formatDate, formatDateTime } from "@/lib/format-date";
+import { isConversionStepKey, notConverted, NOT_CONVERTED_LABELS } from "@/lib/analytics/drill-down";
+import type { FactRow } from "@/lib/analytics/breakdown";
+import { readFacts } from "@/lib/analytics/facts";
+import { resolveRange } from "@/lib/analytics/ranges";
+import { formatDate, formatDateRange, formatDateTime } from "@/lib/format-date";
 import { formatMonth, startLabel } from "@/lib/start-month";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
@@ -29,9 +33,26 @@ type Search = {
   month?: string;
   mine?: string;
   page?: string;
+  /** From the dashboard: only enquiries older than this ("48h"), the ones its count calls not booked. */
+  waiting?: string;
+  /** From the dashboard: deferred families due back on or before this date. */
+  due_by?: string;
+  /**
+   * From analytics: the families a conversion step has not converted, among
+   * those who enquired between `from` and `to`. Exactly the count analytics
+   * showed beside the link.
+   */
+  step?: string;
+  from?: string;
+  to?: string;
 };
 
 const PAGE = 50;
+
+/** The dashboard's narrowings, by what its count is: the list has to hold the same families. */
+const WAITING: Record<string, { ms: number; words: string }> = {
+  "48h": { ms: 48 * 3_600_000, words: "enquired more than 48 hours ago" },
+};
 
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -49,6 +70,25 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   // status belongs to (a link from the dashboard names only the status).
   const tab = stage?.key ?? (sp.status && !group ? stageOf(sp.status as ApplicationStatus) : null) ?? "all";
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
+  const now = new Date();
+  const waiting = sp.waiting && Object.hasOwn(WAITING, sp.waiting) ? WAITING[sp.waiting] : undefined;
+  const dueBy = sp.due_by && /^\d{4}-\d{2}-\d{2}$/.test(sp.due_by) ? sp.due_by : undefined;
+
+  // A step from analytics is answered from the same facts analytics counted,
+  // then the page of them is read here like any other row. The other filters
+  // stand aside while it is on: anything they removed would make the list
+  // disagree with the number that was clicked.
+  const step = isConversionStepKey(sp.step) ? sp.step : null;
+  const range = step ? resolveRange(sp.from, sp.to, now) : null;
+  let stepTotal = 0;
+  let stepIds: string[] | null = null;
+  if (step && range) {
+    const { data: facts, error: factsError } = await readFacts(supabase, range, sp.campus);
+    if (factsError) throw new Error(factsError.message);
+    const ids = notConverted((facts ?? []) as FactRow[], step).map((r) => r.application_id);
+    stepTotal = ids.length;
+    stepIds = ids.slice((page - 1) * PAGE, page * PAGE);
+  }
 
   let query = supabase
     .from("applications")
@@ -56,22 +96,27 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
       "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes!applications_intake_id_fkey(label), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
       { count: "exact" }
     )
-    .order("created_at", { ascending: false })
-    .range((page - 1) * PAGE, page * PAGE - 1);
-  if (statuses) query = query.in("status", statuses);
-  else query = query.neq("status", "withdrawn");
-  if (sp.campus) query = query.eq("campus_id", sp.campus);
-  // Term and month compose rather than exclude each other: a campus that takes
-  // children monthly still has them on a term, so "Term 1, 2027" and "March
-  // 2027" together is a question somebody asks.
-  if (sp.intake) query = query.eq("intake_id", sp.intake);
-  if (sp.month) query = query.eq("start_month", sp.month);
-  if (sp.mine === "1") query = query.eq("owner_staff_id", userId);
-  if (sp.q) {
-    const q = sp.q.trim();
-    query = query.or(
-      `reference.ilike.%${q}%,child_first_name.ilike.%${q}%,child_last_name.ilike.%${q}%`
-    );
+    .order("created_at", { ascending: false });
+  if (stepIds) query = query.in("id", stepIds);
+  else {
+    query = query.range((page - 1) * PAGE, page * PAGE - 1);
+    if (statuses) query = query.in("status", statuses);
+    else query = query.neq("status", "withdrawn");
+    if (waiting) query = query.lt("created_at", new Date(now.getTime() - waiting.ms).toISOString());
+    if (dueBy) query = query.lte("deferred_until", dueBy);
+    if (sp.campus) query = query.eq("campus_id", sp.campus);
+    // Term and month compose rather than exclude each other: a campus that takes
+    // children monthly still has them on a term, so "Term 1, 2027" and "March
+    // 2027" together is a question somebody asks.
+    if (sp.intake) query = query.eq("intake_id", sp.intake);
+    if (sp.month) query = query.eq("start_month", sp.month);
+    if (sp.mine === "1") query = query.eq("owner_staff_id", userId);
+    if (sp.q) {
+      const q = sp.q.trim();
+      query = query.or(
+        `reference.ilike.%${q}%,child_first_name.ilike.%${q}%,child_last_name.ilike.%${q}%`
+      );
+    }
   }
 
   const [{ data: rows, count, error }, { data: campuses }, header, { data: intakes }, { data: monthRows }] = await Promise.all([
@@ -92,6 +137,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   // which of these children hold a scholarship — batched together, because a
   // row that says "Parent to book assessment" against a scholarship child is
   // the same wrong word the parent's own screen used to show.
+  // A step's page in the order analytics listed it, newest enquiry first.
+  if (stepIds) rows?.sort((a, b) => stepIds.indexOf(a.id) - stepIds.indexOf(b.id));
   const ids = (rows ?? []).map((r) => r.id);
   const [{ data: summaries }, { data: awards }] = ids.length
     ? await Promise.all([
@@ -104,8 +151,9 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   const scholars = new Set(
     (awards ?? []).filter((a) => isScholarshipCode(one(a.promotions)?.code ?? null)).map((a) => a.application_id)
   );
+  const chosenCampus = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus)?.name : undefined;
   const months = [...new Set((monthRows ?? []).map((r) => r.start_month).filter((m): m is string => Boolean(m)))].sort();
-  const total = count ?? 0;
+  const total = stepIds ? stepTotal : (count ?? 0);
   // The list's own filters, kept when moving between stages and to the
   // paused-or-closed lists: what a stage or status narrows, it narrows within.
   const listQuery = new URLSearchParams(
@@ -129,12 +177,28 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
         stage={tab}
         view="list"
         listQuery={listQuery}
-        description={`${total} ${total === 1 ? "applicant" : "applicants"}${stage ? ` in ${stage.label}` : ""}${sp.status ? ` · ${STATUS_LABELS[sp.status as ApplicationStatus] ?? sp.status}` : ""}`}
+        description={`${total} ${total === 1 ? "applicant" : "applicants"}${stage ? ` in ${stage.label}` : ""}${sp.status && !step ? ` · ${STATUS_LABELS[sp.status as ApplicationStatus] ?? sp.status}` : ""}`}
       />
+
+      {/* What a link from the dashboard or analytics narrowed the list to,
+          said in words, with the way back to the whole list. Without it the
+          list is shorter than the filters on screen explain. */}
+      {step && range ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          {sentence(NOT_CONVERTED_LABELS[step].many)}, from families who enquired {formatDateRange(range.from, range.to)}
+          {chosenCampus ? ` at ${chosenCampus}` : ""}. The same families analytics counted.{" "}
+          <Link href="/staff/applications" className="text-primary underline underline-offset-2">Show all applicants</Link>
+        </p>
+      ) : waiting || dueBy ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Only those {[waiting?.words, dueBy ? `due back by ${formatDate(dueBy)}` : null].filter(Boolean).join(" and ")}, as counted on the dashboard.{" "}
+          <Link href={`/staff/applications${qs({ waiting: undefined, due_by: undefined, page: undefined })}`} className="text-primary underline underline-offset-2">Show them all</Link>
+        </p>
+      ) : null}
 
       {/* Paused and closed applications are in no stage. A family nobody can
           find is a family nobody comes back to, so All keeps a way to each. */}
-      {tab === "all" && !group ? (
+      {tab === "all" && !group && !step ? (
         <FilterChips
           label="Not in a stage"
           caption="Paused or closed:"
@@ -147,8 +211,10 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
         />
       ) : null}
 
-      <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
+      {step ? null : <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
         {stage ? <input type="hidden" name="stage" value={stage.key} /> : null}
+        {waiting ? <input type="hidden" name="waiting" value={sp.waiting} /> : null}
+        {dueBy ? <input type="hidden" name="due_by" value={dueBy} /> : null}
         {group ? <input type="hidden" name="group" value={group.key} /> : null}
         <Input name="q" placeholder="Search name or reference" defaultValue={sp.q ?? ""} className="w-56" />
         <NativeSelect name="campus" defaultValue={sp.campus ?? ""} className="w-44">
@@ -179,7 +245,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           <input type="checkbox" name="mine" value="1" defaultChecked={sp.mine === "1"} /> Mine
         </label>
         <Button type="submit" size="lg" variant="secondary">Filter</Button>
-      </form>
+      </form>}
 
       {rows && rows.length > 0 ? (
         <div className="overflow-x-auto surface">
@@ -262,3 +328,5 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     </>
   );
 }
+
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

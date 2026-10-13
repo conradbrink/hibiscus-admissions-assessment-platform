@@ -40,7 +40,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // Ticking a task off should not make it vanish from under the cursor, so a
   // recently completed one stays on the list, struck through, before it
   // settles into the Done tab.
+  // "open" is the dashboard's: its counts are open tasks only, so the list
+  // it opens leaves out the ones ticked off this week.
   if (sp.filter === "done") query = query.eq("status", "done");
+  else if (sp.filter === "open") query = query.eq("status", "open");
   else query = query.or(`status.eq.open,and(status.eq.done,resolved_at.gte.${doneSince.toISOString()})`);
 
   if (sp.filter === "mine") query = query.eq("assignee_staff_id", userId);

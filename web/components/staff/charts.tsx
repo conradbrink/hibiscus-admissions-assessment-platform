@@ -174,18 +174,20 @@ export function StepList({
 }: {
   steps: ConversionStep[];
   weakest: ConversionStepKey | null;
-  links?: Partial<Record<ConversionStepKey, { href: string; label: string }>>;
+  /** Each step's families not converted: how many, worded, and the list of exactly them. */
+  links?: Partial<Record<ConversionStepKey, { href: string; label: string; count: number }>>;
 }) {
   return (
     <ol className="divide-y divide-border/70">
       {steps.map((s) => {
         const weak = s.key === weakest;
-        const link = links?.[s.key];
+        // A list of nobody is not somewhere to go.
+        const link = links?.[s.key]?.count ? links[s.key] : undefined;
         return (
           <li key={s.key} className="py-3 first:pt-0 last:pb-0">
             <div className="flex items-center gap-3">
               {link ? (
-                <Link href={link.href} title={link.label} className="min-w-0 flex-1 truncate text-sm text-foreground underline-offset-4 hover:text-primary hover:underline">
+                <Link href={link.href} title={`See the ${link.label}`} className="min-w-0 flex-1 truncate text-sm text-foreground underline-offset-4 hover:text-primary hover:underline">
                   {s.label}
                 </Link>
               ) : (
@@ -204,14 +206,24 @@ export function StepList({
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
               <div className={cn("h-full rounded-full", weak ? "bg-warning/75" : "bg-primary/60")} style={{ width: `${Math.round((s.rate ?? 0) * 100)}%` }} />
             </div>
-            {weak ? (
+            {/* The count on every step, so what the list holds is said before
+                it is opened, and is the number found there. */}
+            {weak || link ? (
               <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-foreground">
-                  <TrendingDown className="size-3" aria-hidden />
-                  Weakest step
-                </span>
+                {weak ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning-foreground">
+                    <TrendingDown className="size-3" aria-hidden />
+                    Weakest step
+                  </span>
+                ) : null}
                 {link ? (
-                  <Link href={link.href} className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
+                  <Link
+                    href={link.href}
+                    className={cn(
+                      "inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline",
+                      weak ? "font-medium text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
                     {link.label}
                     <ArrowRight className="size-3" aria-hidden />
                   </Link>
