@@ -259,6 +259,8 @@ function PrimaryActionArea({
               ) : null}
             </dl>
           ) : null}
+          {/* A trial week that has finished: what came of it, beside the decision it informs. */}
+          {w.trials[0] ? <TrialWeekStatus applicationId={w.app.id} trial={w.trials[0]} canDecide={false} action={trialWeekOutcome} /> : null}
           <DecisionPanel applicationId={w.app.id} action={recordDecision} {...decision} />
         </div>
       );

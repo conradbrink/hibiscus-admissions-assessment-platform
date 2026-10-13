@@ -53,7 +53,9 @@ export const APPOINTMENT_STEPS: readonly AppointmentState[] = ["booked", "arrive
  * checking them in would have them arrive for a place already refused.
  */
 export function canCheckIn(bookingStatus: BookingStatus, appStatus: ApplicationStatus): boolean {
-  return bookingStatus === "booked" && !TERMINAL_STATUSES.has(appStatus);
+  // Deferring cancels the booking, so a deferred family should never hold
+  // one; if it does, it is not one to check in against.
+  return bookingStatus === "booked" && !TERMINAL_STATUSES.has(appStatus) && appStatus !== "deferred";
 }
 
 /**
@@ -73,8 +75,18 @@ export function canCheckIn(bookingStatus: BookingStatus, appStatus: ApplicationS
 export function noShowMove(
   bookingStatus: BookingStatus,
   kind: "assessment" | "visit",
-  appStatus: ApplicationStatus
+  appStatus: ApplicationStatus,
+  /**
+   * `bookings.checked_in_at`. A booking put back to `booked` after a check-in
+   * (a reschedule rolled back) keeps it, and the database refuses a no-show
+   * on it (`bookings_guard_no_show`); this asks the same question so the
+   * button is never offered for a write the database would refuse.
+   */
+  checkedInAt: string | null = null
 ): { ok: true; status: ApplicationStatus | null } | { ok: false; reason: string } {
+  if (bookingStatus === "booked" && checkedInAt) {
+    return { ok: false, reason: "The child was checked in for this booking once, so it is not a no-show. Cancel the booking instead." };
+  }
   if (bookingStatus !== "booked") {
     return {
       ok: false,
@@ -94,6 +106,11 @@ export function noShowMove(
   return { ok: true, status: "no_show" };
 }
 
-export function canMarkNoShow(bookingStatus: BookingStatus, kind: "assessment" | "visit", appStatus: ApplicationStatus): boolean {
-  return noShowMove(bookingStatus, kind, appStatus).ok;
+export function canMarkNoShow(
+  bookingStatus: BookingStatus,
+  kind: "assessment" | "visit",
+  appStatus: ApplicationStatus,
+  checkedInAt: string | null = null
+): boolean {
+  return noShowMove(bookingStatus, kind, appStatus, checkedInAt).ok;
 }

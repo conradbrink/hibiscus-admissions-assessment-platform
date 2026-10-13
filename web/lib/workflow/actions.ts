@@ -4,7 +4,7 @@ import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfte
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
+import type { ApplicationRow, ApplicationStatus, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
 import { awardLabelOf } from "@/lib/promotions/scholarship";
 import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
@@ -435,10 +435,10 @@ export async function onCheckedIn(
 export async function onNoShow(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
-  booking: Pick<BookingRow, "id" | "kind" | "status">,
+  booking: Pick<BookingRow, "id" | "kind" | "status" | "checked_in_at">,
   actor: Actor
 ): Promise<void> {
-  const move = noShowMove(booking.status, booking.kind, app.status);
+  const move = noShowMove(booking.status, booking.kind, app.status, booking.checked_in_at);
   if (!move.ok) throw new WorkflowError(move.reason, "status_conflict");
   const { data: missed, error } = await admin
     .from("bookings")
@@ -448,6 +448,25 @@ export async function onNoShow(
     .select("id");
   if (error) throw new WorkflowError(error.message, "database");
   if (!missed?.length) throw new WorkflowError("This booking changed while you were looking at it. Reload the page.", "status_conflict");
+  // The booking moved first, so if recording the moment fails (most often a
+  // colleague or the parent changed the application a moment ago) it is put
+  // back: a missed booking must not sit under an application that never
+  // heard about it. Only from `no_show`, so nothing newer is overwritten.
+  try {
+    await recordNoShow(admin, app, booking, move.status, actor);
+  } catch (e) {
+    await admin.from("bookings").update({ status: "booked" }).eq("id", booking.id).eq("status", "no_show");
+    throw e;
+  }
+}
+
+async function recordNoShow(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
+  booking: Pick<BookingRow, "id" | "kind">,
+  moved: ApplicationStatus | null,
+  actor: Actor
+): Promise<void> {
   const settings = await getSettings(admin);
 
   if (booking.kind === "visit") {
@@ -456,7 +475,6 @@ export async function onNoShow(
     // `awaiting_decision`, which has no way back to `new_enquiry`, and the
     // old unconditional move threw "Illegal transition" at the person
     // recording the no-show. Either way somebody rings them.
-    const moved = move.status;
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,

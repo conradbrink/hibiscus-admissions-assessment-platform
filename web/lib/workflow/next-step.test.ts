@@ -18,6 +18,7 @@ const facts = (over: Partial<ApplicantFacts>): ApplicantFacts => ({
   payment: null,
   trial: null,
   deferredUntil: null,
+  followUpDueAt: null,
   hasSat: false,
   hasDecision: false,
   now: NOW,
@@ -180,5 +181,37 @@ describe("no contradictory status", () => {
     expect(canCheckIn("booked", "withdrawn")).toBe(false);
     expect(canCheckIn("booked", "waitlisted")).toBe(true);
     expect(canCheckIn("booked", "offer_sent")).toBe(true);
+  });
+});
+
+describe("review findings on the first cut", () => {
+  it("stops saying Arrived once the visit is no longer the stage", () => {
+    const visited = { ...booked, kind: "visit" as const, status: "checked_in" as const };
+    for (const status of ["awaiting_decision", "offer_sent", "payment_required", "registration_incomplete"] as ApplicationStatus[]) {
+      expect(nextStep(facts({ status, requiresAssessment: false, noun: "visit", booking: visited })).status.label, status).not.toBe("Arrived");
+    }
+    expect(nextStep(facts({ status: "visit_booked", noun: "visit", booking: visited })).status.label).toBe("Arrived");
+  });
+
+  it("asks an assessment family who visited to book an assessment, not a visit", () => {
+    const s = nextStep(facts({ status: "visit_booked", noun: "visit", booking: { ...booked, kind: "visit", status: "checked_in" } }));
+    expect(s.action).toBe("book");
+    expect(s.actionLabel).toBe("Book assessment");
+  });
+
+  it("does not ask for a waitlist follow-up twice", () => {
+    const s = nextStep(facts({ status: "waitlisted", hasDecision: true, followUpDueAt: "2026-11-02T07:00:00+02:00" }));
+    expect(s.action).toBeNull();
+    expect(s.title).toMatch(/Follow up on/);
+  });
+
+  it("never offers a no-show for a booking somebody once arrived for", () => {
+    expect(canMarkNoShow("booked", "assessment", "assessment_booked", "2026-10-13T08:05:00+02:00")).toBe(false);
+    expect(canMarkNoShow("booked", "assessment", "assessment_booked", null)).toBe(true);
+  });
+
+  it("has one rule for check-in, deferred included", () => {
+    expect(canCheckIn("booked", "deferred")).toBe(false);
+    expect(nextStep(facts({ status: "deferred", booking: booked })).action).toBe("resume");
   });
 });

@@ -34,7 +34,7 @@ import { can, type PermissionSet } from "@/lib/permissions";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { cn } from "@/lib/utils";
-import { canMarkNoShow } from "@/lib/workflow/appointment";
+import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
@@ -45,6 +45,7 @@ import {
   assignTask,
   cancelBookingByStaff,
   changeCampus,
+  checkIn,
   changeGrade,
   completeCallback,
   completeTask,
@@ -163,15 +164,37 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const back = stage && stageView ? { href: stageView.href, label: stageLabel(stage) } : { href: "/staff/applications", label: "Admissions" };
 
   // Routine changes to a booking: quieter than the next step, still here.
-  const noShowAllowed = canDeliver && booking ? canMarkNoShow(booking.status, booking.kind, app.status) : false;
+  const noShowAllowed = canDeliver && booking ? canMarkNoShow(booking.status, booking.kind, app.status, booking.checked_in_at) : false;
   const noShowButton = (
     <ActionForm action={markNoShow} label="Mark no-show" variant="ghost" size="sm" confirm="Mark as a no-show? The parent is emailed a link to rebook.">{idField}</ActionForm>
   );
   // On the day, No-show sits beside Check in under the next step; otherwise
   // it is one of the booking's quieter tools here.
   const noShowUnderStep = step.action === "check_in" && noShowAllowed;
+  // What gets booked from here: the assessment, or a visit for a family who
+  // sits none (the sessions above are already that kind).
+  const bookWord = app.requires_assessment ? "assessment" : w.noun;
   const bookingTools = [
+    // Check in whenever there is somebody to check in, not only when it is
+    // the next step: a pre-school family accepted before their visit still
+    // comes, and Today's board lists assessments only.
+    canDeliver && booking && canCheckIn(booking.status, app.status) && step.action !== "check_in" ? (
+      <ActionForm key="check-in" action={checkIn} label="Check in" variant="outline" size="sm">{idField}</ActionForm>
+    ) : null,
     noShowAllowed && !noShowUnderStep ? <span key="no-show">{noShowButton}</span> : null,
+    // Booking for a family who rings, whatever the step says: a pre-school
+    // enquiry waiting on a decision still books its visit here.
+    canWrite && !terminal && !booking && eligibleSessions.length > 0 && step.action !== "book" ? (
+      <details key="book" className="text-sm">
+        <summary className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "cursor-pointer list-none")}>Book {bookWord}</summary>
+        <ActionForm action={rescheduleByStaff} label="Book selected" variant="outline" size="sm" className="mt-2 flex flex-wrap items-start gap-2 space-y-0">
+          {idField}
+          <NativeSelect name="sessionId" className="w-full sm:w-72" aria-label="Session">
+            {eligibleSessions.map((s) => <option key={s.id} value={s.id}>{formatDateTime(s.starts_at)}{s.location ? ` · ${s.location}` : ""}</option>)}
+          </NativeSelect>
+        </ActionForm>
+      </details>
+    ) : null,
     canWrite && !terminal && booking?.status === "booked" && eligibleSessions.length > 0 ? (
       <details key="move" className="text-sm">
         <summary className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "cursor-pointer list-none")}>Move booking</summary>
@@ -183,9 +206,11 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         </ActionForm>
       </details>
     ) : null,
-    // Also how a check-in made by mistake comes off the record: a child who
-    // was checked in is never turned into a no-show.
-    canWrite && booking && (booking.status === "booked" || booking.status === "checked_in") ? (
+    // Also how a check-in made by mistake comes off the record (a child who
+    // was checked in is never turned into a no-show) — but only while that
+    // check-in is the stage. A visit the family attended stays checked in
+    // for good, and cancelling it would email them about a booking they kept.
+    canWrite && booking && (booking.status === "booked" || (booking.status === "checked_in" && app.status === "assessment_booked")) ? (
       <ActionForm key="cancel" action={cancelBookingByStaff} label="Cancel booking" variant="ghost" size="sm" confirm="Cancel this booking? The application stays open and the parent is emailed.">{idField}</ActionForm>
     ) : null,
     // A family at the desk with no booking: open a session for right now,
@@ -196,7 +221,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
       <LaunchDialog key="walk-in" applicationId={app.id} childName={app.child_first_name} action={startWalkIn} walkIn />
     ) : null,
   ].filter(Boolean);
-  const showAssessment = app.requires_assessment || Boolean(w.booking ?? w.lastBooking) || w.attempts.length > 0;
+  const showAssessment = app.requires_assessment || Boolean(w.booking ?? w.lastBooking) || w.attempts.length > 0 || bookingTools.length > 0;
   const assessmentBehind = !["enquiry", "assessment", "decision"].includes(step.stage) && !booking;
   const result = assessmentResult(w);
 

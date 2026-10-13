@@ -9,7 +9,7 @@ import type {
   PaymentRequestStatus,
   TrialWeekStatus,
 } from "@/lib/supabase/types";
-import { APPOINTMENT_LABELS, APPOINTMENT_STATE } from "@/lib/workflow/appointment";
+import { APPOINTMENT_LABELS, APPOINTMENT_STATE, canCheckIn } from "@/lib/workflow/appointment";
 import { STATUS_LABELS, STATUS_TONE, TERMINAL_STATUSES, type StatusTone } from "@/lib/workflow/states";
 
 /**
@@ -107,6 +107,8 @@ export type ApplicantFacts = {
   /** The newest free trial week, or null. */
   trial: { status: TrialWeekStatus; startsOn: string; endsOn: string } | null;
   deferredUntil: string | null;
+  /** The earliest open task with a due date: a follow-up already set, so it is not asked for twice. */
+  followUpDueAt: string | null;
   /** Whether a sitting was ever handed in, for where a paused family sits on the bar. */
   hasSat: boolean;
   /** Whether a decision was ever recorded, likewise. */
@@ -176,7 +178,11 @@ function headerStatus(f: ApplicantFacts): { label: string; tone: StatusTone } {
   // a declined family keeps a booked visit until the letter goes.
   if (TERMINAL_STATUSES.has(f.status) || f.status === "deferred") return plain;
   const appt = f.booking ? APPOINTMENT_STATE[f.booking.status] : null;
-  if (appt === "arrived") return { label: APPOINTMENT_LABELS.arrived, tone: "success" };
+  // Only while the booking is the stage. A visit stays checked in for good
+  // once it has happened, and a family who visited and was then accepted,
+  // offered and invoiced must not read "Arrived" through all of it.
+  const bookingIsTheStage = f.status === "assessment_booked" || f.status === "visit_booked";
+  if (appt === "arrived" && bookingIsTheStage) return { label: APPOINTMENT_LABELS.arrived, tone: "success" };
   if (f.status === "assessment_in_progress") {
     return f.attempt?.status === "ready" ? { label: "Waiting to start", tone: "info" } : plain;
   }
@@ -192,6 +198,10 @@ export function nextStep(f: ApplicantFacts): NextStep {
   const stage = journeyStageOf(f.status) ?? reached(f);
   const noun = f.noun;
   const Noun = cap(noun);
+  // What is booked next. A primary family who came on a look-around visit
+  // still has an assessment to book; their live booking is a visit, so the
+  // noun alone would say "Book visit" over a picker of assessment sessions.
+  const bookNoun = f.requiresAssessment && noun === "visit" ? "assessment" : noun;
   const base = { stage, status, halted: null } as const;
   const step = (s: Omit<NextStep, "stage" | "status" | "halted"> & { halted?: NextStep["halted"] }): NextStep => ({
     ...base,
@@ -203,8 +213,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
   // pre-school visit is booked from `awaiting_decision`, and a primary family
   // may look round with an offer in hand. Checking them in is the job on the
   // day. Not on a closed application (`canCheckIn`).
-  const bookedAhead =
-    f.booking?.status === "booked" && !TERMINAL_STATUSES.has(f.status) && f.status !== "deferred";
+  const bookedAhead = f.booking ? canCheckIn(f.booking.status, f.status) : false;
   const past = Boolean(f.booking?.startsAt && new Date(f.booking.startsAt).getTime() < f.now.getTime() - 3 * 3_600_000);
   const checkIn = (headline: string): NextStep =>
     step({
@@ -241,13 +250,13 @@ export function nextStep(f: ApplicantFacts): NextStep {
             : f.booking?.status === "checked_in" && f.booking.kind === "visit" && f.requiresAssessment
               ? "Visited the campus. No assessment booked yet."
               : "New enquiry. Nothing booked yet.",
-        title: f.status === "no_show" ? `Rebook the ${noun}` : `Book ${noun === "interview" ? "an interview" : noun === "visit" ? "a visit" : "an assessment"}`,
+        title: f.status === "no_show" ? `Rebook the ${bookNoun}` : `Book ${bookNoun === "interview" ? "an interview" : bookNoun === "visit" ? "a visit" : "an assessment"}`,
         detail:
           f.status === "no_show"
             ? "The parent was emailed a link to choose a new time. Book one for them here if they call."
             : "The parent has a link to book one themselves. Book it for them here if they call.",
         action: "book",
-        actionLabel: f.status === "no_show" ? `Rebook ${noun}` : `Book ${noun}`,
+        actionLabel: f.status === "no_show" ? `Rebook ${bookNoun}` : `Book ${bookNoun}`,
         tone: "action",
       });
 
@@ -265,10 +274,10 @@ export function nextStep(f: ApplicantFacts): NextStep {
       }
       return step({
         headline: `${Noun} booked.`,
-        title: `Book ${noun === "assessment" ? "an assessment" : `a ${noun}`}`,
+        title: `Book ${bookNoun === "assessment" ? "an assessment" : `a ${bookNoun}`}`,
         detail: "There is no live booking on file.",
         action: "book",
-        actionLabel: `Book ${noun}`,
+        actionLabel: `Book ${bookNoun}`,
         tone: "action",
       });
 
@@ -479,6 +488,17 @@ export function nextStep(f: ApplicantFacts): NextStep {
           action: "send_outcome",
           actionLabel: "Send waitlist letter",
           tone: "action",
+          halted: "paused",
+        });
+      }
+      if (f.followUpDueAt) {
+        return step({
+          headline: "Applicant is on the waitlist.",
+          title: `Follow up on ${formatDate(f.followUpDueAt)}`,
+          detail: "The follow-up is under Tasks. Accept them from here when a place opens.",
+          action: null,
+          actionLabel: null,
+          tone: "paused",
           halted: "paused",
         });
       }

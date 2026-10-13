@@ -149,7 +149,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                       // Booked → arrived → in progress → completed, or booked →
                       // no-show; never both. A child already checked in is not
                       // offered No-show (see lib/workflow/appointment.ts).
-                      const noShow = canMarkNoShow(b.status, "assessment", app.status);
+                      const noShow = canMarkNoShow(b.status, "assessment", app.status, b.checked_in_at);
                       const attempt = attemptByBooking.get(b.id) ?? null;
                       return (
                         <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">

@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/staff/action-form";
 import { MessagesPanel } from "@/components/staff/messages-panel";
 import { OfferConditionsFields } from "@/components/staff/offer-conditions-fields";
 import { PaymentPanel } from "@/components/staff/payment-panel";
+import { TrialWeekStatus } from "@/components/staff/trial-week-status";
 import { BookingBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,7 +25,7 @@ import type { BenchmarkBand } from "@/lib/supabase/types";
 import { APPOINTMENT_LABELS, APPOINTMENT_STATE, APPOINTMENT_STEPS } from "@/lib/workflow/appointment";
 import { cn } from "@/lib/utils";
 import { approveOffer, generateOffer, withdrawOffer } from "@/app/staff/(console)/offers/actions";
-import { sendWhatsAppTemplate, setDayPattern, setScholarship, setStartMonth } from "@/app/staff/(console)/applications/[id]/actions";
+import { sendWhatsAppTemplate, setDayPattern, setScholarship, setStartMonth, trialWeekOutcome } from "@/app/staff/(console)/applications/[id]/actions";
 import type { ApplicantWorkspace } from "@/app/staff/(console)/applications/[id]/load";
 
 /**
@@ -226,9 +227,15 @@ function LearningProfile({ w }: { w: ApplicantWorkspace }) {
 // ---------------------------------------------------------------------------
 
 export function DecisionHistory({ w }: { w: ApplicantWorkspace }) {
-  if (!w.decisions.length) return <p className="text-muted-foreground">No decision yet.</p>;
+  // How a finished trial week went is part of why the child was decided the
+  // way they were; the old Decision tab put it above the decisions.
+  const finishedTrial = w.trials[0] && w.trials[0].status !== "invited" && w.trials[0].status !== "confirmed" ? w.trials[0] : null;
+  const trial = finishedTrial ? <TrialWeekStatus applicationId={w.app.id} trial={finishedTrial} canDecide={false} action={trialWeekOutcome} /> : null;
+  if (!w.decisions.length) return <>{trial}<p className={trial ? "mt-3 text-muted-foreground" : "text-muted-foreground"}>No decision yet.</p></>;
   return (
-    <ol className="space-y-2">
+    <>
+    {trial}
+    <ol className={trial ? "mt-3 space-y-2" : "space-y-2"}>
       {w.decisions.map((d) => {
         const inputs = (d.inputs ?? {}) as { results?: RuleResult[]; reason?: string; places_remaining?: number | null };
         const failing = (inputs.results ?? []).filter((r) => r.effect !== "pass");
@@ -255,6 +262,7 @@ export function DecisionHistory({ w }: { w: ApplicantWorkspace }) {
         );
       })}
     </ol>
+    </>
   );
 }
 
