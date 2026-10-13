@@ -398,7 +398,10 @@ export default async function FamilyProfilePage({ params, searchParams }: { para
                     {students.map((s) => <option key={s.id} value={s.id}>{studentName(s)}</option>)}
                   </NativeSelect>
                   <NativeSelect name="assigneeStaffId" defaultValue={userId} aria-label="Who">
-                    <option value="">Nobody yet</option>
+                    {/* Left blank, the database gives it to the owner of the
+                        child's application, or the campus owner
+                        (tasks_set_default_assignee). */}
+                    <option value="">Their owner or the campus owner (automatic)</option>
                     {(staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
                   </NativeSelect>
                   <Input type="date" name="dueOn" aria-label="Due on" />

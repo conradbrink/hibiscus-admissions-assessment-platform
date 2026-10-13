@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { STUDENT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
+import { EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format-date";
 import { STUDENT_STATUS_LABELS, STUDENT_STATUS_TONE, studentName } from "@/lib/students/labels";
@@ -21,7 +23,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ campus?: string; status?: string; q?: string }>;
 }) {
-  const { supabase } = await requireStaff("students.read");
+  const { supabase, permissions } = await requireStaff("students.read");
   const params = await searchParams;
 
   const [{ data: campuses }, { data: families }] = await Promise.all([
@@ -54,8 +56,10 @@ export default async function StudentsPage({
 
   return (
     <>
-      <PageTitle
+      <AreaHeader
         title="Students"
+        tabsLabel="Pages"
+        tabs={visibleAreaTabs(permissions, STUDENT_TABS, "/staff/students")}
         description="Every child enrolled, and where they are now. A student stays here after their application is finished with."
       />
 

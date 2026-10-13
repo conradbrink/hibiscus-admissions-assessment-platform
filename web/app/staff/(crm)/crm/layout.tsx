@@ -24,7 +24,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           groups={groups}
           name={ctx.profile.full_name ?? ""}
           email={ctx.profile.email}
-          product={{ label: "CRM", home: "/staff/crm", switchTo: { href: "/staff", label: "Hibiscus Admissions" } }}
+          product={{ label: "CRM", home: "/staff/crm", switchTo: { href: "/staff", label: "Hibiscus Admissions", short: "Admissions" } }}
         />
         <main className="min-w-0 flex-1 bg-background/70 px-4 py-5 md:px-8 md:py-6">
           <StaffTopbar

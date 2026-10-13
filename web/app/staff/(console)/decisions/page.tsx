@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { BAND_LABELS } from "@/lib/assessment/bands";
 import { formatDateTime } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import type { RuleResult } from "@/lib/rules/evaluate";
+import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import type { BenchmarkBand, Json } from "@/lib/supabase/types";
 import { recordReviewOutcome } from "../applications/[id]/actions";
@@ -43,19 +45,26 @@ function TrialWeekPanel({ applicationId, childName, trial, canDecide }: { applic
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
- * The review queue: everything a person must decide. Referrals from the
+ * The review queue, under Admissions → Decision: everything a person must
+ * decide. Referrals from the
  * rules engine come with the rule that referred them highlighted; pre-school
  * enquiries come with nothing to score, only capacity.
  */
 export default async function DecisionsPage() {
-  const { supabase, permissions } = await requireStaff("applications.read");
+  const { supabase, permissions, userId } = await requireStaff("applications.read");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const canDecide = can(permissions, "decisions.override");
 
-  const { data: apps } = await supabase
-    .from("applications")
-    .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes(label)")
-    .in("status", ["staff_review", "awaiting_decision"])
-    .order("status_changed_at", { ascending: true });
+  const [{ data: apps }, settings] = await Promise.all([
+    supabase
+      .from("applications")
+      .select("id, reference, status, status_changed_at, child_first_name, child_last_name, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes(label)")
+      .in("status", ["staff_review", "awaiting_decision"])
+      .order("status_changed_at", { ascending: true }),
+    // Whether a waitlist or decline letter goes at once, so the confirmation says so.
+    getSettings(supabase),
+  ]);
   const ids = (apps ?? []).map((a) => a.id);
 
   const [{ data: decisions }, { data: attempts }, { data: subjects }, { data: competencies }, { data: trials }] = ids.length
@@ -83,7 +92,13 @@ export default async function DecisionsPage() {
 
   return (
     <>
-      <PageTitle title="Review queue" description={`${apps?.length ?? 0} application${apps?.length === 1 ? "" : "s"} waiting for a person's decision. Oldest first. A pre-school family can be invited to a free trial week before you decide.`} />
+      <AdmissionsHeader
+        ctx={{ permissions }}
+        data={header}
+        stage="decision"
+        view="queue"
+        description={`${apps?.length ?? 0} application${apps?.length === 1 ? "" : "s"} waiting for a person's decision. Oldest first. A pre-school family can be invited to a free trial week before you decide.`}
+      />
       {apps?.length ? (
         <div className="space-y-4">
           {apps.map((a) => {
@@ -136,7 +151,28 @@ export default async function DecisionsPage() {
                 ) : null}
 
                 {canDecide ? (
-                  <ActionForm action={recordReviewOutcome} label="Record decision" size="sm" className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3" confirm="Record this decision? It is audited, and a decline or waitlist is emailed to the parent once you press Send on the Offers & outcomes page.">
+                  <ActionForm
+                    action={recordReviewOutcome}
+                    label="Record decision"
+                    size="sm"
+                    className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-3"
+                    confirm="Record this decision? It is audited."
+                    // The same words as the applicant page's form, answer by answer.
+                    confirmBy={{
+                      field: "outcome",
+                      messages: {
+                        approved: "Approve? It is audited, and the offer is drafted for a person to approve and send.",
+                        waitlisted: settings.autoSendOutcomes
+                          ? "Waitlist? It is audited, and the waitlist letter is emailed to the parent now."
+                          : "Waitlist? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                        declined:
+                          (settings.autoSendOutcomes
+                            ? "Decline? It is audited, and the decline letter is emailed to the parent now."
+                            : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.") +
+                          " Any booking they still have is cancelled when the letter goes.",
+                      },
+                    }}
+                  >
                     <input type="hidden" name="applicationId" value={a.id} />
                     <NativeSelect name="outcome" defaultValue="approved" className="h-9 w-40 md:h-9">
                       <option value="approved">Approve</option>

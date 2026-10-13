@@ -71,7 +71,7 @@ export async function offerTrialWeek(
       {
         type: TRIAL_WEEK_TASK,
         title: `See ${app.child_first_name}'s free trial week through (${range})`,
-        details: "The family has been emailed the dates. On the review queue, mark the week confirmed once they reply, then attended or not once it is over, and record the decision.",
+        details: "The family has been emailed the dates. Under Admissions → Decision, mark the week confirmed once they reply, then attended or not once it is over, and record the decision.",
         priority: "normal",
         dueAt: dayBefore,
       },

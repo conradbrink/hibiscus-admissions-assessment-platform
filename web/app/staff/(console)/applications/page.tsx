@@ -1,21 +1,26 @@
 import Link from "next/link";
-import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
+import { FilterChips } from "@/components/staff/filter-chips";
+import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMonth, startLabel } from "@/lib/start-month";
-import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { isNextAction, nextActionCopy, PIPELINE_GROUPS, STATUS_LABELS } from "@/lib/workflow/states";
+import { isStageKey, OUTSIDE_STAGES, STAGES, stageOf } from "@/lib/workflow/stages";
 import { FLAG_LABELS, type Flag } from "@/lib/summary/facts";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 
 type Search = {
   q?: string;
   status?: string;
+  /** One of the Admissions stages, from the stage bar. */
+  stage?: string;
+  /** The board's old column names, from before the stages: still honoured for a bookmark. */
   group?: string;
   campus?: string;
   /** `applications.intake_id` — the term a child is starting. */
@@ -31,16 +36,18 @@ const PAGE = 50;
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const { supabase, userId, permissions } = await requireStaff("applications.read");
-  // Adding a family by hand is a write; someone with read-only access sees
-  // the list without the button.
-  const canAdd = can(permissions, "applications.write");
 
-  const group = PIPELINE_GROUPS.find((g) => g.key === sp.group);
+  const stage = isStageKey(sp.stage) ? STAGES.find((st) => st.key === sp.stage)! : undefined;
+  const group = stage ? undefined : PIPELINE_GROUPS.find((g) => g.key === sp.group);
+  const scope = stage ?? group;
   const statuses: ApplicationStatus[] | null = sp.status
     ? [sp.status as ApplicationStatus]
-    : group
-      ? [...group.statuses]
+    : scope
+      ? [...scope.statuses]
       : null;
+  // The stage bar follows what is on screen: the stage asked for, or the one a
+  // status belongs to (a link from the dashboard names only the status).
+  const tab = stage?.key ?? (sp.status && !group ? stageOf(sp.status as ApplicationStatus) : null) ?? "all";
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
 
   let query = supabase
@@ -67,10 +74,10 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     );
   }
 
-  const [{ data: rows, count, error }, { data: campuses }, { data: pipeline }, { data: intakes }, { data: monthRows }] = await Promise.all([
+  const [{ data: rows, count, error }, { data: campuses }, header, { data: intakes }, { data: monthRows }] = await Promise.all([
     query,
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
-    supabase.from("v_pipeline_counts").select("status, applications"),
+    loadAdmissionsHeaderData(supabase, userId),
     supabase.from("intakes").select("id, label, starts_on").order("starts_on"),
     // The months children are actually starting, rather than every month a
     // calendar could offer: a filter for a month nobody is joining in is a
@@ -98,10 +105,12 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     (awards ?? []).filter((a) => isScholarshipCode(one(a.promotions)?.code ?? null)).map((a) => a.application_id)
   );
   const months = [...new Set((monthRows ?? []).map((r) => r.start_month).filter((m): m is string => Boolean(m)))].sort();
-  const countByStatus = new Map<string, number>();
-  for (const r of pipeline ?? []) countByStatus.set(r.status, (countByStatus.get(r.status) ?? 0) + r.applications);
-  const groupCount = (keys: readonly ApplicationStatus[]) => keys.reduce((n, s) => n + (countByStatus.get(s) ?? 0), 0);
   const total = count ?? 0;
+  // The list's own filters, kept when moving between stages and to the
+  // paused-or-closed lists: what a stage or status narrows, it narrows within.
+  const listQuery = new URLSearchParams(
+    Object.entries({ q: sp.q, campus: sp.campus, intake: sp.intake, month: sp.month, mine: sp.mine }).filter((e): e is [string, string] => Boolean(e[1]))
+  ).toString();
   const pages = Math.max(1, Math.ceil(total / PAGE));
 
   const qs = (patch: Partial<Search>) => {
@@ -114,39 +123,33 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <PageTitle title="Applicants" description={`${total} matching`}>
-        {canAdd ? (
-          <Link href="/staff/applications/new" className={buttonVariants({ size: "lg" })}>
-            Add applicant
-          </Link>
-        ) : null}
-      </PageTitle>
+      <AdmissionsHeader
+        ctx={{ permissions }}
+        data={header}
+        stage={tab}
+        view="list"
+        listQuery={listQuery}
+        description={`${total} ${total === 1 ? "applicant" : "applicants"}${stage ? ` in ${stage.label}` : ""}${sp.status ? ` · ${STATUS_LABELS[sp.status as ApplicationStatus] ?? sp.status}` : ""}`}
+      />
 
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        <Link href={qs({ group: undefined, status: undefined, page: undefined })} className={`rounded-full border px-3 py-1 text-xs ${!sp.group && !sp.status ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>
-          All active
-        </Link>
-        {PIPELINE_GROUPS.map((g) => (
-          <Link
-            key={g.key}
-            href={qs({ group: g.key, status: undefined, page: undefined })}
-            className={`rounded-full border px-3 py-1 text-xs ${sp.group === g.key ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-          >
-            {g.label} <span className="opacity-70">{groupCount(g.statuses)}</span>
-          </Link>
-        ))}
-        {/* Deferred is not a column of the funnel — it is a pause beside it —
-            but a family nobody can find is a family nobody comes back to. */}
-        <Link
-          href={qs({ group: undefined, status: "deferred", page: undefined })}
-          className={`rounded-full border px-3 py-1 text-xs ${sp.status === "deferred" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-        >
-          Deferred <span className="opacity-70">{countByStatus.get("deferred") ?? 0}</span>
-        </Link>
-      </div>
+      {/* Paused and closed applications are in no stage. A family nobody can
+          find is a family nobody comes back to, so All keeps a way to each. */}
+      {tab === "all" && !group ? (
+        <FilterChips
+          label="Not in a stage"
+          caption="Paused or closed:"
+          chips={OUTSIDE_STAGES.map((st) => ({
+            label: STATUS_LABELS[st],
+            href: `/staff/applications${qs({ status: st, stage: undefined, group: undefined, page: undefined })}`,
+            active: sp.status === st,
+            count: header.counts?.get(st),
+          }))}
+        />
+      ) : null}
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
-        {sp.group ? <input type="hidden" name="group" value={sp.group} /> : null}
+        {stage ? <input type="hidden" name="stage" value={stage.key} /> : null}
+        {group ? <input type="hidden" name="group" value={group.key} /> : null}
         <Input name="q" placeholder="Search name or reference" defaultValue={sp.q ?? ""} className="w-56" />
         <NativeSelect name="campus" defaultValue={sp.campus ?? ""} className="w-44">
           <option value="">All campuses</option>
@@ -167,8 +170,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           ))}
         </NativeSelect>
         <NativeSelect name="status" defaultValue={sp.status ?? ""} className="w-52">
-          <option value="">Any status{sp.group ? " in group" : ""}</option>
-          {(group ? group.statuses : (Object.keys(STATUS_LABELS) as ApplicationStatus[])).map((s) => (
+          <option value="">Any status{scope ? ` in ${scope.label}` : ""}</option>
+          {(scope ? scope.statuses : (Object.keys(STATUS_LABELS) as ApplicationStatus[])).map((s) => (
             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
           ))}
         </NativeSelect>

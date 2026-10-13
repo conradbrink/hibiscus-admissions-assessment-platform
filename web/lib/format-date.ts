@@ -16,6 +16,13 @@ const DATE_LONG = new Intl.DateTimeFormat("en-GB", {
   timeZone: SCHOOL_TIMEZONE,
 });
 
+const WEEKDAY_DATE = new Intl.DateTimeFormat("en-GB", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: SCHOOL_TIMEZONE,
+});
+
 const DATE_SHORT = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -58,6 +65,12 @@ function parse(value: string | Date | null | undefined): Date | null {
 export function formatDateLong(value: string | Date | null | undefined): string {
   const d = parse(value);
   return d ? DATE_LONG.format(d) : "—";
+}
+
+/** "Saturday 12 September": today's date under a heading, where the year goes without saying. */
+export function formatWeekdayDate(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? WEEKDAY_DATE.format(d) : "—";
 }
 
 /** "12 Sep 2026" */

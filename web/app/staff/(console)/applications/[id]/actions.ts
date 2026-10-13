@@ -160,22 +160,6 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
 }
 
 /**
- * Every "what happens to this family" answer: approve, waitlist, decline,
- * "not now" and "not at all".
- *
- * Deferring and withdrawing live here because they are choices staff make at
- * that moment, not separate filing actions — but neither overrides the rules
- * engine, so both keep the permission their own buttons carried before they
- * moved in: anybody who may edit an applicant may promise to ring a family
- * back or close their application, while approving still needs
- * decisions.override.
- *
- * `waitlisted` and `declined` are deliberately absent from the enum. Taking
- * them out of the dropdown alone would leave them reachable by anyone who
- * edited the form, and an outcome that can be posted but not chosen is worse
- * than either.
- */
-/**
  * How the free trial week went, from the applicant's own page.
  *
  * The same four moves the review queue offers, and the same permission: a
@@ -201,10 +185,30 @@ export async function trialWeekOutcome(_: StaffActionState, formData: FormData):
   });
 }
 
+/**
+ * Every "what happens to this family" answer: approve, waitlist, decline,
+ * "not now" and "not at all".
+ *
+ * Deferring and withdrawing live here because they are choices staff make at
+ * that moment, not separate filing actions — but neither overrides the rules
+ * engine, so both keep the permission their own buttons carried before they
+ * moved in: anybody who may edit an applicant may promise to ring a family
+ * back or close their application, while approving still needs
+ * decisions.override.
+ *
+ * Waitlist and decline were taken out of this form once, and put back on
+ * 13 October 2026 at the school's request: a person deciding from the
+ * child's own page needs every answer the review queue has. They are in the
+ * enum and the dropdown together, because an outcome that can be posted but
+ * not chosen (or chosen but not posted) is worse than either. Like approve,
+ * both need decisions.override and a reason. The letter goes when somebody
+ * presses Send under Admissions → Offer, or at once if the auto_send_outcomes
+ * switch is on, and the form says which.
+ */
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const raw = Object.fromEntries(formData);
-    const outcome = z.enum(["trial_week", "approved", "deferred", "withdrawn"]).parse(raw.outcome);
+    const outcome = z.enum(["trial_week", "approved", "waitlisted", "declined", "deferred", "withdrawn"]).parse(raw.outcome);
     const paused = outcome === "deferred" || outcome === "withdrawn";
     const ctx = await requireStaffAction(paused ? "applications.write" : "decisions.override");
 
@@ -273,23 +277,27 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
       .parse(raw);
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onManualDecision(admin, app, outcome, parsed.reason, ctx.actor);
-    // An approval queues the offer draft; run it now rather than on the
-    // next sweep, so the child is on the Offers page when staff look.
+    // An approval queues the offer draft; a waitlist or decline opens the
+    // "send outcome" task. Run the queue now rather than on the next sweep,
+    // so the child is on the offers board when staff look, and refresh the
+    // two lists the child has just left and joined.
     drainSoon();
     done(parsed.applicationId);
+    revalidatePath("/staff/decisions");
+    revalidatePath("/staff/offers");
   });
 }
 
 /**
  * The review queue's answer: approve, waitlist or decline.
  *
- * `recordDecision` above is the applicant page's form, which offers Approve,
- * Defer and Withdraw and refuses anything else by enum. The review queue at
- * /staff/decisions kept offering Waitlist and Decline in its dropdown and
- * posted them to that action, so both were refused with "Some of what was
- * entered is not valid" — no applicant could be waitlisted or declined by a
- * person anywhere in the console, and with no active ruleset that is every
- * applicant. Found on the 14 September 2026 walkthrough.
+ * Its own action rather than `recordDecision` above, the applicant page's
+ * form, because the queue offers only these three. The queue once posted
+ * Waitlist and Decline to that form's action while it refused them, so both
+ * were turned away with "Some of what was entered is not valid" and no
+ * applicant could be waitlisted or declined by a person anywhere in the
+ * console. Found on the 14 September 2026 walkthrough. (The applicant page
+ * offers both again since 13 October 2026.)
  *
  * Every outcome here is an override of (or a stand-in for) the rules engine,
  * so all three need `decisions.override`, and a reason, which is audited.

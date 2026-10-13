@@ -1,5 +1,7 @@
 import { ActionForm } from "@/components/staff/action-form";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { STUDENT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
+import { EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format-date";
 import { isAnswered, needsFollowUp, summarise, type ResponseLike } from "@/lib/reenrolment/rules";
@@ -34,7 +36,7 @@ export default async function ReenrolmentPage({
 }: {
   searchParams: Promise<{ cycle?: string }>;
 }) {
-  const { supabase } = await requireStaff("reenrolment.write");
+  const { supabase, permissions } = await requireStaff("reenrolment.write");
   const params = await searchParams;
   const today = toSchoolDateString(new Date());
 
@@ -63,8 +65,10 @@ export default async function ReenrolmentPage({
 
   return (
     <>
-      <PageTitle
-        title="Re-enrolment"
+      <AreaHeader
+        title="Students"
+        tabsLabel="Pages"
+        tabs={visibleAreaTabs(permissions, STUDENT_TABS, "/staff/reenrolment")}
         description="Ask each term whether the child is coming back, and take the chance to check what we hold is still true."
       />
 

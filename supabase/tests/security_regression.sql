@@ -4516,6 +4516,91 @@ begin
   end;
   update public.applications set interview_window_from = null, interview_window_to = null where id = x_own_campus;
 
+  -- -------------------------------------------------------------------------
+  -- 81. A new task lands on the family's owner, else the campus owner
+  -- -------------------------------------------------------------------------
+  -- Only a blank is filled, only somebody who can sign in is named, and a
+  -- task a member of staff writes under their own rights is treated the same
+  -- as the engine's.
+  declare
+    v_who uuid;
+    v_campus_owner uuid;
+    v_app_owner uuid;
+  begin
+    perform pg_temp.service();
+    select default_owner_staff_id into v_campus_owner from public.campuses where id = c_broadhurst;
+    select owner_staff_id into v_app_owner from public.applications where id = app_broadhurst;
+    update public.campuses set default_owner_staff_id = u_campus_admin where id = c_broadhurst;
+
+    -- The applicant's own owner comes before the campus's.
+    update public.applications set owner_staff_id = u_campus_mgr where id = app_broadhurst;
+    insert into public.tasks (application_id, campus_id, type, title)
+    values (app_broadhurst, c_broadhurst, 'sec_allocation', 'Sec: the applicant''s owner')
+    returning assignee_staff_id into v_who;
+    if v_who is distinct from u_campus_mgr then
+      v_fail := v_fail || E'\n  - ' || '81: a task about an applicant did not go to the applicant''s owner';
+    end if;
+
+    -- An owner who has left is passed over for the campus owner.
+    update public.applications set owner_staff_id = u_inactive where id = app_broadhurst;
+    insert into public.tasks (application_id, campus_id, type, title)
+    values (app_broadhurst, c_broadhurst, 'sec_allocation', 'Sec: owner has left')
+    returning assignee_staff_id into v_who;
+    if v_who is distinct from u_campus_admin then
+      v_fail := v_fail || E'\n  - ' || '81: a task whose applicant''s owner has left did not go to the campus owner';
+    end if;
+
+    -- An assignee given explicitly is kept.
+    insert into public.tasks (application_id, campus_id, type, title, assignee_staff_id)
+    values (app_broadhurst, c_broadhurst, 'sec_allocation', 'Sec: chosen', u_staff)
+    returning assignee_staff_id into v_who;
+    if v_who is distinct from u_staff then
+      v_fail := v_fail || E'\n  - ' || '81: an assignee given explicitly was replaced';
+    end if;
+
+    -- A task about the campus alone goes to its owner.
+    insert into public.tasks (campus_id, type, title)
+    values (c_broadhurst, 'sec_allocation', 'Sec: the campus')
+    returning assignee_staff_id into v_who;
+    if v_who is distinct from u_campus_admin then
+      v_fail := v_fail || E'\n  - ' || '81: a campus task did not go to the campus owner';
+    end if;
+
+    -- A campus owner who has left collects nothing.
+    update public.campuses set default_owner_staff_id = u_inactive where id = c_broadhurst;
+    insert into public.tasks (campus_id, type, title)
+    values (c_broadhurst, 'sec_allocation', 'Sec: campus owner has left')
+    returning assignee_staff_id into v_who;
+    if v_who is not null then
+      v_fail := v_fail || E'\n  - ' || '81: a campus owner who has left was given a task';
+    end if;
+
+    -- Written by hand, under a manager's own rights: the same rule.
+    update public.campuses set default_owner_staff_id = u_campus_admin where id = c_broadhurst;
+    begin
+      perform pg_temp.impersonate(u_campus_mgr);
+      insert into public.tasks (campus_id, type, title, created_by_type, created_by)
+      values (c_broadhurst, 'sec_allocation', 'Sec: written by hand', 'staff', u_campus_mgr)
+      returning assignee_staff_id into v_who;
+      if v_who is distinct from u_campus_admin then
+        v_fail := v_fail || E'\n  - ' || '81: a task written by hand did not go to the campus owner';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('81 control: a manager could not write a task: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The rule itself is not an API: it says who owns a family or a campus.
+    if has_function_privilege('anon', 'public.tasks_default_assignee(uuid, uuid, uuid)', 'execute')
+       or has_function_privilege('authenticated', 'public.tasks_default_assignee(uuid, uuid, uuid)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '81: tasks_default_assignee is callable from the API';
+    end if;
+
+    delete from public.tasks where type = 'sec_allocation';
+    update public.campuses set default_owner_staff_id = v_campus_owner where id = c_broadhurst;
+    update public.applications set owner_staff_id = v_app_owner where id = app_broadhurst;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;
