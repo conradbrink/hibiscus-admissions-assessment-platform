@@ -268,7 +268,7 @@ begin
     -- No section clock. A part's "minutes" still sizes the paper (it is what
     -- the template's own limit is built from), but it is never written here:
     -- the sitting has one clock and the child decides where to spend it.
-    -- Writing it would also quietly undo 20260921090000 on the next re-run.
+    -- Writing it would also quietly undo 20260921091755 on the next re-run.
     insert into public.template_sections (id, template_id, position, title, subject_id, instructions, time_limit_minutes, selection)
     values (v_sec, v_tmpl, 1000 + si, part->>'title', v_subj, part->>'instructions', null, 'fixed')
     on conflict (id) do update set template_id = excluded.template_id, position = excluded.position, title = excluded.title,
