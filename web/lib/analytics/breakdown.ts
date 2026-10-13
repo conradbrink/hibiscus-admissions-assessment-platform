@@ -271,8 +271,13 @@ export function parentEffort(rows: FactRow[], enquiryFieldCount: number) {
   };
 }
 
+/** A fraction as the whole percentage it is shown as; `delta` compares these, so a change always agrees with its figures. */
+export function wholePercent(v: number): number {
+  return Math.round(v * 100);
+}
+
 export function pct(v: number | null): string {
-  return v === null ? "—" : `${Math.round(v * 100)}%`;
+  return v === null ? "—" : `${wholePercent(v)}%`;
 }
 
 export function fmtDays(v: number | null): string {

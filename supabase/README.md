@@ -136,6 +136,15 @@ supabase db push
 supabase migration list        # every file should show as applied
 ```
 
+A migration applied any other way, such as the Supabase connector's
+`apply_migration` or the dashboard's SQL editor, is recorded under the time
+it ran, not under its file's version. Rename the file to the recorded
+version straight away, as `supabase migration list` shows them side by side.
+Otherwise `supabase db push` refuses to run, because production holds a
+version the repository does not have. On 13 October 2026 fourteen files were
+renamed for exactly this reason. Their SQL was what production had run, with
+only the comments stripped.
+
 ## The first super administrator
 
 Accounts are created by administrators, and there is no administrator until

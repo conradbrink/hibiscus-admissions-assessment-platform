@@ -43,7 +43,7 @@ export type ImportOptions = {
    * gives the real one on the registration form.
    *
    * It no longer has to be a fixed value for the run to be repeatable — since
-   * 20260923150000_one_live_application_per_child.sql the match is the parent
+   * 20260923175843_one_live_application_per_child.sql the match is the parent
    * and the child's first name, and the date of birth is not part of it. It
    * stays fixed anyway, and that migration deliberately refuses to write it
    * back over an application it matched: a real birthday collected later must

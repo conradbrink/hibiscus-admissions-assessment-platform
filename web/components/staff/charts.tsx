@@ -36,8 +36,8 @@ export function DeltaText({
 }: {
   delta: Delta | null;
   kind?: "count" | "fraction" | "days";
-  /** Which direction is good news, so the colour says so. */
-  goodWhen?: "up" | "down";
+  /** Which direction is good news, so the colour says so; "neither" for a figure that is a choice, not a result. */
+  goodWhen?: "up" | "down" | "neither";
   /** For a narrow column: a missing comparison is a dash rather than words. */
   compact?: boolean;
   /** On hover: what the figure was before, where the change alone is shown. */
@@ -60,7 +60,7 @@ export function DeltaText({
     <p
       className={cn(
         "flex items-center gap-0.5 text-xs font-medium whitespace-nowrap",
-        moved ? (direction === goodWhen ? GOOD_TEXT : "text-destructive") : "text-muted-foreground",
+        moved && goodWhen !== "neither" ? (direction === goodWhen ? GOOD_TEXT : "text-destructive") : "text-muted-foreground",
         className
       )}
       title={title}
@@ -196,6 +196,7 @@ export function StepList({
                 className="w-[4.75rem] justify-end text-right"
                 delta={change(s.rate, s.previous, "fraction")}
                 kind="fraction"
+                goodWhen={s.chosenBySchool ? "neither" : "up"}
                 compact
                 title={s.previous === null ? undefined : `${pct(s.previous)} in the period before`}
               />

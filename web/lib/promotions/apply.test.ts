@@ -167,7 +167,7 @@ describe("eligibility", () => {
 });
 
 describe("a scholarship, which is a promotion like any other", () => {
-  // The four bands the school awarded, as `20260922140000_the_2027_scholarship_intake.sql`
+  // The four bands the school awarded, as `20260922171256_the_2027_scholarship_intake.sql`
   // writes them: both acceptance fees waived, tuition discounted by the band.
   const band = (percent: number): PromotionSummary => ({
     id: `s-${percent}`,

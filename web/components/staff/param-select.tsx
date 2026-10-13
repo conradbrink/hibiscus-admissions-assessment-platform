@@ -35,7 +35,10 @@ export function ParamSelect({
         const next = new URLSearchParams(params.toString());
         if (e.target.value) next.set(name, e.target.value);
         else next.delete(name);
-        router.push(`${pathname}${next.size ? `?${next}` : ""}`, { scroll: false });
+        // `toString()` rather than `size`: Safari before 17 has no `size`, and
+        // every choice there reloaded the page with no query at all.
+        const query = next.toString();
+        router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
       }}
       className={className}
     >
