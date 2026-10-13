@@ -22,6 +22,8 @@ export function LaunchDialog({
   reissue,
   attemptId,
   walkIn = false,
+  label,
+  primary = false,
 }: {
   applicationId: string;
   childName: string;
@@ -34,14 +36,18 @@ export function LaunchDialog({
    * books, checks in and launches in one press.
    */
   walkIn?: boolean;
+  /** The trigger's words, where the page has its own name for the step ("Start assessment"). */
+  label?: string;
+  /** The page's one main button: full colour and the larger size. */
+  primary?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(attemptId && reissue ? reissue : action, {});
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant={attemptId ? "outline" : walkIn ? "outline" : "default"} />}>
-        <Play data-icon="inline-start" /> {attemptId ? "New code" : walkIn ? "Start now (walk-in)" : "Launch"}
+      <DialogTrigger render={<Button size={primary ? "lg" : "sm"} variant={primary ? "default" : attemptId ? "outline" : walkIn ? "outline" : "default"} />}>
+        <Play data-icon="inline-start" /> {label ?? (attemptId ? "New code" : walkIn ? "Start now (walk-in)" : "Launch")}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

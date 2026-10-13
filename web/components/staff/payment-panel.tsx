@@ -36,12 +36,19 @@ export function PaymentPanel({
   payments,
   canWrite,
   compact = false,
+  focus = false,
 }: {
   applicationId: string;
   request: PaymentRequestRow;
   payments: PaymentRow[] | null;
   canWrite: boolean;
   compact?: boolean;
+  /**
+   * Recording the payment is the applicant's next step: the bank transfer
+   * form is the main button, and moving the deadline waits in the full panel
+   * further down the page.
+   */
+  focus?: boolean;
 }) {
   const outstanding = Number(request.amount_minor) - Number(request.paid_minor);
   const open = ["required", "failed", "partially_paid", "processing"].includes(request.status);
@@ -111,7 +118,7 @@ export function PaymentPanel({
         <p className="text-xs text-muted-foreground">No payments yet.</p>
       )}
 
-      {canWrite && open ? (
+      {canWrite && open && !focus ? (
         <ActionForm action={setPaymentDueDate} label="Move deadline" size="sm" variant="outline" className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-[180px_1fr_auto]">
           {idField}
           <Input name="dueOn" type="date" defaultValue={toSchoolDateString(new Date(request.due_at))} className="h-8 md:h-8" required aria-label="New payment deadline" />
@@ -125,7 +132,7 @@ export function PaymentPanel({
       ) : null}
 
       {canWrite && open && request.status !== "processing" ? (
-        <ActionForm action={recordEft} label="Record bank transfer" size="sm" variant="outline" className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-4">
+        <ActionForm action={recordEft} label="Record bank transfer" size={focus ? "lg" : "sm"} variant={focus ? "default" : "outline"} className="grid gap-2 rounded-lg border border-dashed border-border p-3 md:grid-cols-4">
           {idField}
           <Input name="amount" placeholder={`Amount (${request.currency})`} defaultValue={(outstanding / 100).toFixed(2)} inputMode="decimal" className="h-8 md:h-8" required />
           <Input name="receivedOn" type="date" className="h-8 md:h-8" required />

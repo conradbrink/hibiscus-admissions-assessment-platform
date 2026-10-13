@@ -69,9 +69,16 @@ common cause is that nothing has been published for next month yet.
 
 ## A no-show was marked by mistake
 
-The parent has been emailed a rebooking link. Book them back into the same
-session from the applicant page (**Book selected**) — the no-show stays in
-the timeline as a record, which is correct.
+The parent has been emailed a rebooking link. The applicant page's **Next
+step** now reads **Rebook assessment**: pick the same session there — the
+no-show stays in the timeline as a record, which is correct.
+
+## A child was checked in by mistake
+
+A booking ends as attended or as missed, never both, so a checked-in child
+cannot be marked a no-show (the database refuses it too). Press **Cancel
+booking** on the applicant page's assessment card: the family goes back to
+booking and is emailed a link to choose a time.
 
 ## Where the assessor gets the code
 
@@ -580,14 +587,15 @@ your name.
 Almost never the right answer, and behind a permission only the super
 administrator has. Reach for one of the other two first:
 
-* a family who is no longer applying → **Withdraw** on the applicant page.
+* a family who is no longer applying → **Withdraw**, under **More actions**
+  at the bottom of the applicant page.
   The record stays, the pipeline stops, the reports still count the enquiry.
 * a family asking to be forgotten → **Set up → Data retention**. Anonymising
   removes the person and keeps the shape of the funnel honest.
 
 Deleting is for a record that should never have existed: a parent who sent
 the form twice, a training entry, a walk-in typed against the wrong family.
-It is at the bottom of the applicant page, it asks for a reason and for the
+It is under **More actions** at the bottom of the applicant page, it asks for a reason and for the
 reference typed out in full, and it removes the child, the family, their
 documents, assessments, offers and payments. The files go from storage
 first, then the database rows.

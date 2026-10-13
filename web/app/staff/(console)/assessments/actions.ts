@@ -10,6 +10,7 @@ import { getSettings } from "@/lib/settings";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction, type StaffContext } from "@/lib/staff/session";
 import { WorkflowError } from "@/lib/workflow/engine";
+import { statusAfterBooking } from "@/lib/workflow/states";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
 import { onBookingCreated, onCheckedIn } from "@/lib/workflow/actions";
@@ -133,6 +134,13 @@ export async function startWalkIn(_: LaunchState, formData: FormData): Promise<L
       .single();
     if (error || !app) throw new Error("Application not found.");
     if (!app.requires_assessment) throw new Error("This grade does not sit an assessment.");
+    // Only while booking is the stage. From anywhere later (sat and waiting
+    // for a decision, say) the session, booking, check-in and launch below
+    // all went through and the last step was refused, leaving a live sitting
+    // under an application that still read as awaiting a decision.
+    if (statusAfterBooking(app.status, "assessment") === null) {
+      throw new Error("This child is past the assessment stage, so a walk-in cannot be started.");
+    }
 
     const { data: existing } = await admin
       .from("bookings")

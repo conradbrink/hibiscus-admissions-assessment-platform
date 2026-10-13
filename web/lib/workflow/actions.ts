@@ -4,13 +4,14 @@ import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfte
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { AdminClient } from "@/lib/supabase/admin";
-import type { ApplicationRow, BookingRow, SessionRow } from "@/lib/supabase/types";
+import type { ApplicationRow, ApplicationStatus, BookingRow, SessionRow } from "@/lib/supabase/types";
 import { getSettings } from "@/lib/settings";
 import { awardLabelOf } from "@/lib/promotions/scholarship";
 import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import { bookingTrackNextAction, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
+import { canCheckIn, noShowMove } from "@/lib/workflow/appointment";
 import {
   commit,
   hoursBefore,
@@ -373,10 +374,15 @@ export async function onCheckedIn(
   booking: Pick<BookingRow, "id" | "kind" | "status">,
   actor: Actor
 ): Promise<void> {
-  if (booking.status !== "booked") {
-    throw new WorkflowError(`Booking is ${booking.status}, not booked`, "status_conflict");
+  if (!canCheckIn(booking.status, app.status)) {
+    throw new WorkflowError(
+      booking.status !== "booked"
+        ? `Booking is ${booking.status}, not booked`
+        : `This application is ${app.status.replace(/_/g, " ")}, so there is nobody to check in.`,
+      "status_conflict"
+    );
   }
-  const { error } = await admin
+  const { data: arrived, error } = await admin
     .from("bookings")
     .update({
       status: "checked_in",
@@ -384,8 +390,12 @@ export async function onCheckedIn(
       checked_in_by: actor.type === "staff" ? (actor.id ?? null) : null,
     })
     .eq("id", booking.id)
-    .eq("status", "booked");
+    .eq("status", "booked")
+    .select("id");
   if (error) throw new WorkflowError(error.message, "database");
+  // Somebody else got there first (a no-show on Today's board, a cancel by
+  // the parent): saying "arrived" over that would be the contradiction.
+  if (!arrived?.length) throw new WorkflowError("This booking changed while you were looking at it. Reload the page.", "status_conflict");
 
   const moved = booking.kind === "visit" ? statusAfterVisitArrival(app.status, app.requires_assessment) : null;
   // A primary family who came to look around before applying: the visit is
@@ -413,19 +423,50 @@ export async function onCheckedIn(
   });
 }
 
-/** Staff marks a no-show. Opens a follow-up and invites the parent to rebook. */
+/**
+ * Staff marks a no-show. Opens a follow-up and invites the parent to rebook.
+ *
+ * Only for a booking nobody arrived for, and decided before anything is
+ * written (`noShowMove`). It used to accept a checked-in booking, so a child
+ * who had arrived could also be a no-show, and it moved the booking before
+ * asking whether the application could follow — a refused transition left a
+ * missed booking under an application that still read as booked.
+ */
 export async function onNoShow(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
-  booking: Pick<BookingRow, "id" | "kind" | "status">,
+  booking: Pick<BookingRow, "id" | "kind" | "status" | "checked_in_at">,
   actor: Actor
 ): Promise<void> {
-  const { error } = await admin
+  const move = noShowMove(booking.status, booking.kind, app.status, booking.checked_in_at);
+  if (!move.ok) throw new WorkflowError(move.reason, "status_conflict");
+  const { data: missed, error } = await admin
     .from("bookings")
     .update({ status: "no_show" })
     .eq("id", booking.id)
-    .in("status", ["booked", "checked_in"]);
+    .eq("status", "booked")
+    .select("id");
   if (error) throw new WorkflowError(error.message, "database");
+  if (!missed?.length) throw new WorkflowError("This booking changed while you were looking at it. Reload the page.", "status_conflict");
+  // The booking moved first, so if recording the moment fails (most often a
+  // colleague or the parent changed the application a moment ago) it is put
+  // back: a missed booking must not sit under an application that never
+  // heard about it. Only from `no_show`, so nothing newer is overwritten.
+  try {
+    await recordNoShow(admin, app, booking, move.status, actor);
+  } catch (e) {
+    await admin.from("bookings").update({ status: "booked" }).eq("id", booking.id).eq("status", "no_show");
+    throw e;
+  }
+}
+
+async function recordNoShow(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
+  booking: Pick<BookingRow, "id" | "kind">,
+  moved: ApplicationStatus | null,
+  actor: Actor
+): Promise<void> {
   const settings = await getSettings(admin);
 
   if (booking.kind === "visit") {
@@ -434,7 +475,6 @@ export async function onNoShow(
     // `awaiting_decision`, which has no way back to `new_enquiry`, and the
     // old unconditional move threw "Illegal transition" at the person
     // recording the no-show. Either way somebody rings them.
-    const moved = statusAfterCancellation(app.status);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
