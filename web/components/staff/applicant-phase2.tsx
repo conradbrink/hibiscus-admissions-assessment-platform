@@ -70,6 +70,8 @@ export async function ApplicantPhase2({
    */
   decision: {
     canRecordOutcome: boolean;
+    canWaitlist: boolean;
+    canDecline: boolean;
     canDefer: boolean;
     canWithdraw: boolean;
     canOfferTrial: boolean;
@@ -366,6 +368,8 @@ export async function ApplicantPhase2({
                 {idField}
                 <DecisionFields
                   canRecordOutcome
+                  canWaitlist={decision.canWaitlist}
+                  canDecline={decision.canDecline}
                   canDefer={decision.canDefer}
                   canWithdraw={decision.canWithdraw}
                   canOfferTrial={decision.canOfferTrial}

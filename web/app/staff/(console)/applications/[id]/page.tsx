@@ -20,7 +20,7 @@ import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { canBeDecided, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { canBeDecided, canTransition, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
@@ -171,7 +171,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const canDeliver = can(permissions, "assessments.deliver");
   const canDecide = can(permissions, "decisions.override");
   const terminal = TERMINAL_STATUSES.has(app.status);
-  // Approve, defer, withdraw: one question, asked once, in the Decision tab.
+  // Approve, waitlist, decline, defer, withdraw: one question, asked once, in the Decision tab.
   // Deferring and withdrawing are not overrides of the rules engine, so they
   // keep applications.write rather than decisions.override.
   //
@@ -183,6 +183,10 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const liveTrial = (trials ?? []).find((t) => t.status === "invited" || t.status === "confirmed") ?? null;
   const decision = {
     canRecordOutcome: canDecide && !terminal && canBeDecided(app.status),
+    // Each asked of the graph too: a child already waitlisted can be approved
+    // or declined, not waitlisted again.
+    canWaitlist: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "waitlisted"),
+    canDecline: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "declined"),
     canDefer: canWrite && !terminal && app.status !== "deferred",
     canWithdraw: canWrite && !terminal,
     canOfferTrial: canDecide && !terminal && !app.requires_assessment && canBeDecided(app.status) && !liveTrial,

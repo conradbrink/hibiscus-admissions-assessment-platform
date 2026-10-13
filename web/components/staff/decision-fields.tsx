@@ -7,7 +7,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { WITHDRAWN_REASON_CODES, WITHDRAWN_REASON_LABELS } from "@/lib/workflow/withdrawal";
 
-type Outcome = "trial_week" | "approved" | "deferred" | "withdrawn";
+type Outcome = "trial_week" | "approved" | "waitlisted" | "declined" | "deferred" | "withdrawn";
 
 /**
  * The fields inside "Record a decision".
@@ -23,11 +23,11 @@ type Outcome = "trial_week" | "approved" | "deferred" | "withdrawn";
  * decided after the child has actually come. It leads the list because for a
  * pre-school child it is what the school wants to do first.
  *
- * Waitlist and decline were here once and have been taken out — the school
- * does not turn a child away through this form. Both remain states an
- * application can be in, because the rules engine can still reach them and
- * history must still read back; they are simply no longer something a person
- * picks.
+ * Waitlist and decline were taken out of this form once, and put back on
+ * 13 October 2026 at the school's request, so that a person looking at the
+ * child can give every answer the review queue can. Neither tells the family
+ * anything yet: the letter waits under Admissions → Offer until somebody
+ * presses Send, which the form says when either is picked.
  *
  * Deferring and withdrawing are answers staff give at this moment, so they are
  * options here rather than buttons further down the page. Each needs something
@@ -37,6 +37,8 @@ type Outcome = "trial_week" | "approved" | "deferred" | "withdrawn";
  */
 export function DecisionFields({
   canRecordOutcome,
+  canWaitlist = false,
+  canDecline = false,
   canDefer,
   canWithdraw,
   canOfferTrial = false,
@@ -44,6 +46,9 @@ export function DecisionFields({
   bookingWillBeCancelled,
 }: {
   canRecordOutcome: boolean;
+  /** The graph allows it from here: not for a child already waitlisted. */
+  canWaitlist?: boolean;
+  canDecline?: boolean;
   canDefer: boolean;
   canWithdraw: boolean;
   /** Pre-school, undecided, and no week already running. */
@@ -69,6 +74,8 @@ export function DecisionFields({
           <option value="trial_week">{hasHadTrial ? "Another free trial week" : "Free trial week — they come first, we decide after"}</option>
         ) : null}
         {canRecordOutcome ? <option value="approved">Approve now</option> : null}
+        {canWaitlist ? <option value="waitlisted">Waitlist — no place yet, on the list if one frees up</option> : null}
+        {canDecline ? <option value="declined">Decline — no place for this child</option> : null}
         {canDefer || canWithdraw ? (
           <optgroup label="Pause or close this application">
             {canDefer ? <option value="deferred">Defer — come back to them later</option> : null}
@@ -128,7 +135,15 @@ export function DecisionFields({
           <Input name="reason" placeholder="In their words" required minLength={3} />
         </>
       ) : (
-        <Textarea name="reason" placeholder="Reason (required)" rows={2} required minLength={5} />
+        <>
+          {outcome === "waitlisted" || outcome === "declined" ? (
+            <p className="text-xs text-muted-foreground">
+              Nothing is emailed yet. The {outcome === "waitlisted" ? "waitlist" : "decline"} letter waits under Admissions → Offer,
+              in Outcomes to send, until somebody presses Send.
+            </p>
+          ) : null}
+          <Textarea name="reason" placeholder="Reason (required)" rows={2} required minLength={5} />
+        </>
       )}
     </>
   );

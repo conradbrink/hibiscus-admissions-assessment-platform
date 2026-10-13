@@ -305,9 +305,9 @@ export const ORIENTATION_BODIES: Record<string, () => React.ReactElement> = {
       <Facts
         head={["Choose", "What it means, and what happens next"]}
         rows={[
-          ["Approve", "A place is offered. A letter is drafted at once and waits under Offers for a person to approve and send."],
-          ["Waitlist", "No place now. The family is told, and stays on the list for this grade and intake."],
-          ["Decline", "No place. The family is told, in the wording the school has agreed."],
+          ["Approve", "A place is offered. A letter is drafted at once and waits under Admissions → Offer for a person to approve and send."],
+          ["Waitlist", "No place now. The family stays on the list for this grade and intake, and is told once a person sends the letter from Admissions → Offer."],
+          ["Decline", "No place. The family is told, in the wording the school has agreed, once a person sends the letter from Admissions → Offer."],
           ["Defer", "“Not now.” You name a date; we message the family around it, put a call on the owner’s list for the day, and one click brings them back."],
           ["Withdraw", "“Not at all.” They are no longer applying. Bookings and open tasks are cancelled."],
         ]}
