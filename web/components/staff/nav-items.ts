@@ -21,7 +21,6 @@ export type NavIcon =
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
-  | "orientation"
   // The CRM's rail and settings hub.
   | "families" | "contacts" | "opportunities" | "events" | "inbox" | "campaigns" | "segments" | "automations"
   | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm";
@@ -81,13 +80,6 @@ export const NAV_GROUPS: NavGroup[] = [
     label: null,
     separated: true,
     items: [{ href: "/staff/admin", label: "Settings", icon: "settings", permission: "applications.read" }],
-  },
-  // Its own group, and last, only until it is finished. It carries no
-  // permission (everybody who can sign in may read it), and for somebody
-  // who cannot open the dashboard it is the only reminder there is.
-  {
-    label: null,
-    items: [{ href: "/staff/orientation", label: "Orientation", icon: "orientation" }],
   },
 ];
 
@@ -160,13 +152,10 @@ function areaHref(permissions: PermissionSet, item: NavItem): string | null {
   return (item.entries ?? []).find((e) => canOpen(permissions, e.href, e.permission))?.href ?? null;
 }
 
-export function visibleNavGroups(permissions: PermissionSet, options?: { orientationDone?: boolean }): NavGroup[] {
+export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.flatMap((item) => {
-      // Finished it? It goes away. Still reachable from the link at the foot
-      // of the rail, for looking something up.
-      if (item.href === "/staff/orientation" && options?.orientationDone) return [];
       if (item.entries) {
         const href = areaHref(permissions, item);
         return href ? [{ ...item, href }] : [];

@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { BookingBadge, PriorityBadge } from "@/components/staff/status-badge";
 import { bookingNounTitle } from "@/lib/booking/noun";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { formatDate, formatTime, toSchoolDateString } from "@/lib/format-date";
 import { bookingKindsInScope, todaysBoardEmpty, todaysBoardTitle } from "@/lib/staff/scope";
-import { orientationProgress } from "@/lib/orientation";
 import { requireStaff } from "@/lib/staff/session";
 import { cn } from "@/lib/utils";
 
@@ -40,16 +38,7 @@ const WIDE_COLUMNS = ["lg:grid-cols-1", "lg:grid-cols-1", "lg:grid-cols-2", "lg:
  * is red where it sits instead of in a reminder card of its own.
  */
 export default async function DashboardPage() {
-  const { supabase, userId, profile } = await requireStaff("applications.read");
-
-  // A colleague who has never opened the orientation is sent to it once —
-  // this is the screen they land on when they sign in, so it is the place to
-  // do it. Once they have read a single screen they are never redirected
-  // again: the line below keeps it in front of them instead, and a person
-  // halfway through their first week should not have to fight the dashboard
-  // to get at their work.
-  const orientation = orientationProgress(profile.orientation_read);
-  if (orientation.read === 0 && !profile.orientation_completed_at) redirect("/staff/orientation");
+  const { supabase, userId } = await requireStaff("applications.read");
   const now = new Date();
   const today = toSchoolDateString(now);
   const weekEnd = new Date(now);
@@ -252,22 +241,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 lg:space-y-10">
-      {/* Until it is finished. Then it goes, along with the menu item. */}
-      {!profile.orientation_completed_at ? (
-        <Link
-          href={`/staff/orientation/${orientation.remaining[0]?.slug ?? ""}`}
-          className={cn("group flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-card px-4 py-3 text-sm transition-colors duration-150 hover:bg-muted/50", focusRing)}
-        >
-          <span className="font-medium text-foreground">Finish your orientation</span>
-          <span className="text-muted-foreground">
-            {orientation.read} of {orientation.total} read · next up: {orientation.remaining[0]?.title}
-          </span>
-          <span className="ml-auto inline-flex items-center gap-1 font-medium text-primary">
-            Continue <ArrowRight className={arrowNudge} strokeWidth={2} aria-hidden />
-          </span>
-        </Link>
-      ) : null}
-
       <section aria-labelledby="attention-heading">
         <SectionHeader id="attention-heading" title="Needs attention" subtitle="Things that need action from your team." />
         <div className="overflow-hidden rounded-xl border border-border bg-card">

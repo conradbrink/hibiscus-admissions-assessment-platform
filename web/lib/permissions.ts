@@ -183,13 +183,10 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
 ];
 
 /** Reachable by anyone signed in, whatever they hold. */
-// The orientation belongs to everybody who can sign in, including a content
-// author who holds nothing else: it is how a person learns what the people
-// either side of them do.
 // The public pages are here too: a person who *is* signed in and opens an
 // invitation or reset link (an administrator checking one, say) is shown the
 // page rather than "no access" for a permission nobody thought to map.
-const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", "/staff/orientation", ...STAFF_PUBLIC_PREFIXES];
+const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", ...STAFF_PUBLIC_PREFIXES];
 
 export function permissionForPath(pathname: string): PermissionCode | null {
   if (ALWAYS_ALLOWED.some((p) => matchesPrefix(pathname, p))) return null;
