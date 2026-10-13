@@ -4590,6 +4590,12 @@ begin
     end;
     perform pg_temp.service();
 
+    -- The rule itself is not an API: it says who owns a family or a campus.
+    if has_function_privilege('anon', 'public.tasks_default_assignee(uuid, uuid, uuid)', 'execute')
+       or has_function_privilege('authenticated', 'public.tasks_default_assignee(uuid, uuid, uuid)', 'execute') then
+      v_fail := v_fail || E'\n  - ' || '81: tasks_default_assignee is callable from the API';
+    end if;
+
     delete from public.tasks where type = 'sec_allocation';
     update public.campuses set default_owner_staff_id = v_campus_owner where id = c_broadhurst;
     update public.applications set owner_staff_id = v_app_owner where id = app_broadhurst;
