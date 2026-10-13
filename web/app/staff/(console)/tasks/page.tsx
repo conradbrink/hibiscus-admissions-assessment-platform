@@ -40,7 +40,10 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // Ticking a task off should not make it vanish from under the cursor, so a
   // recently completed one stays on the list, struck through, before it
   // settles into the Done tab.
+  // "open" is the dashboard's: its counts are open tasks only, so the list
+  // it opens leaves out the ones ticked off this week.
   if (sp.filter === "done") query = query.eq("status", "done");
+  else if (sp.filter === "open") query = query.eq("status", "open");
   else query = query.or(`status.eq.open,and(status.eq.done,resolved_at.gte.${doneSince.toISOString()})`);
 
   if (sp.filter === "mine") query = query.eq("assignee_staff_id", userId);
@@ -107,6 +110,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         {tab("overdue", "Overdue")}
         {tab("done", "Done")}
       </div>
+
+      {/* A link from the dashboard narrows to one kind of open task and
+          matches no tab, so say what the list holds and the way back. */}
+      {sp.filter === "open" || sp.type ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Only {sp.filter === "open" ? "open " : ""}tasks{sp.type ? ` of type “${sp.type.replace(/_/g, " ")}”` : ""}, as counted on the dashboard.{" "}
+          <Link href="/staff/tasks" className="text-primary underline underline-offset-2">Show all tasks</Link>
+        </p>
+      ) : null}
 
       {tasks && tasks.length > 0 ? (
         <ul className="space-y-2">

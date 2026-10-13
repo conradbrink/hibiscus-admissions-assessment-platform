@@ -21,6 +21,8 @@ import {
   type FactRow,
 } from "@/lib/analytics/breakdown";
 import { conversionSteps, deferredSummary, delta, funnelStages, headline, previousRange, shares, weakestStep, type ConversionStepKey } from "@/lib/analytics/compare";
+import { notConverted, NOT_CONVERTED_LABELS } from "@/lib/analytics/drill-down";
+import { readFacts } from "@/lib/analytics/facts";
 import { activePreset, RANGE_PRESETS, rangeFor, resolveRange } from "@/lib/analytics/ranges";
 import { formatDateRange, toSchoolDateString } from "@/lib/format-date";
 import { can, canAccessPath } from "@/lib/permissions";
@@ -54,21 +56,26 @@ function fmtSeconds(v: number | null | undefined): string {
 const fmtD = (v: number | null) => (v === null ? "—" : fmtDays(v));
 
 /**
- * Where to look at the families a step is losing: the applicant list,
- * filtered to the status or group a family sits in until they take that
- * step. The list shows where families are today rather than the period on
- * screen, so the words say what they will find, not how many.
+ * Where to look at the families a step has not converted: the applicant
+ * list, narrowed to exactly those families from the period and campus on
+ * screen, with how many there are. It used to open everyone at a status
+ * today, from any month, which was almost never the number beside it.
  */
-function drillDowns(campus: string | undefined): Record<ConversionStepKey, { href: string; label: string }> {
-  const list = (filter: Record<string, string>) => `/staff/applications?${new URLSearchParams({ ...filter, ...(campus ? { campus } : {}) })}`;
-  return {
-    enquiryToBooking: { href: list({ group: "enquiry" }), label: "See open enquiries" },
-    bookingToAttendance: { href: list({ status: "no_show" }), label: "See no-shows" },
-    approvalRate: { href: list({ group: "outcome" }), label: "See decision outcomes" },
-    offerToAcceptance: { href: list({ status: "offer_sent" }), label: "See offers awaiting a reply" },
-    acceptanceToPayment: { href: list({ status: "payment_required" }), label: "See accepted offers not yet paid" },
-    paymentToEnrolment: { href: list({ status: "registration_incomplete" }), label: "See unfinished registrations" },
-  };
+function drillDowns(rows: FactRow[], range: { from: string; to: string }, campus: string | undefined): Record<ConversionStepKey, { href: string; label: string; count: number }> {
+  return Object.fromEntries(
+    (Object.keys(NOT_CONVERTED_LABELS) as ConversionStepKey[]).map((step) => {
+      const count = notConverted(rows, step).length;
+      const words = NOT_CONVERTED_LABELS[step];
+      return [
+        step,
+        {
+          href: `/staff/applications?${new URLSearchParams({ step, from: range.from, to: range.to, ...(campus ? { campus } : {}) })}`,
+          label: `${fmtCount(count)} ${count === 1 ? words.one : words.many}`,
+          count,
+        },
+      ];
+    })
+  ) as Record<ConversionStepKey, { href: string; label: string; count: number }>;
 }
 
 function SectionHeading({ id, title, description }: { id: string; title: string; description?: string }) {
@@ -97,11 +104,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const dim: Dimension = (DIMENSIONS as readonly string[]).includes(sp.dim ?? "") ? (sp.dim as Dimension) : "campus";
   const prev = previousRange(from, to);
 
-  const facts = (range: { from: string; to: string }) => {
-    let q = supabase.from("v_application_facts").select("*").gte("enquired_at", `${range.from}T00:00:00+02:00`).lte("enquired_at", `${range.to}T23:59:59+02:00`).limit(5000);
-    if (sp.campus) q = q.eq("campus_id", sp.campus);
-    return q;
-  };
+  const facts = (range: { from: string; to: string }) => readFacts(supabase, range, sp.campus);
 
   const [{ data: rows, error: rowsError }, { data: prevRows, error: prevError }, { data: effort }, { data: campuses }, { data: profiles, error: profilesError }] = await Promise.all([
     facts({ from, to }),
@@ -305,7 +308,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
           <section aria-labelledby="losing-heading" className={cn(PANEL, "p-5")}>
             <SectionHeading id="losing-heading" title="Where are we losing applicants?" description="Conversion at each step, against the period before." />
-            <StepList steps={steps} weakest={weakest} links={canAccessPath(permissions, "/staff/applications") ? drillDowns(sp.campus) : undefined} />
+            <StepList steps={steps} weakest={weakest} links={canAccessPath(permissions, "/staff/applications") ? drillDowns(all, { from, to }, sp.campus) : undefined} />
           </section>
         </div>
 
