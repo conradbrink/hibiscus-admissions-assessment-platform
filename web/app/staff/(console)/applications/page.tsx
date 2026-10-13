@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AdmissionsHeader, loadStatusCounts } from "@/components/staff/admissions-header";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
 import { FilterChips } from "@/components/staff/filter-chips";
 import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
@@ -74,10 +74,10 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     );
   }
 
-  const [{ data: rows, count, error }, { data: campuses }, countByStatus, { data: intakes }, { data: monthRows }] = await Promise.all([
+  const [{ data: rows, count, error }, { data: campuses }, header, { data: intakes }, { data: monthRows }] = await Promise.all([
     query,
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
-    loadStatusCounts(supabase),
+    loadAdmissionsHeaderData(supabase, userId),
     supabase.from("intakes").select("id, label, starts_on").order("starts_on"),
     // The months children are actually starting, rather than every month a
     // calendar could offer: a filter for a month nobody is joining in is a
@@ -106,6 +106,11 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   );
   const months = [...new Set((monthRows ?? []).map((r) => r.start_month).filter((m): m is string => Boolean(m)))].sort();
   const total = count ?? 0;
+  // The list's own filters, kept when moving between stages and to the
+  // paused-or-closed lists: what a stage or status narrows, it narrows within.
+  const listQuery = new URLSearchParams(
+    Object.entries({ q: sp.q, campus: sp.campus, intake: sp.intake, month: sp.month, mine: sp.mine }).filter((e): e is [string, string] => Boolean(e[1]))
+  ).toString();
   const pages = Math.max(1, Math.ceil(total / PAGE));
 
   const qs = (patch: Partial<Search>) => {
@@ -119,10 +124,11 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   return (
     <>
       <AdmissionsHeader
-        ctx={{ supabase, permissions }}
+        ctx={{ permissions }}
+        data={header}
         stage={tab}
         view="list"
-        counts={countByStatus}
+        listQuery={listQuery}
         description={`${total} ${total === 1 ? "applicant" : "applicants"}${stage ? ` in ${stage.label}` : ""}${sp.status ? ` · ${STATUS_LABELS[sp.status as ApplicationStatus] ?? sp.status}` : ""}`}
       />
 
@@ -134,9 +140,9 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           caption="Paused or closed:"
           chips={OUTSIDE_STAGES.map((st) => ({
             label: STATUS_LABELS[st],
-            href: `/staff/applications?status=${st}`,
+            href: `/staff/applications${qs({ status: st, stage: undefined, group: undefined, page: undefined })}`,
             active: sp.status === st,
-            count: countByStatus.get(st) ?? 0,
+            count: header.counts?.get(st),
           }))}
         />
       ) : null}

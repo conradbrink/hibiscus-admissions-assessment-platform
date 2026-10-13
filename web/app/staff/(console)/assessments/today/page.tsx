@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
 import { EmptyState } from "@/components/staff/page-title";
 import { BookingBadge } from "@/components/staff/status-badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,9 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  */
 export default async function TodayPage({ searchParams }: { searchParams: Promise<{ date?: string; campus?: string; q?: string }> }) {
   const sp = await searchParams;
-  const { supabase, permissions } = await requireStaff("assessments.deliver");
+  const { supabase, permissions, userId } = await requireStaff("assessments.deliver");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : toSchoolDateString(new Date());
   const canDeliver = can(permissions, "assessments.deliver");
 
@@ -94,7 +96,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <AdmissionsHeader
-        ctx={{ supabase, permissions }}
+        ctx={{ permissions }}
+        data={header}
         stage="assessment"
         view="today"
         description={

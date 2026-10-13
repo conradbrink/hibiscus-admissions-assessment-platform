@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
 import { FilterChips } from "@/components/staff/filter-chips";
 import { EmptyState } from "@/components/staff/page-title";
 import { StatusBadge } from "@/components/staff/status-badge";
@@ -41,7 +41,9 @@ const EXPIRING_WITHIN_MS = 3 * 86_400_000;
 export default async function OffersPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const sp = await searchParams;
   const show: Show = SHOWS.some((x) => x.key === sp.show) ? (sp.show as Show) : "all";
-  const { supabase, permissions } = await requireStaff("offers.read");
+  const { supabase, permissions, userId } = await requireStaff("offers.read");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const canApprove = can(permissions, "offers.approve");
 
   const { data: apps } = await supabase
@@ -181,7 +183,8 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <AdmissionsHeader
-        ctx={{ supabase, permissions }}
+        ctx={{ permissions }}
+        data={header}
         stage="offer"
         view="offers"
         description="Offers and outcome letters. Nothing here reaches a parent until a person approves or sends it. The switches under Workflow settings can automate each list later."

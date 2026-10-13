@@ -160,25 +160,6 @@ export async function rescheduleByStaff(_: StaffActionState, formData: FormData)
 }
 
 /**
- * Every "what happens to this family" answer: approve, waitlist, decline,
- * "not now" and "not at all".
- *
- * Deferring and withdrawing live here because they are choices staff make at
- * that moment, not separate filing actions — but neither overrides the rules
- * engine, so both keep the permission their own buttons carried before they
- * moved in: anybody who may edit an applicant may promise to ring a family
- * back or close their application, while approving still needs
- * decisions.override.
- *
- * Waitlist and decline were taken out of this form once, and put back on
- * 13 October 2026 at the school's request: a person deciding from the
- * child's own page needs every answer the review queue has. They are in the
- * enum and the dropdown together, because an outcome that can be posted but
- * not chosen (or chosen but not posted) is worse than either. Like approve,
- * both need decisions.override and a reason, and neither emails the family:
- * the letter waits under Admissions → Offer until somebody presses Send.
- */
-/**
  * How the free trial week went, from the applicant's own page.
  *
  * The same four moves the review queue offers, and the same permission: a
@@ -204,6 +185,26 @@ export async function trialWeekOutcome(_: StaffActionState, formData: FormData):
   });
 }
 
+/**
+ * Every "what happens to this family" answer: approve, waitlist, decline,
+ * "not now" and "not at all".
+ *
+ * Deferring and withdrawing live here because they are choices staff make at
+ * that moment, not separate filing actions — but neither overrides the rules
+ * engine, so both keep the permission their own buttons carried before they
+ * moved in: anybody who may edit an applicant may promise to ring a family
+ * back or close their application, while approving still needs
+ * decisions.override.
+ *
+ * Waitlist and decline were taken out of this form once, and put back on
+ * 13 October 2026 at the school's request: a person deciding from the
+ * child's own page needs every answer the review queue has. They are in the
+ * enum and the dropdown together, because an outcome that can be posted but
+ * not chosen (or chosen but not posted) is worse than either. Like approve,
+ * both need decisions.override and a reason. The letter goes when somebody
+ * presses Send under Admissions → Offer, or at once if the auto_send_outcomes
+ * switch is on, and the form says which.
+ */
 export async function recordDecision(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const raw = Object.fromEntries(formData);

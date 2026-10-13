@@ -126,7 +126,7 @@ export default async function DashboardPage() {
       .from("messages")
       .select("id", { count: "exact", head: true })
       .eq("status", "failed")
-      .gte("created_at", new Date(now.getTime() - 7 * 86_400_000).toISOString()),
+      .gte("created_at", weekAgo),
     // The week behind, for the summary under "This week". The counts in
     // `dashboard_counts` are where things stand now (every enrolled child,
     // every open enquiry), which is not the same question.
@@ -136,6 +136,10 @@ export default async function DashboardPage() {
   const c = (countsRaw ?? {}) as Counts;
   const n = (k: string) => c[k] ?? 0;
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+  // In time order. The query's `order` on the embedded session sorts inside
+  // each booking's own embed, not the bookings, so the list came back in
+  // whatever order the table held them.
+  const bookingsToday = [...(todays ?? [])].sort((a, b) => (one(a.sessions)?.starts_at ?? "").localeCompare(one(b.sessions)?.starts_at ?? ""));
 
   // Which of today's arrivals hold a scholarship. The board query is rooted at
   // bookings, so the ids come out of the embed; it is capped at 50 rows, so
@@ -232,7 +236,7 @@ export default async function DashboardPage() {
 
   // The figure beside "Today": what is coming this week, in the words this
   // person's campuses use, and how many are on today's list below it.
-  const todayCount = (todays ?? []).length;
+  const todayCount = bookingsToday.length;
   const comingUp = [
     kinds.assessment ? plural(n("assessments_this_week"), "assessment", "assessments") : null,
     kinds.visit ? plural(visitsThisWeek ?? 0, "visit", "visits") : null,
@@ -248,7 +252,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8 lg:space-y-10">
-      {/* Until it is finished. Then it goes; the sidebar footer keeps a way back. */}
+      {/* Until it is finished. Then it goes, along with the menu item. */}
       {!profile.orientation_completed_at ? (
         <Link
           href={`/staff/orientation/${orientation.remaining[0]?.slug ?? ""}`}
@@ -294,9 +298,9 @@ export default async function DashboardPage() {
           {kinds.assessment ? <ArrowLink href="/staff/assessments/today">Open check-in board</ArrowLink> : null}
         </SectionHeader>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {todays && todays.length > 0 ? (
+          {bookingsToday.length > 0 ? (
             <ul className="divide-y divide-border">
-              {todays.map((b) => {
+              {bookingsToday.map((b) => {
                 const app = one(b.applications);
                 const s = one(b.sessions);
                 const grade = one(app?.grades ?? null);

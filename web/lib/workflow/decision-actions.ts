@@ -5,7 +5,7 @@ import { placesRemaining } from "@/lib/rules/capacity";
 import { evaluateAdmission, type Evaluation, type Rule } from "@/lib/rules/evaluate";
 import { getSettings } from "@/lib/settings";
 import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
-import { assertTransition } from "@/lib/workflow/states";
+import { assertTransition, canBeDecided, canTransition } from "@/lib/workflow/states";
 
 /**
  * From "marked" to "decided". The rules engine computes an outcome; this
@@ -239,6 +239,17 @@ export async function onStaffDecision(
 ): Promise<void> {
   if (actor.type !== "staff" || !actor.id) {
     throw new WorkflowError("A decision needs a signed-in member of staff", "illegal_transition");
+  }
+  // A person answers a question that is still open. `applyDecision` lets a
+  // status stand unchanged, because the rules engine files a referral again,
+  // so without this the same answer twice (a second tab, or a page left open
+  // while a colleague decided from the review queue) wrote a second decision
+  // and queued the family a second letter. `app` is read fresh by the caller,
+  // so this is the page being out of date, and the person is told to reload.
+  // Both checks, because the graph alone would let an approved child be
+  // waitlisted, and an approved child is not a question still open.
+  if (!canBeDecided(app.status) || !canTransition(app.status, outcome)) {
+    throw new WorkflowError(`status_conflict: ${app.status} cannot become ${outcome}`, "status_conflict");
   }
   if (reason.trim().length < 5) {
     throw new WorkflowError("A reason is required", "illegal_transition");

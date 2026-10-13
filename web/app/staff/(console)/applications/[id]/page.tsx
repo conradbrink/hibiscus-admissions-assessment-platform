@@ -187,12 +187,15 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
     // or declined, not waitlisted again.
     canWaitlist: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "waitlisted"),
     canDecline: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "declined"),
-    canDefer: canWrite && !terminal && app.status !== "deferred",
+    // Asked of the graph like the rest: a family can be deferred only before
+    // a decision, and offering it later failed after its first writes.
+    canDefer: canWrite && !terminal && canTransition(app.status, "deferred"),
     canWithdraw: canWrite && !terminal,
     canOfferTrial: canDecide && !terminal && !app.requires_assessment && canBeDecided(app.status) && !liveTrial,
     hasHadTrial: (trials ?? []).length > 0,
     trial: (trials ?? [])[0] ?? null,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
+    autoSendOutcomes: settings.autoSendOutcomes,
     deferred:
       app.status === "deferred"
         ? { until: app.deferred_until, reason: app.deferred_reason, canResume: canWrite }
@@ -237,7 +240,11 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   // person may open: from a decision to the review queue, from an offer to
   // the offers. Paused and closed applications go back to the full list.
   const stage = stageOf(app.status);
-  const stageView = stage ? visibleViews(permissions, stage)[0] : undefined;
+  // A pre-school child's Assessment is a visit, which the check-in board does
+  // not list, so their way back is the list.
+  const stageView = stage
+    ? visibleViews(permissions, stage).find((v) => !(stage === "assessment" && !app.requires_assessment && v.key === "today"))
+    : undefined;
   const backToStage = stage && stageView ? { href: stageView.href, label: stageLabel(stage) } : { href: "/staff/applications", label: "Admissions" };
 
   return (

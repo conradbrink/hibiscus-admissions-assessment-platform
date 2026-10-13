@@ -79,6 +79,8 @@ export async function ApplicantPhase2({
     /** The newest week, live or finished; null if the child has never had one. */
     trial: TrialWeekRow | null;
     bookingWillBeCancelled: boolean;
+    /** The `auto_send_outcomes` switch, so the form says truthfully when a waitlist or decline letter goes. */
+    autoSendOutcomes: boolean;
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
   };
@@ -363,7 +365,24 @@ export async function ApplicantPhase2({
                 label="Record decision"
                 size="sm"
                 className="mt-2"
-                confirm="Record this decision? It is audited and the parent will be informed."
+                confirm="Record this decision? It is audited."
+                confirmBy={{
+                  field: "outcome",
+                  messages: {
+                    trial_week: "Invite the family to a free trial week? They are emailed the dates now.",
+                    approved: "Approve? It is audited, and the offer is drafted for a person to approve and send.",
+                    waitlisted: decision.autoSendOutcomes
+                      ? "Waitlist? It is audited, and the waitlist letter is emailed to the parent now."
+                      : "Waitlist? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                    declined: decision.autoSendOutcomes
+                      ? "Decline? It is audited, and the decline letter is emailed to the parent now."
+                      : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                    deferred: decision.bookingWillBeCancelled
+                      ? "Defer this family? Their booking is cancelled and the seat goes back."
+                      : "Defer this family? We will message them around the date you chose.",
+                    withdrawn: "Withdraw this application? Bookings and open tasks are cancelled.",
+                  },
+                }}
               >
                 {idField}
                 <DecisionFields
@@ -375,6 +394,7 @@ export async function ApplicantPhase2({
                   canOfferTrial={decision.canOfferTrial}
                   hasHadTrial={decision.hasHadTrial}
                   bookingWillBeCancelled={decision.bookingWillBeCancelled}
+                  autoSendOutcomes={decision.autoSendOutcomes}
                 />
               </ActionForm>
             </div>

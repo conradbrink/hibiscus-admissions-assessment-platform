@@ -123,10 +123,9 @@ export function StaffSidebar({
           <button type="button" onClick={signOut} className="inline-flex items-center gap-1 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
             <LogOut className="size-3" aria-hidden /> Sign out
           </button>
-          {/* The orientation has no menu item of its own: the dashboard
-              keeps it in front of somebody new until they finish, and this
-              is the way back to it. Somebody looking a thing up should not
-              have to remember the address. */}
+          {/* The way back once the orientation has been finished and its menu
+              item has gone. Somebody looking a thing up should not have to
+              remember the address. */}
           <Link href="/staff/orientation" className="rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
             Orientation
           </Link>

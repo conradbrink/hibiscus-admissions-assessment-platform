@@ -1,6 +1,6 @@
 import type { PermissionCode, PermissionSet } from "@/lib/permissions";
-import { can, canAccessPath } from "@/lib/permissions";
-import { ADMISSIONS_ENTRIES, ADMISSIONS_PATHS } from "@/lib/workflow/stages";
+import { canAccessPath, matchesPrefix } from "@/lib/permissions";
+import { ADMISSIONS_ENTRIES, ADMISSIONS_PATHS, canOpen } from "@/lib/workflow/stages";
 
 /**
  * The staff navigation, as data. Each item names the permission it needs;
@@ -82,6 +82,13 @@ export const NAV_GROUPS: NavGroup[] = [
     separated: true,
     items: [{ href: "/staff/admin", label: "Settings", icon: "settings", permission: "applications.read" }],
   },
+  // Its own group, and last, only until it is finished. It carries no
+  // permission (everybody who can sign in may read it), and for somebody
+  // who cannot open the dashboard it is the only reminder there is.
+  {
+    label: null,
+    items: [{ href: "/staff/orientation", label: "Orientation", icon: "orientation" }],
+  },
 ];
 
 /** Everything behind Settings, in the groups the hub page shows. */
@@ -150,14 +157,16 @@ function allowed(permissions: PermissionSet, item: NavItem): boolean {
 
 /** An area's first page this person may open, or null when they may open none of them. */
 function areaHref(permissions: PermissionSet, item: NavItem): string | null {
-  const entry = (item.entries ?? []).find((e) => can(permissions, e.permission) && canAccessPath(permissions, e.href.split("?")[0]));
-  return entry?.href ?? null;
+  return (item.entries ?? []).find((e) => canOpen(permissions, e.href, e.permission))?.href ?? null;
 }
 
-export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
+export function visibleNavGroups(permissions: PermissionSet, options?: { orientationDone?: boolean }): NavGroup[] {
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.flatMap((item) => {
+      // Finished it? It goes away. Still reachable from the link at the foot
+      // of the rail, for looking something up.
+      if (item.href === "/staff/orientation" && options?.orientationDone) return [];
       if (item.entries) {
         const href = areaHref(permissions, item);
         return href ? [{ ...item, href }] : [];
@@ -173,7 +182,7 @@ export function visibleNavGroups(permissions: PermissionSet): NavGroup[] {
 
 /** The tabs of an area this person may open, with the one on screen marked. */
 export function visibleAreaTabs(permissions: PermissionSet, tabs: readonly AreaTab[], current: string): Array<AreaTab & { active: boolean }> {
-  return tabs.filter((t) => can(permissions, t.permission) && canAccessPath(permissions, t.href)).map((t) => ({ ...t, active: t.href === current }));
+  return tabs.filter((t) => canOpen(permissions, t.href, t.permission)).map((t) => ({ ...t, active: t.href === current }));
 }
 
 export function visibleSettingsSections(permissions: PermissionSet): NavGroup[] {
@@ -193,7 +202,7 @@ export function activeHref(pathname: string, groups: NavGroup[]): string | null 
       const paths = item.exact ? [] : [own, ...(item.match ?? [])];
       if (item.exact && pathname === own && (!best || own.length > best.length)) best = { href: item.href, length: own.length };
       for (const path of paths) {
-        if ((pathname === path || pathname.startsWith(path + "/")) && (!best || path.length > best.length)) best = { href: item.href, length: path.length };
+        if (matchesPrefix(pathname, path) && (!best || path.length > best.length)) best = { href: item.href, length: path.length };
       }
     }
   }

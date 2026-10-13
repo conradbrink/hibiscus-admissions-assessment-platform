@@ -25,9 +25,10 @@ type Outcome = "trial_week" | "approved" | "waitlisted" | "declined" | "deferred
  *
  * Waitlist and decline were taken out of this form once, and put back on
  * 13 October 2026 at the school's request, so that a person looking at the
- * child can give every answer the review queue can. Neither tells the family
- * anything yet: the letter waits under Admissions → Offer until somebody
- * presses Send, which the form says when either is picked.
+ * child can give every answer the review queue can. When either is picked the
+ * form says when the family hears: straight away if outcome letters are sent
+ * automatically, otherwise once somebody presses Send under Admissions →
+ * Offer.
  *
  * Deferring and withdrawing are answers staff give at this moment, so they are
  * options here rather than buttons further down the page. Each needs something
@@ -44,6 +45,7 @@ export function DecisionFields({
   canOfferTrial = false,
   hasHadTrial = false,
   bookingWillBeCancelled,
+  autoSendOutcomes = false,
 }: {
   canRecordOutcome: boolean;
   /** The graph allows it from here: not for a child already waitlisted. */
@@ -57,10 +59,27 @@ export function DecisionFields({
   hasHadTrial?: boolean;
   /** Said out loud when they pick Defer, because the seat going back is not theirs to undo. */
   bookingWillBeCancelled?: boolean;
+  /** The `auto_send_outcomes` switch: a waitlist or decline letter goes the moment it is recorded. */
+  autoSendOutcomes?: boolean;
 }) {
-  const [outcome, setOutcome] = useState<Outcome>(
-    canOfferTrial ? "trial_week" : canRecordOutcome ? "approved" : canDefer ? "deferred" : "withdrawn"
-  );
+  // In the order the select lists them. The first is the default.
+  const offered = (
+    [
+      canOfferTrial && "trial_week",
+      canRecordOutcome && "approved",
+      canWaitlist && "waitlisted",
+      canDecline && "declined",
+      canDefer && "deferred",
+      canWithdraw && "withdrawn",
+    ] as const
+  ).filter((o): o is Outcome => Boolean(o));
+  const [chosen, setOutcome] = useState<Outcome>(offered[0] ?? "withdrawn");
+  // What was chosen can stop being on offer while the form stays on screen:
+  // waitlisting a child from here leaves the box up (a waitlisted child can
+  // still be approved or declined) without Waitlist in it, and offering a
+  // trial week takes that option away. Fall back to the first answer still
+  // offered, so the select and the fields under it always agree.
+  const outcome = offered.includes(chosen) ? chosen : (offered[0] ?? chosen);
 
   return (
     <>
@@ -134,12 +153,16 @@ export function DecisionFields({
           </NativeSelect>
           <Input name="reason" placeholder="In their words" required minLength={3} />
         </>
-      ) : (
+      ) : outcome === "trial_week" ? null : (
+        // The trial week has its fields above and writes no decision, so it
+        // asks for no reason: a box it would throw away is a box nobody
+        // should have to fill in.
         <>
           {outcome === "waitlisted" || outcome === "declined" ? (
             <p className="text-xs text-muted-foreground">
-              Nothing is emailed yet. The {outcome === "waitlisted" ? "waitlist" : "decline"} letter waits under Admissions → Offer,
-              in Outcomes to send, until somebody presses Send.
+              {autoSendOutcomes
+                ? `The ${outcome === "waitlisted" ? "waitlist" : "decline"} letter is emailed to the parent as soon as you record this: outcome letters are sent automatically (Workflow settings).`
+                : `Nothing is emailed yet. The ${outcome === "waitlisted" ? "waitlist" : "decline"} letter waits under Admissions → Offer, in Outcomes to send, until somebody presses Send.`}
             </p>
           ) : null}
           <Textarea name="reason" placeholder="Reason (required)" rows={2} required minLength={5} />

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AdmissionsHeader } from "@/components/staff/admissions-header";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
 import { EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ function isTemplateBatch(columnsSnapshot: unknown): boolean {
  */
 export default async function ExportsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const { supabase, permissions } = await requireStaff("data.export");
+  const { supabase, permissions, userId } = await requireStaff("data.export");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const includeExported = sp.all === "1";
 
   let q = supabase
@@ -49,7 +51,8 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <AdmissionsHeader
-        ctx={{ supabase, permissions }}
+        ctx={{ permissions }}
+        data={header}
         stage="enrolment"
         view="export"
         description="Enrolled students as a CSV or JSON file for the student management system. Each download is a batch; records remember which batch carried them."
