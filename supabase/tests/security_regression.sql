@@ -4601,6 +4601,57 @@ begin
     update public.applications set owner_staff_id = v_app_owner where id = app_broadhurst;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 82. A child who arrived is never a no-show
+  -- -------------------------------------------------------------------------
+  -- A booking ends as attended or as missed, never both. Checked in, under
+  -- way, or ever checked in and put back: each is refused as a no-show. A
+  -- booking nobody arrived for still can be.
+  declare
+    v_app uuid;
+    v_session uuid;
+    v_booking uuid;
+  begin
+    perform pg_temp.service();
+    select application_id into v_app from public.create_application(
+      'Sec','Parent','sec-noshow@test.invalid','sec-noshow@test.invalid',null,null,
+      'Child','N','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    insert into public.sessions (kind, campus_id, starts_at, ends_at, capacity, is_published, created_by)
+    values ('assessment', c_block7, now() + interval '9 days 7 hours 13 minutes', now() + interval '9 days 8 hours 13 minutes', 5, true, u_admin)
+    returning id into v_session;
+    select public.book_session(v_app, v_session) into v_booking;
+
+    update public.bookings set status = 'checked_in', checked_in_at = now() where id = v_booking;
+    begin
+      update public.bookings set status = 'no_show' where id = v_booking;
+      v_fail := v_fail || E'\n  - ' || '82: a checked-in booking was marked a no-show';
+    exception when check_violation then null;
+    end;
+
+    update public.bookings set status = 'in_progress' where id = v_booking;
+    begin
+      update public.bookings set status = 'no_show' where id = v_booking;
+      v_fail := v_fail || E'\n  - ' || '82: a booking under way was marked a no-show';
+    exception when check_violation then null;
+    end;
+
+    -- Put back to booked, but somebody did arrive once.
+    update public.bookings set status = 'booked' where id = v_booking;
+    begin
+      update public.bookings set status = 'no_show' where id = v_booking;
+      v_fail := v_fail || E'\n  - ' || '82: a booking that was checked in once was marked a no-show';
+    exception when check_violation then null;
+    end;
+
+    -- Control: nobody arrived, so it is a no-show.
+    update public.bookings set checked_in_at = null where id = v_booking;
+    begin
+      update public.bookings set status = 'no_show' where id = v_booking;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('82 control: a booking nobody arrived for could not be a no-show: ' || sqlerrm);
+    end;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

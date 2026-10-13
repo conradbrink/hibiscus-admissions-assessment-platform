@@ -10,6 +10,7 @@ import { formatDateLong, formatTime, toSchoolDateString } from "@/lib/format-dat
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
+import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { checkIn, markNoShow } from "../../applications/[id]/actions";
 import { launchAttempt, reissueCode } from "../actions";
 
@@ -47,7 +48,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const bookingsRes = sessionIds.length
     ? await supabase
         .from("bookings")
-        .select("id, session_id, status, checked_in_at, applications(id, reference, child_first_name, child_last_name, child_date_of_birth, grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, mobile))")
+        .select("id, session_id, status, checked_in_at, applications(id, status, reference, child_first_name, child_last_name, child_date_of_birth, grades!applications_grade_id_fkey(name), contacts!applications_contact_id_fkey(first_name, last_name, mobile))")
         .in("session_id", sessionIds)
         .in("status", ["booked", "checked_in", "in_progress", "completed", "no_show"])
     : null;
@@ -145,7 +146,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                       const app = one(b.applications)!;
                       const grade = one(app.grades);
                       const contact = one(app.contacts);
-                      const live = b.status === "booked" || b.status === "checked_in";
+                      // Booked → arrived → in progress → completed, or booked →
+                      // no-show; never both. A child already checked in is not
+                      // offered No-show (see lib/workflow/appointment.ts).
+                      const noShow = canMarkNoShow(b.status, "assessment", app.status);
                       const attempt = attemptByBooking.get(b.id) ?? null;
                       return (
                         <li key={b.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
@@ -164,7 +168,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                               {attempt.status === "ready" ? "Waiting for code" : attempt.status === "in_progress" ? "Sitting now" : attempt.status === "submitted" ? "Handed in" : attempt.status === "marked" ? "Marked" : attempt.status}
                             </Link>
                           ) : null}
-                          {canDeliver && b.status === "booked" ? (
+                          {canDeliver && canCheckIn(b.status, app.status) ? (
                             <ActionForm action={checkIn} label="Check in" variant="success" size="sm">
                               <input type="hidden" name="applicationId" value={app.id} />
                             </ActionForm>
@@ -175,7 +179,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                           {canDeliver && attempt?.status === "ready" ? (
                             <LaunchDialog applicationId={app.id} childName={app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={attempt.id} />
                           ) : null}
-                          {canDeliver && live ? (
+                          {canDeliver && noShow ? (
                             <ActionForm action={markNoShow} label="No-show" variant="ghost" size="sm" confirm="Mark as a no-show and email a rebooking link?">
                               <input type="hidden" name="applicationId" value={app.id} />
                             </ActionForm>

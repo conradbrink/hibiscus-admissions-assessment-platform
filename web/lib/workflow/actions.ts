@@ -11,6 +11,7 @@ import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import { bookingTrackNextAction, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
+import { canCheckIn, noShowMove } from "@/lib/workflow/appointment";
 import {
   commit,
   hoursBefore,
@@ -373,10 +374,15 @@ export async function onCheckedIn(
   booking: Pick<BookingRow, "id" | "kind" | "status">,
   actor: Actor
 ): Promise<void> {
-  if (booking.status !== "booked") {
-    throw new WorkflowError(`Booking is ${booking.status}, not booked`, "status_conflict");
+  if (!canCheckIn(booking.status, app.status)) {
+    throw new WorkflowError(
+      booking.status !== "booked"
+        ? `Booking is ${booking.status}, not booked`
+        : `This application is ${app.status.replace(/_/g, " ")}, so there is nobody to check in.`,
+      "status_conflict"
+    );
   }
-  const { error } = await admin
+  const { data: arrived, error } = await admin
     .from("bookings")
     .update({
       status: "checked_in",
@@ -384,8 +390,12 @@ export async function onCheckedIn(
       checked_in_by: actor.type === "staff" ? (actor.id ?? null) : null,
     })
     .eq("id", booking.id)
-    .eq("status", "booked");
+    .eq("status", "booked")
+    .select("id");
   if (error) throw new WorkflowError(error.message, "database");
+  // Somebody else got there first (a no-show on Today's board, a cancel by
+  // the parent): saying "arrived" over that would be the contradiction.
+  if (!arrived?.length) throw new WorkflowError("This booking changed while you were looking at it. Reload the page.", "status_conflict");
 
   const moved = booking.kind === "visit" ? statusAfterVisitArrival(app.status, app.requires_assessment) : null;
   // A primary family who came to look around before applying: the visit is
@@ -413,19 +423,31 @@ export async function onCheckedIn(
   });
 }
 
-/** Staff marks a no-show. Opens a follow-up and invites the parent to rebook. */
+/**
+ * Staff marks a no-show. Opens a follow-up and invites the parent to rebook.
+ *
+ * Only for a booking nobody arrived for, and decided before anything is
+ * written (`noShowMove`). It used to accept a checked-in booking, so a child
+ * who had arrived could also be a no-show, and it moved the booking before
+ * asking whether the application could follow — a refused transition left a
+ * missed booking under an application that still read as booked.
+ */
 export async function onNoShow(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
   booking: Pick<BookingRow, "id" | "kind" | "status">,
   actor: Actor
 ): Promise<void> {
-  const { error } = await admin
+  const move = noShowMove(booking.status, booking.kind, app.status);
+  if (!move.ok) throw new WorkflowError(move.reason, "status_conflict");
+  const { data: missed, error } = await admin
     .from("bookings")
     .update({ status: "no_show" })
     .eq("id", booking.id)
-    .in("status", ["booked", "checked_in"]);
+    .eq("status", "booked")
+    .select("id");
   if (error) throw new WorkflowError(error.message, "database");
+  if (!missed?.length) throw new WorkflowError("This booking changed while you were looking at it. Reload the page.", "status_conflict");
   const settings = await getSettings(admin);
 
   if (booking.kind === "visit") {
@@ -434,7 +456,7 @@ export async function onNoShow(
     // `awaiting_decision`, which has no way back to `new_enquiry`, and the
     // old unconditional move threw "Illegal transition" at the person
     // recording the no-show. Either way somebody rings them.
-    const moved = statusAfterCancellation(app.status);
+    const moved = move.status;
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: app.status,
