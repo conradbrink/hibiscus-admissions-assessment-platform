@@ -44,7 +44,15 @@ describe("the range the URL asks for", () => {
     // 9999 spun the weekly series for 14 million weeks; 0202 is a slip for 2026.
     expect(isCalendarDate("9999-12-31")).toBe(false);
     expect(isCalendarDate("0202-10-13")).toBe(false);
-    expect(resolveRange("2026-07-01", "9999-12-31", today)).toEqual({ from: "2026-07-01", to: fallback.to });
+    expect(resolveRange("2026-07-01", "9999-12-31", today)).toEqual({ from: "2026-07-01", to: "2026-10-07" });
+  });
+
+  it("keeps the one end somebody gave as the end they gave it as", () => {
+    // An end alone once took the default's start, which here is after it, and
+    // the two were swapped: "up to 31 Jan" became a range starting 31 Jan.
+    expect(resolveRange("", "2026-01-31", today)).toEqual({ from: "2025-11-02", to: "2026-01-31" });
+    expect(resolveRange("2026-01-01", undefined, today)).toEqual({ from: "2026-01-01", to: "2026-10-07" });
+    expect(resolveRange("2027-03-01", null, today)).toEqual({ from: "2027-03-01", to: "2027-03-01" });
   });
 
   it("turns a backwards range round rather than reading it as empty", () => {

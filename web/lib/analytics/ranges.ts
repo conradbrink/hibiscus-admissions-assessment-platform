@@ -54,17 +54,27 @@ export function isCalendarDate(s: string | null | undefined): s is string {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
+function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 /**
- * The range the URL asks for, made safe to read and draw. Either end that is
- * not a real day falls back to the default's; a range given backwards is
- * turned round rather than read as empty; and one longer than ten years falls
- * back to the default altogether. The page and its CSV export both use this,
- * so the file always matches the screen.
+ * The range the URL asks for, made safe to read and draw. With neither end a
+ * real day it is the default. With one, the other is worked out from it, so
+ * the date somebody gave stays the end they gave it as: an end alone gets the
+ * default's length before it, a start alone runs to today. A range given
+ * backwards is turned round rather than read as empty, and one longer than
+ * ten years falls back to the default. The page and its CSV export both use
+ * this, so the file always matches the screen.
  */
 export function resolveRange(from: string | null | undefined, to: string | null | undefined, today: Date): { from: string; to: string } {
-  const fallback = rangeFor(RANGE_PRESETS.find((p) => p.key === DEFAULT_PRESET)!, today);
-  let start = isCalendarDate(from) ? from : fallback.from;
-  let end = isCalendarDate(to) ? to : fallback.to;
+  const preset = RANGE_PRESETS.find((p) => p.key === DEFAULT_PRESET)!;
+  const fallback = rangeFor(preset, today);
+  const hasFrom = isCalendarDate(from);
+  const hasTo = isCalendarDate(to);
+  if (!hasFrom && !hasTo) return fallback;
+  let start = hasFrom ? from : addDays(to as string, -preset.days);
+  let end = hasTo ? to : start > fallback.to ? start : fallback.to;
   if (start > end) [start, end] = [end, start];
   const days = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000;
   return days > LONGEST_DAYS ? fallback : { from: start, to: end };

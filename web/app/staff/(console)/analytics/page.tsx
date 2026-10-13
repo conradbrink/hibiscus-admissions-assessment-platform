@@ -224,7 +224,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const counts = funnelCounts(all);
   const stages = funnelStages(counts);
   const assessedNow = all.filter((r) => r.requires_assessment).length;
-  const steps = conversionSteps(counts, assessedNow, before ? funnelCounts(before) : null, before ? before.filter((r) => r.requires_assessment).length : 0);
+  const steps = conversionSteps(
+    { counts, assessed: assessedNow },
+    before ? { counts: funnelCounts(before), assessed: before.filter((r) => r.requires_assessment).length } : null
+  );
   const weakest = weakestStep(steps);
   const weakestDetail = steps.find((s) => s.key === weakest) ?? null;
   // Ninety days is "soon enough to matter for the intake being planned", and

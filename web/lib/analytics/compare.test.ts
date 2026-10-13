@@ -75,7 +75,7 @@ describe("where applicants are lost", () => {
   it("lists the step conversions with the period before and what each started from", () => {
     const now = [row(attended), row(attended), row(booked), row({}), row({ requires_assessment: false })];
     const before = [row(attended), row({})];
-    const steps = conversionSteps(funnelCounts(now), 4, funnelCounts(before), 2);
+    const steps = conversionSteps({ counts: funnelCounts(now), assessed: 4 }, { counts: funnelCounts(before), assessed: 2 });
     expect(steps.map((s) => s.key)).toEqual(["enquiryToBooking", "bookingToAttendance", "approvalRate", "offerToAcceptance", "acceptanceToPayment", "paymentToEnrolment"]);
     // Booking is out of the families who needed an assessment, not all enquiries.
     expect(steps[0]).toMatchObject({ label: "Enquiry → booking", stage: "bookings", from: 4, rate: 0.75, previous: 0.5 });
@@ -85,7 +85,7 @@ describe("where applicants are lost", () => {
   });
 
   it("has no period before when it could not be read, rather than one of zeros", () => {
-    const steps = conversionSteps(funnelCounts([row(attended), row({})]), 2, null, 0);
+    const steps = conversionSteps({ counts: funnelCounts([row(attended), row({})]), assessed: 2 }, null);
     expect(steps[0]).toMatchObject({ rate: 0.5, previous: null });
   });
 

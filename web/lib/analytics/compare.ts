@@ -131,7 +131,7 @@ export function shares(groups: Breakdown[]): Share[] {
 export function shownDirection(d: Delta | null, kind: "count" | "fraction" | "days" = "count"): Delta["direction"] | null {
   if (!d) return null;
   const abs = Math.abs(d.abs);
-  const shown = kind === "fraction" ? Math.round(abs * 100) : kind === "days" ? Number(abs.toFixed(1)) : abs;
+  const shown = kind === "fraction" ? wholePercent(abs) : kind === "days" ? Number(abs.toFixed(1)) : abs;
   return shown === 0 ? "flat" : d.direction;
 }
 
@@ -141,7 +141,7 @@ export function fmtDelta(d: Delta | null, kind: "count" | "fraction" | "days" = 
   const sign = d.direction === "up" ? "+" : "−";
   const abs = Math.abs(d.abs);
   if (kind === "fraction") {
-    const points = Math.round(abs * 100);
+    const points = wholePercent(abs);
     return `${sign}${points} ${points === 1 ? "pt" : "pts"}`;
   }
   if (kind === "days") return `${sign}${abs.toFixed(1)}d`;
@@ -169,6 +169,9 @@ export type ConversionStep = {
   chosenBySchool: boolean;
 };
 
+/** A period's funnel counts with the number of its enquiries that needed an assessment. */
+export type PeriodCounts = { counts: FunnelCounts; assessed: number };
+
 /**
  * The step-to-step conversions the specification names, this period and the
  * one before, with how many families each step started from. The rates are
@@ -176,9 +179,11 @@ export type ConversionStep = {
  * `before` is null when the period before could not be read: no comparison,
  * rather than a comparison with nothing.
  */
-export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: FunnelCounts | null, beforeAssessed: number): ConversionStep[] {
+export function conversionSteps(period: PeriodCounts, before: PeriodCounts | null): ConversionStep[] {
+  const now = period.counts;
+  const nowAssessed = period.assessed;
   const cur = conversion(now, nowAssessed);
-  const prev = before ? conversion(before, beforeAssessed) : null;
+  const prev = before ? conversion(before.counts, before.assessed) : null;
   const steps: Array<[ConversionStepKey, string, FunnelStage["key"], number]> = [
     ["enquiryToBooking", "Enquiry → booking", "bookings", nowAssessed],
     ["bookingToAttendance", "Booking → attended", "attended", now.bookings],
