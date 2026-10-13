@@ -1,68 +1,74 @@
+import { formatDayMonth } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
+
 /**
- * Enquiries and enrolments per week, as two small bar charts one above the
- * other: the same scale (counts), so a shared baseline and no dual axis; a
- * single series each, so no legend; one hue each, the reference palette's
- * first two categorical slots, stepped for light and dark. Every bar has a
- * hover title; the maximum in each chart is labelled directly; the
- * breakdown table beside the chart is the table view.
+ * Enquiries and enrolments per week, as two small bar charts side by side:
+ * the same kind of count, so no dual axis, and a single series each, so no
+ * legend; the caption names it. Enquiries are the lighter teal and
+ * enrolments the full one, because enrolments are the outcome. Bars are
+ * plain HTML so they keep their shape at any width; each is capped at 24px
+ * and its whole column is the hover target. The peak is named in the
+ * caption rather than printed over a bar, and the breakdown table further
+ * down is the table view.
  */
 export function TrendChart({ series }: { series: Array<{ week: string; enquiries: number; enrolments: number }> }) {
   if (series.length === 0) return null;
-  const width = 640;
-  const height = 96;
-  const pad = { left: 28, right: 8, top: 14, bottom: 18 };
-  const innerW = width - pad.left - pad.right;
-  const innerH = height - pad.top - pad.bottom;
-  const n = series.length;
-  const slot = innerW / n;
-  const barW = Math.max(2, slot - 2);
-
-  const panel = (key: "enquiries" | "enrolments", label: string, color: string) => {
-    const max = Math.max(1, ...series.map((s) => s[key]));
-    const maxIndex = series.findIndex((s) => s[key] === max);
-    const ticks = [0, Math.ceil(max / 2), max];
-    return (
-      <figure className="min-w-0">
-        <figcaption className="text-xs font-medium text-muted-foreground">{label} per week</figcaption>
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-24 w-full" role="img" aria-label={`${label} per week, ${n} weeks`}>
-          {ticks.map((t) => {
-            const y = pad.top + innerH - (t / max) * innerH;
-            return (
-              <g key={t}>
-                <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="currentColor" strokeOpacity={0.12} strokeWidth={1} />
-                <text x={pad.left - 4} y={y + 3} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.6}>{t}</text>
-              </g>
-            );
-          })}
-          {series.map((s, i) => {
-            const v = s[key];
-            const h = (v / max) * innerH;
-            const x = pad.left + i * slot + 1;
-            const y = pad.top + innerH - h;
-            return (
-              <g key={s.week}>
-                <rect x={x} y={y} width={barW} height={h} rx={Math.min(4, barW / 2)} ry={Math.min(4, barW / 2)} fill={color} />
-                {h > 0 ? <rect x={x} y={pad.top + innerH - Math.min(h, 4)} width={barW} height={Math.min(h, 4)} fill={color} /> : null}
-                <rect x={pad.left + i * slot} y={pad.top} width={slot} height={innerH} fill="transparent">
-                  <title>{`Week of ${s.week}: ${v} ${label.toLowerCase()}`}</title>
-                </rect>
-                {i === maxIndex && v > 0 ? (
-                  <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={9} fill="currentColor">{v}</text>
-                ) : null}
-              </g>
-            );
-          })}
-          <text x={pad.left} y={height - 4} fontSize={9} fill="currentColor" fillOpacity={0.6}>{series[0].week}</text>
-          <text x={width - pad.right} y={height - 4} fontSize={9} textAnchor="end" fill="currentColor" fillOpacity={0.6}>{series[n - 1].week}</text>
-        </svg>
-      </figure>
-    );
-  };
-
   return (
-    <div className="space-y-3 [--series-1:#2a78d6] [--series-2:#eb6834] dark:[--series-1:#3987e5] dark:[--series-2:#d95926]">
-      {panel("enquiries", "Enquiries", "var(--series-1)")}
-      {panel("enrolments", "Enrolments", "var(--series-2)")}
+    <div className="@container">
+      <div className="grid grid-cols-1 gap-x-10 gap-y-6 @2xl:grid-cols-2">
+        <WeeklyBars series={series} field="enquiries" label="Enquiries" one="enquiry" tone="bg-primary/35" />
+        <WeeklyBars series={series} field="enrolments" label="Enrolments" one="enrolment" tone="bg-primary" />
+      </div>
     </div>
+  );
+}
+
+function WeeklyBars({
+  series,
+  field,
+  label,
+  one,
+  tone,
+}: {
+  series: Array<{ week: string; enquiries: number; enrolments: number }>;
+  field: "enquiries" | "enrolments";
+  label: string;
+  /** The singular, for a week with exactly one. */
+  one: string;
+  tone: string;
+}) {
+  const values = series.map((s) => s[field]);
+  const max = Math.max(0, ...values);
+  const peak = values.indexOf(max);
+  return (
+    <figure className="min-w-0">
+      <figcaption className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">
+          {max > 0 ? `Peak ${max}, week of ${formatDayMonth(series[peak].week)}` : "None in this period"}
+        </span>
+      </figcaption>
+      <div
+        role="img"
+        aria-label={`${label} per week, from the week of ${formatDayMonth(series[0].week)}: ${values.join(", ")}`}
+        className="mt-3 flex h-24 items-end gap-0.5 border-b border-border"
+      >
+        {series.map((s) => {
+          const v = s[field];
+          return (
+            <div key={s.week} className="flex h-full min-w-0 flex-1 items-end justify-center" title={`Week of ${formatDayMonth(s.week)}: ${v} ${v === 1 ? one : label.toLowerCase()}`}>
+              <div
+                className={cn("w-full max-w-6 rounded-t-[4px]", tone)}
+                style={{ height: v > 0 ? `max(2px, ${(v / max) * 100}%)` : 0 }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground tabular-nums">
+        <span>{formatDayMonth(series[0].week)}</span>
+        <span>{formatDayMonth(series[series.length - 1].week)}</span>
+      </div>
+    </figure>
   );
 }

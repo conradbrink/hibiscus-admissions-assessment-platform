@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { BarList, FunnelChart, Headline, PctBar } from "@/components/staff/charts";
+import { ChevronRight, Download } from "lucide-react";
 import { AreaHeader } from "@/components/staff/area-header";
+import { BarList, FunnelChart, fmtCount, Headline, PctBar, StepList } from "@/components/staff/charts";
 import { INSIGHT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
+import { ParamSelect } from "@/components/staff/param-select";
 import { TrendChart } from "@/components/staff/trend-chart";
-import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  conversion,
   cycleTimes,
   DIMENSION_LABELS,
   DIMENSIONS,
@@ -20,24 +20,29 @@ import {
   type Dimension,
   type FactRow,
 } from "@/lib/analytics/breakdown";
-import { deferredSummary, delta, funnelStages, headline, previousRange, shares } from "@/lib/analytics/compare";
+import { conversionSteps, deferredSummary, delta, funnelStages, headline, previousRange, shares, weakestStep, type ConversionStepKey } from "@/lib/analytics/compare";
 import { activePreset, DEFAULT_PRESET, RANGE_PRESETS, rangeFor } from "@/lib/analytics/ranges";
-import { toSchoolDateString } from "@/lib/format-date";
-import { can } from "@/lib/permissions";
+import { formatDateRange, toSchoolDateString } from "@/lib/format-date";
+import { can, canAccessPath } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
+import { cn } from "@/lib/utils";
 
 /**
  * Admissions analytics, read top to bottom: six headline figures with how
- * they moved against the period before; the funnel as a picture; where
- * families come from and how each group converts; the weekly trend; and
- * the detail (breakdown table, cycle times, parent effort) under it for
- * anyone who wants the numbers. All arithmetic is in lib/analytics and
- * tested; this page reads the facts view through RLS and draws.
+ * they moved against the period before; the funnel, and beside it the step
+ * where families are lost, with the weakest one marked; then where families
+ * come from, the weekly trend, and the detail (breakdown table, cycle times,
+ * parent effort) folded away for anyone who wants the numbers. All
+ * arithmetic is in lib/analytics and tested; this page reads the facts view
+ * through RLS and draws.
  */
 type Search = { from?: string; to?: string; campus?: string; dim?: string };
 
 /** The eight enquiry fields: what a parent completes before the assessment. */
 const ENQUIRY_FIELDS = 8;
+
+/** The one surface every panel on this page shares: white, a hairline, almost no shadow. */
+const PANEL = "rounded-lg border border-border/80 bg-card shadow-xs";
 
 function fmtSeconds(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
@@ -47,6 +52,41 @@ function fmtSeconds(v: number | null | undefined): string {
 }
 
 const fmtD = (v: number | null) => (v === null ? "—" : fmtDays(v));
+
+/**
+ * Where to look at the families a step is losing: the applicant list,
+ * filtered to the status or group a family sits in until they take that
+ * step. The list shows where families are today rather than the period on
+ * screen, so the words say what they will find, not how many.
+ */
+function drillDowns(campus: string | undefined): Record<ConversionStepKey, { href: string; label: string }> {
+  const list = (filter: Record<string, string>) => `/staff/applications?${new URLSearchParams({ ...filter, ...(campus ? { campus } : {}) })}`;
+  return {
+    enquiryToBooking: { href: list({ group: "enquiry" }), label: "See open enquiries" },
+    bookingToAttendance: { href: list({ status: "no_show" }), label: "See no-shows" },
+    approvalRate: { href: list({ group: "outcome" }), label: "See decision outcomes" },
+    offerToAcceptance: { href: list({ status: "offer_sent" }), label: "See offers awaiting a reply" },
+    acceptanceToPayment: { href: list({ status: "payment_required" }), label: "See accepted offers not yet paid" },
+    paymentToEnrolment: { href: list({ status: "registration_incomplete" }), label: "See unfinished registrations" },
+  };
+}
+
+function SectionHeading({ id, title, description }: { id: string; title: string; description?: string }) {
+  return (
+    <div className="mb-5">
+      <h2 id={id} className="text-base font-semibold text-foreground">{title}</h2>
+      {description ? <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p> : null}
+    </div>
+  );
+}
+
+/** One segment of the period control; the chosen one is filled, the rest are quiet. */
+function segment(active: boolean) {
+  return cn(
+    "flex h-6.5 cursor-pointer items-center rounded-md px-2.5 text-[13px] whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    active ? "bg-primary font-medium text-primary-foreground shadow-xs" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  );
+}
 
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -73,16 +113,116 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     supabase.from("learning_profiles").select("application_id, narrative_source, validation_status").not("published_at", "is", null).gte("created_at", `${from}T00:00:00+02:00`),
   ]);
 
+  const campusName = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus)?.name : null;
+  // The links keep the campus and, once somebody has chosen one, the breakdown.
+  const keep = { ...(sp.campus ? { campus: sp.campus } : {}), ...(sp.dim ? { dim } : {}) };
+
+  // Forecast is the tab beside this one, so the header no longer links to it.
+  const header = (
+    <AreaHeader
+      title="Insights"
+      tabsLabel="Pages"
+      tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
+      description={`${campusName ?? "All campuses"} · families who enquired ${formatDateRange(from, to)}, compared with ${formatDateRange(prev.from, prev.to)}.`}
+      viewActions={
+        can(permissions, "data.export") ? (
+          <a
+            href={`/staff/analytics/export?${new URLSearchParams({ from, to, ...(sp.campus ? { campus: sp.campus } : {}), dim })}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Download className="size-3.5" aria-hidden />
+            Export CSV
+          </a>
+        ) : null
+      }
+    />
+  );
+
+  const toolbar = (
+    <div className="mb-5 flex flex-wrap items-center gap-2">
+      {(campuses ?? []).length > 1 ? (
+        <ParamSelect
+          name="campus"
+          label="Campus"
+          value={sp.campus ?? ""}
+          options={[{ value: "", label: "All campuses" }, ...(campuses ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+          className="h-8 w-44 rounded-lg py-0 text-[13px] md:h-8 md:text-[13px]"
+        />
+      ) : null}
+      <nav aria-label="Period" className="relative flex flex-wrap items-center gap-0.5 rounded-lg border border-border/80 bg-card p-0.5 shadow-xs">
+        {RANGE_PRESETS.map((p) => {
+          const r = rangeFor(p, today);
+          return (
+            <Link
+              key={p.key}
+              href={`/staff/analytics?${new URLSearchParams({ from: r.from, to: r.to, ...keep })}`}
+              aria-current={chosen === p.key ? "page" : undefined}
+              aria-label={p.label}
+              className={segment(chosen === p.key)}
+            >
+              {/* Narrow widths drop the repeated "Past" so the control stays on
+                  one line; the full name is still the link's accessible name. */}
+              <span className="@3xl:hidden">{p.label.replace(/^Past (\w)/, (_, c: string) => c.toUpperCase())}</span>
+              <span className="hidden @3xl:inline">{p.label}</span>
+            </Link>
+          );
+        })}
+        {/* The dates open under the right end of the control, which is
+            always inside the page, wherever "Custom" has wrapped to. */}
+        <details>
+          <summary className={cn(segment(chosen === null), "list-none [&::-webkit-details-marker]:hidden")} aria-current={chosen === null ? "page" : undefined}>
+            Custom
+          </summary>
+          <form method="get" className="absolute top-full right-0 z-20 mt-2 w-64 space-y-3 rounded-lg border border-border bg-card p-3 shadow-lg">
+            {sp.campus ? <input type="hidden" name="campus" value={sp.campus} /> : null}
+            {sp.dim ? <input type="hidden" name="dim" value={dim} /> : null}
+            <label className="block text-xs font-medium text-muted-foreground">
+              From
+              <Input type="date" name="from" defaultValue={from} className="mt-1" />
+            </label>
+            <label className="block text-xs font-medium text-muted-foreground">
+              To
+              <Input type="date" name="to" defaultValue={to} className="mt-1" />
+            </label>
+            <Button type="submit" size="lg" className="w-full">Show these dates</Button>
+          </form>
+        </details>
+      </nav>
+    </div>
+  );
+
+  if (rowsError) {
+    return (
+      <>
+        {header}
+        <div className="@container">
+          {toolbar}
+          <section className={cn(PANEL, "border-destructive/30 p-5")}>
+            <h2 className="mb-1 text-sm font-semibold text-destructive">These numbers could not be worked out</h2>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              The figures are left out rather than shown as zero, because zero would not be true. A shorter range usually
+              goes through, so try the past week or past month above. If it keeps happening, this is worth reporting.
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground">Reason given: {rowsError.message}</p>
+          </section>
+        </div>
+      </>
+    );
+  }
+
   const all = (rows ?? []) as FactRow[];
   const before = (prevRows ?? []) as FactRow[];
   const now = headline(all);
   const then = headline(before);
   const counts = funnelCounts(all);
   const stages = funnelStages(counts);
+  const assessedNow = all.filter((r) => r.requires_assessment).length;
+  const steps = conversionSteps(counts, assessedNow, funnelCounts(before), before.filter((r) => r.requires_assessment).length);
+  const weakest = weakestStep(steps);
+  const weakestDetail = steps.find((s) => s.key === weakest) ?? null;
   // Ninety days is "soon enough to matter for the intake being planned", and
   // the same window the page already defaults to looking back over.
   const deferred = deferredSummary(all, toSchoolDateString(new Date(today.getTime() + 90 * 86_400_000)));
-  const conv = conversion(counts, all.filter((r) => r.requires_assessment).length);
   const cycle = cycleTimes(all);
   const prevCycle = cycleTimes(before);
   const groups = groupBy(all, dim);
@@ -96,238 +236,191 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     ai: (profiles ?? []).filter((p) => p.narrative_source === "ai").length,
     fellBack: (profiles ?? []).filter((p) => p.validation_status === "failed").length,
   };
-  const qs = new URLSearchParams({ from, to, ...(sp.campus ? { campus: sp.campus } : {}), dim }).toString();
-  const campusName = sp.campus ? (campuses ?? []).find((c) => c.id === sp.campus)?.name : null;
-
-  const presetLinks = (
-    <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Show the</span>
-      {RANGE_PRESETS.map((p) => {
-        const r = rangeFor(p, today);
-        const href = `/staff/analytics?${new URLSearchParams({ from: r.from, to: r.to, ...(sp.campus ? { campus: sp.campus } : {}), dim }).toString()}`;
-        return (
-          <Link
-            key={p.key}
-            href={href}
-            aria-current={chosen === p.key ? "page" : undefined}
-            className={`rounded-full border px-3 py-1 transition-colors ${chosen === p.key ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}
-          >
-            {p.label.replace(/^Past /, "past ")}
-          </Link>
-        );
-      })}
-      <span className="text-muted-foreground">or pick the dates yourself.</span>
-    </div>
-  );
-
-  const filters = (
-    <>
-      {presetLinks}
-      <form method="get" className="mb-5 flex flex-wrap items-end gap-2">
-        <Input type="date" name="from" defaultValue={from} className="w-40" />
-        <Input type="date" name="to" defaultValue={to} className="w-40" />
-        <NativeSelect name="campus" defaultValue={sp.campus ?? ""} className="w-44">
-          <option value="">All campuses</option>
-          {(campuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </NativeSelect>
-        <NativeSelect name="dim" defaultValue={dim} className="w-52">
-          {DIMENSIONS.map((d) => <option key={d} value={d}>Break down by {DIMENSION_LABELS[d].toLowerCase()}</option>)}
-        </NativeSelect>
-        <Button type="submit" size="lg" variant="secondary">Apply</Button>
-        {can(permissions, "data.export") ? (
-          <a href={`/staff/analytics/export?${qs}`} className="text-sm text-primary underline underline-offset-2">Export CSV</a>
-        ) : null}
-      </form>
-    </>
-  );
-
-  if (rowsError) {
-    return (
-      <>
-        <AreaHeader
-          title="Insights"
-          tabsLabel="Pages"
-          tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
-          description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}.`}
-        />
-        {filters}
-        <section className="surface border-destructive/40 p-4">
-          <h2 className="mb-1 text-sm font-semibold text-destructive">These numbers could not be worked out</h2>
-          <p className="text-sm text-muted-foreground">
-            The figures are left out rather than shown as zero, because zero would not be true. A shorter range usually
-            goes through — try past week or past month above. If it keeps happening, this is worth reporting.
-          </p>
-          <p className="mt-3 text-xs text-muted-foreground">Reason given: {rowsError.message}</p>
-        </section>
-      </>
-    );
-  }
+  const toOffer = now.medianDaysToOffer;
 
   return (
     <>
-      <AreaHeader
-        title="Insights"
-        tabsLabel="Pages"
-        tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
-        description={`${campusName ?? "All campuses"} · enquiries from ${from} to ${to}, compared with ${prev.from} to ${prev.to}.`}
-      />
-      {filters}
+      {header}
+      <div className="@container">
+        {toolbar}
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Headline label="Enquiries" value={now.enquiries} delta={delta(now.enquiries, then.enquiries)} />
-        <Headline label="Enrolled" value={now.enrolled} delta={delta(now.enrolled, then.enrolled)} />
-        <Headline label="Enquiry → enrolment" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then.enquiryToEnrolment, "fraction")} kind="fraction" />
-        <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then.offerAcceptance, "fraction")} kind="fraction" hint="of offers sent" />
-        <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then.noShowRate, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" />
-        <Headline label="Enquiry → offer" value={fmtD(now.medianDaysToOffer)} delta={delta(now.medianDaysToOffer, then.medianDaysToOffer, "days")} kind="days" goodWhen="down" hint="median, adding each step" />
-      </div>
-
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <section className="surface p-4">
-          <h2 className="mb-1 text-sm font-semibold">The funnel</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Each bar is scaled to enquiries. The first percentage is the share of enquiries that reached the stage; the second is the conversion from the stage before.</p>
-          <FunnelChart stages={stages} />
-          {/* Beside the funnel, not in it: a pause is not a stage families
-              pass through on the way to enrolling. */}
-          {deferred.count > 0 ? (
-            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Deferred — {deferred.count}</span>
-              {deferred.dueWithin > 0 ? `, of which ${deferred.dueWithin} due back within 90 days` : ", none due back within 90 days"}.
-              Paused at the family&rsquo;s request, and counted in neither the funnel nor the forecast.
-            </p>
-          ) : null}
+        <section aria-label="Headline figures" className={cn(PANEL, "mb-6 grid grid-cols-2 gap-px overflow-hidden bg-border/80 @xl:grid-cols-3 @4xl:grid-cols-6")}>
+          <Headline label="Enquiries" value={fmtCount(now.enquiries)} delta={delta(now.enquiries, then.enquiries)} />
+          <Headline label="Enrolled" value={fmtCount(now.enrolled)} delta={delta(now.enrolled, then.enrolled)} />
+          <Headline label="Enrolment rate" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then.enquiryToEnrolment, "fraction")} kind="fraction" hint="of enquiries, enrolled" />
+          <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then.offerAcceptance, "fraction")} kind="fraction" hint="of offers sent" />
+          <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then.noShowRate, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" />
+          <Headline
+            label="Days to an offer"
+            value={toOffer === null ? "—" : toOffer < 1 ? fmtDays(toOffer) : toOffer.toFixed(1)}
+            unit={toOffer !== null && toOffer >= 1 ? "days" : undefined}
+            delta={delta(toOffer, then.medianDaysToOffer, "days")}
+            kind="days"
+            goodWhen="down"
+            hint="from enquiry, the median of each step added together"
+          />
         </section>
-        <section className="surface p-4">
-          <h2 className="mb-1 text-sm font-semibold">Step conversion, now against before</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Where the pipeline gains or loses families, and whether that improved.</p>
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted-foreground">
-              <tr><th className="py-1 font-medium">Step</th><th className="py-1 text-right font-medium">This period</th><th className="py-1 text-right font-medium">Before</th><th className="py-1 text-right font-medium">Change</th></tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {[
-                ["Enquiry → booking", conv.enquiryToBooking, conversion(funnelCounts(before), before.filter((r) => r.requires_assessment).length).enquiryToBooking],
-                ["Booking → attended", conv.bookingToAttendance, conversion(funnelCounts(before), 0).bookingToAttendance],
-                ["Decisions approved", conv.approvalRate, conversion(funnelCounts(before), 0).approvalRate],
-                ["Offer → accepted", conv.offerToAcceptance, conversion(funnelCounts(before), 0).offerToAcceptance],
-                ["Accepted → paid", conv.acceptanceToPayment, conversion(funnelCounts(before), 0).acceptanceToPayment],
-                ["Paid → enrolled", conv.paymentToEnrolment, conversion(funnelCounts(before), 0).paymentToEnrolment],
-              ].map(([label, cur, prv]) => {
-                const d = delta(cur as number | null, prv as number | null, "fraction");
-                return (
-                  <tr key={label as string}>
-                    <td className="py-1.5">{label as string}</td>
-                    <td className="py-1.5 text-right"><span className="inline-flex justify-end"><PctBar value={cur as number | null} /></span></td>
-                    <td className="py-1.5 text-right tabular-nums text-muted-foreground">{pct(prv as number | null)}</td>
-                    <td className={`py-1.5 text-right tabular-nums ${d?.direction === "up" ? "text-success" : d?.direction === "down" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {d ? (d.direction === "flat" ? "—" : `${d.direction === "up" ? "+" : "−"}${Math.round(Math.abs(d.abs) * 100)} pts`) : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
-      </div>
 
-      <div className="mb-6 grid gap-6 lg:grid-cols-3">
-        <section className="surface p-4">
-          <h2 className="mb-1 text-sm font-semibold">Where families heard about us</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Share of enquiries, and how well each source converts to enrolment.</p>
-          {heard.length ? <BarList rows={heard} /> : <p className="text-sm text-muted-foreground">Nothing in range.</p>}
-        </section>
-        <section className="surface p-4">
-          <h2 className="mb-1 text-sm font-semibold">By campus</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Share of enquiries per campus.</p>
-          {byCampus.length ? <BarList rows={byCampus} /> : <p className="text-sm text-muted-foreground">Nothing in range.</p>}
-        </section>
-        <section className="surface p-4">
-          <h2 className="mb-1 text-sm font-semibold">By grade</h2>
-          <p className="mb-3 text-xs text-muted-foreground">Which grades the demand is in.</p>
-          {byGrade.length ? <BarList rows={byGrade} /> : <p className="text-sm text-muted-foreground">Nothing in range.</p>}
-        </section>
-      </div>
+        <div className="grid grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <section aria-labelledby="funnel-heading" className={cn(PANEL, "p-5")}>
+            <SectionHeading id="funnel-heading" title="Admissions funnel" description="How many families reached each stage." />
+            <FunnelChart stages={stages} highlight={weakestDetail?.stage ?? null} />
+            {weakestDetail || assessedNow < counts.enquiries || deferred.count > 0 ? (
+              <div className="mt-5 space-y-1.5 border-t border-border/70 pt-4 text-xs text-muted-foreground">
+                {weakestDetail ? (
+                  <p className="flex items-center gap-1.5">
+                    <span className="size-2.5 shrink-0 rounded-[3px] bg-warning/75" aria-hidden />
+                    Weakest step: {weakestDetail.label}, {pct(weakestDetail.rate)}
+                  </p>
+                ) : null}
+                {assessedNow < counts.enquiries ? (
+                  <p>Booked, attended and assessment completed count only the families whose route includes an assessment.</p>
+                ) : null}
+                {/* Beside the funnel, not in it: a pause is not a stage families
+                    pass through on the way to enrolling. */}
+                {deferred.count > 0 ? (
+                  <p>
+                    <span className="font-medium text-foreground">{fmtCount(deferred.count)} deferred</span>
+                    {deferred.dueWithin > 0 ? `, ${fmtCount(deferred.dueWithin)} due back within 90 days` : ", none due back within 90 days"}.
+                    Paused at the family&rsquo;s request, so counted in neither the funnel nor the forecast.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </section>
 
-      <section className="surface mb-6 p-4 text-sm">
-        <h2 className="mb-1 text-sm font-semibold">Week by week</h2>
-        <p className="mb-3 text-xs text-muted-foreground">Enquiries received and enrolments confirmed in each week of the period.</p>
-        <TrendChart series={series} />
-      </section>
-
-      <details className="surface mb-6 p-4" open>
-        <summary className="cursor-pointer text-sm font-semibold">Breakdown by {DIMENSION_LABELS[dim].toLowerCase()}</summary>
-        {groups.length ? (
-          <div className="mt-3 overflow-x-auto">
-            <table className="data-table">
-              <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{DIMENSION_LABELS[dim]}</th>
-                  {["Enquiries", "Booked", "Attended", "No-shows", "Approved", "Offered", "Accepted", "Paid", "Enrolled"].map((h) => (
-                    <th key={h} className="px-3 py-2 text-right font-medium">{h}</th>
-                  ))}
-                  <th className="px-3 py-2 text-right font-medium">Offer → accepted</th>
-                  <th className="px-3 py-2 text-right font-medium">Enquiry → enrolment</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {groups.map((g) => (
-                  <tr key={g.key}>
-                    <td className="px-3 py-2 font-medium">{g.label}</td>
-                    {[g.counts.enquiries, g.counts.bookings, g.counts.attended, g.counts.noShows, g.counts.approved, g.counts.offered, g.counts.accepted, g.counts.paid, g.counts.enrolled].map((v, i) => (
-                      <td key={i} className="px-3 py-2 text-right tabular-nums">{v}</td>
-                    ))}
-                    <td className="px-3 py-2 text-right"><span className="inline-flex justify-end"><PctBar value={g.counts.offered ? g.counts.accepted / g.counts.offered : null} tone="success" /></span></td>
-                    <td className="px-3 py-2 text-right"><span className="inline-flex justify-end"><PctBar value={g.enquiryToEnrolment} /></span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-muted-foreground">No applications in range.</p>
-        )}
-      </details>
-
-      <details className="surface mb-6 p-4">
-        <summary className="cursor-pointer text-sm font-semibold">How long each step takes, and how much a parent has to do</summary>
-        <div className="mt-3 grid gap-6 lg:grid-cols-2 text-sm">
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Median days per step (before, in grey)</h3>
-            <dl className="grid grid-cols-[1fr_auto_auto] gap-x-4 gap-y-1.5">
-              {[
-                ["Enquiry → booking", cycle.enquiryToBooking, prevCycle.enquiryToBooking],
-                ["Booking → assessment", cycle.bookingToAssessment, prevCycle.bookingToAssessment],
-                ["Assessment → decision", cycle.assessmentToDecision, prevCycle.assessmentToDecision],
-                ["Decision → offer", cycle.decisionToOffer, prevCycle.decisionToOffer],
-                ["Offer → acceptance", cycle.offerToAcceptance, prevCycle.offerToAcceptance],
-                ["Acceptance → payment", cycle.acceptanceToPayment, prevCycle.acceptanceToPayment],
-                ["Payment → enrolment", cycle.paymentToEnrolment, prevCycle.paymentToEnrolment],
-              ].map(([label, cur, prv]) => (
-                <div key={label as string} className="contents">
-                  <dt className="text-muted-foreground">{label as string}</dt>
-                  <dd className="text-right tabular-nums">{fmtD(cur as number | null)}</dd>
-                  <dd className="text-right tabular-nums text-muted-foreground">{fmtD(prv as number | null)}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Parent effort</h3>
-            <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5">
-              <dt className="text-muted-foreground">Median time to enquire</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.median_seconds_to_enquiry)}</dd>
-              <dt className="text-muted-foreground">Median time to a booking</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.median_seconds_to_booking)}</dd>
-              <dt className="text-muted-foreground">Slowest tenth to a booking</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.p90_seconds_to_booking)}</dd>
-              <dt className="text-muted-foreground">Fields before the assessment</dt><dd className="text-right tabular-nums">{pe.fieldsBeforeAssessment}</dd>
-              <dt className="text-muted-foreground">Started but never enquired</dt><dd className="text-right tabular-nums">{pct(effort && effort.sessions_started ? 1 - effort.enquiries_submitted / effort.sessions_started : null)}</dd>
-              <dt className="text-muted-foreground">Enquired but never booked</dt><dd className="text-right tabular-nums">{pct(pe.bookingAbandonment)}</dd>
-              <dt className="text-muted-foreground">Entered by staff, not the parent</dt><dd className="text-right tabular-nums">{pct(pe.staffAssisted)}</dd>
-              <dt className="text-muted-foreground">Messages per applicant</dt><dd className="text-right tabular-nums">{pe.messagesPerApplicant === null ? "—" : pe.messagesPerApplicant.toFixed(1)}</dd>
-              <dt className="text-muted-foreground">Registration already filled in</dt><dd className="text-right tabular-nums">{pct(pe.prefilledAtRegistration)}</dd>
-              <dt className="text-muted-foreground">Learning profiles published</dt><dd className="text-right tabular-nums">{profileStats.published} ({pct(profileStats.published ? profileStats.ai / profileStats.published : null)} with an AI narrative, {profileStats.fellBack} rejected by the validator)</dd>
-            </dl>
-          </div>
+          <section aria-labelledby="losing-heading" className={cn(PANEL, "p-5")}>
+            <SectionHeading id="losing-heading" title="Where are we losing applicants?" description="Conversion at each step, against the period before." />
+            <StepList steps={steps} weakest={weakest} links={canAccessPath(permissions, "/staff/applications") ? drillDowns(sp.campus) : undefined} />
+          </section>
         </div>
-      </details>
+
+        <section aria-labelledby="breakdowns-heading" className="mt-10">
+          <h2 id="breakdowns-heading" className="mb-3 text-base font-semibold text-foreground">Breakdowns</h2>
+          <div className={cn(PANEL, "grid grid-cols-1 gap-px overflow-hidden bg-border/70 @2xl:grid-cols-2 @4xl:grid-cols-3")}>
+            {[
+              { id: "heard", title: "Where families heard about us", rows: heard, wide: true },
+              { id: "campus", title: "By campus", rows: byCampus, wide: false },
+              { id: "grade", title: "By grade", rows: byGrade, wide: false },
+            ].map((b) => (
+              <div key={b.id} className={cn("bg-card p-5", b.wide && "@2xl:col-span-2 @4xl:col-span-1")}>
+                <h3 className="mb-3 text-sm font-semibold text-foreground">{b.title}</h3>
+                {b.rows.length ? <BarList rows={b.rows} /> : <p className="text-sm text-muted-foreground">No enquiries in this period.</p>}
+              </div>
+            ))}
+            <div className="bg-card p-5 @2xl:col-span-2 @4xl:col-span-3">
+              <h3 className="mb-4 text-sm font-semibold text-foreground">Week by week</h3>
+              <TrendChart series={series} />
+            </div>
+          </div>
+
+          <div className={cn(PANEL, "mt-6 divide-y divide-border/70 overflow-hidden")}>
+            {/* Open once somebody has chosen what to break it down by; folded
+                away otherwise, because it is the detail under the pictures. */}
+            <details open={Boolean(sp.dim)} className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
+                Breakdown by {DIMENSION_LABELS[dim].toLowerCase()}
+              </summary>
+              <div className="pb-2">
+                <div className="flex items-center gap-2 px-5 pb-3 text-[13px] text-muted-foreground">
+                  <span aria-hidden>Group by</span>
+                  <ParamSelect
+                    name="dim"
+                    label="Group by"
+                    value={dim}
+                    options={DIMENSIONS.map((d) => ({ value: d, label: DIMENSION_LABELS[d] }))}
+                    className="h-8 w-56 rounded-lg py-0 text-[13px] md:h-8 md:text-[13px]"
+                  />
+                </div>
+                {groups.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="data-table [&_tbody_td:first-child]:pl-5 [&_tbody_td:last-child]:pr-5 [&_thead_th]:text-xs [&_thead_th]:font-medium [&_thead_th]:tracking-normal [&_thead_th]:normal-case [&_thead_th:first-child]:pl-5 [&_thead_th:last-child]:pr-5">
+                      <thead>
+                        <tr>
+                          <th>{DIMENSION_LABELS[dim]}</th>
+                          {["Enquiries", "Booked", "Attended", "No-shows", "Approved", "Offered", "Accepted", "Paid", "Enrolled"].map((h) => (
+                            <th key={h} className="text-right">{h}</th>
+                          ))}
+                          <th className="text-right whitespace-nowrap">Offer → accepted</th>
+                          <th className="text-right whitespace-nowrap">Enquiry → enrolment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groups.map((g) => (
+                          <tr key={g.key}>
+                            <td className="font-medium whitespace-nowrap">{g.label}</td>
+                            {[g.counts.enquiries, g.counts.bookings, g.counts.attended, g.counts.noShows, g.counts.approved, g.counts.offered, g.counts.accepted, g.counts.paid, g.counts.enrolled].map((v, i) => (
+                              <td key={i} className="text-right tabular-nums">{fmtCount(v)}</td>
+                            ))}
+                            <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.counts.offered ? g.counts.accepted / g.counts.offered : null} /></span></td>
+                            <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.enquiryToEnrolment} /></span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="px-5 pb-3 text-sm text-muted-foreground">No applications in this period.</p>
+                )}
+              </div>
+            </details>
+
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden />
+                How long each step takes, and how much a parent has to do
+              </summary>
+              <div className="grid grid-cols-1 gap-8 px-5 pt-1 pb-5 text-sm @3xl:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-[13px] font-semibold text-foreground">Median days per step</h3>
+                  <table className="w-full">
+                    <thead className="text-xs text-muted-foreground">
+                      <tr>
+                        <th className="pb-1.5 text-left font-medium">Step</th>
+                        <th className="pb-1.5 text-right font-medium">This period</th>
+                        <th className="pb-1.5 pl-4 text-right font-medium">Before</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ["Enquiry → booking", cycle.enquiryToBooking, prevCycle.enquiryToBooking],
+                        ["Booking → assessment", cycle.bookingToAssessment, prevCycle.bookingToAssessment],
+                        ["Assessment → decision", cycle.assessmentToDecision, prevCycle.assessmentToDecision],
+                        ["Decision → offer", cycle.decisionToOffer, prevCycle.decisionToOffer],
+                        ["Offer → acceptance", cycle.offerToAcceptance, prevCycle.offerToAcceptance],
+                        ["Acceptance → payment", cycle.acceptanceToPayment, prevCycle.acceptanceToPayment],
+                        ["Payment → enrolment", cycle.paymentToEnrolment, prevCycle.paymentToEnrolment],
+                      ].map(([label, cur, prv]) => (
+                        <tr key={label as string} className="border-t border-border/70">
+                          <td className="py-1.5 text-muted-foreground">{label as string}</td>
+                          <td className="py-1.5 text-right tabular-nums">{fmtD(cur as number | null)}</td>
+                          <td className="py-1.5 pl-4 text-right text-muted-foreground tabular-nums">{fmtD(prv as number | null)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <h3 className="mb-2 text-[13px] font-semibold text-foreground">Parent effort</h3>
+                  <dl className="grid grid-cols-[1fr_auto] gap-x-4 [&>dd]:border-t [&>dd]:border-border/70 [&>dd]:py-1.5 [&>dt]:border-t [&>dt]:border-border/70 [&>dt]:py-1.5">
+                    <dt className="text-muted-foreground">Median time to enquire</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.median_seconds_to_enquiry)}</dd>
+                    <dt className="text-muted-foreground">Median time to a booking</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.median_seconds_to_booking)}</dd>
+                    <dt className="text-muted-foreground">Slowest tenth to a booking</dt><dd className="text-right tabular-nums">{fmtSeconds(effort?.p90_seconds_to_booking)}</dd>
+                    <dt className="text-muted-foreground">Fields before the assessment</dt><dd className="text-right tabular-nums">{pe.fieldsBeforeAssessment}</dd>
+                    <dt className="text-muted-foreground">Started but never enquired</dt><dd className="text-right tabular-nums">{pct(effort && effort.sessions_started ? 1 - effort.enquiries_submitted / effort.sessions_started : null)}</dd>
+                    <dt className="text-muted-foreground">Enquired but never booked</dt><dd className="text-right tabular-nums">{pct(pe.bookingAbandonment)}</dd>
+                    <dt className="text-muted-foreground">Entered by staff, not the parent</dt><dd className="text-right tabular-nums">{pct(pe.staffAssisted)}</dd>
+                    <dt className="text-muted-foreground">Messages per applicant</dt><dd className="text-right tabular-nums">{pe.messagesPerApplicant === null ? "—" : pe.messagesPerApplicant.toFixed(1)}</dd>
+                    <dt className="text-muted-foreground">Registration already filled in</dt><dd className="text-right tabular-nums">{pct(pe.prefilledAtRegistration)}</dd>
+                    <dt className="text-muted-foreground">Learning profiles published</dt><dd className="text-right tabular-nums">{profileStats.published} ({pct(profileStats.published ? profileStats.ai / profileStats.published : null)} with an AI narrative, {profileStats.fellBack} rejected by the validator)</dd>
+                  </dl>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+      </div>
     </>
   );
 }

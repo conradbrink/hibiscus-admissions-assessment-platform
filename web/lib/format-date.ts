@@ -79,6 +79,34 @@ export function formatDate(value: string | Date | null | undefined): string {
   return d ? DATE_SHORT.format(d) : "—";
 }
 
+const DAY_MONTH = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: SCHOOL_TIMEZONE,
+});
+
+/** "7 Sept", for a label where the year is already plain from what is around it. */
+export function formatDayMonth(value: string | Date | null | undefined): string {
+  const d = parse(value);
+  return d ? DAY_MONTH.format(d) : "—";
+}
+
+/** "15 Jul to 13 Oct 2026", with the first year written only when the range crosses one. */
+export function formatDateRange(from: string | Date, to: string | Date): string {
+  const a = parse(from);
+  const b = parse(to);
+  if (!a || !b) return "—";
+  const sameYear = DAY_MONTH_YEAR.formatToParts(a).find((p) => p.type === "year")?.value === DAY_MONTH_YEAR.formatToParts(b).find((p) => p.type === "year")?.value;
+  return `${(sameYear ? DAY_MONTH : DAY_MONTH_YEAR).format(a)} to ${DAY_MONTH_YEAR.format(b)}`;
+}
+
 /** "09:00" */
 export function formatTime(value: string | Date | null | undefined): string {
   const d = parse(value);
