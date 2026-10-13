@@ -115,12 +115,86 @@ export function shares(groups: Breakdown[]): Share[] {
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * The direction of a change as it reads once rounded for display.
+ *
+ * A conversion that moved from 87.4% to 87.1% is "down" to the arithmetic and
+ * "−0 pts" on the screen, which looks like a fault and says nothing. Whatever
+ * rounds to zero is no change, so the colour and the words agree.
+ */
+export function shownDirection(d: Delta | null, kind: "count" | "fraction" | "days" = "count"): Delta["direction"] | null {
+  if (!d) return null;
+  const abs = Math.abs(d.abs);
+  const shown = kind === "fraction" ? Math.round(abs * 100) : kind === "days" ? Number(abs.toFixed(1)) : abs;
+  return shown === 0 ? "flat" : d.direction;
+}
+
 export function fmtDelta(d: Delta | null, kind: "count" | "fraction" | "days" = "count"): string {
   if (!d) return "no comparison";
-  if (d.direction === "flat") return "no change";
+  if (shownDirection(d, kind) === "flat") return "no change";
   const sign = d.direction === "up" ? "+" : "−";
   const abs = Math.abs(d.abs);
-  if (kind === "fraction") return `${sign}${Math.round(abs * 100)} pts`;
+  if (kind === "fraction") {
+    const points = Math.round(abs * 100);
+    return `${sign}${points} ${points === 1 ? "pt" : "pts"}`;
+  }
   if (kind === "days") return `${sign}${abs.toFixed(1)}d`;
   return d.pct === null ? `${sign}${abs}` : `${sign}${Math.round(Math.abs(d.pct) * 100)}% (${sign}${abs})`;
+}
+
+export type ConversionStepKey =
+  | "enquiryToBooking"
+  | "bookingToAttendance"
+  | "approvalRate"
+  | "offerToAcceptance"
+  | "acceptanceToPayment"
+  | "paymentToEnrolment";
+
+export type ConversionStep = {
+  key: ConversionStepKey;
+  label: string;
+  /** The funnel stage this step leads into, so the funnel can point at the same place. */
+  stage: FunnelStage["key"];
+  /** Families who could take the step: the denominator of `rate`. */
+  from: number;
+  rate: number | null;
+  previous: number | null;
+};
+
+/**
+ * The step-to-step conversions the specification names, this period and the
+ * one before, with how many families each step started from. The rates are
+ * `conversion()`'s own; this only puts them in the order they are read.
+ */
+export function conversionSteps(now: FunnelCounts, nowAssessed: number, before: FunnelCounts, beforeAssessed: number): ConversionStep[] {
+  const cur = conversion(now, nowAssessed);
+  const prev = conversion(before, beforeAssessed);
+  const steps: Array<[ConversionStepKey, string, FunnelStage["key"], number]> = [
+    ["enquiryToBooking", "Enquiry → booking", "bookings", nowAssessed],
+    ["bookingToAttendance", "Booking → attended", "attended", now.bookings],
+    ["approvalRate", "Decisions approved", "approved", now.decided],
+    ["offerToAcceptance", "Offer → accepted", "accepted", now.offered],
+    ["acceptanceToPayment", "Accepted → paid", "paid", now.accepted],
+    ["paymentToEnrolment", "Paid → enrolled", "enrolled", now.paid],
+  ];
+  return steps.map(([key, label, stage, from]) => ({ key, label, stage, from, rate: cur[key], previous: prev[key] }));
+}
+
+/**
+ * The step with the lowest conversion: the one the page marks as weakest.
+ *
+ * By rate rather than by families lost, because the steps nearest the top
+ * always lose the most families simply by being the biggest, and "the top of
+ * the funnel" is not news. A step that fewer than `minFamilies` could take is
+ * left out: two families paid and neither has enrolled yet is 0%, and calling
+ * that the weakest point in admissions would be noise rather than a finding.
+ * A tie goes to the earlier step, where the families are lost first.
+ */
+export function weakestStep(steps: ReadonlyArray<Pick<ConversionStep, "key" | "from" | "rate">>, minFamilies = 5): ConversionStepKey | null {
+  let weakest: { key: ConversionStepKey; rate: number } | null = null;
+  for (const s of steps) {
+    if (s.rate === null || s.from < minFamilies) continue;
+    if (!weakest || s.rate < weakest.rate) weakest = { key: s.key, rate: s.rate };
+  }
+  return weakest?.key ?? null;
 }
