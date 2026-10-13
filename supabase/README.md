@@ -78,6 +78,7 @@ change.
 | `…20260928150000_event_reminder_template` (28 Sep) | `event_reminder`: one WhatsApp template for any event reminder, the "when" typed on the campaign (a week before, two days before, tonight) and the event's name and place filled from the event. Inactive until Meta's approval through Zavu is recorded, with an inactive email companion |
 | `…20260929090000_campaign_claim_marker_cleared` (29 Sep) | Clears the `claimed` marker a campaign batch left on recipients it had sent or failed, which showed in the CSV export as the reason for every sent parent and in place of the provider's error for failed ones. The send now clears it with the status |
 | `…20260929100000_per_application_interview_window` (29 Sep) | `applications.interview_window_from` and `_to`: an interview window of the application's own. The booking page offers only sessions inside it, the booking is refused outside it, and the scholarship letter and WhatsApp name its last day. Null ends fall back to no earliest day and the `scholarship_interview_deadline` setting. Set by the import only; staff have no grant |
+| `…20261013090000_tasks_land_on_the_campus_owner` (13 Oct) | `tasks_set_default_assignee`: a new task with no assignee goes to the family's owner (the applicant's, or for a child the owner of the application they arrived on), else to the campus's `default_owner_staff_id`, only ever naming staff who can sign in. Fills blanks on insert only: no backfill, and an explicit assignee or a later unassignment stands. Security suite case 81 |
 
 ## Rules for new migrations
 

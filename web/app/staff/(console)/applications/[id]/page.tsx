@@ -343,7 +343,9 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                   <Input name="details" placeholder="Any detail (optional)" maxLength={2000} />
                   <div className="grid gap-2 sm:grid-cols-3">
                     <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
-                      <option value="">Nobody yet</option>
+                      {/* Left blank, the database gives it to this applicant's
+                          owner, or the campus owner (tasks_set_default_assignee). */}
+                      <option value="">Their owner (automatic)</option>
                       {(staff ?? []).map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
                     </NativeSelect>
                     <Input type="date" name="dueOn" aria-label="Due on" />
