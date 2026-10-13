@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
+import { AreaHeader } from "@/components/staff/area-header";
 import { BarList, FunnelChart, fmtCount, Headline, PctBar, StepList } from "@/components/staff/charts";
-import { PageTitle } from "@/components/staff/page-title";
+import { INSIGHT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
 import { ParamSelect } from "@/components/staff/param-select";
 import { TrendChart } from "@/components/staff/trend-chart";
 import { Button } from "@/components/ui/button";
@@ -119,25 +120,25 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // The links keep the campus and, once somebody has chosen one, the breakdown.
   const keep = { ...(sp.campus ? { campus: sp.campus } : {}), ...(sp.dim ? { dim } : {}) };
 
+  // Forecast is the tab beside this one, so the header no longer links to it.
   const header = (
-    <PageTitle
-      title="Admissions analytics"
+    <AreaHeader
+      title="Insights"
+      tabsLabel="Pages"
+      tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics")}
       description={`${campusName ?? "All campuses"} · families who enquired ${formatDateRange(from, to)}${prevError ? ". The period before could not be read, so nothing is compared." : `, compared with ${formatDateRange(prev.from, prev.to)}.`}`}
-    >
-      {can(permissions, "data.export") ? (
-        <a
-          href={`/staff/analytics/export?${new URLSearchParams({ from, to, ...(sp.campus ? { campus: sp.campus } : {}), dim })}`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Download className="size-3.5" aria-hidden />
-          Export CSV
-        </a>
-      ) : null}
-      <Link href="/staff/analytics/forecast" className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10">
-        Forecast
-        <ArrowRight className="size-3.5" aria-hidden />
-      </Link>
-    </PageTitle>
+      viewActions={
+        can(permissions, "data.export") ? (
+          <a
+            href={`/staff/analytics/export?${new URLSearchParams({ from, to, ...(sp.campus ? { campus: sp.campus } : {}), dim })}`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <Download className="size-3.5" aria-hidden />
+            Export CSV
+          </a>
+        ) : null
+      }
+    />
   );
 
   const toolbar = (

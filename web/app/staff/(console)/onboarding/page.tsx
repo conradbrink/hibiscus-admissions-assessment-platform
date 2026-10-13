@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { STUDENT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
+import { EmptyState } from "@/components/staff/page-title";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, toSchoolDateString } from "@/lib/format-date";
 import { isOverdue, isSettled, onboardingProgress, type StepLike } from "@/lib/onboarding/progress";
@@ -22,7 +24,7 @@ export default async function OnboardingBoardPage({
 }: {
   searchParams: Promise<{ campus?: string }>;
 }) {
-  const { supabase } = await requireStaff("students.read");
+  const { supabase, permissions } = await requireStaff("students.read");
   const params = await searchParams;
   const today = toSchoolDateString(new Date());
 
@@ -70,8 +72,10 @@ export default async function OnboardingBoardPage({
 
   return (
     <>
-      <PageTitle
-        title="Onboarding"
+      <AreaHeader
+        title="Students"
+        tabsLabel="Pages"
+        tabs={visibleAreaTabs(permissions, STUDENT_TABS, "/staff/onboarding")}
         description="What each newly enrolled family still owes us, and what we still owe them."
       />
 

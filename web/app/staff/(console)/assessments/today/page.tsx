@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { BookingBadge } from "@/components/staff/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +16,16 @@ import { launchAttempt, reissueCode } from "../actions";
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
- * The check-in board. One row per booked child, grouped by session. The
- * parent gives a name or reference at reception; staff finds the row and
- * taps Check in. Nothing else is asked of anybody.
+ * The check-in board, under Admissions → Assessment as "Today's
+ * assessments". One row per booked child, grouped by session. The parent
+ * gives a name or reference at reception; staff finds the row and taps
+ * Check in. Nothing else is asked of anybody.
  */
 export default async function TodayPage({ searchParams }: { searchParams: Promise<{ date?: string; campus?: string; q?: string }> }) {
   const sp = await searchParams;
-  const { supabase, permissions } = await requireStaff("assessments.deliver");
+  const { supabase, permissions, userId } = await requireStaff("assessments.deliver");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : toSchoolDateString(new Date());
   const canDeliver = can(permissions, "assessments.deliver");
 
@@ -91,10 +95,23 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageTitle title="Assessment day" description={`${formatDateLong(date)} · ${totals.total} booked · ${totals.arrived} arrived · ${totals.noShow} no-show`}>
-        <Link href={`?date=${prev.toISOString().slice(0, 10)}${sp.campus ? `&campus=${sp.campus}` : ""}`} className="text-sm underline">Previous day</Link>
-        <Link href={`?date=${next.toISOString().slice(0, 10)}${sp.campus ? `&campus=${sp.campus}` : ""}`} className="text-sm underline">Next day</Link>
-      </PageTitle>
+      <AdmissionsHeader
+        ctx={{ permissions }}
+        data={header}
+        stage="assessment"
+        view="today"
+        description={
+          <>
+            <span className="font-medium text-foreground">{formatDateLong(date)}</span> · {totals.total} booked · {totals.arrived} arrived · {totals.noShow} no-show
+          </>
+        }
+        viewActions={
+          <>
+            <Link href={`?date=${prev.toISOString().slice(0, 10)}${sp.campus ? `&campus=${sp.campus}` : ""}`} className="font-medium text-primary hover:underline">Previous day</Link>
+            <Link href={`?date=${next.toISOString().slice(0, 10)}${sp.campus ? `&campus=${sp.campus}` : ""}`} className="font-medium text-primary hover:underline">Next day</Link>
+          </>
+        }
+      />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
         <Input type="date" name="date" defaultValue={date} className="w-40" />

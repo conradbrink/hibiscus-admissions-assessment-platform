@@ -33,7 +33,7 @@ import { awardLabelOf } from "@/lib/promotions/scholarship";
 /**
  * The assessment, profile, decision and offer for one applicant, as tabs on
  * the applicant page. Reads through the staff client so RLS applies; the
- * actions are the same ones the Offers & outcomes queue uses.
+ * actions are the same ones the offers board (Admissions → Offer) uses.
  */
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -70,6 +70,8 @@ export async function ApplicantPhase2({
    */
   decision: {
     canRecordOutcome: boolean;
+    canWaitlist: boolean;
+    canDecline: boolean;
     canDefer: boolean;
     canWithdraw: boolean;
     canOfferTrial: boolean;
@@ -77,6 +79,10 @@ export async function ApplicantPhase2({
     /** The newest week, live or finished; null if the child has never had one. */
     trial: TrialWeekRow | null;
     bookingWillBeCancelled: boolean;
+    /** The `auto_send_outcomes` switch, so the form says truthfully when a waitlist or decline letter goes. */
+    autoSendOutcomes: boolean;
+    /** A booking still ahead of them, which the decline letter cancels when it goes. */
+    upcomingBooking: boolean;
     /** Set while the application is paused: the promise made, and the way back. */
     deferred: { until: string | null; reason: string | null; canResume: boolean } | null;
   };
@@ -241,9 +247,9 @@ export async function ApplicantPhase2({
               </div>
             ) : (
               <p className="text-muted-foreground">
-                Not sat yet. Start it from here, or on the day from the{" "}
-                <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">check-in board</Link>
-                , which lists every child booked in that morning.
+                Not sat yet. Start it from here, or on the day from{" "}
+                <Link href="/staff/assessments/today" className="font-medium text-primary underline underline-offset-2">Today&rsquo;s assessments</Link>
+                {" "}under Admissions, which lists every child booked in that morning.
               </p>
             )}
             {/* The code and the link, on the page the office is already
@@ -361,16 +367,39 @@ export async function ApplicantPhase2({
                 label="Record decision"
                 size="sm"
                 className="mt-2"
-                confirm="Record this decision? It is audited and the parent will be informed."
+                confirm="Record this decision? It is audited."
+                confirmBy={{
+                  field: "outcome",
+                  messages: {
+                    trial_week: "Invite the family to a free trial week? They are emailed the dates now.",
+                    approved: "Approve? It is audited, and the offer is drafted for a person to approve and send.",
+                    waitlisted: decision.autoSendOutcomes
+                      ? "Waitlist? It is audited, and the waitlist letter is emailed to the parent now."
+                      : "Waitlist? It is audited. The letter waits under Admissions → Offer until somebody presses Send.",
+                    declined:
+                      (decision.autoSendOutcomes
+                        ? "Decline? It is audited, and the decline letter is emailed to the parent now."
+                        : "Decline? It is audited. The letter waits under Admissions → Offer until somebody presses Send.") +
+                      (decision.upcomingBooking ? " Their booking is cancelled when the letter goes." : ""),
+                    deferred: decision.bookingWillBeCancelled
+                      ? "Defer this family? Their booking is cancelled and the seat goes back."
+                      : "Defer this family? We will message them around the date you chose.",
+                    withdrawn: "Withdraw this application? Bookings and open tasks are cancelled.",
+                  },
+                }}
               >
                 {idField}
                 <DecisionFields
                   canRecordOutcome
+                  canWaitlist={decision.canWaitlist}
+                  canDecline={decision.canDecline}
                   canDefer={decision.canDefer}
                   canWithdraw={decision.canWithdraw}
                   canOfferTrial={decision.canOfferTrial}
                   hasHadTrial={decision.hasHadTrial}
                   bookingWillBeCancelled={decision.bookingWillBeCancelled}
+                  autoSendOutcomes={decision.autoSendOutcomes}
+                  upcomingBooking={decision.upcomingBooking}
                 />
               </ActionForm>
             </div>
@@ -404,7 +433,7 @@ export async function ApplicantPhase2({
           ) : (
             <p className="text-muted-foreground">
               {app.status === "staff_review" || app.status === "awaiting_decision"
-                ? <>Waiting for a person. Decide above, or in the <Link href="/staff/decisions" className="text-primary underline underline-offset-2">review queue</Link>.</>
+                ? <>Waiting for a person. Decide above, or in the <Link href="/staff/decisions" className="text-primary underline underline-offset-2">review queue</Link> under Admissions → Decision.</>
                 : "No decision yet."}
             </p>
           )}
@@ -567,7 +596,7 @@ export async function ApplicantPhase2({
                     {idField}<input type="hidden" name="offerId" value={liveOffer.id} />
                     <Input name="reason" placeholder="Why" className="h-8 w-44 md:h-8" required minLength={3} />
                   </ActionForm>
-                  <Link href="/staff/offers" className="text-xs text-primary underline underline-offset-2">Offers & outcomes</Link>
+                  <Link href="/staff/offers" className="text-xs text-primary underline underline-offset-2">All offers</Link>
                 </div>
               ) : null}
             </div>

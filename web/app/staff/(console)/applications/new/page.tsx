@@ -54,7 +54,7 @@ export default async function NewApplicantPage() {
   return (
     <>
       <PageTitle
-        back={{ href: "/staff/applications", label: "Applicants" }}
+        back={{ href: "/staff/applications", label: "Admissions" }}
         title="Add an applicant"
         description="For a family at the desk or on the phone. It creates the same application their own form would, and sends them the same emails."
       />

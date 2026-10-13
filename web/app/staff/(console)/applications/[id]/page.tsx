@@ -7,6 +7,7 @@ import { SummaryPanel } from "@/components/staff/summary-panel";
 import { LaunchDialog } from "@/components/staff/launch-dialog";
 import { LinkReveal } from "@/components/staff/link-reveal";
 import { PageTitle, EmptyState } from "@/components/staff/page-title";
+import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { PauseOrClose } from "@/components/staff/pause-or-close";
 import { BookingBadge, PriorityBadge, StatusBadge } from "@/components/staff/status-badge";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -19,7 +20,7 @@ import { can } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { requireStaff } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
-import { canBeDecided, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { canBeDecided, canTransition, isNextAction, nextActionCopy, TERMINAL_STATUSES } from "@/lib/workflow/states";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
@@ -170,7 +171,7 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const canDeliver = can(permissions, "assessments.deliver");
   const canDecide = can(permissions, "decisions.override");
   const terminal = TERMINAL_STATUSES.has(app.status);
-  // Approve, defer, withdraw: one question, asked once, in the Decision tab.
+  // Approve, waitlist, decline, defer, withdraw: one question, asked once, in the Decision tab.
   // Deferring and withdrawing are not overrides of the rules engine, so they
   // keep applications.write rather than decisions.override.
   //
@@ -182,12 +183,21 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const liveTrial = (trials ?? []).find((t) => t.status === "invited" || t.status === "confirmed") ?? null;
   const decision = {
     canRecordOutcome: canDecide && !terminal && canBeDecided(app.status),
-    canDefer: canWrite && !terminal && app.status !== "deferred",
+    // Each asked of the graph too: a child already waitlisted can be approved
+    // or declined, not waitlisted again.
+    canWaitlist: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "waitlisted"),
+    canDecline: canDecide && !terminal && canBeDecided(app.status) && canTransition(app.status, "declined"),
+    // Asked of the graph like the rest: a family can be deferred only before
+    // a decision, and offering it later failed after its first writes.
+    canDefer: canWrite && !terminal && canTransition(app.status, "deferred"),
     canWithdraw: canWrite && !terminal,
     canOfferTrial: canDecide && !terminal && !app.requires_assessment && canBeDecided(app.status) && !liveTrial,
     hasHadTrial: (trials ?? []).length > 0,
     trial: (trials ?? [])[0] ?? null,
     bookingWillBeCancelled: Boolean(booking && booking.status !== "cancelled"),
+    autoSendOutcomes: settings.autoSendOutcomes,
+    // Only one not yet under way: that is what the decline letter cancels.
+    upcomingBooking: booking?.status === "booked",
     deferred:
       app.status === "deferred"
         ? { until: app.deferred_until, reason: app.deferred_reason, canResume: canWrite }
@@ -228,12 +238,23 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
   const openTasks = (tasks ?? []).filter((t) => t.status === "open");
   const closedTasks = (tasks ?? []).filter((t) => t.status !== "open");
   const idField = <input type="hidden" name="applicationId" value={app.id} />;
+  // Back to the stage this child is in, on the first of its screens this
+  // person may open: from a decision to the review queue, from an offer to
+  // the offers. Paused and closed applications go back to the full list.
+  const stage = stageOf(app.status);
+  // A pre-school child's Assessment is a visit, which the check-in board does
+  // not list, so their way back is the list.
+  const stageView = stage
+    ? visibleViews(permissions, stage).find((v) => !(stage === "assessment" && !app.requires_assessment && v.key === "today"))
+    : undefined;
+  const backToStage = stage && stageView ? { href: stageView.href, label: stageLabel(stage) } : { href: "/staff/applications", label: "Admissions" };
 
   return (
     <>
       <PageTitle
         title={`${app.child_first_name} ${app.child_last_name}`}
         description={`${grade?.name} · ${campus?.name} · ${startLabel(app, { label: intake?.label ?? "" })} · ${app.reference}`}
+        back={backToStage}
       >
         <StatusBadge status={app.status} />
       </PageTitle>
@@ -324,7 +345,9 @@ export default async function ApplicantPage({ params }: { params: Promise<{ id: 
                   <Input name="details" placeholder="Any detail (optional)" maxLength={2000} />
                   <div className="grid gap-2 sm:grid-cols-3">
                     <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
-                      <option value="">Nobody yet</option>
+                      {/* Left blank, the database gives it to this applicant's
+                          owner, or the campus owner (tasks_set_default_assignee). */}
+                      <option value="">Their owner (automatic)</option>
                       {(staff ?? []).map((m) => <option key={m.id} value={m.id}>{m.full_name}</option>)}
                     </NativeSelect>
                     <Input type="date" name="dueOn" aria-label="Due on" />

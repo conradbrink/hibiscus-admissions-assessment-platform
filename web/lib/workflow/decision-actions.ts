@@ -5,7 +5,7 @@ import { placesRemaining } from "@/lib/rules/capacity";
 import { evaluateAdmission, type Evaluation, type Rule } from "@/lib/rules/evaluate";
 import { getSettings } from "@/lib/settings";
 import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
-import { assertTransition } from "@/lib/workflow/states";
+import { assertTransition, canBeDecided, canTransition } from "@/lib/workflow/states";
 
 /**
  * From "marked" to "decided". The rules engine computes an outcome; this
@@ -202,7 +202,7 @@ export async function applyDecision(
       tasks.push({
         type: "send_outcome",
         title: `Send ${spec.outcome} outcome to ${app.child_first_name}'s parent`,
-        details: "Review the wording and the learning profile, then click Send on the Offers & outcomes page.",
+        details: "Review the wording and the learning profile, then click Send under Admissions → Offer (Outcomes to send).",
         priority: "normal",
       });
     }
@@ -240,6 +240,17 @@ export async function onStaffDecision(
   if (actor.type !== "staff" || !actor.id) {
     throw new WorkflowError("A decision needs a signed-in member of staff", "illegal_transition");
   }
+  // A person answers a question that is still open. `applyDecision` lets a
+  // status stand unchanged, because the rules engine files a referral again,
+  // so without this the same answer twice (a second tab, or a page left open
+  // while a colleague decided from the review queue) wrote a second decision
+  // and queued the family a second letter. `app` is read fresh by the caller,
+  // so this is the page being out of date, and the person is told to reload.
+  // Both checks, because the graph alone would let an approved child be
+  // waitlisted, and an approved child is not a question still open.
+  if (!canBeDecided(app.status) || !canTransition(app.status, outcome)) {
+    throw new WorkflowError(`status_conflict: ${app.status} cannot become ${outcome}`, "status_conflict");
+  }
   if (reason.trim().length < 5) {
     throw new WorkflowError("A reason is required", "illegal_transition");
   }
@@ -262,7 +273,19 @@ export async function onStaffDecision(
   });
 }
 
-/** Staff (or the automation switch) sends the waitlist or decline email. */
+/**
+ * Staff (or the automation switch) sends the waitlist or decline email.
+ *
+ * A decline also cancels any booking the family still has ahead of them, a
+ * visit or a sitting they are no longer coming to: the seat goes back, and
+ * the reminders, which hold only while the booking is `booked`, stop. It
+ * happens here, when the letter goes, rather than when the decision is
+ * recorded, on the school's instruction of 13 October 2026. With automatic
+ * sending off the letter can wait days for Send, and a family whose visit
+ * disappeared first would not know why. There is no email of its own, as
+ * with a deferral: the decline letter is the message. A waitlisted family
+ * keeps their booking, and one already under way or attended is left alone.
+ */
 export async function onOutcomeSent(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status">,
@@ -280,12 +303,37 @@ export async function onOutcomeSent(
     .eq("application_id", app.id)
     .not("published_at", "is", null)
     .limit(1);
+
+  // After the reads and before the commit, raising rather than reporting: if
+  // it fails, nothing is sent and the task stays open, so pressing Send again
+  // retries both, and the update only ever touches what is still booked.
+  let bookingsCancelled = 0;
+  if (app.status === "declined") {
+    const { data: cancelled, error } = await admin
+      .from("bookings")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Application declined" })
+      .eq("application_id", app.id)
+      .eq("status", "booked")
+      .select("id");
+    if (error) {
+      throw new WorkflowError(
+        `The decline letter was not sent: we could not cancel the family's booking (${error.message}). Nothing has changed — please try again.`,
+        "database"
+      );
+    }
+    bookingsCancelled = cancelled?.length ?? 0;
+  }
+
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
     newStatus: app.status,
     nextAction: shareProfile && profile?.length ? "view_profile" : "none",
-    event: { type: "outcome.sent", summary: `${app.status === "waitlisted" ? "Waitlist" : "Decline"} email sent`, payload: { template_key: key } },
+    event: {
+      type: "outcome.sent",
+      summary: `${app.status === "waitlisted" ? "Waitlist" : "Decline"} email sent${bookingsCancelled ? ", and their booking cancelled" : ""}`,
+      payload: { template_key: key, bookings_cancelled: bookingsCancelled || undefined },
+    },
     resolveTaskTypes: ["send_outcome"],
     jobs: [
       {
@@ -294,7 +342,7 @@ export async function onOutcomeSent(
         idempotencyKey: `email:${app.id}:${key}:${Date.now()}`,
       },
     ],
-    audit: { action: "outcome.sent", after: { template_key: key } },
+    audit: { action: "outcome.sent", after: bookingsCancelled ? { template_key: key, bookings_cancelled: bookingsCancelled } : { template_key: key } },
     actor,
   });
 }

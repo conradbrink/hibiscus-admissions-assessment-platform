@@ -38,12 +38,12 @@ export default async function CampusesPage() {
               <p className="text-xs text-muted-foreground">Shown on the parent&rsquo;s pages and in the &ldquo;Talk to our admissions team&rdquo; message. Leave one empty and that way of reaching you is simply not offered.</p>
             </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[minmax(180px,260px)_1fr] sm:items-end">
-              <div><span className="text-xs text-muted-foreground">New applications go to</span>
+              <div><span className="text-xs text-muted-foreground">New applications and tasks go to</span>
                 <NativeSelect name="defaultOwnerStaffId" defaultValue={c.default_owner_staff_id ?? ""}>
                   <option value="">Nobody</option>
                   {(staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
                 </NativeSelect></div>
-              <p className="text-xs text-muted-foreground">Every enquiry, import and application added by hand at this campus lands on that person&rsquo;s badge, so they find it under <span className="font-mono">Applications &rarr; Mine</span> and tasks raised for the owner have somebody to go to. Staff can still reassign any applicant. Leave it on <em>Nobody</em> and applications here arrive unowned, as they used to. They also do while that person&rsquo;s account is deactivated &mdash; work stops arriving for somebody who has left rather than piling up unread.</p>
+              <p className="text-xs text-muted-foreground">Every enquiry, import and application added by hand at this campus lands on that person&rsquo;s badge, so they find it under Admissions with <em>Mine</em> ticked. Every new task here goes to them too, unless it names somebody or is about a family who has an owner of their own: that family&rsquo;s tasks go to their owner. Staff can still reassign any applicant or task. Leave it on <em>Nobody</em> and applications and tasks here arrive unassigned, as they used to. They also do while that person&rsquo;s account is deactivated &mdash; work stops arriving for somebody who has left rather than piling up unread.</p>
             </div>
             <div className="sm:col-span-6 grid gap-2 border-t border-border pt-3 sm:grid-cols-[180px_1fr] sm:items-end">
               <div><span className="text-xs text-muted-foreground">Families join by the</span>

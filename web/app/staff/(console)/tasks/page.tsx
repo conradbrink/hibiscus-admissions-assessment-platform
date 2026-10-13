@@ -84,7 +84,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                 {(campuses ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </NativeSelect>
               <NativeSelect name="assigneeStaffId" defaultValue="" aria-label="Who it is for">
-                <option value="">Nobody yet</option>
+                {/* Left blank, the database gives it to the campus owner
+                    (tasks_set_default_assignee), so say so. */}
+                <option value="">Campus owner (automatic)</option>
                 {(staff ?? []).map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
               </NativeSelect>
               <Input type="date" name="dueOn" aria-label="Due on" />

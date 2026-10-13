@@ -18,9 +18,10 @@ const BOOKING: Record<BookingStatus, { label: string; variant: "info" | "success
   rescheduled: { label: "Moved", variant: "muted" },
 };
 
-export function BookingBadge({ status }: { status: BookingStatus }) {
+/** `className` is for the shape only, where a page wants a squarer badge than the default pill. */
+export function BookingBadge({ status, className }: { status: BookingStatus; className?: string }) {
   const b = BOOKING[status];
-  return <Badge variant={b.variant}>{b.label}</Badge>;
+  return <Badge variant={b.variant} className={className}>{b.label}</Badge>;
 }
 
 const PRIORITY: Record<TaskPriority, "muted" | "secondary" | "warning" | "destructive"> = {
@@ -30,6 +31,6 @@ const PRIORITY: Record<TaskPriority, "muted" | "secondary" | "warning" | "destru
   urgent: "destructive",
 };
 
-export function PriorityBadge({ priority }: { priority: TaskPriority }) {
-  return <Badge variant={PRIORITY[priority]}>{priority}</Badge>;
+export function PriorityBadge({ priority, className }: { priority: TaskPriority; className?: string }) {
+  return <Badge variant={PRIORITY[priority]} className={className}>{priority}</Badge>;
 }

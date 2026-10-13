@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { EmptyState, PageTitle } from "@/components/staff/page-title";
+import { AdmissionsHeader, loadAdmissionsHeaderData } from "@/components/staff/admissions-header";
+import { EmptyState } from "@/components/staff/page-title";
 import { PaymentPanel } from "@/components/staff/payment-panel";
 import { StatusBadge } from "@/components/staff/status-badge";
 import { daysAgoDateString, formatDateTime } from "@/lib/format-date";
@@ -23,7 +24,9 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * `payment_requests.campus_id` directly rather than joining the application.
  */
 export default async function PaymentsPage() {
-  const { supabase, permissions } = await requireStaff("finance.read");
+  const { supabase, permissions, userId } = await requireStaff("finance.read");
+  // The stage bar's reads, started now so they run beside the page's own.
+  const header = loadAdmissionsHeaderData(supabase, userId);
   const canWrite = can(permissions, "finance.write");
 
   const since = `${daysAgoDateString(30)}T00:00:00+02:00`;
@@ -100,7 +103,13 @@ export default async function PaymentsPage() {
 
   return (
     <>
-      <PageTitle title="Payments" description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here." />
+      <AdmissionsHeader
+        ctx={{ permissions }}
+        data={header}
+        stage="enrolment"
+        view="payments"
+        description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here."
+      />
       {groups.map((g) => (
         <section key={g.key} className="mb-8">
           <h2 className="mb-1 text-sm font-semibold">{g.title} ({g.rows.length})</h2>

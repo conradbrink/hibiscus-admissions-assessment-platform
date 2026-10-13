@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { FillBar, PctBar } from "@/components/staff/charts";
-import { PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { INSIGHT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
 import { StatTile } from "@/components/staff/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,13 +37,16 @@ const STAGE_LABELS: Record<Stage, string> = {
  */
 export default async function ForecastPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const { supabase } = await requireStaff("analytics.read");
+  const { supabase, permissions } = await requireStaff("analytics.read");
+  const header = (description: string) => (
+    <AreaHeader title="Insights" tabsLabel="Pages" tabs={visibleAreaTabs(permissions, INSIGHT_TABS, "/staff/analytics/forecast")} description={description} />
+  );
   const [{ data: years }, { data: campuses }] = await Promise.all([
     supabase.from("academic_years").select("id, label, is_current, starts_on").order("starts_on", { ascending: false }).limit(6),
     supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
   ]);
   const year = (years ?? []).find((y) => y.id === sp.year) ?? (years ?? []).find((y) => y.is_current) ?? years?.[0] ?? null;
-  if (!year) return <PageTitle title="Forecast" description="No academic year is set up yet." />;
+  if (!year) return header("No academic year is set up yet.");
 
   const [{ data: current, error: currentError }, { data: history, error: historyError }, { data: campusGrades }] = await Promise.all([
     supabase.from("v_application_facts").select("*").eq("academic_year_id", year.id).limit(5000),
@@ -56,7 +59,7 @@ export default async function ForecastPage({ searchParams }: { searchParams: Pro
   if (readFailed) {
     return (
       <>
-        <PageTitle title="Forecast" description={`For ${year.label}.`} />
+        {header(`For ${year.label}.`)}
         <section className="surface border-destructive/40 p-4">
           <h2 className="mb-1 text-sm font-semibold text-destructive">The forecast could not be worked out</h2>
           <p className="text-sm text-muted-foreground">
@@ -86,9 +89,7 @@ export default async function ForecastPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageTitle title="Forecast" description={`Expected enrolments for ${year.label}: places already held, plus the pipeline in flight weighted by the last twelve months' conversion.`}>
-        <Link href="/staff/analytics" className="text-sm underline">Analytics</Link>
-      </PageTitle>
+      {header(`Expected enrolments for ${year.label}: places already held, plus the pipeline in flight weighted by the last twelve months' conversion.`)}
       <form method="get" className="mb-5 flex flex-wrap items-end gap-2">
         <NativeSelect name="year" defaultValue={year.id} className="w-48">
           {(years ?? []).map((y) => <option key={y.id} value={y.id}>{y.label}{y.is_current ? " (current)" : ""}</option>)}
