@@ -111,6 +111,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         {tab("done", "Done")}
       </div>
 
+      {/* A link from the dashboard narrows to one kind of open task and
+          matches no tab, so say what the list holds and the way back. */}
+      {sp.filter === "open" || sp.type ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Only {sp.filter === "open" ? "open " : ""}tasks{sp.type ? ` of type “${sp.type.replace(/_/g, " ")}”` : ""}, as counted on the dashboard.{" "}
+          <Link href="/staff/tasks" className="text-primary underline underline-offset-2">Show all tasks</Link>
+        </p>
+      ) : null}
+
       {tasks && tasks.length > 0 ? (
         <ul className="space-y-2">
           {tasks.map((t) => {

@@ -51,7 +51,7 @@ const PAGE = 50;
 
 /** The dashboard's narrowings, by what its count is: the list has to hold the same families. */
 const WAITING: Record<string, { ms: number; words: string }> = {
-  "48h": { ms: 48 * 3_600_000, words: "enquired more than 48 hours ago" },
+  "48h": { ms: 48 * 3_600_000, words: "who enquired more than 48 hours ago" },
 };
 
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -80,6 +80,19 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   // disagree with the number that was clicked.
   const step = isConversionStepKey(sp.step) ? sp.step : null;
   const range = step ? resolveRange(sp.from, sp.to, now) : null;
+
+  // The page's other reads do not depend on the step, so they start now
+  // rather than waiting behind its facts.
+  const others = Promise.all([
+    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
+    loadAdmissionsHeaderData(supabase, userId),
+    supabase.from("intakes").select("id, label, starts_on").order("starts_on"),
+    // The months children are actually starting, rather than every month a
+    // calendar could offer: a filter for a month nobody is joining in is a
+    // filter that always returns nothing.
+    supabase.from("applications").select("start_month").not("start_month", "is", null),
+  ]);
+
   let stepTotal = 0;
   let stepIds: string[] | null = null;
   if (step && range) {
@@ -94,7 +107,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     .from("applications")
     .select(
       "id, reference, child_first_name, child_last_name, status, next_action, next_action_due_at, created_at, owner_staff_id, requires_assessment, start_month, campuses(name), grades!applications_grade_id_fkey(name), intakes!applications_intake_id_fkey(label), contacts!applications_contact_id_fkey(first_name, last_name, email), staff_profiles!applications_owner_staff_id_fkey(full_name)",
-      { count: "exact" }
+      // A step's total is already known from its facts.
+      { count: stepIds ? undefined : "exact" }
     )
     .order("created_at", { ascending: false });
   if (stepIds) query = query.in("id", stepIds);
@@ -119,26 +133,21 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     }
   }
 
-  const [{ data: rows, count, error }, { data: campuses }, header, { data: intakes }, { data: monthRows }] = await Promise.all([
-    query,
-    supabase.from("v_accessible_campuses").select("id, name").order("sort_order"),
-    loadAdmissionsHeaderData(supabase, userId),
-    supabase.from("intakes").select("id, label, starts_on").order("starts_on"),
-    // The months children are actually starting, rather than every month a
-    // calendar could offer: a filter for a month nobody is joining in is a
-    // filter that always returns nothing.
-    supabase.from("applications").select("start_month").not("start_month", "is", null),
-  ]);
+  const [{ data: rows, count, error }, [{ data: campuses }, header, { data: intakes }, { data: monthRows }]] = await Promise.all([query, others]);
   if (error) throw new Error(error.message);
 
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+  // A step's page in the order analytics listed it, newest enquiry first.
+  if (stepIds) {
+    const order = new Map(stepIds.map((id, i) => [id, i]));
+    rows?.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  }
 
   // Attention flags from the last generated summary, where one exists, and
   // which of these children hold a scholarship — batched together, because a
   // row that says "Parent to book assessment" against a scholarship child is
   // the same wrong word the parent's own screen used to show.
-  // A step's page in the order analytics listed it, newest enquiry first.
-  if (stepIds) rows?.sort((a, b) => stepIds.indexOf(a.id) - stepIds.indexOf(b.id));
   const ids = (rows ?? []).map((r) => r.id);
   const [{ data: summaries }, { data: awards }] = ids.length
     ? await Promise.all([

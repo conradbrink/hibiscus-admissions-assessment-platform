@@ -38,7 +38,13 @@ export function isConversionStepKey(v: string | undefined): v is ConversionStepK
   return v !== undefined && Object.hasOwn(NOT_CONVERTED, v);
 }
 
-/** The step's families, newest enquiry first: the order the applicant list uses. */
+/**
+ * The step's families, newest enquiry first: the order the applicant list uses.
+ * Ties go by id, so families enquiring in the same instant (an import) fall on
+ * the same page every time the list is read.
+ */
 export function notConverted(rows: readonly FactRow[], step: ConversionStepKey): FactRow[] {
-  return rows.filter(NOT_CONVERTED[step]).sort((a, b) => b.enquired_at.localeCompare(a.enquired_at));
+  return rows
+    .filter(NOT_CONVERTED[step])
+    .sort((a, b) => b.enquired_at.localeCompare(a.enquired_at) || a.application_id.localeCompare(b.application_id));
 }

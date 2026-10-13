@@ -55,6 +55,13 @@ describe("the families behind a conversion step", () => {
     expect(notConverted(rows, "enquiryToBooking").map((r) => r.enquired_at)).toEqual(["2026-08-09T09:00:00Z", "2026-08-01T09:00:00Z"]);
   });
 
+  it("breaks a tie in enquiry time by id, so a page holds the same families every read", () => {
+    const at = "2026-08-01T09:00:00Z";
+    const rows = [row({ application_id: "b", enquired_at: at }), row({ application_id: "a", enquired_at: at })];
+    expect(notConverted(rows, "enquiryToBooking").map((r) => r.application_id)).toEqual(["a", "b"]);
+    expect(notConverted([...rows].reverse(), "enquiryToBooking").map((r) => r.application_id)).toEqual(["a", "b"]);
+  });
+
   it("recognises only its own step names", () => {
     expect(Object.keys(NOT_CONVERTED).every(isConversionStepKey)).toBe(true);
     expect(isConversionStepKey("toString")).toBe(false);

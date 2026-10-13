@@ -11,6 +11,16 @@ import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
 /**
+ * The dashboard's two payment counts, as views of this page. Each holds the
+ * same requests its count does, of either kind, so the number clicked is the
+ * number found.
+ */
+const SHOWS = {
+  overdue: { title: "Overdue", note: "Owed, past the date it was due.", match: (r: { status: string; due_at: string | null }, now: number) => ["required", "failed", "partially_paid"].includes(r.status) && r.due_at !== null && new Date(r.due_at).getTime() < now },
+  failed: { title: "Not completed", note: "The parent has been emailed a link to try again.", match: (r: { status: string }) => r.status === "failed" },
+} as const;
+
+/**
  * Finance's queue: what is owed, what is being confirmed, what went wrong, and
  * what came in.
  *
@@ -23,16 +33,6 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * Campus scoping applies through the policies, which now read
  * `payment_requests.campus_id` directly rather than joining the application.
  */
-/**
- * The dashboard's two payment counts, as views of this page. Each holds the
- * same requests its count does, of either kind, so the number clicked is the
- * number found.
- */
-const SHOWS = {
-  overdue: { title: "Overdue", note: "Owed, past the date it was due.", match: (r: { status: string; due_at: string | null }, now: number) => ["required", "failed", "partially_paid"].includes(r.status) && r.due_at !== null && new Date(r.due_at).getTime() < now },
-  failed: { title: "Not completed", note: "The parent has been emailed a link to try again.", match: (r: { status: string }) => r.status === "failed" },
-} as const;
-
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const sp = await searchParams;
   const show = sp.show && Object.hasOwn(SHOWS, sp.show) ? SHOWS[sp.show as keyof typeof SHOWS] : null;
