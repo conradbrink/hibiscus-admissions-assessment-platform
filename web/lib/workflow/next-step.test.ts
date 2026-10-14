@@ -283,6 +283,19 @@ describe("journey milestones, after review", () => {
     expect(toOffer.decision?.label).toBe("Accepted");
     expect(toOffer.payment).toBeUndefined();
   });
+  it("reads a new letter sent after a move back as sent, not as the old letter's acceptance", () => {
+    const m = journeyMilestones(
+      [
+        ev("offer.sent", "2026-10-14T10:00:00Z"),
+        ev("offer.withdrawn", "2026-10-13T10:00:01Z"),
+        ev("application.moved_to_stage", "2026-10-13T10:00:00Z", "", { to: "offer", direction: "back" }),
+        ev("offer.accepted", "2026-10-12T10:00:00Z"),
+        ev("offer.sent", "2026-10-11T10:00:00Z"),
+      ],
+      () => "Fiona"
+    );
+    expect(m.offer).toEqual({ at: "2026-10-14T10:00:00Z", label: "Offer sent", by: "Fiona" });
+  });
   it("calls an assessment check-in a check-in, and a visit a visit", () => {
     expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for assessment")], () => null).assessment?.label).toBe("Checked in");
     expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for visit")], () => null).assessment?.label).toBe("Visited");

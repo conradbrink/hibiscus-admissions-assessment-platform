@@ -8,7 +8,7 @@ import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { actorName, journeyMilestones, MILESTONE_EVENT_TYPES, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { backPosition, MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
+import { backPosition, mayMoveTo, MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
 import { moneyHeldReason } from "@/lib/workflow/stage-move-actions";
 
 /**
@@ -230,7 +230,7 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
   // this person may see the child; payments they may not see are still what
   // decides, which is why it reads through the service role.
   const moneyHeld =
-    can(permissions, "applications.move_stage") && backPosition(app.status) !== null ? await moneyHeldReason(createAdminClient(), app) : null;
+    mayMoveTo(permissions, "offer", "back") && backPosition(app.status) !== null ? await moneyHeldReason(createAdminClient(), app) : null;
 
   const staffName = (staffId: string) => (actors ?? []).find((m) => m.id === staffId)?.full_name ?? null;
   const latest = events?.[0] ?? null;

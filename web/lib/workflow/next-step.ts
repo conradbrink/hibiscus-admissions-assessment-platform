@@ -608,7 +608,7 @@ type StageRule = { type: string; label: string | ((payload: Record<string, unkno
  * The events that mark each stage done, in order of preference: the first
  * rule with a match wins, and within it the newest event. `undoneBy` names
  * events that take a stage back: an offer sent and then withdrawn is not an
- * offer out, so the newest of the stage's events decides. A child moved back
+ * offer out, and nothing before the newest of them counts. A child moved back
  * to Decision is waiting on a new decision, and the old one under the bar
  * would read as if it had been made already.
  */
@@ -665,11 +665,13 @@ export function journeyMilestones(events: readonly (EventLike & { summary?: stri
   const out: Partial<Record<JourneyStage, Milestone>> = {};
   for (const stage of Object.keys(STAGE_EVENTS) as JourneyStage[]) {
     const { rules, undoneBy = [] } = STAGE_EVENTS[stage];
-    const undone = (x: EventLike) => undoneBy.some((u) => undoes(u, x));
-    const newest = events.find((x) => undone(x) || rules.some((r) => r.type === x.type));
-    if (!newest || undone(newest)) continue;
+    // Only what happened since the stage was last undone: a letter accepted,
+    // withdrawn by a move back, and followed by a new letter sent must read
+    // "Offer sent", not the old acceptance.
+    const cut = events.findIndex((x) => undoneBy.some((u) => undoes(u, x)));
+    const since = cut === -1 ? events : events.slice(0, cut);
     for (const rule of rules) {
-      const e = events.find((x) => x.type === rule.type);
+      const e = since.find((x) => x.type === rule.type);
       if (!e) continue;
       out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payloadOf(e), e), by: actorName(e, nameOf) };
       break;

@@ -364,13 +364,18 @@ export async function moveToStage(_: StaffActionState, formData: FormData): Prom
       })
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    const direction = moveDirection(app.status, parsed.target) ?? "forward";
+    const way = moveDirection(app.status, parsed.target);
     // The page posts the way the officer saw. A child who moved on while it
     // was open would otherwise turn a confirmed "Move to Decision" into a
     // move back that withdraws their letter, with no warning.
-    if (parsed.direction && parsed.direction !== direction) {
-      throw new Error(`${app.child_first_name} has moved since this page was loaded, so this would now be ${direction === "back" ? "a move back" : "a move forward"}. Reload the page and choose again.`);
+    if (parsed.direction && parsed.direction !== way) {
+      throw new Error(
+        way
+          ? `${app.child_first_name} has moved since this page was loaded, so this would now be ${way === "back" ? "a move back" : "a move forward"}. Reload the page and choose again.`
+          : `${app.child_first_name} has moved since this page was loaded and can no longer be moved to ${moveTargetLabel(parsed.target)}. Reload the page.`
+      );
     }
+    const direction = way ?? "forward";
     if (!mayMoveTo(ctx.permissions, parsed.target, direction)) {
       throw new Error(
         direction === "back"
