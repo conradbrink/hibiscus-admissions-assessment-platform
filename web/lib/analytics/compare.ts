@@ -1,4 +1,4 @@
-import { conversion, cycleTimes, funnelCounts, rate, wholePercent, type Breakdown, type FactRow, type FunnelCounts } from "@/lib/analytics/breakdown";
+import { conversion, cycleTimes, funnelCounts, isDeferred, rate, wholePercent, type Breakdown, type FactRow, type FunnelCounts } from "@/lib/analytics/breakdown";
 
 /**
  * The reading layer over the funnel: a handful of headline figures, each
@@ -103,7 +103,7 @@ export type DeferredSummary = { count: number; dueWithin: number; horizon: strin
  * "soon" is exactly what it does not say.
  */
 export function deferredSummary(rows: FactRow[], horizon: string): DeferredSummary {
-  const deferred = rows.filter((r) => r.status === "deferred");
+  const deferred = rows.filter(isDeferred);
   return {
     count: deferred.length,
     dueWithin: deferred.filter((r) => r.deferred_until !== null && r.deferred_until <= horizon).length,

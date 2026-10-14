@@ -9,7 +9,7 @@ import {
   OPPORTUNITY_STATUS_LABELS,
   OPPORTUNITY_STATUS_TONE,
 } from "@/lib/crm/labels";
-import { formatDate, formatDateTime } from "@/lib/format-date";
+import { formatDate, formatDateTime, schoolDaysBetween } from "@/lib/format-date";
 import type { CampaignStatus, EventRegistrationStatus, LifecycleStage, OpportunityStatus } from "@/lib/supabase/types";
 
 /** The small, shared pieces every CRM page draws with. */
@@ -55,7 +55,9 @@ export function Tags({ tags }: { tags: readonly string[] }) {
 /** "3 days ago", or the date once it is more than a fortnight. */
 export function Ago({ value }: { value: string | null | undefined }) {
   if (!value) return <span className="text-muted-foreground">never</span>;
-  const days = Math.floor((new Date().getTime() - new Date(value).getTime()) / 86_400_000);
+  // Calendar days in the school's zone, the same count the applicant list's
+  // Last contacted uses (`schoolDaysBetween`), so the two screens agree.
+  const days = schoolDaysBetween(value, new Date()) ?? 0;
   if (days < 0) return <span>{formatDate(value)}</span>;
   if (days === 0) return <span title={formatDateTime(value)}>today</span>;
   if (days === 1) return <span title={formatDateTime(value)}>yesterday</span>;

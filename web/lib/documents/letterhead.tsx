@@ -22,7 +22,12 @@ const s = StyleSheet.create({
   rightHead: { fontFamily: "Helvetica-Bold", color: "#1f2937" },
   docLine: { fontSize: 8.5, color: "#6b7280", textAlign: "right", marginTop: -8, marginBottom: 10 },
   footer: { position: "absolute", bottom: 24, left: 44, right: 44, fontSize: 7.5, color: "#9ca3af", lineHeight: 1.3, paddingRight: 40 },
-  pageNo: { position: "absolute", bottom: 24, right: 44, fontSize: 8, color: "#9ca3af" },
+  // `lineHeight: 0` is load-bearing. Text drawn by `render` that has any line
+  // height of its own, or inherits one from the page (every document here
+  // sets one), is laid out with no room and never printed: react-pdf 4.9's
+  // behaviour, found when the first many-page report had no page numbers.
+  // The width keeps "12 / 12" right-aligned under the right margin.
+  pageNo: { position: "absolute", bottom: 24, right: 44, width: 40, textAlign: "right", fontSize: 8, lineHeight: 0, color: "#9ca3af" },
 });
 
 /** What the letterhead says about the campus the document comes from. */
