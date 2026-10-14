@@ -74,25 +74,37 @@ export type FunnelCounts = {
   withdrawn: number;
 };
 
+export type FunnelKey = keyof FunnelCounts;
+
+/**
+ * Which families each funnel figure counts, one rule per figure.
+ * `funnelCounts` is these rules counted, and the applicant list analytics
+ * opens from a figure is the same rule filtered, so the number on the page
+ * and the families behind it are one list rather than two that can drift.
+ * Booking, attendance and the assessment itself count only the routes that
+ * have an assessment.
+ */
+export const FUNNEL_RULES: Record<FunnelKey, (r: FactRow) => boolean> = {
+  enquiries: () => true,
+  bookings: (r) => r.requires_assessment && Boolean(r.booked_at),
+  attended: (r) => r.requires_assessment && Boolean(r.attended_at),
+  noShows: (r) => r.requires_assessment && Boolean(r.no_show_at),
+  completed: (r) => r.requires_assessment && Boolean(r.assessed_at),
+  decided: (r) => Boolean(r.decided_at),
+  approved: (r) => r.decision_outcome === "approved" || APPROVED_STATUSES.has(r.status),
+  waitlisted: (r) => r.decision_outcome === "waitlisted" || r.status === "waitlisted",
+  declined: (r) => r.decision_outcome === "declined" || r.status === "declined",
+  offered: (r) => Boolean(r.offered_at),
+  accepted: (r) => Boolean(r.accepted_at),
+  paid: (r) => Boolean(r.paid_at),
+  enrolled: (r) => Boolean(r.enrolled_at),
+  withdrawn: (r) => r.status === "withdrawn",
+};
+
 export function funnelCounts(rows: FactRow[]): FunnelCounts {
-  const assessed = rows.filter((r) => r.requires_assessment);
-  const approvedByDecision = rows.filter((r) => r.decision_outcome === "approved" || APPROVED_STATUSES.has(r.status)).length;
-  return {
-    enquiries: rows.length,
-    bookings: assessed.filter((r) => r.booked_at).length,
-    attended: assessed.filter((r) => r.attended_at).length,
-    noShows: assessed.filter((r) => r.no_show_at).length,
-    completed: assessed.filter((r) => r.assessed_at).length,
-    decided: rows.filter((r) => r.decided_at).length,
-    approved: approvedByDecision,
-    waitlisted: rows.filter((r) => r.decision_outcome === "waitlisted" || r.status === "waitlisted").length,
-    declined: rows.filter((r) => r.decision_outcome === "declined" || r.status === "declined").length,
-    offered: rows.filter((r) => r.offered_at).length,
-    accepted: rows.filter((r) => r.accepted_at).length,
-    paid: rows.filter((r) => r.paid_at).length,
-    enrolled: rows.filter((r) => r.enrolled_at).length,
-    withdrawn: rows.filter((r) => r.status === "withdrawn").length,
-  };
+  const counts = {} as FunnelCounts;
+  for (const key of Object.keys(FUNNEL_RULES) as FunnelKey[]) counts[key] = rows.filter(FUNNEL_RULES[key]).length;
+  return counts;
 }
 
 export function rate(n: number, d: number): number | null {

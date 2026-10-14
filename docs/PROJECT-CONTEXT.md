@@ -822,6 +822,43 @@ now covers the analytics download and the per-child JSON only. The
 super administrator's, because it carries finance permissions an admissions
 manager does not hold (`can_grant_role`).
 
+### The families behind a figure, and downloading the list (14 October 2026)
+
+Asked for by the school's management: click a number on Insights and see
+which families it is, then take that list into a report.
+
+- **Every count opens its families.** The headline figures, each funnel
+  stage, the deferred note, the three breakdown lists and every cell of the
+  breakdown table link to the applicant list with `reached` (a funnel
+  figure), optionally `by`/`value` (one breakdown group), and the period and
+  campus (`drillHref`, `drillFrom` in `lib/analytics/drill-down.ts`). The
+  conversion steps' `step` links work as before and compose with a group.
+- **One rule per figure.** `FUNNEL_RULES` in `breakdown.ts` is what
+  `funnelCounts` counts and what the list filters, so "Approved 20" cannot
+  open 19. A test asserts the list's length equals the count for every
+  figure, for the deferred note, and for a breakdown group.
+- **The list and its downloads are one reading** (`lib/applicant-list.ts`):
+  the filters a query string names, the query, and each applicant as the
+  line both draw. `/staff/applications/export?format=xlsx|pdf` takes the
+  page's own query string, reads the whole list under the caller's RLS (ids
+  in slices of 100, pages of 1,000, capped at 5,000 with a note), and audits
+  `applications.exported`. Excel is the hand-rolled writer in
+  `lib/enrolment/xlsx.ts`, every cell text, dates `YYYY-MM-DD` so they sort;
+  the PDF is `lib/documents/applicant-list-pdf.tsx`, landscape, column heads
+  repeated on each page.
+- **Its own permission**, `applications.export`, granted to Management and
+  the admissions manager and ticked for any other role under Staff & roles.
+  Not `data.export`: that one carries the analytics CSV and per-child JSON,
+  and the school wants who may take a list of families decided on its own.
+- **Last contacted** on the list and in both files is `families.last_contact_at`,
+  the CRM's Last contact, read through the contact (hinted
+  `families!contacts_family_id_fkey`: contacts and families are joined three
+  ways). It counts every message either way, automatic ones included, and
+  Log contact; there is no separate record of a phone call nobody logged.
+- **Page numbers.** `LetterFoot`'s page number had never printed on any PDF:
+  react-pdf 4.9 lays out `render` text that has a line height (every page
+  here sets one) with no room. It now sets `lineHeight: 0`.
+
 ### The pre-schools' free trial week
 
 A child joining Nursery to Pre-Reception sits no assessment, and the
