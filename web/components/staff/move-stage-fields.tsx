@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import { MOVE_TARGETS, type MoveTarget } from "@/lib/workflow/stage-move";
+import type { ApplicationStatus } from "@/lib/supabase/types";
+import { MOVE_TARGETS, moveDirection, moveTargetExplain, moveTargetLabel, type MoveTarget } from "@/lib/workflow/stage-move";
 
 /**
  * The fields inside Move to stage: where to, why, and — only for
@@ -16,8 +17,11 @@ import { MOVE_TARGETS, type MoveTarget } from "@/lib/workflow/stage-move";
  * `optional` is the Add an applicant form, where most families are not moved
  * at all: it starts on "do not move", and asks for a reason only once a stage
  * is chosen.
+ *
+ * `status` says which way each choice goes: from a child at Payment, Decision
+ * and Offer lie behind, and read "Back to Decision" and "Back to Offer".
  */
-export function MoveStageFields({ targets, optional = false }: { targets: readonly MoveTarget[]; optional?: boolean }) {
+export function MoveStageFields({ targets, status, optional = false }: { targets: readonly MoveTarget[]; status: ApplicationStatus; optional?: boolean }) {
   const shown = MOVE_TARGETS.filter((t) => targets.includes(t.key));
   const fallback: MoveTarget | "" = optional ? "" : (shown[0]?.key ?? "");
   const [picked, setTarget] = useState<MoveTarget | "">(fallback);
@@ -34,11 +38,11 @@ export function MoveStageFields({ targets, optional = false }: { targets: readon
         <NativeSelect name="target" value={target} onChange={(e) => setTarget(e.target.value as MoveTarget | "")} className="w-full sm:w-64">
           {optional ? <option value="">Do not move — start at the enquiry</option> : null}
           {shown.map((t) => (
-            <option key={t.key} value={t.key}>{t.label}</option>
+            <option key={t.key} value={t.key}>{moveTargetLabel(t.key, moveDirection(status, t.key) ?? "forward")}</option>
           ))}
         </NativeSelect>
       </label>
-      {chosen ? <p className="text-xs text-muted-foreground">{chosen.explain}</p> : null}
+      {chosen ? <p className="text-xs text-muted-foreground">{moveTargetExplain(chosen.key, moveDirection(status, chosen.key) ?? "forward")}</p> : null}
       {target === "registration" ? (
         <label className="flex items-start gap-2 text-xs">
           <input type="checkbox" name="alreadyPaid" className="mt-0.5" />

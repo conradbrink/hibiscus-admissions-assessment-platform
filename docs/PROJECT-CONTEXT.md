@@ -749,6 +749,14 @@ lifecycle stage without marking it manual.
 
 ### Move to stage, and three smaller asks (14 October 2026)
 
+**Moving back** was added the same day: from Offer, Payment or Registration
+to Decision or to a fresh Offer draft (`moveDirection`, `backPosition`,
+`moveBack`; needs `offers.approve`). Every letter in play or accepted is
+withdrawn with an `offer.withdrawn` line, unpaid requests are cancelled so the
+one-open-request index does not refuse the next acceptance, and the move is
+refused while any payment holds money (`assertNoMoneyHeld`), because that
+money belongs to the withdrawn letter's request.
+
 **Move to stage.** An admissions officer (`applications.move_stage`, held by
 the admissions manager; Offer also needs `decisions.override` and Payment
 `offers.approve` as well, because the move records an approval and approves

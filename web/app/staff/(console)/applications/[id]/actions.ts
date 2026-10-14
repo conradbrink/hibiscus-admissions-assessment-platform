@@ -38,7 +38,7 @@ import {
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
 import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
-import { mayMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
 import { resolveFeeSchedule } from "@/lib/offers/render";
@@ -346,7 +346,8 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
 
 /**
  * Move to stage: an admissions officer moves the child forward along the
- * journey, skipping the steps between, with a reason. Its own permission
+ * journey, skipping the steps between, or back to Decision or Offer, with a
+ * reason. Its own permission
  * (`applications.move_stage`) rather than `decisions.override`, because it
  * also speaks for the family (an acceptance) and for finance (a payment
  * request closed or left for them), and a school may want those apart.
@@ -361,10 +362,15 @@ export async function moveToStage(_: StaffActionState, formData: FormData): Prom
         alreadyPaid: z.literal("on").optional(),
       })
       .parse(Object.fromEntries(formData));
-    if (!mayMoveTo(ctx.permissions, parsed.target)) {
-      throw new Error(`Moving a child to ${moveTargetLabel(parsed.target)} also approves on the way, and your account cannot do that.`);
-    }
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    const direction = moveDirection(app.status, parsed.target) ?? "forward";
+    if (!mayMoveTo(ctx.permissions, parsed.target, direction)) {
+      throw new Error(
+        direction === "back"
+          ? `Moving a child ${moveTargetLabel(parsed.target, "back").toLowerCase()} withdraws their offer, and your account cannot do that.`
+          : `Moving a child to ${moveTargetLabel(parsed.target)} also approves on the way, and your account cannot do that.`
+      );
+    }
     await onMovedToStage(admin, app, { target: parsed.target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
     // The emails the stage landed on sends, now rather than on the next sweep.
     drainSoon();

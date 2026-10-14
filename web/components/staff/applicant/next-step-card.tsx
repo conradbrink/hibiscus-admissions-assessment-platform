@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type { NextStep, PrimaryAction } from "@/lib/workflow/next-step";
 import { DecisionPanel } from "@/components/staff/applicant/decision-panel";
 import { MoveStageFields } from "@/components/staff/move-stage-fields";
-import type { MoveTarget } from "@/lib/workflow/stage-move";
+import { moveDirection, type MoveTarget } from "@/lib/workflow/stage-move";
 import { ApproveOfferForm, assessmentResult, bandClass, OfferEditor, OfferPreview, OfferSummary, rulesRecommendation, type OfferSettings } from "@/components/staff/applicant/records";
 import { generateOffer, sendOutcome, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
@@ -129,16 +129,24 @@ export function NextStepCard({
           className="mt-3 max-w-xl space-y-3"
           confirmBy={{
             field: "target",
+            // Decision and Offer can lie behind the child: then the question is
+            // about the letter that is withdrawn, not the steps skipped.
             messages: {
-              decision: `Move ${w.app.child_first_name} to Decision without an assessment? A booked assessment is cancelled.`,
-              offer: `Accept ${w.app.child_first_name} and draft the offer? The skipped steps are recorded as done by you.`,
+              decision:
+                moveDirection(w.app.status, "decision") === "back"
+                  ? `Move ${w.app.child_first_name} back to Decision? Their offer is withdrawn and any unpaid payment is cancelled. The parent is not emailed.`
+                  : `Move ${w.app.child_first_name} to Decision without an assessment? A booked assessment is cancelled.`,
+              offer:
+                moveDirection(w.app.status, "offer") === "back"
+                  ? `Move ${w.app.child_first_name} back to Offer? The letter the family has is withdrawn and a new one is drafted for your approval.`
+                  : `Accept ${w.app.child_first_name} and draft the offer? The skipped steps are recorded as done by you.`,
               payment: `Accept ${w.app.child_first_name}, approve the offer and record the family's acceptance? The parent is emailed what to pay.`,
               registration: `Move ${w.app.child_first_name} straight to registration? Any offer in play is withdrawn and the parent is emailed the registration form.`,
             },
           }}
         >
           {idField}
-          <MoveStageFields targets={moveTargets} />
+          <MoveStageFields targets={moveTargets} status={w.app.status} />
         </ActionForm>
       </details>
     ) : null;

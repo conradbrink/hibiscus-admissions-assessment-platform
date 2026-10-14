@@ -837,9 +837,21 @@ What each stage does, and what the parent hears:
 | Payment | Accepted, the offer approved without emailing it, and the family's acceptance recorded on their behalf | Only what to pay (or, when nothing is payable, that registration is next) |
 | Registration | Any offer in play is withdrawn; registration opens | Only that registration is due — no payment messages |
 
-Only stages ahead of the child are offered; a child cannot be moved back.
 Every step skipped is on the timeline with your name and reason, and the
-journey bar leaves the skipped stages unticked. A letter waits for approval
+journey bar leaves the skipped stages unticked.
+
+**Moving back.** From Offer, Payment or Registration a child can also go
+**Back to Decision** or **Back to Offer** (needs **offers.approve**):
+
+| Back to | What happens | The parent hears |
+|---|---|---|
+| Decision | Any offer the family has, or accepted, is withdrawn; an unpaid payment is cancelled; a "Decide again" task opens | Nothing until a new decision and a new offer are sent |
+| Offer | The same, and a new letter is drafted at once with the old one's conditions; it waits for your approval | The new letter, once you approve and send it |
+
+The family's signed acceptance of the old letter stays on file as what
+happened. A move back is **refused once money has been received** for the
+child: refund it under Payments first (or move them forward instead). It is
+not offered on screen in that case. A letter waits for approval
 after Offer even when automatic offer approval is switched on. Registration
 reminders to a family moved on by hand say only that registration is due,
 never that "the place is secured", until a payment has been received.
