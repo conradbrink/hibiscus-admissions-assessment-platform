@@ -98,13 +98,18 @@ export async function startCheckout(
   const ours = new Date(Date.now() + settings.paymentAttemptMinutes * 60_000);
   const expiresAt = ours < checkout.expiresAt ? ours : checkout.expiresAt;
 
+  // Still pending, or not at all: the row can be closed while the gateway
+  // call is out (an officer moving the child back expires it), and a parent
+  // sent to the gateway then would pay against a request nobody holds.
   const { data: processing, error: uErr } = await admin
     .from("payments")
     .update({ status: "processing", company_ref: companyRef, provider_ref: checkout.providerRef, expires_at: expiresAt.toISOString() })
     .eq("id", pending.id)
+    .eq("status", "pending")
     .select("*")
-    .single();
-  if (uErr || !processing) throw new WorkflowError(uErr?.message ?? "payment update failed", "database");
+    .maybeSingle();
+  if (uErr) throw new WorkflowError(uErr.message, "database");
+  if (!processing) throw new WorkflowError("This payment is no longer open. Please reload the page.", "status_conflict");
 
   await opts.onStarted(processing);
   return { payment: processing, redirectUrl: checkout.redirectUrl };

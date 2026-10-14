@@ -452,23 +452,26 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   if (error) throw new WorkflowError(error.message, "database");
   const rows = payments.data ?? [];
   const name = app.child_first_name;
-  if (rows.some((p) => p.status === "processing")) {
-    return { passing: true, reason: `An online payment for ${name} is still being confirmed. Wait for it, or check it with the gateway, before moving them back.` };
-  }
+
   const held = rows.filter((p) => p.status === "succeeded" && Number(p.amount_minor) > 0);
   if (held.length) {
     const total = held.reduce((sum, p) => sum + Number(p.amount_minor), 0);
     return { passing: false, reason: `${formatMoney(total, held[0].currency)} has been received for ${name}, so their letter cannot be withdrawn. Finance would have to refund it under Payments first.` };
   }
-  // An attempt that timed out or failed can still settle at the gateway for
-  // its checkout window (the parent finishing on their bank's page, then the
-  // revive sweep or their "Check again"), and would land on a request this
-  // move had cancelled.
+  // An attempt still being confirmed, or one that timed out or failed, can
+  // still settle at the gateway for its checkout window (the parent finishing
+  // on their bank's page, then the revive sweep or their "Check again"), and
+  // would land on a request this move had cancelled. A "not paid" from the
+  // gateway inside that window is not final either, so nothing but the
+  // window closing lifts this, and the note says only that.
   const since = new Date(recentAttemptsSince()).getTime();
-  const live = rows.filter((p) => (p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since);
+  const live = rows.filter(
+    (p) => p.status === "processing" || ((p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since)
+  );
   if (live.length) {
     const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
-    return { passing: true, reason: `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. Move them back after that, or ask finance to check it with the gateway first.` };
+    const until = clears.getTime() > Date.now() ? ` until ${formatDateTime(clears)}` : "";
+    return { passing: true, reason: `An online payment ${name}'s family started could still go through at the gateway${until}. If it has not gone through by then, you can move them back.` };
   }
   if (requests.count) {
     return { passing: false, reason: `A payment for ${name} is part-paid or still being confirmed. Finance would have to settle or refund it under Payments before they can be moved back.` };
