@@ -19,9 +19,10 @@ import {
   weeklySeries,
   type Dimension,
   type FactRow,
+  type FunnelKey,
 } from "@/lib/analytics/breakdown";
 import { conversionSteps, deferredSummary, delta, funnelStages, headline, previousRange, shares, weakestStep, type ConversionStepKey } from "@/lib/analytics/compare";
-import { notConverted, NOT_CONVERTED_LABELS } from "@/lib/analytics/drill-down";
+import { drillHref, isFigureKey, notConverted, NOT_CONVERTED_LABELS, type FigureKey } from "@/lib/analytics/drill-down";
 import { readFacts } from "@/lib/analytics/facts";
 import { activePreset, RANGE_PRESETS, rangeFor, resolveRange } from "@/lib/analytics/ranges";
 import { formatDateRange, toSchoolDateString } from "@/lib/format-date";
@@ -66,17 +67,23 @@ function drillDowns(rows: FactRow[], range: { from: string; to: string }, campus
     (Object.keys(NOT_CONVERTED_LABELS) as ConversionStepKey[]).map((step) => {
       const count = notConverted(rows, step).length;
       const words = NOT_CONVERTED_LABELS[step];
-      return [
-        step,
-        {
-          href: `/staff/applications?${new URLSearchParams({ step, from: range.from, to: range.to, ...(campus ? { campus } : {}) })}`,
-          label: `${fmtCount(count)} ${count === 1 ? words.one : words.many}`,
-          count,
-        },
-      ];
+      return [step, { href: drillHref(range, campus, { step }), label: `${fmtCount(count)} ${count === 1 ? words.one : words.many}`, count }];
     })
   ) as Record<ConversionStepKey, { href: string; label: string; count: number }>;
 }
+
+/** The breakdown table's count columns, each with the funnel figure it is a count of. */
+const BREAKDOWN_COLUMNS: ReadonlyArray<{ label: string; figure: FunnelKey }> = [
+  { label: "Enquiries", figure: "enquiries" },
+  { label: "Booked", figure: "bookings" },
+  { label: "Attended", figure: "attended" },
+  { label: "No-shows", figure: "noShows" },
+  { label: "Approved", figure: "approved" },
+  { label: "Offered", figure: "offered" },
+  { label: "Accepted", figure: "accepted" },
+  { label: "Paid", figure: "paid" },
+  { label: "Enrolled", figure: "enrolled" },
+];
 
 function SectionHeading({ id, title, description }: { id: string; title: string; description?: string }) {
   return (
@@ -255,6 +262,28 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       };
   const toOffer = now.medianDaysToOffer;
 
+  // Every figure that is a number of families opens the list of exactly
+  // them: the same facts, the same period and campus, the same rule. Only for
+  // somebody who may open the applicant list, and never for a list of nobody.
+  const canList = canAccessPath(permissions, "/staff/applications");
+  const figureLink = (figure: FigureKey, count: number, group?: { dim: Dimension; key: string }, back?: { dim: Dimension }) =>
+    canList && count > 0 ? drillHref({ from, to }, sp.campus, { figure, group }, back) : undefined;
+  const deferredHref = figureLink("deferred", deferred.count);
+  const families = (n: number, words: string) => `the ${fmtCount(n)} ${n === 1 ? "family" : "families"} ${words}`;
+  const funnelLinks = Object.fromEntries(
+    stages.flatMap((s) => {
+      const href = isFigureKey(s.key) ? figureLink(s.key, s.count) : undefined;
+      return href ? [[s.key, href]] : [];
+    })
+  );
+  const groupLinks = (dim: Dimension, rows: Array<{ key: string; count: number }>) =>
+    Object.fromEntries(
+      rows.flatMap((r) => {
+        const href = figureLink("enquiries", r.count, { dim, key: r.key });
+        return href ? [[r.key, href]] : [];
+      })
+    );
+
   return (
     <>
       {header}
@@ -262,12 +291,17 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         {toolbar}
 
         <section aria-label="Headline figures" className={cn(PANEL, "mb-6 grid grid-cols-2 gap-px overflow-hidden bg-border/80 @xl:grid-cols-3 @4xl:grid-cols-6")}>
-          <Headline label="Enquiries" value={fmtCount(now.enquiries)} delta={delta(now.enquiries, then?.enquiries ?? null)} />
-          <Headline label="Enrolled" value={fmtCount(now.enrolled)} delta={delta(now.enrolled, then?.enrolled ?? null)} />
-          <Headline label="Enrolment rate" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then?.enquiryToEnrolment ?? null, "fraction")} kind="fraction" hint="of enquiries, enrolled" />
-          <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then?.offerAcceptance ?? null, "fraction")} kind="fraction" hint="of offers sent" />
-          <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then?.noShowRate ?? null, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" />
+          {/* A rate opens the families it counts as having made it (or, for
+              no-shows, having missed it); the median opens the offers it is
+              the time to. */}
+          <Headline label="Enquiries" value={fmtCount(now.enquiries)} delta={delta(now.enquiries, then?.enquiries ?? null)} href={figureLink("enquiries", counts.enquiries)} hrefLabel={families(counts.enquiries, "who enquired")} />
+          <Headline label="Enrolled" value={fmtCount(now.enrolled)} delta={delta(now.enrolled, then?.enrolled ?? null)} href={figureLink("enrolled", counts.enrolled)} hrefLabel={families(counts.enrolled, "enrolled")} />
+          <Headline label="Enrolment rate" value={pct(now.enquiryToEnrolment)} delta={delta(now.enquiryToEnrolment, then?.enquiryToEnrolment ?? null, "fraction")} kind="fraction" hint="of enquiries, enrolled" href={figureLink("enrolled", counts.enrolled)} hrefLabel={families(counts.enrolled, "enrolled")} />
+          <Headline label="Offers accepted" value={pct(now.offerAcceptance)} delta={delta(now.offerAcceptance, then?.offerAcceptance ?? null, "fraction")} kind="fraction" hint="of offers sent" href={figureLink("accepted", counts.accepted)} hrefLabel={families(counts.accepted, "who accepted an offer")} />
+          <Headline label="No-show rate" value={pct(now.noShowRate)} delta={delta(now.noShowRate, then?.noShowRate ?? null, "fraction")} kind="fraction" goodWhen="down" hint="of assessment bookings" href={figureLink("noShows", counts.noShows)} hrefLabel={families(counts.noShows, "who missed the assessment")} />
           <Headline
+            href={figureLink("offered", counts.offered)}
+            hrefLabel={families(counts.offered, "sent an offer")}
             label="Days to an offer"
             value={toOffer === null ? "—" : toOffer < 1 ? fmtDays(toOffer) : toOffer.toFixed(1)}
             unit={toOffer !== null && toOffer >= 1 ? "days" : undefined}
@@ -281,7 +315,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <div className="grid grid-cols-1 gap-6 @4xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
           <section aria-labelledby="funnel-heading" className={cn(PANEL, "p-5")}>
             <SectionHeading id="funnel-heading" title="Admissions funnel" description="How many families reached each stage." />
-            <FunnelChart stages={stages} highlight={weakestDetail?.stage ?? null} />
+            <FunnelChart stages={stages} highlight={weakestDetail?.stage ?? null} links={funnelLinks} />
             {weakestDetail || assessedNow < counts.enquiries || deferred.count > 0 ? (
               <div className="mt-5 space-y-1.5 border-t border-border/70 pt-4 text-xs text-muted-foreground">
                 {weakestDetail ? (
@@ -297,7 +331,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                     pass through on the way to enrolling. */}
                 {deferred.count > 0 ? (
                   <p>
-                    <span className="font-medium text-foreground">{fmtCount(deferred.count)} deferred</span>
+                    {deferredHref ? (
+                      <Link href={deferredHref} className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
+                        {fmtCount(deferred.count)} deferred
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-foreground">{fmtCount(deferred.count)} deferred</span>
+                    )}
                     {deferred.dueWithin > 0 ? `, ${fmtCount(deferred.dueWithin)} due back within 90 days` : ", none due back within 90 days"}.
                     Paused at the family&rsquo;s request. They count in the stages they reached, and the forecast leaves them out.
                   </p>
@@ -308,7 +348,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
           <section aria-labelledby="losing-heading" className={cn(PANEL, "p-5")}>
             <SectionHeading id="losing-heading" title="Where are we losing applicants?" description="Conversion at each step, against the period before." />
-            <StepList steps={steps} weakest={weakest} links={canAccessPath(permissions, "/staff/applications") ? drillDowns(all, { from, to }, sp.campus) : undefined} />
+            <StepList steps={steps} weakest={weakest} links={canList ? drillDowns(all, { from, to }, sp.campus) : undefined} />
           </section>
         </div>
 
@@ -316,13 +356,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <h2 id="breakdowns-heading" className="mb-3 text-base font-semibold text-foreground">Breakdowns</h2>
           <div className={cn(PANEL, "grid grid-cols-1 gap-px overflow-hidden bg-border/70 @2xl:grid-cols-2 @4xl:grid-cols-3")}>
             {[
-              { id: "heard", title: "Where families heard about us", rows: heard, wide: true },
-              { id: "campus", title: "By campus", rows: byCampus, wide: false },
-              { id: "grade", title: "By grade", rows: byGrade, wide: false },
+              { id: "heard", dim: "heard_from" as const, title: "Where families heard about us", rows: heard, wide: true },
+              { id: "campus", dim: "campus" as const, title: "By campus", rows: byCampus, wide: false },
+              { id: "grade", dim: "grade" as const, title: "By grade", rows: byGrade, wide: false },
             ].map((b) => (
               <div key={b.id} className={cn("bg-card p-5", b.wide && "@2xl:col-span-2 @4xl:col-span-1")}>
                 <h3 className="mb-3 text-sm font-semibold text-foreground">{b.title}</h3>
-                {b.rows.length ? <BarList rows={b.rows} /> : <p className="text-sm text-muted-foreground">No enquiries in this period.</p>}
+                {b.rows.length ? <BarList rows={b.rows} links={groupLinks(b.dim, b.rows)} /> : <p className="text-sm text-muted-foreground">No enquiries in this period.</p>}
               </div>
             ))}
             <div className="bg-card p-5 @2xl:col-span-2 @4xl:col-span-3">
@@ -356,24 +396,45 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                       <thead>
                         <tr>
                           <th>{DIMENSION_LABELS[dim]}</th>
-                          {["Enquiries", "Booked", "Attended", "No-shows", "Approved", "Offered", "Accepted", "Paid", "Enrolled"].map((h) => (
-                            <th key={h} className="text-right">{h}</th>
+                          {BREAKDOWN_COLUMNS.map((c) => (
+                            <th key={c.figure} className="text-right">{c.label}</th>
                           ))}
                           <th className="text-right whitespace-nowrap">Offer → accepted</th>
                           <th className="text-right whitespace-nowrap">Enquiry → enrolment</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {groups.map((g) => (
-                          <tr key={g.key}>
-                            <td className="font-medium whitespace-nowrap">{g.label}</td>
-                            {[g.counts.enquiries, g.counts.bookings, g.counts.attended, g.counts.noShows, g.counts.approved, g.counts.offered, g.counts.accepted, g.counts.paid, g.counts.enrolled].map((v, i) => (
-                              <td key={i} className="text-right tabular-nums">{fmtCount(v)}</td>
-                            ))}
-                            <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.counts.offered ? g.counts.accepted / g.counts.offered : null} /></span></td>
-                            <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.enquiryToEnrolment} /></span></td>
-                          </tr>
-                        ))}
+                        {groups.map((g) => {
+                          const group = { dim, key: g.key };
+                          // Back from the list reopens this table, grouped as it is now.
+                          const back = { dim };
+                          const groupHref = figureLink("enquiries", g.counts.enquiries, group, back);
+                          return (
+                            <tr key={g.key}>
+                              <td className="font-medium whitespace-nowrap">
+                                {groupHref ? <Link href={groupHref} className="underline-offset-4 hover:text-primary hover:underline">{g.label}</Link> : g.label}
+                              </td>
+                              {/* Each count opens its own families: this group, at this figure. */}
+                              {BREAKDOWN_COLUMNS.map((c) => {
+                                const v = g.counts[c.figure];
+                                const href = figureLink(c.figure, v, group, back);
+                                return (
+                                  <td key={c.figure} className="text-right tabular-nums">
+                                    {href ? (
+                                      <Link href={href} title={`${g.label}: ${c.label.toLowerCase()}, ${fmtCount(v)}. See them.`} className="underline-offset-4 hover:text-primary hover:underline">
+                                        {fmtCount(v)}
+                                      </Link>
+                                    ) : (
+                                      fmtCount(v)
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.counts.offered ? g.counts.accepted / g.counts.offered : null} /></span></td>
+                              <td className="text-right"><span className="inline-flex justify-end"><PctBar value={g.enquiryToEnrolment} /></span></td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

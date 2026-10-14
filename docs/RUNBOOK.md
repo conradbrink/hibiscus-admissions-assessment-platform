@@ -667,6 +667,56 @@ says why. Every download is written to the audit log with who and when.
 The parent's own uploads (birth certificate and so on) are viewed from the
 registration page.
 
+## Which families are behind a number on Insights
+
+Every figure on **Insights** that counts families opens the list of exactly
+those families: the headline figures (Enquiries, Enrolled, and the rates,
+which open the families they count as having made it — No-show rate opens
+the no-shows), each bar of the **Admissions funnel** (Approved 20 opens those
+20), the "N deferred" note under it, each row of **Where families heard about
+us**, **By campus** and **By grade**, and every number in the **Breakdown**
+table (Pre-Kindergarten × Offered opens the Pre-Kindergarten families sent an
+offer). **Where are we losing applicants?** opens the families each step has
+not converted, as before.
+
+The list says what it holds ("Offer sent, from families who enquired 14 Sept
+to 14 Oct 2026 at Bana Tlokweng") and holds the same families the figure
+counted: same period, same campus, same rule. Each family appears with where
+they are **now**, which is often further on than the figure, because the
+figure is "reached this stage" and the family kept going. **Back to
+analytics** returns to the same period. A zero is not a link.
+
+The list shows **Last contacted** for each family: when the school and the
+family last spoke. It is the same date as **Last contact** in the CRM, and
+moves with every email and WhatsApp message either way (the automatic ones
+too) and whenever somebody presses **Log contact** on the family's CRM page
+after a call or a conversation at the desk. A fortnight or more, or never,
+is marked in amber. If a family was phoned and nobody logged it, this date
+does not know: log the call.
+
+## Downloading an applicant list (Excel or PDF)
+
+Every applicant list has **Excel** and **PDF** beside its description: a
+stage, a status, a search, or a list opened from Insights. The file holds the
+whole list, not just the page of fifty on screen, with the same columns
+(including last contacted) and a line saying what it is a list of. The Excel
+file has a second sheet, **About this list**, with the same and who took it.
+The Excel file takes up to 5,000 applicants and the PDF up to 1,000 (about
+80 printed pages); past that the file says how many were left out, so narrow
+the list or take the Excel file. A list opened from Insights over a long
+period may also say that only the period's first enquiries could be read:
+Insights itself counted only those, so choose a shorter period.
+
+Who may download is ticked per role: **Settings → Staff and roles → What each
+role may do → applications.export** ("Download applicant lists as Excel or
+PDF"), then **Save** under that role. **Management** and the **Admissions
+manager** have it from the start. It only works for a role that can also see
+applicants (`applications.read`). A person sees only the campuses they may
+see, in the file as on screen. Every download is written to the audit log
+(`applications.exported`) with the filters, the count and who took it; if
+that record cannot be written, the download is refused rather than made
+unrecorded.
+
 ## Exporting students to Ed-admin
 
 **Ed-admin export** in the menu (also under Admissions → Enrolment → Student

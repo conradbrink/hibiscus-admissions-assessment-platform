@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, formatDateRange, formatDayMonth } from "@/lib/format-date";
+import { formatDate, formatDateRange, formatDayMonth, schoolDaysBetween } from "@/lib/format-date";
 
 describe("date ranges", () => {
   it("writes the year once when the range sits inside one", () => {
@@ -31,5 +31,15 @@ describe("date ranges", () => {
       if (host === undefined) delete process.env.TZ;
       else process.env.TZ = host;
     }
+  });
+});
+
+describe("days between, as the school's calendar counts them", () => {
+  it("counts calendar days in Gaborone, not 24-hour blocks", () => {
+    const noon = new Date("2026-10-14T10:00:00Z");
+    expect(schoolDaysBetween("2026-10-13T20:00:00Z", noon)).toBe(1);
+    expect(schoolDaysBetween("2026-10-13T22:30:00Z", noon)).toBe(0);
+    expect(schoolDaysBetween("2026-09-30T10:00:00Z", noon)).toBe(14);
+    expect(schoolDaysBetween("not a date", noon)).toBeNull();
   });
 });

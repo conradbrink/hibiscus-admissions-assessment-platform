@@ -13,10 +13,12 @@ import type { Database } from "@/lib/supabase/types";
  * the cap, or two pages over families imported in one transaction (one
  * `created_at` between them), could disagree.
  */
-export function readFacts(supabase: SupabaseClient<Database>, range: { from: string; to: string }, campus?: string) {
+export function readFacts(supabase: SupabaseClient<Database>, range: { from: string; to: string }, campus?: string, opts: { count?: boolean } = {}) {
   let q = supabase
     .from("v_application_facts")
-    .select("*")
+    // With `count`, how many there are as well, so a reader can tell when the
+    // cap (or the server's own row limit) cut the period short.
+    .select("*", opts.count ? { count: "exact" } : undefined)
     .gte("enquired_at", `${range.from}T00:00:00+02:00`)
     .lte("enquired_at", `${range.to}T23:59:59+02:00`)
     .order("enquired_at", { ascending: false })

@@ -24,6 +24,8 @@ export const PERMISSION_CODES = [
   "applications.delete",
   /** Move a child forward past steps (Move to stage). The admissions manager, by default. */
   "applications.move_stage",
+  /** Download an applicant list as Excel or PDF. Management and the admissions manager, by default. */
+  "applications.export",
   "assessments.deliver",
   "assessments.score.write",
   "assessments.author",
@@ -71,6 +73,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "applications.write": "Edit applicants, book and reschedule",
   "applications.delete": "Delete an applicant and everything attached to them",
   "applications.move_stage": "Move an applicant to a later stage, skipping steps, with a reason",
+  "applications.export": "Download applicant lists as Excel or PDF",
   "assessments.deliver": "Run assessment days: check in, launch, mark no-shows",
   "assessments.score.write": "Mark and amend assessment scores",
   "assessments.author": "Author questions, templates and benchmarks",
@@ -183,6 +186,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/assessments/attempts", "applications.read"],
   ["/staff/assessments", "assessments.deliver"],
   ["/staff/decisions", "applications.read"],
+  ["/staff/applications/export", "applications.export"],
   ["/staff/applications", "applications.read"],
   ["/staff/tasks", "applications.read"],
   ["/staff", "applications.read"],

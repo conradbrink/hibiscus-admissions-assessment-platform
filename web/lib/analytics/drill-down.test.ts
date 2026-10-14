@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { conversion, funnelCounts, type FactRow } from "@/lib/analytics/breakdown";
-import { conversionSteps } from "@/lib/analytics/compare";
-import { isConversionStepKey, NOT_CONVERTED, notConverted } from "@/lib/analytics/drill-down";
+import { conversion, funnelCounts, groupBy, type FactRow } from "@/lib/analytics/breakdown";
+import { conversionSteps, deferredSummary } from "@/lib/analytics/compare";
+import { drillFrom, drillHref, drillRows, drillTitle, groupLabel, isConversionStepKey, isFigureKey, NOT_CONVERTED, notConverted } from "@/lib/analytics/drill-down";
 
 function row(over: Partial<FactRow>): FactRow {
   return {
@@ -66,5 +66,70 @@ describe("the families behind a conversion step", () => {
     expect(Object.keys(NOT_CONVERTED).every(isConversionStepKey)).toBe(true);
     expect(isConversionStepKey("toString")).toBe(false);
     expect(isConversionStepKey(undefined)).toBe(false);
+  });
+});
+
+describe("the families behind a figure", () => {
+  const all = { step: null, group: null };
+
+  it("are exactly the families the funnel counted, for every figure", () => {
+    // Clicking "Offer sent 8" opens a list of eight: the figure and the list
+    // are the same rule, so this holds for every count the page draws.
+    const counts = funnelCounts(ROWS);
+    for (const key of Object.keys(counts) as Array<keyof typeof counts>) {
+      expect(drillRows(ROWS, { ...all, figure: key }).length, key).toBe(counts[key]);
+    }
+  });
+
+  it("lists the deferred families the funnel's note counts", () => {
+    const rows = [...ROWS, row({ status: "deferred", deferred_until: "2027-01-10" }), row({ status: "deferred" })];
+    expect(drillRows(rows, { ...all, figure: "deferred" }).length).toBe(deferredSummary(rows, "2027-12-31").count);
+  });
+
+  it("narrows to one breakdown group, alone or with a figure", () => {
+    const rows = [
+      row({ grade_id: "g1", grade_name: "Pre-Kindergarten", offered_at: t }),
+      row({ grade_id: "g1", grade_name: "Pre-Kindergarten" }),
+      row({ grade_id: "g4", offered_at: t }),
+    ];
+    const group = { dim: "grade" as const, key: "g1" };
+    expect(drillRows(rows, { step: null, figure: null, group }).length).toBe(2);
+    expect(drillRows(rows, { step: null, figure: "offered", group }).length).toBe(1);
+    // The breakdown's own count for the group is the list's length.
+    expect(drillRows(rows, { step: null, figure: null, group }).length).toBe(groupBy(rows, "grade").find((g) => g.key === "g1")!.counts.enquiries);
+    expect(groupLabel(rows, group)).toBe("Pre-Kindergarten");
+    expect(groupLabel(rows, { dim: "grade", key: "nobody" })).toBe("nobody");
+  });
+
+  it("reads back from its own link", () => {
+    const href = drillHref({ from: "2026-09-14", to: "2026-10-14" }, "c1", { figure: "offered", group: { dim: "heard_from", key: "social_media" } });
+    const sp = Object.fromEntries(new URL(href, "https://x.test").searchParams);
+    expect(sp).toEqual({ reached: "offered", by: "heard_from", value: "social_media", from: "2026-09-14", to: "2026-10-14", campus: "c1" });
+    expect(drillFrom(sp)).toEqual({ step: null, figure: "offered", group: { dim: "heard_from", key: "social_media" } });
+    expect(drillFrom(Object.fromEntries(new URL(drillHref({ from: "a", to: "b" }, null, { step: "offerToAcceptance" }), "https://x.test").searchParams))).toEqual({
+      step: "offerToAcceptance",
+      figure: null,
+      group: null,
+    });
+  });
+
+  it("carries the breakdown it came from, so the way back reopens it", () => {
+    const href = drillHref({ from: "a", to: "b" }, null, { figure: "offered", group: { dim: "promotion", key: "none" } }, { dim: "promotion" });
+    expect(new URL(href, "https://x.test").searchParams.get("dim")).toBe("promotion");
+  });
+
+  it("opens every enquiry when only the period is named, and nothing when nothing is", () => {
+    expect(drillFrom({ reached: "enquiries" })).toEqual({ step: null, figure: "enquiries", group: null });
+    expect(drillFrom({})).toBeNull();
+    // Names that are not ours are ignored rather than trusted.
+    expect(drillFrom({ reached: "constructor", by: "__proto__", value: "x" })).toBeNull();
+    expect(drillFrom({ by: "grade" })).toBeNull();
+    expect(isFigureKey("toString")).toBe(false);
+  });
+
+  it("is worded to lead the list's sentence", () => {
+    expect(drillTitle({ step: "offerToAcceptance", figure: null, group: null })).toBe("Offers not yet accepted");
+    expect(drillTitle({ step: null, figure: "offered", group: null })).toBe("Offer sent");
+    expect(drillTitle({ step: null, figure: null, group: { dim: "grade", key: "g1" } })).toBe("Every enquiry");
   });
 });

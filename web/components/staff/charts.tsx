@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
  * data, amber marks the weakest step, green and red say whether a change was
  * good news or bad. Server components; nothing here is interactive beyond
  * links and hover titles.
+ *
+ * A figure that is a number of families links to the list of them when the
+ * page passes an `href`; one that is zero does not, because a list of nobody
+ * is not somewhere to go.
  */
+
+/** The focus every clickable figure shares: the ring a keyboard needs. Each picks its own hover wash. */
+const CLICKABLE = "outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
  * Green for good news, as text. `--success` is a fill colour and reads at
@@ -85,6 +92,8 @@ export function Headline({
   kind = "count",
   goodWhen = "up",
   hint,
+  href,
+  hrefLabel,
 }: {
   label: string;
   value: string;
@@ -95,9 +104,13 @@ export function Headline({
   goodWhen?: "up" | "down";
   /** What the figure is measured against; on hover, and read out. */
   hint?: string;
+  /** The families behind the figure, where it has any. */
+  href?: string;
+  /** Who those families are, for the link's hover and for a screen reader: "the 8 families sent an offer". */
+  hrefLabel?: string;
 }) {
-  return (
-    <div className="bg-card px-4 py-3.5" title={hint}>
+  const body = (
+    <>
       <p className="truncate text-[13px] font-medium text-muted-foreground">
         {label}
         {hint ? <span className="sr-only">, {hint}</span> : null}
@@ -107,7 +120,24 @@ export function Headline({
         {unit ? <span className="ml-1 text-sm font-medium tracking-normal text-muted-foreground">{unit}</span> : null}
       </p>
       <DeltaText className="mt-2" delta={delta} kind={kind} goodWhen={goodWhen} />
-    </div>
+    </>
+  );
+  if (!href) {
+    return (
+      <div className="bg-card px-4 py-3.5" title={hint}>
+        {body}
+      </div>
+    );
+  }
+  return (
+    // Solid on hover: the strip draws its lines with the colour behind the
+    // cells, and a see-through wash would let that colour in.
+    // The hover keeps what the figure is measured against, then says where the link goes.
+    <Link href={href} className={cn("group relative block bg-card px-4 py-3.5 hover:bg-muted", CLICKABLE)} title={[hint, hrefLabel ? `See ${hrefLabel}` : null].filter(Boolean).join(". ")}>
+      {body}
+      <ArrowRight className="absolute top-3.5 right-3.5 size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+      {hrefLabel ? <span className="sr-only">. See {hrefLabel}</span> : null}
+    </Link>
   );
 }
 
@@ -121,7 +151,16 @@ export function Headline({
  * one stage to the next is on hover; the conversions worth reading as steps
  * have their own list, with the period before beside them.
  */
-export function FunnelChart({ stages, highlight }: { stages: FunnelStage[]; highlight?: string | null }) {
+export function FunnelChart({
+  stages,
+  highlight,
+  links,
+}: {
+  stages: FunnelStage[];
+  highlight?: string | null;
+  /** Each stage's families, by stage key: the list of exactly the ones its bar counts. */
+  links?: Partial<Record<string, string>>;
+}) {
   // One row per stage where there is room (label, bar, share); where there is
   // not, the label and share share a line and the bar takes the full width
   // under them, rather than every bar being squeezed to a sliver.
@@ -137,9 +176,10 @@ export function FunnelChart({ stages, highlight }: { stages: FunnelStage[]; high
         {stages.map((s) => {
           const weak = s.key === highlight;
           const title = `${s.label}: ${fmtCount(s.count)} families, ${pct(s.ofTop)} of enquiries${s.step === null ? "" : `, ${pct(s.step)} of the stage before`}`;
-          return (
-            <li key={s.key} className={cn(row, "gap-y-1")} title={title}>
-              <span className="truncate text-sm text-foreground">
+          const href = s.count ? links?.[s.key] : undefined;
+          const cells = (
+            <>
+              <span className={cn("truncate text-sm text-foreground", href && "underline-offset-4 group-hover:text-primary group-hover:underline")}>
                 {s.label}
                 {weak ? <span className="sr-only"> (reached through the weakest step)</span> : null}
               </span>
@@ -154,6 +194,19 @@ export function FunnelChart({ stages, highlight }: { stages: FunnelStage[]; high
                 <span className="relative pl-2 text-sm font-medium text-foreground tabular-nums">{fmtCount(s.count)}</span>
               </span>
               <span className="text-right text-sm text-muted-foreground tabular-nums">{pct(s.ofTop)}</span>
+            </>
+          );
+          // The padding is taken back by the margin, so a row that links and
+          // one that does not line up; the link uses it for its hover.
+          return (
+            <li key={s.key} title={href ? `${title}. See them.` : title}>
+              {href ? (
+                <Link href={href} className={cn(row, "group -mx-2 gap-y-1 rounded-md px-2 py-0.5 hover:bg-muted/50", CLICKABLE)}>
+                  {cells}
+                </Link>
+              ) : (
+                <div className={cn(row, "-mx-2 gap-y-1 px-2 py-0.5")}>{cells}</div>
+              )}
             </li>
           );
         })}
@@ -241,7 +294,7 @@ export function StepList({
  * Rows as a quiet bar behind the label, scaled to the largest row, with the
  * enquiries and the share of them that enrolled in two columns at the end.
  */
-export function BarList({ rows, max = 8 }: { rows: Share[]; max?: number }) {
+export function BarList({ rows, max = 8, links }: { rows: Share[]; max?: number; /** Each row's enquiries, by row key. */ links?: Partial<Record<string, string>> }) {
   const top = Math.max(1, ...rows.map((r) => r.count));
   const shown = rows.slice(0, max);
   const rest = rows.slice(max);
@@ -254,17 +307,32 @@ export function BarList({ rows, max = 8 }: { rows: Share[]; max?: number }) {
         <span className="w-14 text-right">Enrolled</span>
       </div>
       <ul className="space-y-1">
-        {shown.map((r) => (
-          <li key={r.key} className="relative flex h-8 items-center gap-3 px-2" title={`${r.label}: ${fmtCount(r.count)} enquiries, ${pct(r.share)} of all; ${pct(r.enquiryToEnrolment)} enrolled`}>
-            <span className="absolute inset-y-0 left-0 rounded-[4px] bg-primary/10" style={{ width: `${(r.count / top) * 100}%` }} aria-hidden />
-            <span className="relative min-w-0 flex-1 truncate text-sm text-foreground">
-              {r.label}
-              <span className="sr-only">, {pct(r.share)} of enquiries</span>
-            </span>
-            <span className="relative w-16 text-right text-sm font-medium text-foreground tabular-nums">{fmtCount(r.count)}</span>
-            <span className="relative w-14 text-right text-sm text-muted-foreground tabular-nums">{pct(r.enquiryToEnrolment)}</span>
-          </li>
-        ))}
+        {shown.map((r) => {
+          const title = `${r.label}: ${fmtCount(r.count)} enquiries, ${pct(r.share)} of all; ${pct(r.enquiryToEnrolment)} enrolled`;
+          const href = r.count ? links?.[r.key] : undefined;
+          const cells = (
+            <>
+              <span className="absolute inset-y-0 left-0 rounded-[4px] bg-primary/10" style={{ width: `${(r.count / top) * 100}%` }} aria-hidden />
+              <span className={cn("relative min-w-0 flex-1 truncate text-sm text-foreground", href && "underline-offset-4 group-hover:text-primary group-hover:underline")}>
+                {r.label}
+                <span className="sr-only">, {pct(r.share)} of enquiries</span>
+              </span>
+              <span className="relative w-16 text-right text-sm font-medium text-foreground tabular-nums">{fmtCount(r.count)}</span>
+              <span className="relative w-14 text-right text-sm text-muted-foreground tabular-nums">{pct(r.enquiryToEnrolment)}</span>
+            </>
+          );
+          return (
+            <li key={r.key}>
+              {href ? (
+                <Link href={href} className={cn("group relative flex h-8 items-center gap-3 rounded-[4px] px-2 hover:bg-muted/60", CLICKABLE)} title={`${title}. See them.`}>
+                  {cells}
+                </Link>
+              ) : (
+                <div className="relative flex h-8 items-center gap-3 px-2" title={title}>{cells}</div>
+              )}
+            </li>
+          );
+        })}
       </ul>
       {rest.length ? (
         <p className="mt-2 px-2 text-xs text-muted-foreground">
