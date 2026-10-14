@@ -118,15 +118,15 @@ export function NextStepCard({
   // or a child who need not sit. Quiet and folded, like Decide now instead,
   // because it skips steps every other button on the page waits for.
   // `moneyHeld` is set only for someone who could otherwise move the child
-  // back. A block that will pass (a payment being confirmed, say) is
-  // explained, with when; money received is not, because nearly every child
-  // past Payment has paid, and that is no news to anyone.
-  const waitToGoBack = w.moneyHeld?.passing ? w.moneyHeld.reason : null;
+  // back. Why the way back is shut is explained (a payment being confirmed,
+  // and until when; a review finance has open); money received is not,
+  // because nearly every child past Payment has paid, and that is no news.
+  const waitToGoBack = w.moneyHeld?.note ? w.moneyHeld.reason : null;
   const moveAside =
     moveTargets.length > 0 || waitToGoBack ? (
       <details className="mt-4 border-t border-border pt-3 text-sm">
         <summary className="cursor-pointer font-medium text-primary">Move to another stage</summary>
-        {waitToGoBack ? <p className="mt-2 max-w-xl text-xs text-muted-foreground">Moving back is not available yet: {waitToGoBack}</p> : null}
+        {waitToGoBack ? <p className="mt-2 max-w-xl text-xs text-muted-foreground">Moving back is not available: {waitToGoBack}</p> : null}
         {moveTargets.length > 0 ? (
           <ActionForm
             action={moveToStage}

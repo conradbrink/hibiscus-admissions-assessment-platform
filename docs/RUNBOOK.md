@@ -854,9 +854,11 @@ registration) are dropped, so the family does not get a reminder about a
 letter that no longer stands. A move back is **refused while money is held**
 for the child: money received (refund it under Payments first, or move them
 forward instead), a payment still being confirmed or part-paid, a payment
-the family reported that finance has not confirmed, or an online payment
-started in the last 24 hours that could still go through at the gateway.
-It is not offered on screen in those cases. If the page was open while the
+the family reported that finance has not confirmed, a payment that came in
+for the wrong amount (until finance marks its review task done), or an
+online payment started in the last 24 hours that could still go through at
+the gateway. It is not offered on screen in those cases; the page says why,
+except when the money was simply received. If the page was open while the
 child moved on, the move is refused and you are asked to reload, rather
 than going the other way. A letter waits for approval
 after Offer even when automatic offer approval is switched on. Registration

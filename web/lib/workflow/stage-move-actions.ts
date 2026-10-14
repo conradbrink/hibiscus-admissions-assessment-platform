@@ -423,12 +423,11 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
 export type MoneyHeld = {
   reason: string;
   /**
-   * Clears on its own: a payment being confirmed, a checkout that could
-   * still settle, a reported payment finance has yet to confirm. Money
-   * received is not: it is how almost every child past Payment got there,
-   * and the page does not offer a refund as a next step to their family.
+   * Worth saying on the applicant page. Every reason is, except money
+   * received: that is how almost every child past Payment got there, and
+   * the page does not offer a refund as a next step to their family.
    */
-  passing: boolean;
+  note: boolean;
 };
 
 export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "id" | "child_first_name">): Promise<MoneyHeld | null> {
@@ -445,15 +444,11 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
     admin.from("payment_requests").select("id", { count: "exact", head: true }).eq("application_id", app.id).in("status", ["processing", "partially_paid"]),
     // Finance's open money tasks. A reported payment: the family said they
     // had paid, and its request is the one the money is to be recorded
-    // against. A review, shortfall or refund review: money the gateway did
-    // take (a wrong amount leaves the row failed, not succeeded), which no
-    // payment row counts as received.
-    admin
-      .from("tasks")
-      .select("type")
-      .eq("application_id", app.id)
-      .eq("status", "open")
-      .in("type", ["confirm_reported_payment", ...FINANCE_REVIEW_TASKS]),
+    // against. A payment review: the gateway took a wrong amount, which
+    // leaves the row failed, so no payment row counts it as received. (A
+    // shortfall or a refund review comes with a succeeded payment, which
+    // `held` catches, and stays open after a refund, so it is not asked.)
+    admin.from("tasks").select("type").eq("application_id", app.id).eq("status", "open").in("type", ["confirm_reported_payment", "payment_review"]),
   ]);
   const error = payments.error ?? requests.error ?? reported.error;
   if (error) throw new WorkflowError(error.message, "database");
@@ -463,11 +458,14 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   const held = rows.filter((p) => p.status === "succeeded" && Number(p.amount_minor) > 0);
   if (held.length) {
     const total = held.reduce((sum, p) => sum + Number(p.amount_minor), 0);
-    return { passing: false, reason: `${formatMoney(total, held[0].currency)} has been received for ${name}, so their letter cannot be withdrawn. Finance would have to refund it under Payments first.` };
+    return { note: false, reason: `${formatMoney(total, held[0].currency)} has been received for ${name}, so their letter cannot be withdrawn. Finance would have to refund it under Payments first.` };
   }
   const tasks = (reported.data ?? []).map((t) => t.type);
-  if (tasks.some((t) => FINANCE_REVIEW_TASKS.includes(t))) {
-    return { passing: false, reason: `Finance has a payment for ${name} to review. It has to be settled or refunded under Payments before they can be moved back.` };
+  if (tasks.includes("payment_review")) {
+    return {
+      note: true,
+      reason: `A payment for ${name} came in for the wrong amount, and finance has a task to review it. Once finance has dealt with it and marked the task done, you can move them back.`,
+    };
   }
   // An attempt still being confirmed, or one that timed out or failed, can
   // still settle at the gateway for its checkout window (the parent finishing
@@ -482,17 +480,17 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   if (live.length) {
     const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
     if (clears.getTime() > Date.now()) {
-      return { passing: true, reason: `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. If it has not gone through by then, you can move them back.` };
+      return { note: true, reason: `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. If it has not gone through by then, you can move them back.` };
     }
     // Only a row still "processing" gets here: past its window, so the
     // sweep has failed to settle it. Waiting will not help; a check will.
-    return { passing: true, reason: `An online payment ${name}'s family started is still waiting for the gateway's answer. Ask finance to check it with the gateway under Payments; once it is settled, you can move them back.` };
+    return { note: true, reason: `An online payment ${name}'s family started is still waiting for the gateway's answer. Ask finance to check it with the gateway under Payments; once it is settled, you can move them back.` };
   }
   if (requests.count) {
-    return { passing: false, reason: `A payment for ${name} is part-paid or still being confirmed. Finance would have to settle or refund it under Payments before they can be moved back.` };
+    return { note: true, reason: `A payment for ${name} is part-paid or still being confirmed. Finance would have to settle or refund it under Payments before they can be moved back.` };
   }
   if (tasks.includes("confirm_reported_payment")) {
-    return { passing: true, reason: `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.` };
+    return { note: true, reason: `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.` };
   }
   return null;
 }
@@ -501,9 +499,6 @@ async function assertNoMoneyHeld(admin: AdminClient, app: MovingApp): Promise<vo
   const held = await moneyHeldReason(admin, app);
   if (held) throw new WorkflowError(held.reason, "status_conflict");
 }
-
-/** Finance's tasks about money the gateway or a person did take. */
-const FINANCE_REVIEW_TASKS: string[] = ["payment_review", "payment_shortfall", "payment_refund_review"];
 
 /**
  * The jobs a move back leaves behind, which it skips. Each was queued for a
