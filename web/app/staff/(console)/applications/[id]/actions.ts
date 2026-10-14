@@ -372,7 +372,7 @@ export async function moveToStage(_: StaffActionState, formData: FormData): Prom
       throw new Error(
         way
           ? `${app.child_first_name} has moved since this page was loaded, so this would now be ${way === "back" ? "a move back" : "a move forward"}. Reload the page and choose again.`
-          : `${app.child_first_name} has moved since this page was loaded and can no longer be moved to ${moveTargetLabel(parsed.target)}. Reload the page.`
+          : `${app.child_first_name} has moved since this page was loaded and can no longer be moved ${parsed.direction === "back" ? "back " : ""}to ${moveTargetLabel(parsed.target)}. Reload the page.`
       );
     }
     const direction = way ?? "forward";

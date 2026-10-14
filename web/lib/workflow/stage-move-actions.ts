@@ -420,7 +420,18 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
  * Exported for the applicant page, which hides the way back on the same
  * answer: two copies of this rule had already drifted apart once.
  */
-export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "id" | "child_first_name">): Promise<string | null> {
+export type MoneyHeld = {
+  reason: string;
+  /**
+   * Clears on its own: a payment being confirmed, a checkout that could
+   * still settle, a reported payment finance has yet to confirm. Money
+   * received is not: it is how almost every child past Payment got there,
+   * and the page does not offer a refund as a next step to their family.
+   */
+  passing: boolean;
+};
+
+export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "id" | "child_first_name">): Promise<MoneyHeld | null> {
   const [payments, requests, reported] = await Promise.all([
     admin
       .from("payments")
@@ -442,12 +453,12 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   const rows = payments.data ?? [];
   const name = app.child_first_name;
   if (rows.some((p) => p.status === "processing")) {
-    return `An online payment for ${name} is still being confirmed. Wait for it, or check it with the gateway, before moving them back.`;
+    return { passing: true, reason: `An online payment for ${name} is still being confirmed. Wait for it, or check it with the gateway, before moving them back.` };
   }
   const held = rows.filter((p) => p.status === "succeeded" && Number(p.amount_minor) > 0);
   if (held.length) {
     const total = held.reduce((sum, p) => sum + Number(p.amount_minor), 0);
-    return `${formatMoney(total, held[0].currency)} has been received for ${name}. Ask finance to refund it under Payments first, or move them forward instead.`;
+    return { passing: false, reason: `${formatMoney(total, held[0].currency)} has been received for ${name}, so their letter cannot be withdrawn. Finance would have to refund it under Payments first.` };
   }
   // An attempt that timed out or failed can still settle at the gateway for
   // its checkout window (the parent finishing on their bank's page, then the
@@ -457,20 +468,20 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   const live = rows.filter((p) => (p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since);
   if (live.length) {
     const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
-    return `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. Move them back after that, or ask finance to check it with the gateway first.`;
+    return { passing: true, reason: `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. Move them back after that, or ask finance to check it with the gateway first.` };
   }
   if (requests.count) {
-    return `A payment for ${name} is part-paid or still being confirmed. Ask finance to settle or refund it under Payments before moving them back.`;
+    return { passing: false, reason: `A payment for ${name} is part-paid or still being confirmed. Finance would have to settle or refund it under Payments before they can be moved back.` };
   }
   if (reported.count) {
-    return `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.`;
+    return { passing: true, reason: `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.` };
   }
   return null;
 }
 
 async function assertNoMoneyHeld(admin: AdminClient, app: MovingApp): Promise<void> {
-  const reason = await moneyHeldReason(admin, app);
-  if (reason) throw new WorkflowError(reason, "status_conflict");
+  const held = await moneyHeldReason(admin, app);
+  if (held) throw new WorkflowError(held.reason, "status_conflict");
 }
 
 /**

@@ -8,7 +8,7 @@ import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { actorName, journeyMilestones, MILESTONE_EVENT_TYPES, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { backPosition, mayMoveTo, MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
+import { MOVE_EVENT_TYPES, moveDirection, moveTargetsFor } from "@/lib/workflow/stage-move";
 import { moneyHeldReason } from "@/lib/workflow/stage-move-actions";
 
 /**
@@ -27,6 +27,15 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     .eq("id", id)
     .maybeSingle();
   if (!app) return null;
+
+  // Why the way back is shut, if it is: the server's own rule, asked only
+  // where this person could otherwise move the child back. The row was just
+  // read under RLS, so they may see the child; payments they may not see are
+  // still what decides, which is why it reads through the service role.
+  // Started now, read at the end, and never the reason the page fails: the
+  // server asks again when Move is pressed.
+  const canGoBack = moveTargetsFor(app.status, permissions).some((t) => moveDirection(app.status, t) === "back");
+  const moneyHeldP = canGoBack ? moneyHeldReason(createAdminClient(), app).catch(() => null) : Promise.resolve(null);
 
   const canSeeOffers = can(permissions, "offers.read");
   const canSeeFinance = can(permissions, "finance.read");
@@ -225,12 +234,7 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     now: new Date(),
   };
 
-  // Why the way back is shut, if it is: the server's own rule, asked only
-  // where a move back could be offered. The row was just read under RLS, so
-  // this person may see the child; payments they may not see are still what
-  // decides, which is why it reads through the service role.
-  const moneyHeld =
-    mayMoveTo(permissions, "offer", "back") && backPosition(app.status) !== null ? await moneyHeldReason(createAdminClient(), app) : null;
+  const moneyHeld = await moneyHeldP;
 
   const staffName = (staffId: string) => (actors ?? []).find((m) => m.id === staffId)?.full_name ?? null;
   const latest = events?.[0] ?? null;

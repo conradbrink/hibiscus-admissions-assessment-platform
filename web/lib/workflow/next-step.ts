@@ -643,7 +643,9 @@ const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: UndoRu
       { type: "offer.accepted", label: "Offer accepted" },
       { type: "offer.sent", label: "Offer sent" },
     ],
-    undoneBy: ["offer.withdrawn"],
+    // A declined letter is not withdrawn by a move back, so the move itself
+    // clears it too.
+    undoneBy: ["offer.withdrawn", movedBackTo("decision", "offer")],
   },
   // Only a settlement of nothing can be behind a move back (money held
   // refuses it), and it belonged to the letter that was withdrawn.
