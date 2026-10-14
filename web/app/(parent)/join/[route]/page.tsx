@@ -18,7 +18,7 @@ const ROUTES: Record<string, { entry: EntryRoute; title: string; description: st
   preschool: {
     entry: "visit",
     title: "Join pre-school",
-    description: "For children joining Nursery, Pre-Kindergarten, Kindergarten or Pre-Reception. Eight quick details, then choose a time to visit: see the room, meet the teachers and ask us anything.",
+    description: "For children joining Nursery, Pre-Kindergarten, Kindergarten, Pre-Reception or Reception. Eight quick details, then choose a time to visit: see the room, meet the teachers and ask us anything.",
     steps: 3,
     preschool: true,
   },
