@@ -276,12 +276,66 @@ export async function onRegistrationSubmitted(
   }
 
   await admin.from("registrations").update({ submitted_at: new Date().toISOString(), submitted_ip_hash: ctx.ipHash }).eq("application_id", app.id);
+  await completeRegistration(admin, app, { summary: "Registration completed by the parent", payload: {} }, actor);
+  return { complete: true };
+}
+
+/**
+ * Staff confirm a registration the parent finished but never submitted.
+ *
+ * The status moves on Submit and nothing else, so a registration finished
+ * after the parent had already pressed it once — a section filled in later,
+ * or the last document uploaded by the office for them — sat under "Still
+ * registering" with every section ticked, and only the parent pressing
+ * Submit a second time would move it. This is that press, by a person, and
+ * only when the same completeness rule the parent's Submit uses says it is
+ * complete: enrolment refuses an incomplete registration anyway, so letting
+ * one through here would strand the child one step later.
+ */
+export async function onRegistrationConfirmedByStaff(
+  admin: AdminClient,
+  graph: Pick<ApplicationGraph, "application">,
+  completeness: Completeness,
+  note: string | null,
+  actor: Actor
+): Promise<void> {
+  const app = graph.application;
+  if (app.status !== "registration_incomplete") throw new WorkflowError("This registration is not waiting to be confirmed.", "status_conflict");
+  if (!completeness.complete) {
+    const missing = outstandingItemsText(completeness);
+    throw new WorkflowError(`Not complete yet${missing ? `: still needed — ${missing}` : ""}. Ask the family for it, or upload a document for them.`, "status_conflict");
+  }
+  // Stamped as submitted so the parent's page and the PDF read it as handed
+  // in; no IP, because the parent did not press anything.
+  const { error } = await admin
+    .from("registrations")
+    .update({ submitted_at: new Date().toISOString(), submitted_ip_hash: null })
+    .eq("application_id", app.id)
+    .is("submitted_at", null);
+  if (error) throw new WorkflowError(error.message, "database");
+  await completeRegistration(
+    admin,
+    app,
+    { summary: note ? `Registration confirmed by staff: ${note}` : "Registration confirmed by staff: the parent had filled in everything", payload: { confirmed_by_staff: true, note } },
+    actor
+  );
+}
+
+/** Registration complete: the move, the enrolment task (or the auto-enrol job), and the "all received" email. */
+async function completeRegistration(
+  admin: AdminClient,
+  app: Pick<ApplicationRow, "id" | "child_first_name">,
+  event: { summary: string; payload: Record<string, Json | undefined> },
+  actor: Actor
+): Promise<void> {
+  const settings = await getSettings(admin);
+  const today = new Date().toISOString().slice(0, 10);
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: "registration_incomplete",
     newStatus: "registration_complete",
     nextAction: "none",
-    event: { type: "registration.completed", summary: "Registration completed by the parent", payload: {} },
+    event: { type: "registration.completed", summary: event.summary, payload: event.payload },
     resolveTaskTypes: ["documents_missing"],
     tasks: settings.autoEnrol
       ? []
@@ -301,8 +355,7 @@ export async function onRegistrationSubmitted(
       },
       ...(settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}` }] : []),
     ],
-    audit: { action: "registration.completed", entityType: "registration", entityId: app.id },
+    audit: { action: "registration.completed", entityType: "registration", entityId: app.id, after: event.payload as Json },
     actor,
   });
-  return { complete: true };
 }

@@ -14,7 +14,7 @@ import { requireStaff } from "@/lib/staff/session";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { DocumentReading } from "@/components/staff/document-reading";
-import { askParentToConfirm, confirmEnrolment, extractDocument, reviewDocument, sendRegistrationReminder, uploadDocumentForParent } from "../actions";
+import { askParentToConfirm, confirmEnrolment, confirmRegistration, extractDocument, reviewDocument, sendRegistrationReminder, uploadDocumentForParent } from "../actions";
 import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -264,7 +264,19 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
               </div>
             ) : null}
             {canWrite && app.status === "registration_incomplete" ? (
-              <div className="mt-3">
+              <div className="mt-3 space-y-3">
+                {/* The status moves on the parent's Submit and nothing else,
+                    so a registration finished after a first Submit (or by an
+                    upload from the office) waits here with every line done. */}
+                {c.complete ? (
+                  <div className="rounded-lg bg-success/10 p-2.5">
+                    <p className="text-xs">Everything is filled in, but the parent has not submitted it.</p>
+                    <ActionForm action={confirmRegistration} label="Confirm registration" variant="success" size="sm" className="mt-2" confirm="Confirm this registration for the family? The parent is emailed that everything has been received.">
+                      {idField}
+                      <Input name="note" placeholder="Note (optional)" maxLength={500} aria-label="Note" />
+                    </ActionForm>
+                  </div>
+                ) : null}
                 <ActionForm action={sendRegistrationReminder} label="Send reminder" variant="outline" size="sm">{idField}</ActionForm>
               </div>
             ) : null}

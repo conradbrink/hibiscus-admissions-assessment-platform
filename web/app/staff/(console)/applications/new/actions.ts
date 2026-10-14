@@ -14,6 +14,9 @@ import { drainSoon, guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { onEnquiryCreated } from "@/lib/workflow/actions";
+import { can } from "@/lib/permissions";
+import { canMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
 
 /**
  * A family at the front desk. The same enquiry the parent's own form makes,
@@ -24,6 +27,11 @@ import { onEnquiryCreated } from "@/lib/workflow/actions";
  *
  * Staff may set the grade here. The parent's form cannot: at the desk there
  * is a school report to look at and a family to ask.
+ *
+ * An admissions officer may also move the child straight on (Move to stage,
+ * `applications.move_stage`): a family who has paid already, or a child who
+ * need not sit. Then the enquiry's own email is held and the parent hears
+ * only what the stage they land on says.
  */
 
 const schema = z.object({
@@ -48,6 +56,10 @@ const schema = z.object({
   heardFrom: z.union([z.enum(HEARD_FROM_KEYS), z.literal("")]).optional(),
   heardFromDetail: z.string().trim().max(200).optional().default(""),
   whatsappOptIn: z.string().optional(),
+  // Move straight on (Move to stage), for whoever holds applications.move_stage.
+  target: z.union([z.enum(["decision", "offer", "payment", "registration"]), z.literal("")]).optional(),
+  reason: z.string().trim().max(1000).optional().default(""),
+  alreadyPaid: z.literal("on").optional(),
 });
 
 export async function addApplicant(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
@@ -59,6 +71,9 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
   const state = await guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = schema.parse(Object.fromEntries(formData));
+    const target = parsed.target || null;
+    if (target && !can(ctx.permissions, "applications.move_stage")) throw new Error("Your account cannot move a child to another stage.");
+    if (target && parsed.reason.length < 5) throw new Error("Say why the child is being moved straight on.");
 
     const admin = createAdminClient();
     const verdict = await enforceRateLimit(admin, LIMITS.staffApplicant, ctx.userId);
@@ -125,7 +140,29 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
       .single();
     if (!app) throw new Error("The applicant was created but could not be read back.");
     if (app.status === "new_enquiry") {
-      await onEnquiryCreated(admin, app, `${parsed.parentFirstName} ${parsed.parentLastName}`, ctx.actor);
+      await onEnquiryCreated(admin, app, `${parsed.parentFirstName} ${parsed.parentLastName}`, ctx.actor, { holdForMove: Boolean(target) });
+    }
+    if (target) {
+      const { data: now, error } = await admin
+        .from("applications")
+        .select("id, status, reference, child_first_name, requires_assessment")
+        .eq("id", result.applicationId)
+        .single();
+      if (error || !now) throw new Error("The applicant was added but could not be read back to move them.");
+      // A pre-school child is at Decision from the first moment; asked to go
+      // there, they already are.
+      if (canMoveTo(now.status, target)) {
+        try {
+          await onMovedToStage(admin, now, { target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
+        } catch (e) {
+          // The family is on file and will still be acknowledged (the held
+          // email goes while they stay where the enquiry left them). Adding
+          // them again from this form opens the record, where the move can
+          // be tried again.
+          drainSoon();
+          throw new Error(`${parsed.childFirstName} was added, but could not be moved to ${moveTargetLabel(target)}: ${(e as Error).message}`);
+        }
+      }
     }
     drainSoon();
     revalidatePath("/staff/applications");

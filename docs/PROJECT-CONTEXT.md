@@ -747,6 +747,75 @@ What it deliberately does not do: capture email replies (the provider seam
 has no inbound email), send free-text WhatsApp, or let a person set a
 lifecycle stage without marking it manual.
 
+### Move to stage, and three smaller asks (14 October 2026)
+
+**Move to stage.** An admissions officer (`applications.move_stage`, held by
+the admissions manager) moves a child forward along the journey bar by hand —
+to Decision, Offer, Payment or Registration — with a reason. Asked for so a
+family at the desk who has paid already, or a child the school has decided
+need not sit, is not held at a step that does not apply to them. Forward
+only: going back past a decision, an acceptance or a payment undoes records
+other people rely on, and those have their own tools.
+
+- **The graph stays the authority.** Two moves are edges of their own in
+  `OVERRIDE_TRANSITIONS` (`states.ts`): into a decision from a booked or
+  missed sitting, and into `registration_incomplete` from any status before
+  it except `assessment_in_progress` and `payment_processing`. They are kept
+  out of `TRANSITIONS`, because every screen asks `canTransition` what to
+  offer — an override edge there would grow an Approve button on every
+  enquiry. `commit` accepts them only with `override: true`, which only
+  `lib/workflow/stage-move-actions.ts` sets. A test asserts they never leak.
+- **Offer and Payment press the existing buttons in order** — the staff
+  decision, `onOfferDrafted`, `onOfferApproved` with `notify: false`,
+  `onOfferAccepted` on the family's behalf — so the decision row, the offer,
+  the acceptance and the payment request exist exactly as if each had been
+  pressed. Each is its own commit; a refusal part way leaves the child at the
+  last legal status, with every step on the timeline. Payment is refused up
+  front when no fee schedule could price the letter.
+- **The parent hears only what is due.** Skipped steps send nothing. Payment
+  sends the payment request; Registration sends `registration_open` (new,
+  says nothing about money; WhatsApp companion seeded inactive until Zavu
+  approves it). From **Add applicant**, the enquiry acknowledgement is held two
+  minutes behind a status precondition, so a family moved on never gets "book
+  an assessment" and one whose move was refused still gets it.
+- **Paid still means verified.** Registration never marks anything paid. When
+  the family says they have paid, their payment request stays open and a
+  `confirm_reported_payment` task goes to finance; `onPaymentVerified` files a
+  later settlement on an application already past payment as the
+  confirmation (the `payment.confirmed` milestone, no move, no email) rather
+  than as unexpected money to refund. Otherwise the request is closed.
+- **A child moved past the assessment has no results.** The offer email and
+  the profile wait now ask whether a fully marked sitting exists
+  (`hasResults`), not `requires_assessment`, so the no-results letter
+  (`preschool_offer`, "Offer of a place (no assessment)") goes and approval
+  does not wait for a profile that will never come. Marking that finishes
+  after the child was moved on still queues the profile.
+- The journey bar leaves the skipped stages unticked (`stagesSkippedByMove`),
+  and the registration headline no longer says "Payment received" unless it
+  was.
+
+**Confirm registration.** The status moves on the parent's Submit alone, so a
+registration finished *after* a first Submit — a late section, or the last
+document uploaded by the office — sat under "Still registering" with every
+line ticked. Staff can now confirm it (`onRegistrationConfirmedByStaff`),
+only when `registrationCompleteness` agrees; it shares the completion with
+Submit (`completeRegistration`). The queue lists these first.
+
+**The scholarship on the offer.** Saving a scholarship band re-drafts the
+offer: a draft or pending letter is re-drafted, a letter with the family is
+withdrawn and re-drafted for approval, an accepted one keeps its fees. The
+bands are chosen with their own picker on the Offer board and in Edit offer,
+and are no longer in the general promotion list.
+
+**The Ed-admin export is the CFO's.** It has its own permission,
+`enrolment.export`, carried by a new **Chief financial officer** role
+(`chief_financial_officer`: finance's permissions plus the export), and is a
+menu item again for whoever holds it; the admissions manager's `data.export`
+now covers the analytics download and the per-child JSON only. The
+`student_exports` read policy follows. Giving the role to a person is the
+super administrator's, because it carries finance permissions an admissions
+manager does not hold (`can_grant_role`).
+
 ### The pre-schools' free trial week
 
 A child joining Nursery to Pre-Reception sits no assessment, and the

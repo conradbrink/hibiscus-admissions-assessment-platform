@@ -332,6 +332,22 @@ a reminder follows after **documents_reminder_days** (Workflow settings,
 2 by default) and skips itself if registration is complete by then. The
 reminders at 7 and 14 days after payment continue as before.
 
+## Everything is filled in but the registration still says "incomplete"
+
+The status moves on the parent's **Submit** and on nothing else. A parent who
+pressed Submit with a document missing and uploaded it later, or whose last
+document the office uploaded for them, is left with every section done and
+the status still **Registration incomplete**. They are listed first on
+**Admissions → Enrolment → Registrations**, under **Filled in, not yet
+submitted**, and the applicant page's Next step reads **Confirm registration**.
+
+Press **Confirm registration** (on the queue, on the registration page, or on
+the applicant). It does what the parent's Submit would have done: the status
+moves to Registration complete, the parent is emailed that everything has
+been received, and a **Confirm enrolment** task opens. It is refused, with
+what is missing, unless the same rule the parent's Submit uses says the
+registration is complete — enrolment would refuse it a step later anyway.
+
 ## A document will not upload
 
 1. Choosing the file is the upload: there is no second button. The phone
@@ -653,8 +669,16 @@ registration page.
 
 ## Exporting students to Ed-admin
 
-**Enrolment → Student export**: choose the campus and intake, then take
-**two** files in the school system's own layout.
+**Ed-admin export** in the menu (also under Admissions → Enrolment → Student
+export): choose the campus and intake, then take **two** files in the school
+system's own layout.
+
+Only the **Chief financial officer** role can see or use it (permission
+`enrolment.export`; the super administrator can too). To give it to the CFO,
+a super administrator opens **Set up → People**, finds the CFO and adds the
+**Chief financial officer** role — an admissions manager cannot hand it out,
+because it carries finance permissions they do not hold. Nobody else sees the
+menu item, the Enrolment switch or the page.
 
 1. **Parent details (CSV)** — 96 columns, the guardians and their contact
    details. Take this one first. It changes nothing, so it can be taken as
@@ -786,6 +810,60 @@ CBD, Potch South and Bana Tlokweng, the month the child starts, because those
 campuses take children in by the month (see below); leave **Grade** on "Work
 it out from the date of birth" unless the family is transferring into a
 particular year, in which case choose it — the campus must teach it.
+
+## Moving a child on by hand (Move to stage)
+
+For a family who has already paid, or a child the school has decided need not
+sit the assessment. Needs the permission **applications.move_stage**, which
+the **Admissions manager** role holds.
+
+- **From the applicant page:** under Next step, open **Move to another
+  stage**, choose the stage, say why, and press **Move child**.
+- **At the desk, for a new family:** on **Add applicant**, choose the stage
+  under **Move straight on**. The family is added and moved in one press, and
+  never receives the "book an assessment" email.
+
+What each stage does, and what the parent hears:
+
+| Move to | What happens | The parent hears |
+|---|---|---|
+| Decision | A booked assessment is cancelled; the child waits for a decision | Nothing |
+| Offer | The child is accepted (a decision is recorded with your reason) and the offer drafted; it waits for approval | The offer, once somebody approves and sends it |
+| Payment | Accepted, the offer approved without emailing it, and the family's acceptance recorded on their behalf | Only what to pay (or, when nothing is payable, that registration is next) |
+| Registration | Any offer in play is withdrawn; registration opens | Only that registration is due — no payment messages |
+
+Only stages ahead of the child are offered; a child cannot be moved back.
+Every step skipped is on the timeline with your name and reason, and the
+journey bar leaves the skipped stages unticked.
+
+**"The family says they have already paid"** (Registration only). Nothing is
+ever marked paid by this: paid still means a gateway confirmation or a
+receipt finance recorded. Their payment request stays open, and finance gets
+a **please confirm** task. When finance records the money against it under
+Payments, it is filed as the confirmation (no refund review, no email) and
+the task closes. Without the tick, an open payment request is closed so
+finance is not left chasing it.
+
+Moving to **Payment** needs an active fee schedule for the campus, stage and
+year; it is refused before anything changes if there is none (move to
+Registration instead, or set the fees).
+
+## The scholarship percentage on an offer
+
+Choose it on **Admissions → Offer** (the Scholarship picker on each offer
+waiting for approval) or on the applicant under **Edit offer**. It needs
+**offers.approve**. Saving re-drafts the offer at that percentage:
+
+- a draft or a letter waiting for approval is re-drafted and still waits for
+  approval;
+- a letter the family already has is withdrawn (their link stops working) and
+  a new one waits for approval;
+- once the family has accepted, their letter keeps its fees and only the
+  scholarship on file changes.
+
+The bands (10% to 50%) are promotions with `SCHOLARSHIP-` codes under
+Settings → Promotions; they no longer appear in the general promotion list on
+the Offer board, so the percentage is chosen in one place.
 
 ## Campuses that run by the month
 

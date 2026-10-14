@@ -21,6 +21,9 @@ const DAY = 86_400_000;
 /** How many times a settlement re-reads the application after a status conflict before giving up. */
 const SETTLE_ATTEMPTS = 3;
 
+/** Where Move to stage can leave a child whose payment request was never settled. */
+const MOVED_PAST_PAYMENT: ReadonlySet<string> = new Set(["registration_incomplete", "registration_complete", "enrolled"]);
+
 function due(request: Pick<PaymentRequestRow, "due_at">): Date {
   return new Date(request.due_at);
 }
@@ -136,6 +139,10 @@ export async function onPaymentVerified(
     return;
   }
 
+  // Settled for the first time by this payment. A request already paid in full
+  // before it is a double payment wherever the application now is.
+  const firstSettlement = Number(request.paid_minor) < Number(request.amount_minor);
+
   const settings = await getSettings(admin);
   // The registration row exists from here so every later save is an update.
   await admin.from("registrations").upsert({ application_id: app.id }, { onConflict: "application_id", ignoreDuplicates: true });
@@ -154,6 +161,30 @@ export async function onPaymentVerified(
   for (let attempt = 1; ; attempt++) {
     const { data: current } = await admin.from("applications").select("status").eq("id", app.id).single();
     const status = current?.status ?? app.status;
+
+    if (firstSettlement && MOVED_PAST_PAYMENT.has(status)) {
+      // An admissions officer moved this child on to registration before the
+      // money was in — usually because the family said they had paid already,
+      // and this is finance recording it. That is the payment arriving, not a
+      // stranger's money to refund: it is the milestone the analytics read,
+      // the task asking finance to confirm it is done, and nothing moves or is
+      // emailed, because registration is already open.
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: null,
+        newStatus: null,
+        nextAction: null,
+        event: {
+          type: "payment.confirmed",
+          summary: `Payment of ${amount} confirmed (${method}), after the child was moved on to registration`,
+          payload: { payment_id: payment.id, payment_request_id: request.id, provider: payment.provider, provider_ref: payment.provider_ref, approval_code: result.approvalCode, after_stage_move: true },
+        },
+        resolveTaskTypes: ["confirm_reported_payment", "payment_overdue", "payment_failed_follow_up", "payment_review", "payment_shortfall"],
+        audit: { action: "payment.confirmed", entityType: "payment", entityId: payment.id, after: { amount_minor: payment.amount_minor, method: payment.method, provider: payment.provider, after_stage_move: true } },
+        actor,
+      });
+      return;
+    }
 
     if (status !== "payment_required" && status !== "payment_processing") {
       // Money for an application that is not waiting for money: withdrawn,

@@ -46,7 +46,15 @@ export async function onOfferDrafted(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
   actor: Actor,
-  opts: { conditions?: string | null } = {}
+  opts: {
+    conditions?: string | null;
+    /**
+     * False keeps the letter waiting for approval whatever `offer_auto_approve`
+     * says. Move to stage approves it itself, without emailing it, and the
+     * switch would otherwise send the parent the letter on the way past.
+     */
+    autoApprove?: boolean;
+  } = {}
 ): Promise<{ offerId: string; blocked: boolean }> {
   // A re-draft is allowed while the offer is still a draft or waiting for
   // approval (staff applying or removing a promotion); never once sent.
@@ -189,7 +197,7 @@ export async function onOfferDrafted(
     actor,
   });
 
-  if (settings.offerAutoApprove) {
+  if (settings.offerAutoApprove && opts.autoApprove !== false) {
     const { data: offer } = await admin.from("offers").select("*").eq("id", offerId).single();
     if (offer) await onOfferApproved(admin, { ...app, status: "offer_pending_approval" }, offer, actor);
   }
@@ -197,20 +205,50 @@ export async function onOfferDrafted(
 }
 
 /**
+ * Whether the child has results: a sitting handed in and fully marked. Not
+ * `requires_assessment`, which is a property of the grade: since Move to
+ * stage, a child whose grade sits an assessment can reach an offer without
+ * having sat one, or with a sitting still waiting for its writing to be
+ * marked. Neither has a learning profile to wait for or a result to send.
+ * On every other path an offer follows a decision, which follows marking, so
+ * this answers as `requires_assessment` always did.
+ */
+export async function hasResults(admin: AdminClient, applicationId: string): Promise<boolean> {
+  const { count, error } = await admin
+    .from("attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", applicationId)
+    .in("status", ["submitted", "marked"])
+    .eq("marking_status", "complete");
+  // Not swallowed: read as "never sat", a failed count would send a child
+  // who did sit the letter with no results in it.
+  if (error) throw new WorkflowError(error.message, "database");
+  return (count ?? 0) > 0;
+}
+
+/**
  * Approve & send. Refused unless the learning profile exists (an assessed
  * applicant's results email links it), stamps the real expiry, re-renders
  * with it, and queues the email, the reminders and the expiry sweep.
+ *
+ * `notify: false` approves without any of the three: Move to stage records
+ * the family's acceptance in the next breath, and a letter, reminders to
+ * answer it and an expiry would all be about an offer already answered.
  */
 export async function onOfferApproved(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">,
   offer: Pick<OfferRow, "id" | "status" | "template_id" | "conditions" | "fees">,
-  actor: Actor
+  actor: Actor,
+  opts: { notify?: boolean } = {}
 ): Promise<void> {
   if (app.status !== "offer_pending_approval" || offer.status !== "pending_approval") {
     throw new WorkflowError("This offer is not waiting for approval", "status_conflict");
   }
-  if (app.requires_assessment) {
+  // Only a child who sat has results. One moved past the assessment by hand
+  // has no profile to wait for, and would otherwise wait for ever.
+  const sat = app.requires_assessment && (await hasResults(admin, app.id));
+  if (sat) {
     const { data: profile } = await admin
       .from("learning_profiles")
       .select("id")
@@ -250,15 +288,16 @@ export async function onOfferApproved(
   if (error) throw new WorkflowError(error.message, "database");
 
   const live = { offer_id: offer.id, offer_status: ["sent", "viewed"] };
-  const offerTemplateKey = app.requires_assessment ? "results_and_offer" : "preschool_offer";
-  const jobs: JobSpec[] = [
+  const offerTemplateKey = sat ? "results_and_offer" : "preschool_offer";
+  const jobs: JobSpec[] = opts.notify === false ? [] : [
     {
       type: "send_email",
       // A pre-school family has no results and no learning profile, and the
       // results link was already omitted for them — so `results_and_offer`
       // opened by thanking them for an assessment and promised a profile that
-      // did not exist. Their own template says neither.
-      payload: { template_key: offerTemplateKey, links: app.requires_assessment ? ["results", "offer"] : ["offer"], offer_id: offer.id },
+      // did not exist. Their own template says neither. Nor does a child
+      // moved past the assessment by hand, who gets the same one.
+      payload: { template_key: offerTemplateKey, links: sat ? ["results", "offer"] : ["offer"], offer_id: offer.id },
       idempotencyKey: `email:${app.id}:${offerTemplateKey}:${offer.id}`,
     },
     {
@@ -269,7 +308,7 @@ export async function onOfferApproved(
       precondition: live,
     },
   ];
-  for (const days of settings.offerReminderDaysBefore) {
+  for (const days of opts.notify === false ? [] : settings.offerReminderDaysBefore) {
     const at = new Date(expiresAt.getTime() - days * DAY);
     if (at.getTime() <= Date.now() + 15 * 60_000) continue;
     jobs.push({
@@ -287,10 +326,16 @@ export async function onOfferApproved(
     newStatus: "offer_sent",
     nextAction: "review_offer",
     nextActionDueAt: expiresAt,
-    event: { type: "offer.sent", summary: `Offer approved and sent; open until ${expiresAt.toDateString()}`, payload: { offer_id: offer.id, expires_at: expiresAt.toISOString() } },
+    event: {
+      type: "offer.sent",
+      summary: opts.notify === false
+        ? "Offer approved by staff, not emailed: the family's acceptance is being recorded"
+        : `Offer approved and sent; open until ${expiresAt.toDateString()}`,
+      payload: { offer_id: offer.id, expires_at: expiresAt.toISOString(), emailed: opts.notify !== false },
+    },
     resolveTaskTypes: ["approve_offer"],
     jobs,
-    audit: { action: "offer.approved", entityType: "offer", entityId: offer.id, after: { expires_at: expiresAt.toISOString() } },
+    audit: { action: "offer.approved", entityType: "offer", entityId: offer.id, after: { expires_at: expiresAt.toISOString(), emailed: opts.notify !== false } },
     actor,
   });
 }

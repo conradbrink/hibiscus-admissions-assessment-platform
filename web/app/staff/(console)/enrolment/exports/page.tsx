@@ -24,7 +24,7 @@ function isTemplateBatch(columnsSnapshot: unknown): boolean {
  */
 export default async function ExportsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const { supabase, permissions, userId } = await requireStaff("data.export");
+  const { supabase, permissions, userId } = await requireStaff("enrolment.export");
   // The stage bar's reads, started now so they run beside the page's own.
   const header = loadAdmissionsHeaderData(supabase, userId);
   const includeExported = sp.all === "1";

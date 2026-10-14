@@ -64,6 +64,7 @@ export type PrimaryAction =
   | "follow_up" // addApplicantTask, with a date
   | "record_payment" // PaymentPanel → recordEft
   | "registration_reminder" // sendRegistrationReminder
+  | "confirm_registration" // confirmRegistration
   | "register" // confirmEnrolment
   | "resume" // resumeDeferred
   | "withdraw"; // recordDecision(withdrawn)
@@ -115,10 +116,24 @@ export type ApplicantFacts = {
   hasSat: boolean;
   /** Whether a decision was ever recorded, likewise. */
   hasDecision: boolean;
+  /** Registration open and every section done by the completeness rule: only the parent's Submit is missing. */
+  registrationReady?: boolean;
   now: Date;
 };
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * What the registration stage says about the money. It used to say "Payment
+ * received." whatever the record held, which was true while paying was the
+ * only way in; since Move to stage, a child can reach registration with the
+ * payment still to confirm, or with none asked for.
+ */
+function paidLine(f: Pick<ApplicantFacts, "payment">): string {
+  if (f.payment?.status === "paid") return "Payment received.";
+  if (f.payment && ["required", "failed", "partially_paid", "processing"].includes(f.payment.status)) return "Payment not yet confirmed.";
+  return "No payment taken.";
+}
 
 /** Where a status sits on the journey while it is under way. */
 export function journeyStageOf(status: ApplicationStatus): JourneyStage | null {
@@ -454,8 +469,21 @@ export function nextStep(f: ApplicantFacts): NextStep {
       });
 
     case "registration_incomplete":
+      // Everything is in and only the parent's Submit is missing: they
+      // finished a section after submitting, or the office uploaded the last
+      // document for them, and nothing moves a registration on but Submit.
+      if (f.registrationReady) {
+        return step({
+          headline: `${paidLine(f)} Registration filled in.`,
+          title: "Everything is in — confirm the registration",
+          detail: "The parent has not pressed Submit. Check the registration, then confirm it for them.",
+          action: "confirm_registration",
+          actionLabel: "Confirm registration",
+          tone: "action",
+        });
+      }
       return step({
-        headline: "Payment received. Registration open.",
+        headline: `${paidLine(f)} Registration open.`,
         title: "Waiting for the parent to complete registration",
         detail: "Their link asks only for what the school does not have yet.",
         action: "registration_reminder",
@@ -465,7 +493,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
 
     case "registration_complete":
       return step({
-        headline: "Payment received. Registration complete.",
+        headline: `${paidLine(f)} Registration complete.`,
         title: "Register the student",
         detail: "Check the documents, then confirm the enrolment.",
         action: "register",

@@ -37,6 +37,8 @@ import {
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
+import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
+import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
@@ -336,6 +338,35 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onCallbackCompleted(admin, app, parsed.note || null, ctx.actor);
     done(parsed.applicationId);
+  });
+}
+
+/**
+ * Move to stage: an admissions officer moves the child forward along the
+ * journey, skipping the steps between, with a reason. Its own permission
+ * (`applications.move_stage`) rather than `decisions.override`, because it
+ * also speaks for the family (an acceptance) and for finance (a payment
+ * request closed or left for them), and a school may want those apart.
+ */
+export async function moveToStage(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.move_stage");
+    const parsed = idSchema
+      .extend({
+        target: z.enum(["decision", "offer", "payment", "registration"], { error: "Choose the stage to move to." }),
+        reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
+        alreadyPaid: z.literal("on").optional(),
+      })
+      .parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    await onMovedToStage(admin, app, { target: parsed.target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
+    // The emails the stage landed on sends, now rather than on the next sweep.
+    drainSoon();
+    done(app.id);
+    revalidatePath("/staff/decisions");
+    revalidatePath("/staff/offers");
+    revalidatePath("/staff/payments");
+    revalidatePath("/staff/registrations");
   });
 }
 
@@ -1189,10 +1220,18 @@ export async function setDayPattern(_: StaffActionState, formData: FormData): Pr
  * family pays for the next decade of their child's schooling, which is the
  * weight of signing off an offer, not of correcting a spelling.
  *
- * What it deliberately does not do is touch any offer. A letter already with a
- * family keeps the fees it was drafted with — that is `snapshotFees` working
- * as intended, and silently re-pricing a letter a parent has read would be
- * worse than making somebody press Generate offer again. The screen says so.
+ * Choosing the band re-drafts the offer, on the school's instruction of
+ * 14 October 2026: the percentage on the letter is the admissions officer's
+ * to choose, and choosing it used to leave a warning that the letter still
+ * said the old figure, and a second button to press. Now:
+ *
+ *   - a draft, or a letter waiting for approval, is re-drafted at the new band
+ *     and waits for approval as before;
+ *   - a letter already with the family is withdrawn (their link stops
+ *     working) and re-drafted, and waits for approval: re-pricing a letter a
+ *     parent has read without telling them would be worse than a new one;
+ *   - once the family has accepted, the letter they accepted keeps its fees
+ *     (that is `snapshotFees` working), and only the band on file changes.
  */
 export async function setScholarship(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -1240,6 +1279,34 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
       audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
       actor: ctx.actor,
     });
+
+    // Re-price the letter at the new band.
+    let withdrew = false;
+    if (app.status === "offer_sent" || app.status === "offer_expired") {
+      const { data: out, error: outErr } = await admin
+        .from("offers")
+        .select("id, status")
+        .eq("application_id", app.id)
+        .in("status", ["sent", "viewed", "expired"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (outErr) throw new Error(outErr.message);
+      if (out) {
+        await onOfferWithdrawn(admin, app, out, `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
+        withdrew = true;
+      }
+    }
+    // A draft resting on `offer_draft` without a withdrawal is one waiting
+    // for fees: drafting it again would only raise a second "configure fees"
+    // task. It takes the new band when Generate offer is pressed.
+    if (withdrew || app.status === "offer_pending_approval") {
+      const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
+      if (current.error) throw new Error(current.error.message);
+      await onOfferDrafted(admin, current.data, ctx.actor);
+      drainSoon();
+    }
     done(app.id);
+    revalidatePath("/staff/offers");
   });
 }

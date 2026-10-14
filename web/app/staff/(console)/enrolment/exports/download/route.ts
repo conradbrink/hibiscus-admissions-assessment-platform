@@ -155,7 +155,7 @@ const SELECT =
   "id, application_id, snapshot, applications!inner(campus_id, grade_id, intake_id, created_at, campuses(code), contacts!applications_contact_id_fkey(family_code))";
 
 export async function POST(request: Request) {
-  const ctx = await requireStaff("data.export");
+  const ctx = await requireStaff("enrolment.export");
   const form = await request.formData();
   const layout = layoutOf(form.get("layout"));
   const format = layout === "custom" && String(form.get("layout")) === "custom-json" ? "json" : "csv";
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const ctx = await requireStaff("data.export");
+  const ctx = await requireStaff("enrolment.export");
   const url = new URL(request.url);
   const batchId = url.searchParams.get("batch");
   if (!batchId) return new Response("Missing batch", { status: 400 });

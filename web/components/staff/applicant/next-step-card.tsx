@@ -15,14 +15,17 @@ import { can, type PermissionCode, type PermissionSet } from "@/lib/permissions"
 import { cn } from "@/lib/utils";
 import type { NextStep, PrimaryAction } from "@/lib/workflow/next-step";
 import { DecisionPanel } from "@/components/staff/applicant/decision-panel";
+import { MoveStageFields } from "@/components/staff/move-stage-fields";
+import type { MoveTarget } from "@/lib/workflow/stage-move";
 import { ApproveOfferForm, assessmentResult, bandClass, OfferEditor, OfferPreview, OfferSummary, rulesRecommendation, type OfferSettings } from "@/components/staff/applicant/records";
 import { generateOffer, sendOutcome, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
-import { confirmEnrolment, sendRegistrationReminder } from "@/app/staff/(console)/registrations/actions";
+import { confirmEnrolment, confirmRegistration, sendRegistrationReminder } from "@/app/staff/(console)/registrations/actions";
 import {
   addApplicantTask,
   checkIn,
   completeCallback,
+  moveToStage,
   recordDecision,
   rescheduleByStaff,
   resendLink,
@@ -60,6 +63,7 @@ const NEEDS: Record<PrimaryAction, { permission: PermissionCode; who: string }> 
   follow_up: { permission: "tasks.write", who: "someone who can set tasks" },
   record_payment: { permission: "finance.read", who: "finance" },
   registration_reminder: { permission: "applications.write", who: "admissions" },
+  confirm_registration: { permission: "applications.write", who: "admissions" },
   register: { permission: "applications.write", who: "admissions" },
   resume: { permission: "applications.write", who: "admissions" },
   withdraw: { permission: "applications.write", who: "admissions" },
@@ -91,11 +95,14 @@ export function NextStepCard({
   parentSees,
   secondary,
   offerSettings,
+  moveTargets = [],
 }: {
   w: ApplicantWorkspace;
   permissions: PermissionSet;
   decision: DecisionRights;
   offerSettings: OfferSettings;
+  /** The stages this person may move the child to now; empty hides Move to stage. */
+  moveTargets?: readonly MoveTarget[];
   eligibleSessions: Array<{ id: string; starts_at: string; location: string | null }>;
   /** What the parent's own page tells them, so staff and family read the same thing. */
   parentSees: string | null;
@@ -106,6 +113,35 @@ export function NextStepCard({
   const allowed = step.action ? can(permissions, NEEDS[step.action].permission) : false;
   const idField = <input type="hidden" name="applicationId" value={w.app.id} />;
   const main = step.tone === "waiting" ? "outline" : "default";
+
+  // Move to stage: the officer's override, for a family who has paid already
+  // or a child who need not sit. Quiet and folded, like Decide now instead,
+  // because it skips steps every other button on the page waits for.
+  const moveAside =
+    moveTargets.length > 0 ? (
+      <details className="mt-4 border-t border-border pt-3 text-sm">
+        <summary className="cursor-pointer font-medium text-primary">Move to another stage</summary>
+        <ActionForm
+          action={moveToStage}
+          label="Move child"
+          size="sm"
+          variant="outline"
+          className="mt-3 max-w-xl space-y-3"
+          confirmBy={{
+            field: "target",
+            messages: {
+              decision: `Move ${w.app.child_first_name} to Decision without an assessment? A booked assessment is cancelled.`,
+              offer: `Accept ${w.app.child_first_name} and draft the offer? The skipped steps are recorded as done by you.`,
+              payment: `Accept ${w.app.child_first_name}, approve the offer and record the family's acceptance? The parent is emailed what to pay.`,
+              registration: `Move ${w.app.child_first_name} straight to registration? Any offer in play is withdrawn and the parent is emailed the registration form.`,
+            },
+          }}
+        >
+          {idField}
+          <MoveStageFields targets={moveTargets} />
+        </ActionForm>
+      </details>
+    ) : null;
 
   // A decision can be recorded here even when it is not the next step: a
   // waitlisted family a place has opened for, a pre-school child decided
@@ -150,6 +186,7 @@ export function NextStepCard({
 
       {secondary ? <div className="mt-3 flex flex-wrap items-center gap-2">{secondary}</div> : null}
       {decideAside}
+      {moveAside}
 
       {parentSees ? (
         <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
@@ -362,6 +399,16 @@ function PrimaryActionArea({
         </div>
       );
 
+    case "confirm_registration":
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <ActionForm action={confirmRegistration} label={label} size="lg" variant={variant} confirm={CONFIRM_REGISTRATION}>
+            {idField}
+          </ActionForm>
+          <Link href={`/staff/registrations/${w.app.id}`} className="text-sm text-primary underline underline-offset-2">Check the registration first</Link>
+        </div>
+      );
+
     case "register":
       return (
         <div className="flex flex-wrap items-center gap-3">
@@ -399,9 +446,12 @@ const ONE_PRESS: Partial<Record<PrimaryAction, (state: StaffActionState, formDat
   send_outcome: sendOutcome,
   resend_link: resendLink,
   registration_reminder: sendRegistrationReminder,
+  confirm_registration: confirmRegistration,
   register: confirmEnrolment,
   resume: resumeDeferred,
 };
+
+const CONFIRM_REGISTRATION = "Confirm this registration for the family? The parent is emailed that everything has been received.";
 
 /**
  * The sticky bar's contents: where the applicant is, and the same next step
@@ -418,7 +468,7 @@ export function StickyStep({ w, permissions, offerSettings }: { w: ApplicantWork
   let primary: React.ReactNode = null;
   if (step.action && step.actionLabel && allowed) {
     if (step.action === "approve_offer") primary = <ApproveOfferForm w={w} />;
-    else if (onePress) primary = <ActionForm action={onePress} label={step.actionLabel} size="sm" variant={step.tone === "waiting" ? "outline" : "default"} confirm={step.action === "register" ? "Register this child as a student? Their record is created from the registration." : step.action === "send_outcome" ? `${step.actionLabel}? It is emailed to the parent now.` : undefined}>{idField}</ActionForm>;
+    else if (onePress) primary = <ActionForm action={onePress} label={step.actionLabel} size="sm" variant={step.tone === "waiting" ? "outline" : "default"} confirm={step.action === "register" ? "Register this child as a student? Their record is created from the registration." : step.action === "confirm_registration" ? CONFIRM_REGISTRATION : step.action === "send_outcome" ? `${step.actionLabel}? It is emailed to the parent now.` : undefined}>{idField}</ActionForm>;
     else if (step.action === "launch") primary = <LaunchDialog applicationId={w.app.id} childName={w.app.child_first_name} action={launchAttempt} label={step.actionLabel} />;
     else if (step.action === "new_code" && w.latestAttempt?.status === "ready") primary = <LaunchDialog applicationId={w.app.id} childName={w.app.child_first_name} action={launchAttempt} reissue={reissueCode} attemptId={w.latestAttempt.id} label={step.actionLabel} />;
     else if ((step.action === "open_sitting" || step.action === "mark_writing") && w.latestAttempt) primary = <Link href={`/staff/assessments/attempts/${w.latestAttempt.id}`} className={buttonVariants({ size: "sm", variant: step.tone === "waiting" ? "outline" : "default" })}>{step.actionLabel}</Link>;

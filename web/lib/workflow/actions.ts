@@ -68,7 +68,7 @@ const emailJob = (
  * live. The message is read by the person at the screen — `guarded()` shows a
  * `WorkflowError` verbatim — so it names the step and the application.
  */
-async function mustSucceed(
+export async function mustSucceed(
   reference: string,
   outcome: string,
   step: string,
@@ -98,9 +98,21 @@ export async function onEnquiryCreated(
     "id" | "reference" | "status" | "entry_route" | "requires_assessment" | "child_first_name"
   >,
   parentName: string,
-  actor: Actor
+  actor: Actor,
+  opts: {
+    /**
+     * The officer at the desk is moving this child straight on (Move to
+     * stage, from Add an applicant). The acknowledgement waits two minutes
+     * and goes only if the child is still where the enquiry left them: a
+     * family moved on hears only what the stage they land on says, and one
+     * whose move was refused is still acknowledged.
+     */
+    holdForMove?: boolean;
+  } = {}
 ): Promise<void> {
   const settings = await getSettings(admin);
+  const ack = (job: JobSpec, landsOn: ApplicationStatus): JobSpec =>
+    opts.holdForMove ? { ...job, runAfter: hoursFromNow(2 / 60), precondition: { ...job.precondition, application_status: [landsOn] } } : job;
 
   if (app.entry_route === "callback") {
     await commit(admin, {
@@ -123,7 +135,7 @@ export async function onEnquiryCreated(
           dueAt: hoursFromNow(24),
         },
       ],
-      jobs: [emailJob(app.id, "callback_received")],
+      jobs: [ack(emailJob(app.id, "callback_received"), "callback_requested")],
       audit: { action: "application.created", after: { reference: app.reference } },
       actor,
     });
@@ -152,7 +164,7 @@ export async function onEnquiryCreated(
       // No nudge job. The invitation carries a deadline the school has already
       // put in writing, and a second automatic chase against a date the
       // parent is holding would read as a machine, not a school.
-      jobs: [emailJob(app.id, "scholarship_invitation")],
+      jobs: [ack(emailJob(app.id, "scholarship_invitation"), "new_enquiry")],
       audit: { action: "application.created", after: { reference: app.reference, scholarship } },
       actor,
     });
@@ -183,7 +195,7 @@ export async function onEnquiryCreated(
           dueAt: hoursFromNow(48),
         },
       ],
-      jobs: [emailJob(app.id, "preschool_enquiry_received")],
+      jobs: [ack(emailJob(app.id, "preschool_enquiry_received"), "awaiting_decision")],
       audit: { action: "application.created", after: { reference: app.reference } },
       actor,
     });
@@ -207,7 +219,7 @@ export async function onEnquiryCreated(
       payload: { entry_route: app.entry_route },
     },
     jobs: [
-      emailJob(app.id, "enquiry_received"),
+      ack(emailJob(app.id, "enquiry_received"), "new_enquiry"),
       emailJob(app.id, "enquiry_nudge", {
         runAfter: hoursFromNow(settings.enquiryNudgeHours),
         precondition: { application_status: ["new_enquiry"] },

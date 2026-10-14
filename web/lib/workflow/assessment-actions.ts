@@ -238,7 +238,19 @@ export async function runMarking(
     return;
   }
 
-  if (app.status !== "assessment_completed") return; // already moved on, or a re-mark after the decision
+  if (app.status !== "assessment_completed") {
+    // Already moved on, or a re-mark after the decision: nothing moves. But a
+    // child an officer moved past the decision by hand (Move to stage) while
+    // this sitting was still being marked has no learning profile yet, and the
+    // offer email links it. The key is the one `onAssessmentMarked` uses, so
+    // where the profile was already queued this is a no-op.
+    if (app.status !== "withdrawn") {
+      await enqueueJobs(admin, [
+        { type: "generate_learning_profile", payload: { attempt_id: attempt.id }, idempotencyKey: `profile:${attempt.id}`, applicationId: app.id },
+      ]);
+    }
+    return;
+  }
   await onAssessmentMarked(admin, app, attempt, actor);
 }
 

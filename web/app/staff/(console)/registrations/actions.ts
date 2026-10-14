@@ -15,7 +15,7 @@ import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-
 import { requireStaffAction } from "@/lib/staff/session";
 import { commit, enqueueJobs, WorkflowError } from "@/lib/workflow/engine";
 import { onEnrolmentConfirmed } from "@/lib/workflow/enrolment-actions";
-import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested } from "@/lib/workflow/registration-actions";
+import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested, onRegistrationConfirmedByStaff } from "@/lib/workflow/registration-actions";
 
 function done(applicationId: string) {
   revalidatePath("/staff/registrations");
@@ -47,6 +47,25 @@ export async function confirmEnrolment(_: StaffActionState, formData: FormData):
     const graph = await loadApplicationGraph(admin, app.id);
     if (!graph) throw new WorkflowError("Application not found.", "application_not_found");
     await onEnrolmentConfirmed(admin, graph, ctx.actor);
+    drainSoon();
+    done(app.id);
+  });
+}
+
+/**
+ * A registration the parent filled in and never submitted (or finished after
+ * submitting), confirmed by a person. Refused unless the completeness rule
+ * agrees it is complete, and the message then says what is missing.
+ */
+export async function confirmRegistration(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const p = z.object({ applicationId: z.guid(), note: z.string().trim().max(500).optional() }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
+    const graph = await loadApplicationGraph(admin, app.id);
+    if (!graph) throw new WorkflowError("Application not found.", "application_not_found");
+    const bundle = await loadRegistrationBundle(admin, graph);
+    await onRegistrationConfirmedByStaff(admin, graph, bundle.completeness, p.note || null, ctx.actor);
     drainSoon();
     done(app.id);
   });

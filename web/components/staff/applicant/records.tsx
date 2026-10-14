@@ -417,6 +417,10 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
   // withdrawing is exactly what staff are told to do before re-pricing.
   const newestOffer = (offers ?? [])[0] ?? null;
   const bandMovedSinceOffer = Boolean(newestOffer && scholarshipBand && newestOffer.promotion_id !== scholarshipBand.promotionId);
+  // Saving the scholarship re-drafts the letter (`setScholarship`): these say
+  // which way, so the button and its line can say so before it is pressed.
+  const letterWithFamily = Boolean(liveOffer && ["sent", "viewed", "expired"].includes(liveOffer.status));
+  const acceptedOffer = (offers ?? []).some((o) => o.status === "accepted");
   const offerPricedUnder = awardLabelOf((feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null);
   const idField = <input type="hidden" name="applicationId" value={w.app.id} />;
   // Conditions are given when a letter is drafted: on the draft or the one
@@ -453,13 +457,20 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
           </ActionForm>
         ) : null}
         {scholarshipBand?.canSet ? (
-          <ActionForm action={setScholarship} label="Save scholarship" variant="outline" size="sm" className={field}>
+          <ActionForm
+            action={setScholarship}
+            label={letterWithFamily ? "Save and re-issue the offer" : liveOffer ? "Save and re-draft the offer" : "Save scholarship"}
+            variant="outline"
+            size="sm"
+            className={field}
+            confirm={letterWithFamily ? "The letter the family has is withdrawn, and a new one at this scholarship waits for your approval. Continue?" : undefined}
+          >
             {idField}
             <label className="block text-xs font-semibold text-muted-foreground" htmlFor="scholarship">Scholarship</label>
             {bandMovedSinceOffer ? (
               <p className="rounded-lg bg-warning/15 px-2 py-1.5 text-xs text-warning-foreground">
                 {offerPricedUnder ? `The most recent letter was priced at ${offerPricedUnder}, not this. ` : "The most recent letter was priced under a different deal. "}
-                {liveOffer ? "Re-draft the offer to re-price it." : "Nothing is drafted now — create an offer to issue one at this band."}
+                {acceptedOffer ? "The family accepted that letter, so it keeps its fees." : liveOffer ? "Re-draft the offer to re-price it." : "Nothing is drafted now — create an offer to issue one at this band."}
               </p>
             ) : null}
             <NativeSelect id="scholarship" name="code" defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}>
@@ -471,11 +482,13 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
             </NativeSelect>
             <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
             <p className="text-xs text-muted-foreground">
-              {liveOffer && liveOffer.status !== "draft"
-                ? "A letter already with the family keeps its fees. To change them, withdraw it and issue a fresh one."
-                : newestOffer
-                  ? "Changing the band does not rewrite a letter. Re-draft the offer to re-price it."
-                  : "Decides the tuition the next letter quotes."}
+              {letterWithFamily
+                ? "Saving withdraws the letter the family has and drafts a new one at this scholarship, for your approval."
+                : liveOffer?.status === "pending_approval"
+                  ? "Saving re-drafts the offer at this scholarship. It still waits for approval."
+                  : acceptedOffer
+                    ? "The family has accepted their letter, which keeps its fees. Saving changes only the scholarship on file."
+                    : "Decides the tuition the next letter quotes."}
               {scholarshipBand.code && !scholarshipBand.isScholarship ? " Awarding a scholarship replaces the deal; there is only ever one." : ""}
             </p>
           </ActionForm>

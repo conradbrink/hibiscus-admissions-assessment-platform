@@ -184,6 +184,25 @@ describe("no contradictory status", () => {
   });
 });
 
+describe("registration after Move to stage", () => {
+  it("says payment was received only when it was", () => {
+    const paid = { status: "paid" as const, dueAt: null };
+    expect(nextStep(facts({ status: "registration_incomplete", payment: paid })).headline).toMatch(/^Payment received\./);
+    expect(nextStep(facts({ status: "registration_incomplete", payment: null })).headline).toMatch(/^No payment taken\./);
+    expect(nextStep(facts({ status: "registration_incomplete", payment: { status: "required", dueAt: null } })).headline).toMatch(/^Payment not yet confirmed\./);
+    expect(nextStep(facts({ status: "registration_complete", payment: { status: "cancelled", dueAt: null } })).headline).toMatch(/^No payment taken\./);
+  });
+
+  it("asks staff to confirm a registration that is complete but was never submitted", () => {
+    const s = nextStep(facts({ status: "registration_incomplete", registrationReady: true }));
+    expect(s.action).toBe("confirm_registration");
+    expect(s.actionLabel).toBe("Confirm registration");
+    expect(s.tone).toBe("action");
+    // And keeps waiting on the parent while something is still missing.
+    expect(nextStep(facts({ status: "registration_incomplete", registrationReady: false })).action).toBe("registration_reminder");
+  });
+});
+
 describe("review findings on the first cut", () => {
   it("stops saying Arrived once the visit is no longer the stage", () => {
     const visited = { ...booked, kind: "visit" as const, status: "checked_in" as const };
