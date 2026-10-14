@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { contactAge, describeList, listFilters, listQuery, loadListExtras, readDrill, toLine, type ListSearch } from "@/lib/applicant-list";
+import { isDimension } from "@/lib/analytics/drill-down";
 import type { FactRow } from "@/lib/analytics/breakdown";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { can, canAccessPath } from "@/lib/permissions";
@@ -55,9 +56,11 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   let drillTotal = 0;
   let drillIds: string[] | null = null;
   let facts: FactRow[] = [];
+  let cut = 0;
   if (drill) {
     const read = await readDrill(supabase, f);
     facts = read.facts;
+    cut = read.cut;
     drillTotal = read.ids.length;
     drillIds = read.ids.slice((page - 1) * PAGE, page * PAGE);
   }
@@ -105,7 +108,9 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
         {(["xlsx", "pdf"] as const).map((format) => (
           <a
             key={format}
-            href={`/staff/applications/export?${new URLSearchParams({ ...pick(sp), format })}`}
+            // The 48-hour cut-off goes with it as worked out for this screen,
+            // so a file taken later still holds these families.
+            href={`/staff/applications/export?${new URLSearchParams({ ...pick(sp), ...(f.waiting ? { waiting_before: f.waiting.before } : {}), format })}`}
             className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title={`Download all ${total} as ${format === "xlsx" ? "an Excel workbook" : "a PDF"}`}
           >
@@ -133,13 +138,13 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
           list is shorter than the filters on screen explain. */}
       {drill && range ? (
         <p className="mb-4 text-sm text-muted-foreground">
-          {describeList(f, { campus: chosenCampus, facts })}. The same families analytics counted.{" "}
+          {describeList(f, { campus: chosenCampus, facts, cut })}. The same families analytics counted.{" "}
           <Link href="/staff/applications" className="text-primary underline underline-offset-2">Show all applicants</Link>
           {canAccessPath(permissions, "/staff/analytics") ? (
             <>
               {" · "}
               <Link
-                href={`/staff/analytics?${new URLSearchParams({ from: range.from, to: range.to, ...(sp.campus ? { campus: sp.campus } : {}) })}`}
+                href={`/staff/analytics?${new URLSearchParams({ from: range.from, to: range.to, ...(sp.campus ? { campus: sp.campus } : {}), ...(isDimension(sp.dim) ? { dim: sp.dim } : {}) })}`}
                 className="text-primary underline underline-offset-2"
               >
                 Back to analytics

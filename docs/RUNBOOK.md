@@ -701,15 +701,21 @@ stage, a status, a search, or a list opened from Insights. The file holds the
 whole list, not just the page of fifty on screen, with the same columns
 (including last contacted) and a line saying what it is a list of. The Excel
 file has a second sheet, **About this list**, with the same and who took it.
-More than 5,000 applicants are cut off with a note saying so; narrow the list
-and download again.
+The Excel file takes up to 5,000 applicants and the PDF up to 1,000 (about
+80 printed pages); past that the file says how many were left out, so narrow
+the list or take the Excel file. A list opened from Insights over a long
+period may also say that only the period's first enquiries could be read:
+Insights itself counted only those, so choose a shorter period.
 
 Who may download is ticked per role: **Settings → Staff and roles → What each
 role may do → applications.export** ("Download applicant lists as Excel or
 PDF"), then **Save** under that role. **Management** and the **Admissions
-manager** have it from the start. A person sees only the campuses they may
+manager** have it from the start. It only works for a role that can also see
+applicants (`applications.read`). A person sees only the campuses they may
 see, in the file as on screen. Every download is written to the audit log
-(`applications.exported`) with the filters, the count and who took it.
+(`applications.exported`) with the filters, the count and who took it; if
+that record cannot be written, the download is refused rather than made
+unrecorded.
 
 ## Exporting students to Ed-admin
 

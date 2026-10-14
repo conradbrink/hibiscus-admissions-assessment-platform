@@ -266,8 +266,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // them: the same facts, the same period and campus, the same rule. Only for
   // somebody who may open the applicant list, and never for a list of nobody.
   const canList = canAccessPath(permissions, "/staff/applications");
-  const figureLink = (figure: FigureKey, count: number, group?: { dim: Dimension; key: string }) =>
-    canList && count > 0 ? drillHref({ from, to }, sp.campus, { figure, group }) : undefined;
+  const figureLink = (figure: FigureKey, count: number, group?: { dim: Dimension; key: string }, back?: { dim: Dimension }) =>
+    canList && count > 0 ? drillHref({ from, to }, sp.campus, { figure, group }, back) : undefined;
+  const deferredHref = figureLink("deferred", deferred.count);
   const families = (n: number, words: string) => `the ${fmtCount(n)} ${n === 1 ? "family" : "families"} ${words}`;
   const funnelLinks = Object.fromEntries(
     stages.flatMap((s) => {
@@ -330,8 +331,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                     pass through on the way to enrolling. */}
                 {deferred.count > 0 ? (
                   <p>
-                    {figureLink("deferred", deferred.count) ? (
-                      <Link href={figureLink("deferred", deferred.count)!} className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
+                    {deferredHref ? (
+                      <Link href={deferredHref} className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
                         {fmtCount(deferred.count)} deferred
                       </Link>
                     ) : (
@@ -405,16 +406,18 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                       <tbody>
                         {groups.map((g) => {
                           const group = { dim, key: g.key };
-                          const all = figureLink("enquiries", g.counts.enquiries, group);
+                          // Back from the list reopens this table, grouped as it is now.
+                          const back = { dim };
+                          const groupHref = figureLink("enquiries", g.counts.enquiries, group, back);
                           return (
                             <tr key={g.key}>
                               <td className="font-medium whitespace-nowrap">
-                                {all ? <Link href={all} className="underline-offset-4 hover:text-primary hover:underline">{g.label}</Link> : g.label}
+                                {groupHref ? <Link href={groupHref} className="underline-offset-4 hover:text-primary hover:underline">{g.label}</Link> : g.label}
                               </td>
                               {/* Each count opens its own families: this group, at this figure. */}
                               {BREAKDOWN_COLUMNS.map((c) => {
                                 const v = g.counts[c.figure];
-                                const href = figureLink(c.figure, v, group);
+                                const href = figureLink(c.figure, v, group, back);
                                 return (
                                   <td key={c.figure} className="text-right tabular-nums">
                                     {href ? (

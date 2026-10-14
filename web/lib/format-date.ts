@@ -143,6 +143,19 @@ export function daysAgoDateString(days: number): string {
   return toSchoolDateString(new Date(Date.now() - days * 86_400_000));
 }
 
+/**
+ * Whole days from one instant to another as the school's calendar counts
+ * them: 22:00 yesterday is one day ago at 08:00 today, though only ten hours
+ * have passed. Counting 24-hour blocks instead says "today" over a date line
+ * that reads yesterday. Null when `from` is not a date.
+ */
+export function schoolDaysBetween(from: string | Date, to: Date): number | null {
+  const a = parse(from);
+  if (!a) return null;
+  const day = (d: Date) => Date.parse(`${toSchoolDateString(d)}T00:00:00Z`);
+  return Math.round((day(to) - day(a)) / 86_400_000);
+}
+
 /** A date-only `YYYY-MM-DD` for the school's zone, from any instant. */
 export function toSchoolDateString(value: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

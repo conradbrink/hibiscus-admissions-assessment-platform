@@ -76,6 +76,9 @@ export type FunnelCounts = {
 
 export type FunnelKey = keyof FunnelCounts;
 
+/** Paused at the family's request: the note beside the funnel counts these, and its link lists them. */
+export const isDeferred = (r: FactRow): boolean => r.status === "deferred";
+
 /**
  * Which families each funnel figure counts, one rule per figure.
  * `funnelCounts` is these rules counted, and the applicant list analytics

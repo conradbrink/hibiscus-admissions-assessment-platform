@@ -2,8 +2,8 @@ import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import { createElement, type ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import type { FactRow } from "@/lib/analytics/breakdown";
-import { contactAge, describeList, listFilename, listFilters, SHEET_HEADERS, sheetCells, slices, toLine, type ListRow } from "@/lib/applicant-list";
-import { ApplicantListDocument } from "@/lib/documents/applicant-list-pdf";
+import { contactAge, describeList, inParallel, listFilename, listFilters, SHEET_HEADERS, sheetCells, slices, toLine, type ListRow } from "@/lib/applicant-list";
+import { ApplicantListDocument, pageSlices, rowHeight } from "@/lib/documents/applicant-list-pdf";
 import { buildWorkbook } from "@/lib/enrolment/xlsx";
 import { readWorkbook } from "@/lib/xlsx-read";
 
@@ -62,6 +62,13 @@ describe("the applicant list's filters", () => {
     expect(listFilters({ waiting: "48h" }, NOW).waiting?.before).toBe("2026-10-12T10:00:00.000Z");
     expect(listFilters({ waiting: "forever" }, NOW).waiting).toBeUndefined();
   });
+
+  it("keeps the cut-off the screen worked out, so a download taken later holds the same families", () => {
+    expect(listFilters({ waiting: "48h", waiting_before: "2026-10-12T07:00:00.000Z" }, NOW).waiting?.before).toBe("2026-10-12T07:00:00.000Z");
+    // Anything that is not an instant is worked out afresh rather than passed to the database.
+    expect(listFilters({ waiting: "48h", waiting_before: "yesterday" }, NOW).waiting?.before).toBe("2026-10-12T10:00:00.000Z");
+    expect(listFilters({ waiting_before: "2026-10-12T07:00:00.000Z" }, NOW).waiting).toBeUndefined();
+  });
 });
 
 describe("what a list is of, in words", () => {
@@ -71,6 +78,13 @@ describe("what a list is of, in words", () => {
     const f = listFilters({ reached: "offered", by: "grade", value: "g1", from: "2026-09-14", to: "2026-10-14" }, NOW);
     expect(describeList(f, { campus: "Bana Tlokweng", facts })).toBe(
       "Offer sent, from families who enquired 14 Sept to 14 Oct 2026 at Bana Tlokweng · Grade: Pre-Kindergarten"
+    );
+  });
+
+  it("says so when analytics could not read the whole period", () => {
+    const f = listFilters({ reached: "offered", from: "2026-01-01", to: "2026-10-14" }, NOW);
+    expect(describeList(f, { facts: Array.from({ length: 1000 }, () => ({}) as FactRow), cut: 240 })).toBe(
+      "Offer sent, from families who enquired 1 Jan to 14 Oct 2026 (from the first 1000 enquiries only: 240 more could not be read, so choose a shorter period)"
     );
   });
 
@@ -129,6 +143,10 @@ describe("an applicant as a line", () => {
 describe("how long since the school and a family last spoke", () => {
   it("reads as a manager would ask it, and marks a fortnight or more", () => {
     expect(contactAge("2026-10-14T08:00:00Z", NOW)).toEqual({ words: "Today", quiet: false });
+    // 22:00 on the 13th in Gaborone, read at noon on the 14th: fourteen hours,
+    // but yesterday, as the date printed under it says.
+    expect(contactAge("2026-10-13T20:00:00Z", NOW)).toEqual({ words: "Yesterday", quiet: false });
+    expect(contactAge("2026-10-13T22:30:00Z", NOW)).toEqual({ words: "Today", quiet: false });
     expect(contactAge("2026-10-13T08:00:00Z", NOW)).toEqual({ words: "Yesterday", quiet: false });
     expect(contactAge("2026-10-01T10:00:00Z", NOW)).toEqual({ words: "13 days ago", quiet: false });
     expect(contactAge("2026-09-30T10:00:00Z", NOW)).toEqual({ words: "14 days ago", quiet: true });
@@ -144,9 +162,32 @@ describe("the downloads", () => {
     expect(listFilename(listFilters({}, NOW), "xlsx", NOW)).toBe("hibiscus-applicants-all-2026-10-14.xlsx");
   });
 
-  it("read ids in slices short enough for a URL", () => {
+  it("read ids in slices short enough for a URL, a few at a time, in order", async () => {
     expect(slices([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(slices([], 2)).toEqual([]);
+    let running = 0;
+    let most = 0;
+    const out = await inParallel([5, 1, 4, 2, 3, 0], async (n) => {
+      most = Math.max(most, ++running);
+      await new Promise((r) => setTimeout(r, n));
+      running--;
+      return n * 10;
+    }, 2);
+    expect(out).toEqual([50, 10, 40, 20, 30, 0]);
+    expect(most).toBe(2);
+  });
+
+  it("lay the PDF out a page's worth of rows at a time, by height", () => {
+    const short = toLine(listRow(), NO_EXTRAS);
+    const long = { ...short, parentEmail: "boitumelo.kgosi.family@averyverylongdomainname.co.bw", attention: ["Offer expiring", "Overdue task"] };
+    expect(rowHeight(long)).toBeGreaterThan(rowHeight(short));
+    const pages = pageSlices([...Array(40).fill(short), ...Array(40).fill(long)]);
+    expect(pages.flat()).toHaveLength(80);
+    // The first page has the title over it, so it holds fewer.
+    expect(pages[0].length).toBeLessThan(pages[1].length);
+    // Pages of long rows hold fewer than pages of short ones.
+    expect(pages.at(-2)!.length).toBeLessThan(pages[1].length);
+    expect(pageSlices([])).toEqual([[]]);
   });
 
   it("open in a spreadsheet as the same rows", () => {

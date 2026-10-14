@@ -840,14 +840,27 @@ which families it is, then take that list into a report.
 - **The list and its downloads are one reading** (`lib/applicant-list.ts`):
   the filters a query string names, the query, and each applicant as the
   line both draw. `/staff/applications/export?format=xlsx|pdf` takes the
-  page's own query string, reads the whole list under the caller's RLS (ids
-  in slices of 100, pages of 1,000, capped at 5,000 with a note), and audits
-  `applications.exported`. Excel is the hand-rolled writer in
-  `lib/enrolment/xlsx.ts`, every cell text, dates `YYYY-MM-DD` so they sort;
-  the PDF is `lib/documents/applicant-list-pdf.tsx`, landscape, column heads
-  repeated on each page.
+  page's own query string, reads the whole list under the caller's RLS and
+  audits `applications.exported`, refusing the file if the audit row cannot
+  be written. A drill's ids are read in slices of 100, four at a time; any
+  other list a page of 1,000 at a time by cursor on (created_at, id), not by
+  offset, so an enquiry arriving mid-download cannot duplicate or skip a row.
+  Excel stops at 5,000 and the PDF at 1,000, each saying how many it left
+  out. A drill whose facts read was cut short (the 5,000 cap or PostgREST's
+  row limit, found from the read's count) says so on the list and in the
+  file. Excel is the hand-rolled writer in `lib/enrolment/xlsx.ts`, every
+  cell text, dates `YYYY-MM-DD` so they sort.
+- **The PDF is laid out a page at a time.** react-pdf's time to break one
+  long page grows with the square of its rows (1,200 rows took 112s), so
+  `lib/documents/applicant-list-pdf.tsx` slices the rows into pages itself,
+  filled by an estimate of each row's height (`rowHeight`, `pageSlices`),
+  and each page carries the letterhead and column heads. 1,000 rows render
+  in about nine seconds.
 - **Its own permission**, `applications.export`, granted to Management and
-  the admissions manager and ticked for any other role under Staff & roles.
+  the admissions manager and ticked for any other role under Settings →
+  Staff and roles. The route also requires `applications.read`: ticked on a
+  role that cannot see applicants, it would hand over an empty file that
+  looks finished.
   Not `data.export`: that one carries the analytics CSV and per-child JSON,
   and the school wants who may take a list of families decided on its own.
 - **Last contacted** on the list and in both files is `families.last_contact_at`,
@@ -855,6 +868,8 @@ which families it is, then take that list into a report.
   `families!contacts_family_id_fkey`: contacts and families are joined three
   ways). It counts every message either way, automatic ones included, and
   Log contact; there is no separate record of a phone call nobody logged.
+  Its age is counted in the school's calendar days (`schoolDaysBetween`),
+  which the CRM's `Ago` now uses too.
 - **Page numbers.** `LetterFoot`'s page number had never printed on any PDF:
   react-pdf 4.9 lays out `render` text that has a line height (every page
   here sets one) with no room. It now sets `lineHeight: 0`.

@@ -132,7 +132,8 @@ export function Headline({
   return (
     // Solid on hover: the strip draws its lines with the colour behind the
     // cells, and a see-through wash would let that colour in.
-    <Link href={href} className={cn("group relative block bg-card px-4 py-3.5 hover:bg-muted", CLICKABLE)} title={hrefLabel ? `See ${hrefLabel}` : hint}>
+    // The hover keeps what the figure is measured against, then says where the link goes.
+    <Link href={href} className={cn("group relative block bg-card px-4 py-3.5 hover:bg-muted", CLICKABLE)} title={[hint, hrefLabel ? `See ${hrefLabel}` : null].filter(Boolean).join(". ")}>
       {body}
       <ArrowRight className="absolute top-3.5 right-3.5 size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
       {hrefLabel ? <span className="sr-only">. See {hrefLabel}</span> : null}

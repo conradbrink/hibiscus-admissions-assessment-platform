@@ -1,4 +1,4 @@
-import { APPROVED_STATUSES, DIMENSIONS, dimensionKey, FUNNEL_RULES, type Dimension, type FactRow, type FunnelKey } from "@/lib/analytics/breakdown";
+import { APPROVED_STATUSES, DIMENSIONS, dimensionKey, FUNNEL_RULES, isDeferred, type Dimension, type FactRow, type FunnelKey } from "@/lib/analytics/breakdown";
 import type { ConversionStepKey } from "@/lib/analytics/compare";
 
 /**
@@ -61,8 +61,8 @@ export const FIGURES: Record<FigureKey, { label: string; rule: (r: FactRow) => b
   paid: { label: "Paid", rule: FUNNEL_RULES.paid },
   enrolled: { label: "Enrolled", rule: FUNNEL_RULES.enrolled },
   withdrawn: { label: "Withdrew", rule: FUNNEL_RULES.withdrawn },
-  // The same reading `deferredSummary` counts: paused today, at the family's request.
-  deferred: { label: "Deferred", rule: (r) => r.status === "deferred" },
+  // The rule `deferredSummary` counts with: paused today, at the family's request.
+  deferred: { label: "Deferred", rule: isDeferred },
 };
 
 export function isFigureKey(v: string | undefined): v is FigureKey {
@@ -122,7 +122,9 @@ export function notConverted(rows: readonly FactRow[], step: ConversionStepKey):
 export function drillHref(
   range: { from: string; to: string },
   campus: string | undefined | null,
-  what: { step?: ConversionStepKey; figure?: FigureKey; group?: { dim: Dimension; key: string } }
+  what: { step?: ConversionStepKey; figure?: FigureKey; group?: { dim: Dimension; key: string } },
+  /** The breakdown table the link was in, so the way back opens it again. */
+  back?: { dim: Dimension }
 ): string {
   const p = new URLSearchParams();
   if (what.step) p.set("step", what.step);
@@ -134,6 +136,7 @@ export function drillHref(
   p.set("from", range.from);
   p.set("to", range.to);
   if (campus) p.set("campus", campus);
+  if (back) p.set("dim", back.dim);
   return `/staff/applications?${p}`;
 }
 

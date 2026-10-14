@@ -3,6 +3,7 @@ import { createElement, type ReactElement } from "react";
 import type { FactRow } from "@/lib/analytics/breakdown";
 import {
   describeList,
+  inParallel,
   listFilename,
   listFilters,
   listQuery,
@@ -19,6 +20,7 @@ import { ApplicantListDocument } from "@/lib/documents/applicant-list-pdf";
 import { logoUrlFor } from "@/lib/documents/letterhead";
 import { buildWorkbook } from "@/lib/enrolment/xlsx";
 import { formatDateTime } from "@/lib/format-date";
+import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
@@ -40,13 +42,23 @@ export const dynamic = "force-dynamic";
 
 /** As many as analytics reads for a period; a list longer than this says so in the file. */
 const CAP = 5000;
+/**
+ * A printed report stops sooner: about 80 pages, rendered in under ten
+ * seconds. Past that the spreadsheet is the right file, and the PDF says so.
+ */
+const PDF_CAP = 1000;
 /** PostgREST's default most rows per read. */
 const READ = 1000;
 
 export async function GET(request: Request) {
   const ctx = await requireStaff("applications.export");
+  // The download is a way of reading the list, not a second door to it: the
+  // export permission ticked on a role that cannot see applicants would
+  // otherwise hand over a file of nobody that looks finished.
+  if (!can(ctx.permissions, "applications.read")) return new Response("Not found", { status: 404 });
   const url = new URL(request.url);
   const format = url.searchParams.get("format") === "pdf" ? "pdf" : "xlsx";
+  const cap = format === "pdf" ? PDF_CAP : CAP;
   const sp = Object.fromEntries([...url.searchParams].filter(([k]) => k !== "format")) as ListSearch;
   const now = new Date();
   const f = listFilters(sp, now);
@@ -54,30 +66,38 @@ export async function GET(request: Request) {
   let rows: ListRow[] = [];
   let total = 0;
   let facts: FactRow[] = [];
+  let cut = 0;
   let campusName: string | null = null;
   let intakeLabel: string | null = null;
+  let extras: Awaited<ReturnType<typeof loadListExtras>>;
   try {
     if (f.drill) {
       const read = await readDrill(ctx.supabase, f);
       facts = read.facts;
+      cut = read.cut;
       total = read.ids.length;
-      const ids = read.ids.slice(0, CAP);
-      for (const part of slices(ids)) {
+      const ids = read.ids.slice(0, cap);
+      const parts = await inParallel(slices(ids), async (part) => {
         const { data, error } = await listQuery(ctx.supabase, f, ctx.userId).in("id", part);
         if (error) throw new Error(error.message);
-        rows.push(...(data ?? []));
-      }
+        return data ?? [];
+      });
+      rows = parts.flat();
       // In the order analytics listed them, newest enquiry first.
       const order = new Map(ids.map((id, i) => [id, i]));
       rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     } else {
-      // A page at a time, by the list's own order (which breaks ties by id),
-      // until every applicant it counted is in hand or the cap is reached.
+      // A page at a time in the list's own order, each page starting after the
+      // last row of the one before (by time, then id) rather than at an
+      // offset: an enquiry arriving mid-download would otherwise push a row
+      // from one page onto the next and take it twice.
       for (;;) {
         const first = rows.length === 0;
-        const want = first ? CAP : Math.min(total, CAP);
-        if (!first && rows.length >= want) break;
-        const { data, error, count } = await listQuery(ctx.supabase, f, ctx.userId, { count: first }).range(rows.length, Math.min(rows.length + READ, want) - 1);
+        if (!first && rows.length >= Math.min(total, cap)) break;
+        let q = listQuery(ctx.supabase, f, ctx.userId, { count: first }).limit(Math.min(READ, cap - rows.length));
+        const last = rows.at(-1);
+        if (last) q = q.or(`created_at.lt."${last.created_at}",and(created_at.eq."${last.created_at}",id.gt.${last.id})`);
+        const { data, error, count } = await q;
         if (error) throw new Error(error.message);
         if (first) total = count ?? 0;
         if (!data?.length) break;
@@ -91,6 +111,7 @@ export async function GET(request: Request) {
     ]);
     campusName = campus?.name ?? null;
     intakeLabel = intake?.label ?? null;
+    extras = await loadListExtras(ctx.supabase, rows.map((r) => r.id));
   } catch (e) {
     // A failed read must not become a short file. It would look finished, be
     // sent on, and the audit log would record a download of the wrong list.
@@ -100,9 +121,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const extras = await loadListExtras(ctx.supabase, rows.map((r) => r.id));
   const lines = rows.map((r) => toLine(r, extras));
-  const description = describeList(f, { campus: campusName, intake: intakeLabel, facts });
+  const description = describeList(f, { campus: campusName, intake: intakeLabel, facts, cut });
   const filename = listFilename(f, format, now);
   const takenBy = ctx.profile.full_name || ctx.profile.email;
 
@@ -132,7 +152,9 @@ export async function GET(request: Request) {
     );
   }
 
-  await createAdminClient().from("audit_log").insert({
+  // No record, no file: a list of families leaving the system is exactly
+  // what the audit log is for, so a download it could not record is refused.
+  const { error: auditError } = await createAdminClient().from("audit_log").insert({
     actor_type: "staff",
     actor_id: ctx.userId,
     actor_label: ctx.profile.email,
@@ -140,6 +162,12 @@ export async function GET(request: Request) {
     entity_type: "applications",
     after: { format, filename, rows: lines.length, total, filters: sp },
   });
+  if (auditError) {
+    return new Response(`The download could not be recorded, so it was not made: ${auditError.message}\n`, {
+      status: 503,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "private, no-store" },
+    });
+  }
 
   return new Response(new Blob([body]), {
     headers: {

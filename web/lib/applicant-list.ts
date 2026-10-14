@@ -4,7 +4,7 @@ import { DIMENSION_LABELS } from "@/lib/analytics/breakdown";
 import { drillFrom, drillRows, drillTitle, groupLabel, type Drill } from "@/lib/analytics/drill-down";
 import { readFacts } from "@/lib/analytics/facts";
 import { resolveRange } from "@/lib/analytics/ranges";
-import { formatDate, formatDateRange, formatTime, toSchoolDateString } from "@/lib/format-date";
+import { formatDate, formatDateRange, formatTime, schoolDaysBetween, toSchoolDateString } from "@/lib/format-date";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { formatMonth, startLabel } from "@/lib/start-month";
 import { FLAG_LABELS, type Flag } from "@/lib/summary/facts";
@@ -38,6 +38,12 @@ export type ListSearch = {
   page?: string;
   /** From the dashboard: only enquiries older than this ("48h"), the ones its count calls not booked. */
   waiting?: string;
+  /**
+   * The instant `waiting` was worked out from when the list was drawn, carried
+   * into its downloads so a file taken an hour later holds the same families
+   * as the screen it was taken from.
+   */
+  waiting_before?: string;
   /** From the dashboard: deferred families due back on or before this date. */
   due_by?: string;
   /**
@@ -53,6 +59,8 @@ export type ListSearch = {
   value?: string;
   from?: string;
   to?: string;
+  /** The analytics breakdown a drill came from, so Back to analytics opens it again. */
+  dim?: string;
 };
 
 /** The dashboard's narrowings, by what its count is: the list has to hold the same families. */
@@ -91,7 +99,7 @@ export function listFilters(sp: ListSearch, now: Date): ListFilters {
     status,
     waiting:
       sp.waiting && Object.hasOwn(WAITING, sp.waiting)
-        ? { words: WAITING[sp.waiting].words, before: new Date(now.getTime() - WAITING[sp.waiting].ms).toISOString() }
+        ? { words: WAITING[sp.waiting].words, before: waitingBefore(sp.waiting_before) ?? new Date(now.getTime() - WAITING[sp.waiting].ms).toISOString() }
         : undefined,
     dueBy: sp.due_by && /^\d{4}-\d{2}-\d{2}$/.test(sp.due_by) ? sp.due_by : undefined,
     drill,
@@ -105,6 +113,13 @@ export function listFilters(sp: ListSearch, now: Date): ListFilters {
     // needs either, so they are read as spaces rather than as syntax.
     q: sp.q?.replace(/[,()]/g, " ").trim() || undefined,
   };
+}
+
+/** A carried `waiting_before`, only if it is an instant; anything else is worked out afresh. */
+function waitingBefore(v: string | undefined): string | null {
+  if (!v || !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(v)) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 /** The columns the list and its downloads read; one string, as postgrest-js needs it to type the rows. */
@@ -146,13 +161,17 @@ export type ListRow = NonNullable<Awaited<ReturnType<typeof listQuery>>["data"]>
 /**
  * A drill's families from the same facts analytics counted, every one of
  * them in the list's order, and the facts themselves (for the group's name).
+ * `cut` is how many enquiries in the period the read left out, when the cap
+ * or the server's row limit stopped it short: analytics' own figure is short
+ * by the same rows, so the list still matches it, but neither is the whole
+ * period and the list says so.
  */
-export async function readDrill(supabase: Client, f: ListFilters): Promise<{ ids: string[]; facts: FactRow[] }> {
-  if (!f.drill || !f.range) return { ids: [], facts: [] };
-  const { data, error } = await readFacts(supabase, f.range, f.campus);
+export async function readDrill(supabase: Client, f: ListFilters): Promise<{ ids: string[]; facts: FactRow[]; cut: number }> {
+  if (!f.drill || !f.range) return { ids: [], facts: [], cut: 0 };
+  const { data, error, count } = await readFacts(supabase, f.range, f.campus, { count: true });
   if (error) throw new Error(error.message);
   const facts = (data ?? []) as FactRow[];
-  return { ids: drillRows(facts, f.drill).map((r) => r.application_id), facts };
+  return { ids: drillRows(facts, f.drill).map((r) => r.application_id), facts, cut: Math.max(0, (count ?? facts.length) - facts.length) };
 }
 
 /** What a row needs beyond itself: the summary's attention flags, and whether the child holds a scholarship. */
@@ -173,6 +192,17 @@ export function slices<T>(items: readonly T[], size = ID_SLICE): T[][] {
 }
 
 /**
+ * `work` over every item, a few at a time: one after another, fifty slices of
+ * a large download were fifty round trips end to end; all at once, they would
+ * be fifty requests landing on the database together.
+ */
+export async function inParallel<T, R>(items: readonly T[], work: (item: T) => Promise<R>, width = 4): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += width) out.push(...(await Promise.all(items.slice(i, i + width).map(work))));
+  return out;
+}
+
+/**
  * Attention flags from the last generated summary, where one exists, and
  * which of these children hold a scholarship — batched together, because a
  * row that says "Parent to book assessment" against a scholarship child is
@@ -181,13 +211,20 @@ export function slices<T>(items: readonly T[], size = ID_SLICE): T[][] {
 export async function loadListExtras(supabase: Client, ids: readonly string[]): Promise<ListExtras> {
   const flags = new Map<string, Flag[]>();
   const scholars = new Set<string>();
-  for (const part of slices(ids)) {
-    const [{ data: summaries }, { data: awards }] = await Promise.all([
+  // A failed read is an error, not an empty answer: without it every row would
+  // lose its flags, and a scholarship child would be told to book.
+  const parts = await inParallel(slices(ids), async (part) => {
+    const [summaries, awards] = await Promise.all([
       supabase.from("application_summaries").select("application_id, flags").in("application_id", part),
       supabase.from("application_promotions").select("application_id, promotions(code)").in("application_id", part),
     ]);
-    for (const s of summaries ?? []) flags.set(s.application_id, (Array.isArray(s.flags) ? s.flags : []) as unknown as Flag[]);
-    for (const a of awards ?? []) if (isScholarshipCode(one(a.promotions)?.code ?? null)) scholars.add(a.application_id);
+    if (summaries.error) throw new Error(summaries.error.message);
+    if (awards.error) throw new Error(awards.error.message);
+    return { summaries: summaries.data ?? [], awards: awards.data ?? [] };
+  });
+  for (const { summaries, awards } of parts) {
+    for (const s of summaries) flags.set(s.application_id, (Array.isArray(s.flags) ? s.flags : []) as unknown as Flag[]);
+    for (const a of awards) if (isScholarshipCode(one(a.promotions)?.code ?? null)) scholars.add(a.application_id);
   }
   return { flags, scholars };
 }
@@ -252,7 +289,13 @@ export function toLine(r: ListRow, extras: ListExtras): ApplicantLine {
 }
 
 /** The names a description needs that the query string carries only as ids. */
-export type ListNames = { campus?: string | null; intake?: string | null; facts?: readonly FactRow[] };
+export type ListNames = {
+  campus?: string | null;
+  intake?: string | null;
+  facts?: readonly FactRow[];
+  /** Enquiries in the period the drill's read left out (`readDrill`). */
+  cut?: number;
+};
 
 /**
  * What the list holds, in words: the line under a download's title, and the
@@ -262,7 +305,8 @@ export type ListNames = { campus?: string | null; intake?: string | null; facts?
 export function describeList(f: ListFilters, names: ListNames = {}): string {
   if (f.drill && f.range) {
     const group = f.drill.group ? ` · ${DIMENSION_LABELS[f.drill.group.dim]}: ${groupLabel(names.facts ?? [], f.drill.group)}` : "";
-    return `${drillTitle(f.drill)}, from families who enquired ${formatDateRange(f.range.from, f.range.to)}${names.campus ? ` at ${names.campus}` : ""}${group}`;
+    const short = names.cut ? ` (from the first ${names.facts?.length ?? 0} enquiries only: ${names.cut} more could not be read, so choose a shorter period)` : "";
+    return `${drillTitle(f.drill)}, from families who enquired ${formatDateRange(f.range.from, f.range.to)}${names.campus ? ` at ${names.campus}` : ""}${group}${short}`;
   }
   const parts = [
     f.status ? STATUS_LABELS[f.status] : f.stage ? `${f.stage.label} stage` : f.group ? f.group.label : "Every applicant still in play",
@@ -331,8 +375,9 @@ export const QUIET_DAYS = 14;
  * or more, or never, so the families nobody has spoken to stand out.
  */
 export function contactAge(iso: string | null, now: Date): { words: string; quiet: boolean } {
-  if (!iso) return { words: "Never", quiet: true };
-  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000);
+  // Calendar days in the school's zone, as the date printed under it reads.
+  const days = iso ? schoolDaysBetween(iso, now) : null;
+  if (days === null) return { words: "Never", quiet: true };
   const words = days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
   return { words, quiet: days >= QUIET_DAYS };
 }

@@ -113,6 +113,11 @@ describe("the families behind a figure", () => {
     });
   });
 
+  it("carries the breakdown it came from, so the way back reopens it", () => {
+    const href = drillHref({ from: "a", to: "b" }, null, { figure: "offered", group: { dim: "promotion", key: "none" } }, { dim: "promotion" });
+    expect(new URL(href, "https://x.test").searchParams.get("dim")).toBe("promotion");
+  });
+
   it("opens every enquiry when only the period is named, and nothing when nothing is", () => {
     expect(drillFrom({ reached: "enquiries" })).toEqual({ step: null, figure: "enquiries", group: null });
     expect(drillFrom({})).toBeNull();
