@@ -26,7 +26,7 @@ export function StickyActionBar({ targetId, children }: { targetId: string; chil
       aria-hidden={!visible}
       inert={!visible}
       className={cn(
-        "sticky bottom-0 z-30 -mx-1 mt-6 pb-3 transition-all duration-200",
+        "sticky bottom-0 z-30 -mx-1 mt-6 pb-3 transition-all duration-200 print:hidden",
         visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
       )}
     >

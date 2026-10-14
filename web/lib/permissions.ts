@@ -46,6 +46,8 @@ export const PERMISSION_CODES = [
   "data.export",
   /** The Ed-admin student export. The chief financial officer, by default. */
   "enrolment.export",
+  /** The Download PDF button on every staff page. Management and the admissions manager, by default. */
+  "pages.export_pdf",
   "audit.read",
   /** The register: children, families and the school year, after enrolment. */
   "students.read",
@@ -74,6 +76,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "applications.delete": "Delete an applicant and everything attached to them",
   "applications.move_stage": "Move an applicant to another stage, with a reason: on past steps, or back to Decision or Offer (going back also needs offers.approve)",
   "applications.export": "Download applicant lists as Excel or PDF",
+  "pages.export_pdf": "Download any staff page as a PDF",
   "assessments.deliver": "Run assessment days: check in, launch, mark no-shows",
   "assessments.score.write": "Mark and amend assessment scores",
   "assessments.author": "Author questions, templates and benchmarks",

@@ -225,3 +225,35 @@
     @apply px-3 py-2;
   }
 }
+
+/*
+ * Download PDF (`PagePdfButton`) is the browser's print-to-PDF of the page on
+ * screen. The shell takes its menus away with `print:` classes; these rules
+ * make the rest come out whole: colours as they are (status badges carry
+ * meaning in their colour), wide tables unclipped by their scroll boxes, and
+ * a table row never split across two pages.
+ */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .overflow-auto,
+  .overflow-x-auto,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  a {
+    text-decoration: none;
+  }
+}
