@@ -43,7 +43,7 @@ import { formatMoney } from "@/lib/money";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
-import { moveTargetsFrom, stagesSkippedByMove } from "@/lib/workflow/stage-move";
+import { moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addApplicantTask,
@@ -117,7 +117,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const canDefer = canWrite && !terminal && canTransition(app.status, "deferred");
   const canWithdraw = canWrite && !terminal;
   // The stages ahead that the officer may move the child to by hand.
-  const moveTargets = can(permissions, "applications.move_stage") ? moveTargetsFrom(app.status) : [];
+  const moveTargets = moveTargetsFor(app.status, permissions);
   const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
 
   // Half day or full day, the starting month and the scholarship band: the

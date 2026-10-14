@@ -24,6 +24,27 @@ const SETTLE_ATTEMPTS = 3;
 /** Where Move to stage can leave a child whose payment request was never settled. */
 const MOVED_PAST_PAYMENT: ReadonlySet<string> = new Set(["registration_incomplete", "registration_complete", "enrolled"]);
 
+/**
+ * Whether an officer moved this child straight to registration by hand.
+ *
+ * Asked of the timeline rather than inferred from the status, because the
+ * status alone also describes a child who paid in the ordinary way — and a
+ * second payment for one of them is a double charge for finance to refund,
+ * not the confirmation of the first. `firstSettlement` is read from the
+ * caller's copy of the request, which two payments landing together can both
+ * hold stale, so it cannot tell those apart on its own.
+ */
+async function movedToRegistration(admin: AdminClient, applicationId: string): Promise<boolean> {
+  const { count, error } = await admin
+    .from("application_events")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", applicationId)
+    .eq("type", "application.moved_to_stage")
+    .eq("payload->>to", "registration");
+  if (error) throw new WorkflowError(error.message, "database");
+  return (count ?? 0) > 0;
+}
+
 function due(request: Pick<PaymentRequestRow, "due_at">): Date {
   return new Date(request.due_at);
 }
@@ -162,7 +183,7 @@ export async function onPaymentVerified(
     const { data: current } = await admin.from("applications").select("status").eq("id", app.id).single();
     const status = current?.status ?? app.status;
 
-    if (firstSettlement && MOVED_PAST_PAYMENT.has(status)) {
+    if (firstSettlement && MOVED_PAST_PAYMENT.has(status) && (await movedToRegistration(admin, app.id))) {
       // An admissions officer moved this child on to registration before the
       // money was in — usually because the family said they had paid already,
       // and this is finance recording it. That is the payment arriving, not a

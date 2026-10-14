@@ -12,8 +12,7 @@ import { PlacePicker } from "@/components/staff/place-picker";
 import { requireStaff } from "@/lib/staff/session";
 import { addApplicant } from "./actions";
 import { MoveStageFields } from "@/components/staff/move-stage-fields";
-import { can } from "@/lib/permissions";
-import { moveTargetsFrom } from "@/lib/workflow/stage-move";
+import { moveTargetsFor } from "@/lib/workflow/stage-move";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -24,7 +23,9 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  */
 export default async function NewApplicantPage() {
   const { supabase, permissions } = await requireStaff("applications.write");
-  const canMove = can(permissions, "applications.move_stage");
+  // From a brand-new enquiry, every stage is ahead; which of them this person
+  // may choose depends on what the move approves on the way.
+  const moveTargets = moveTargetsFor("new_enquiry", permissions);
   const today = toSchoolDateString(new Date());
   const [{ data: campuses }, { data: grades }, { data: intakes }, { data: offered }] = await Promise.all([
     supabase.from("v_accessible_campuses").select("id, name, intake_cadence").order("sort_order"),
@@ -148,13 +149,13 @@ export default async function NewApplicantPage() {
               </div>
             </fieldset>
 
-            {canMove ? (
+            {moveTargets.length ? (
               // A family at the desk who has paid already, or a child the
               // school has decided need not sit: moved on in the same press,
               // so the parent never receives the "book an assessment" email.
               <fieldset className="space-y-3">
                 <legend className="text-sm font-semibold">Move straight on <span className="font-normal text-muted-foreground">(optional)</span></legend>
-                <MoveStageFields targets={moveTargetsFrom("new_enquiry")} optional />
+                <MoveStageFields targets={moveTargets} optional />
               </fieldset>
             ) : null}
 

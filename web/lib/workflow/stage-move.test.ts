@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
-import { canMoveTo, isMoveTarget, MOVE_TARGETS, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
+import { toPermissionSet } from "@/lib/permissions";
+import { canMoveTo, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
 import { canBeDecided, canOverrideTransition, canTransition, OVERRIDE_TRANSITIONS, TERMINAL_STATUSES, TRANSITIONS } from "@/lib/workflow/states";
 
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
@@ -46,6 +47,33 @@ describe("move to stage: where a child may go", () => {
     expect(isMoveTarget("enquiry")).toBe(false);
     expect(isMoveTarget("assessment")).toBe(false);
     expect(isMoveTarget(null)).toBe(false);
+  });
+});
+
+describe("move to stage: who may make which move", () => {
+  // The admissions manager's permissions, which is who the school asked for.
+  const manager = toPermissionSet(["applications.read", "applications.write", "applications.move_stage", "offers.read", "offers.approve", "decisions.override"]);
+
+  it("lets the admissions manager make every move", () => {
+    expect(moveTargetsFor("new_enquiry", manager)).toEqual(["decision", "offer", "payment", "registration"]);
+  });
+
+  it("does not let Move to stage approve on the way for somebody who could not approve", () => {
+    // A school that grants Move to stage to admissions staff has not given
+    // them decisions or offer approval with it.
+    const staff = toPermissionSet(["applications.read", "applications.write", "applications.move_stage"]);
+    expect(moveTargetsFor("new_enquiry", staff)).toEqual(["decision", "registration"]);
+    expect(mayMoveTo(staff, "offer")).toBe(false);
+    expect(mayMoveTo(staff, "payment")).toBe(false);
+    const decides = toPermissionSet(["applications.move_stage", "decisions.override"]);
+    expect(mayMoveTo(decides, "offer")).toBe(true);
+    expect(mayMoveTo(decides, "payment")).toBe(false);
+  });
+
+  it("offers nothing without Move to stage itself, whatever else is held", () => {
+    const approver = toPermissionSet(["applications.write", "offers.approve", "decisions.override"]);
+    expect(moveTargetsFor("new_enquiry", approver)).toEqual([]);
+    expect(moveTargetsFor("new_enquiry", toPermissionSet(["admin"]))).toEqual(["decision", "offer", "payment", "registration"]);
   });
 });
 

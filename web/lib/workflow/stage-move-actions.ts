@@ -229,7 +229,21 @@ async function toPayment(admin: AdminClient, app: MovingApp, reason: string, act
     if (!sent) throw new WorkflowError("The offer to accept could not be found.", "database");
     // The acceptance record says who recorded it: the actor is the officer,
     // on the timeline and in the audit, and the device line says so too.
-    await onOfferAccepted(admin, cur, sent, { termsAccepted: true, ipHash: null, userAgent: "Recorded by staff on the family's behalf (Move to stage)" }, actor);
+    try {
+      await onOfferAccepted(admin, cur, sent, { termsAccepted: true, ipHash: null, userAgent: "Recorded by staff on the family's behalf (Move to stage)" }, actor);
+    } catch (e) {
+      // The letter was approved above without an email, a reminder or an
+      // expiry, because the acceptance was to follow at once. Left out, it
+      // would sit at "offer sent" for ever with the family holding nothing.
+      // Withdrawn, the child rests at Offer with a letter to draft again —
+      // but only if it is still the one we approved, still unanswered.
+      const still = await reload(admin, cur.id);
+      const unanswered = await offerIn(admin, cur.id, ["sent", "viewed"]);
+      if (still.status === "offer_sent" && unanswered?.id === sent.id) {
+        await onOfferWithdrawn(admin, still, sent, `Move to Payment stopped before the acceptance was recorded: ${(e as Error).message}`, actor);
+      }
+      throw e;
+    }
     cur = await reload(admin, cur.id);
   }
   return cur;
@@ -261,16 +275,28 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
   const hasOpenRequest = (openRequests ?? []).length > 0;
 
   await releaseAssessment(admin, app, "Moved straight to registration by staff");
-  await mustSucceed(
-    app.reference,
-    "moved on",
-    "withdraw its offer",
-    admin
-      .from("offers")
-      .update({ status: "withdrawn", withdrawn_reason: "Moved straight to registration by staff" })
-      .eq("application_id", app.id)
-      .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
-  );
+  const { data: withdrawn, error: offErr } = await admin
+    .from("offers")
+    .update({ status: "withdrawn", withdrawn_reason: "Moved straight to registration by staff" })
+    .eq("application_id", app.id)
+    .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
+    .select("id");
+  if (offErr) {
+    throw new WorkflowError(`${app.reference} was not moved on: we could not withdraw its offer (${offErr.message}). Its status is unchanged — please try again.`, "database");
+  }
+  // One line per letter, as `onOfferWithdrawn` writes: it is what the journey
+  // bar reads to stop ticking Offer for a letter that is no longer out.
+  for (const offer of withdrawn ?? []) {
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: null,
+      event: { type: "offer.withdrawn", summary: "Offer withdrawn: moved straight to registration by staff", payload: { offer_id: offer.id, reason } },
+      audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason: "Moved straight to registration by staff" } },
+      actor,
+    });
+  }
   if (!move.alreadyPaid) {
     // A part payment is money that has moved, and stays open for finance.
     await mustSucceed(
@@ -301,10 +327,13 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
       idempotencyKey: `email:${app.id}:registration_open`,
       precondition: { application_status: ["registration_incomplete"] },
     },
+    // `registration_open` again, not `registration_reminder`: that one says
+    // the place is secured, which the offer's terms tie to paying, and a
+    // family moved on by hand may not have.
     ...settings.registrationReminderDays.map((days) => ({
       type: "send_email",
-      payload: { template_key: "registration_reminder", links: ["registration"] },
-      idempotencyKey: `email:${app.id}:registration_reminder:moved:${days}d`,
+      payload: { template_key: "registration_open", links: ["registration"] },
+      idempotencyKey: `email:${app.id}:registration_open:reminder:${days}d`,
       runAfter: new Date(Date.now() + days * DAY),
       precondition: { application_status: ["registration_incomplete" as const] },
     })),
@@ -373,7 +402,9 @@ export async function onMovedToStage(admin: AdminClient, app: MovingApp, move: S
       return (await toRegistration(admin, app, move, reason, actor)).status;
     case "offer":
     case "payment": {
-      const landed = move.target === "offer" ? await toOffer(admin, app, reason, actor, { autoApprove: true }) : await toPayment(admin, app, reason, actor);
+      // Not the auto-approve switch, even when it is on: an officer moving a
+      // child to Offer is told the letter waits for approval, and it does.
+      const landed = move.target === "offer" ? await toOffer(admin, app, reason, actor, { autoApprove: false }) : await toPayment(admin, app, reason, actor);
       // The steps pressed on the way each left their own line; this one says
       // why, and closes what the skipped stages left open.
       await commit(admin, {

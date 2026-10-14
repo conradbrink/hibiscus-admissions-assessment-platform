@@ -15,7 +15,7 @@ import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-
 import { requireStaffAction } from "@/lib/staff/session";
 import { commit, enqueueJobs, WorkflowError } from "@/lib/workflow/engine";
 import { onEnrolmentConfirmed } from "@/lib/workflow/enrolment-actions";
-import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested, onRegistrationConfirmedByStaff } from "@/lib/workflow/registration-actions";
+import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested, onRegistrationConfirmedByStaff, registrationReminderKey } from "@/lib/workflow/registration-actions";
 
 function done(applicationId: string) {
   revalidatePath("/staff/registrations");
@@ -80,6 +80,7 @@ export async function sendRegistrationReminder(_: StaffActionState, formData: Fo
     const graph = await loadApplicationGraph(admin, app.id);
     if (!graph) throw new WorkflowError("Application not found.", "application_not_found");
     const bundle = await loadRegistrationBundle(admin, graph);
+    const templateKey = await registrationReminderKey(admin, app.id);
     await commit(admin, {
       applicationId: app.id,
       expectedStatus: null,
@@ -89,8 +90,8 @@ export async function sendRegistrationReminder(_: StaffActionState, formData: Fo
       jobs: [
         {
           type: "send_email",
-          payload: { template_key: "registration_reminder", links: ["registration"], missing_documents: missingDocumentsText(bundle.completeness) },
-          idempotencyKey: `email:${app.id}:registration_reminder:staff:${Math.floor(Date.now() / 3_600_000)}`,
+          payload: { template_key: templateKey, links: ["registration"], missing_documents: missingDocumentsText(bundle.completeness) },
+          idempotencyKey: `email:${app.id}:${templateKey}:staff:${Math.floor(Date.now() / 3_600_000)}`,
         },
       ],
       actor: ctx.actor,

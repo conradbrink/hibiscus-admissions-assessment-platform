@@ -19,7 +19,12 @@ import { MOVE_TARGETS, type MoveTarget } from "@/lib/workflow/stage-move";
  */
 export function MoveStageFields({ targets, optional = false }: { targets: readonly MoveTarget[]; optional?: boolean }) {
   const shown = MOVE_TARGETS.filter((t) => targets.includes(t.key));
-  const [target, setTarget] = useState<MoveTarget | "">(optional ? "" : (shown[0]?.key ?? "decision"));
+  const fallback: MoveTarget | "" = optional ? "" : (shown[0]?.key ?? "");
+  const [picked, setTarget] = useState<MoveTarget | "">(fallback);
+  // The form outlives a successful move: the page refreshes with fewer stages
+  // ahead, and a choice that is no longer offered would leave the picker
+  // showing one stage while the reason box (keyed to the old one) vanished.
+  const target = picked === "" || shown.some((t) => t.key === picked) ? picked : fallback;
   const chosen = shown.find((t) => t.key === target) ?? null;
 
   return (

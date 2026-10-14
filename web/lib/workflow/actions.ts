@@ -105,7 +105,9 @@ export async function onEnquiryCreated(
      * stage, from Add an applicant). The acknowledgement waits two minutes
      * and goes only if the child is still where the enquiry left them: a
      * family moved on hears only what the stage they land on says, and one
-     * whose move was refused is still acknowledged.
+     * whose move was refused before anything changed is still acknowledged.
+     * A move stopped part way leaves the child elsewhere, so this does not
+     * go; the officer at the desk is told by the form's error instead.
      */
     holdForMove?: boolean;
   } = {}

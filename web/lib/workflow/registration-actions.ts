@@ -18,6 +18,28 @@ import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type Tas
  */
 
 /**
+ * Which reminder to send a family still registering.
+ *
+ * `registration_reminder` opens "{{student_first_name}}'s place is secured",
+ * which the offer's terms tie to paying. That was true of everybody until
+ * Move to stage: a family moved straight to registration may have paid
+ * somewhere this system has not seen yet, or may pay with the first invoice,
+ * and the school asked that they hear nothing about money. They get
+ * `registration_open`, which only says registration is the next step. The
+ * test is the record itself — a payment request settled in full, which every
+ * ordinary route into registration has, the nothing-to-pay ones included.
+ */
+export async function registrationReminderKey(admin: AdminClient, applicationId: string): Promise<"registration_reminder" | "registration_open"> {
+  const { count, error } = await admin
+    .from("payment_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", applicationId)
+    .eq("status", "paid");
+  if (error) throw new WorkflowError(error.message, "database");
+  return (count ?? 0) > 0 ? "registration_reminder" : "registration_open";
+}
+
+/**
  * A section was saved. Pure event; a change to the child's name or date of
  * birth also opens a review task. Saving the student section answers any
  * document-mismatch flag: the parent has looked and decided.
@@ -232,6 +254,7 @@ export async function onRegistrationSubmitted(
   const settings = await getSettings(admin);
 
   if (!completeness.complete) {
+    const reminderKey = missing ? "documents_missing" : await registrationReminderKey(admin, app.id);
     // The parent hears at once that the submission arrived and what is
     // still outstanding; a reminder follows in a couple of days, and skips
     // itself if registration is complete by then.
@@ -264,8 +287,8 @@ export async function onRegistrationSubmitted(
         },
         {
           type: "send_email",
-          payload: { template_key: missing ? "documents_missing" : "registration_reminder", links: ["registration"], missing_documents: missing },
-          idempotencyKey: `email:${app.id}:${missing ? "documents_missing" : "registration_reminder"}:after_submission:${today}`,
+          payload: { template_key: reminderKey, links: ["registration"], missing_documents: missing },
+          idempotencyKey: `email:${app.id}:${reminderKey}:after_submission:${today}`,
           runAfter: reminderAt,
           precondition: { application_status: ["registration_incomplete"] },
         },
@@ -351,7 +374,11 @@ async function completeRegistration(
       {
         type: "send_email",
         payload: { template_key: "registration_received", links: ["registration"], all_received: true },
-        idempotencyKey: `email:${app.id}:registration_received:${today}`,
+        // Its own key, not the one the "still outstanding" email uses that
+        // day: a parent who submitted with a document missing in the morning
+        // and was completed that afternoon (by their own Submit or by staff
+        // confirming) would otherwise never be told everything is in.
+        idempotencyKey: `email:${app.id}:registration_received:complete:${today}`,
       },
       ...(settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}` }] : []),
     ],

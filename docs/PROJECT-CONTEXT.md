@@ -750,7 +750,10 @@ lifecycle stage without marking it manual.
 ### Move to stage, and three smaller asks (14 October 2026)
 
 **Move to stage.** An admissions officer (`applications.move_stage`, held by
-the admissions manager) moves a child forward along the journey bar by hand —
+the admissions manager; Offer also needs `decisions.override` and Payment
+`offers.approve` as well, because the move records an approval and approves
+the letter on the way — `mayMoveTo`) moves a child forward along the journey
+bar by hand —
 to Decision, Offer, Payment or Registration — with a reason. Asked for so a
 family at the desk who has paid already, or a child the school has decided
 need not sit, is not held at a step that does not apply to them. Forward
@@ -781,9 +784,12 @@ other people rely on, and those have their own tools.
 - **Paid still means verified.** Registration never marks anything paid. When
   the family says they have paid, their payment request stays open and a
   `confirm_reported_payment` task goes to finance; `onPaymentVerified` files a
-  later settlement on an application already past payment as the
-  confirmation (the `payment.confirmed` milestone, no move, no email) rather
-  than as unexpected money to refund. Otherwise the request is closed.
+  later settlement as the confirmation (the `payment.confirmed` milestone, no
+  move, no email) only when the timeline shows the child was moved to
+  registration by hand — a second payment for a child who paid normally is
+  still a double charge for refund review. Otherwise the request is closed.
+  Their reminders use `registration_open`, not `registration_reminder`, whose
+  "place is secured" the terms tie to paying (`registrationReminderKey`).
 - **A child moved past the assessment has no results.** The offer email and
   the profile wait now ask whether a fully marked sitting exists
   (`hasResults`), not `requires_assessment`, so the no-results letter

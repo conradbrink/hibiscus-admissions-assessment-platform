@@ -38,7 +38,10 @@ import {
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
 import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
+import { mayMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
+import { loadApplicationGraph } from "@/lib/applications";
+import { resolveFeeSchedule } from "@/lib/offers/render";
 import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
@@ -358,6 +361,9 @@ export async function moveToStage(_: StaffActionState, formData: FormData): Prom
         alreadyPaid: z.literal("on").optional(),
       })
       .parse(Object.fromEntries(formData));
+    if (!mayMoveTo(ctx.permissions, parsed.target)) {
+      throw new Error(`Moving a child to ${moveTargetLabel(parsed.target)} also approves on the way, and your account cannot do that.`);
+    }
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onMovedToStage(admin, app, { target: parsed.target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
     // The emails the stage landed on sends, now rather than on the next sweep.
@@ -1250,60 +1256,80 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const held = await promotionOn(admin, app.id);
     const from = held?.promo.code ?? null;
-    if (from === to) return;
+    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
 
-    if (to === null) {
-      await clearPromotion(admin, app.id);
-    } else {
-      const { data: promo, error } = await admin.from("promotions").select("id, is_active").eq("code", to).maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!promo) throw new Error(`There is no ${to} promotion set up to award.`);
-      if (!promo.is_active) throw new Error(`${to} is switched off. Switch it back on in Promotions before awarding it.`);
-      await recordPromotion(admin, app.id, promo.id, "staff", {
-        staffId: ctx.userId,
-        reason: parsed.reason || "Band set on the applicant page",
+    // The letter in play, and whether saving re-prices it: one waiting for
+    // approval is re-drafted, one with the family is withdrawn and re-drafted.
+    // A draft resting on `offer_draft` is one waiting for fees: drafting it
+    // again would only raise a second "configure fees" task, and it takes the
+    // band when Generate offer is pressed.
+    const { data: letter, error: letterErr } = await admin
+      .from("offers")
+      .select("id, status, promotion_id")
+      .eq("application_id", app.id)
+      .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (letterErr) throw new Error(letterErr.message);
+    const withFamily = Boolean(letter && ["sent", "viewed", "expired"].includes(letter.status) && (app.status === "offer_sent" || app.status === "offer_expired"));
+    const reDraft = withFamily || (letter?.status === "pending_approval" && app.status === "offer_pending_approval");
+
+    // The band on file already: nothing to record, but a letter still priced
+    // under another deal — a band changed before saving re-drafted — is
+    // brought into line, which is what the screen's warning offers.
+    if (from === to && (!reDraft || letter?.promotion_id === (held?.promo.id ?? null))) return;
+
+    // Before anything changes: the family's letter is withdrawn only when a
+    // new one can be priced. Otherwise their link would stop working with
+    // nothing to replace it.
+    if (withFamily) {
+      const graph = await loadApplicationGraph(admin, app.id);
+      if (!graph) throw new Error("That applicant no longer exists.");
+      const schedule = await resolveFeeSchedule(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
+      if (!schedule || schedule.lines.length === 0) {
+        throw new Error("No active fee schedule covers this campus, stage and year, so a new letter could not be priced. Nothing was changed; set the fees first.");
+      }
+    }
+
+    if (from !== to) {
+      if (to === null) {
+        await clearPromotion(admin, app.id);
+      } else {
+        const { data: promo, error } = await admin.from("promotions").select("id, is_active").eq("code", to).maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!promo) throw new Error(`There is no ${to} promotion set up to award.`);
+        if (!promo.is_active) throw new Error(`${to} is switched off. Switch it back on in Promotions before awarding it.`);
+        await recordPromotion(admin, app.id, promo.id, "staff", {
+          staffId: ctx.userId,
+          reason: parsed.reason || "Band set on the applicant page",
+        });
+      }
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: app.status,
+        newStatus: null,
+        nextAction: isNextAction(app.next_action) ? app.next_action : null,
+        event: {
+          type: "scholarship.changed",
+          summary: `Scholarship ${say(from)} → ${say(to)}`,
+          payload: { from, to, reason: parsed.reason ?? null },
+        },
+        audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
+        actor: ctx.actor,
       });
     }
 
-    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: app.status,
-      newStatus: null,
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
-      event: {
-        type: "scholarship.changed",
-        summary: `Scholarship ${say(from)} → ${say(to)}`,
-        payload: { from, to, reason: parsed.reason ?? null },
-      },
-      audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
-      actor: ctx.actor,
-    });
-
-    // Re-price the letter at the new band.
-    let withdrew = false;
-    if (app.status === "offer_sent" || app.status === "offer_expired") {
-      const { data: out, error: outErr } = await admin
-        .from("offers")
-        .select("id, status")
-        .eq("application_id", app.id)
-        .in("status", ["sent", "viewed", "expired"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (outErr) throw new Error(outErr.message);
-      if (out) {
-        await onOfferWithdrawn(admin, app, out, `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
-        withdrew = true;
-      }
+    if (withFamily && letter) {
+      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
     }
-    // A draft resting on `offer_draft` without a withdrawal is one waiting
-    // for fees: drafting it again would only raise a second "configure fees"
-    // task. It takes the new band when Generate offer is pressed.
-    if (withdrew || app.status === "offer_pending_approval") {
+    if (reDraft) {
       const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
       if (current.error) throw new Error(current.error.message);
-      await onOfferDrafted(admin, current.data, ctx.actor);
+      // Waits for approval whatever `offer_auto_approve` says: the screen
+      // promises the officer a letter to check before it goes.
+      const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
+      if (drafted.blocked) throw new Error("The scholarship is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.");
       drainSoon();
     }
     done(app.id);

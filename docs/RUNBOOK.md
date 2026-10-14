@@ -815,13 +815,18 @@ particular year, in which case choose it — the campus must teach it.
 
 For a family who has already paid, or a child the school has decided need not
 sit the assessment. Needs the permission **applications.move_stage**, which
-the **Admissions manager** role holds.
+the **Admissions manager** role holds. Moving to **Offer** also records an
+approval, so it needs **decisions.override** as well; **Payment** also
+approves the letter, so it needs **offers.approve** too. Someone given Move to
+stage without those sees only Decision and Registration.
 
 - **From the applicant page:** under Next step, open **Move to another
   stage**, choose the stage, say why, and press **Move child**.
 - **At the desk, for a new family:** on **Add applicant**, choose the stage
   under **Move straight on**. The family is added and moved in one press, and
-  never receives the "book an assessment" email.
+  never receives the "book an assessment" email. If the family turns out to be
+  on file already, the move is made on their existing record, or the form says
+  why not.
 
 What each stage does, and what the parent hears:
 
@@ -834,7 +839,10 @@ What each stage does, and what the parent hears:
 
 Only stages ahead of the child are offered; a child cannot be moved back.
 Every step skipped is on the timeline with your name and reason, and the
-journey bar leaves the skipped stages unticked.
+journey bar leaves the skipped stages unticked. A letter waits for approval
+after Offer even when automatic offer approval is switched on. Registration
+reminders to a family moved on by hand say only that registration is due,
+never that "the place is secured", until a payment has been received.
 
 **"The family says they have already paid"** (Registration only). Nothing is
 ever marked paid by this: paid still means a gateway confirmation or a

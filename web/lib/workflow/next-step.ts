@@ -130,9 +130,13 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
  * payment still to confirm, or with none asked for.
  */
 function paidLine(f: Pick<ApplicantFacts, "payment">): string {
-  if (f.payment?.status === "paid") return "Payment received.";
-  if (f.payment && ["required", "failed", "partially_paid", "processing"].includes(f.payment.status)) return "Payment not yet confirmed.";
-  return "No payment taken.";
+  // Null is "not shown to this person" as often as "none": the payment
+  // request is loaded only for those who may see payments. Saying nothing is
+  // the one answer true either way.
+  if (!f.payment) return "";
+  if (f.payment.status === "paid") return "Payment received. ";
+  if (["required", "failed", "partially_paid", "processing"].includes(f.payment.status)) return "Payment not yet confirmed. ";
+  return "No payment taken. ";
 }
 
 /** Where a status sits on the journey while it is under way. */
@@ -474,7 +478,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
       // document for them, and nothing moves a registration on but Submit.
       if (f.registrationReady) {
         return step({
-          headline: `${paidLine(f)} Registration filled in.`,
+          headline: `${paidLine(f)}Registration filled in.`,
           title: "Everything is in — confirm the registration",
           detail: "The parent has not pressed Submit. Check the registration, then confirm it for them.",
           action: "confirm_registration",
@@ -483,7 +487,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
         });
       }
       return step({
-        headline: `${paidLine(f)} Registration open.`,
+        headline: `${paidLine(f)}Registration open.`,
         title: "Waiting for the parent to complete registration",
         detail: "Their link asks only for what the school does not have yet.",
         action: "registration_reminder",
@@ -493,7 +497,7 @@ export function nextStep(f: ApplicantFacts): NextStep {
 
     case "registration_complete":
       return step({
-        headline: `${paidLine(f)} Registration complete.`,
+        headline: `${paidLine(f)}Registration complete.`,
         title: "Register the student",
         detail: "Check the documents, then confirm the enrolment.",
         action: "register",

@@ -1,3 +1,4 @@
+import { can, type PermissionCode, type PermissionSet } from "@/lib/permissions";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { JOURNEY, type JourneyStage } from "@/lib/workflow/next-step";
 
@@ -22,32 +23,60 @@ import { JOURNEY, type JourneyStage } from "@/lib/workflow/next-step";
 
 export type MoveTarget = "decision" | "offer" | "payment" | "registration";
 
-export const MOVE_TARGETS: ReadonlyArray<{ key: MoveTarget; stage: JourneyStage; label: string; explain: string }> = [
+export const MOVE_TARGETS: ReadonlyArray<{
+  key: MoveTarget;
+  stage: JourneyStage;
+  label: string;
+  explain: string;
+  /**
+   * What the move does on the way, beyond `applications.move_stage`. Offer
+   * records an approval, which is `decisions.override` everywhere else, and
+   * Payment also approves the letter, which is `offers.approve`. Without
+   * these, granting Move to stage to a role would hand it both by the back
+   * door. Decision and Registration record neither.
+   */
+  needs: readonly PermissionCode[];
+}> = [
   {
     key: "decision",
     stage: "decision",
     label: "Decision",
     explain: "Skip the assessment. The child waits for an admission decision. The parent is not emailed.",
+    needs: [],
   },
   {
     key: "offer",
     stage: "offer",
     label: "Offer",
     explain: "Accept the child and draft the offer. It waits for approval, and the parent is emailed when it is sent.",
+    needs: ["decisions.override"],
   },
   {
     key: "payment",
     stage: "payment",
     label: "Payment",
     explain: "Accept the child, approve the offer and record that the family accepted it. The parent is emailed only what to pay.",
+    needs: ["decisions.override", "offers.approve"],
   },
   {
     key: "registration",
     stage: "registered",
     label: "Registration",
     explain: "Open the registration form now. The parent is emailed that registration is due, and gets no payment messages.",
+    needs: [],
   },
 ];
+
+/** Whether this person may make this move at all: Move to stage, and whatever the move does on the way. */
+export function mayMoveTo(permissions: PermissionSet, target: MoveTarget): boolean {
+  const needs = MOVE_TARGETS.find((t) => t.key === target)?.needs ?? [];
+  return can(permissions, "applications.move_stage") && needs.every((p) => can(permissions, p));
+}
+
+/** The stages ahead of this status that this person may move the child to. */
+export function moveTargetsFor(status: ApplicationStatus, permissions: PermissionSet): MoveTarget[] {
+  return moveTargetsFrom(status).filter((t) => mayMoveTo(permissions, t));
+}
 
 const JOURNEY_INDEX = new Map<JourneyStage, number>(JOURNEY.map((s, i) => [s.key, i]));
 

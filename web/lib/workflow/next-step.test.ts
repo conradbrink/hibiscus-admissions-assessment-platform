@@ -188,7 +188,8 @@ describe("registration after Move to stage", () => {
   it("says payment was received only when it was", () => {
     const paid = { status: "paid" as const, dueAt: null };
     expect(nextStep(facts({ status: "registration_incomplete", payment: paid })).headline).toMatch(/^Payment received\./);
-    expect(nextStep(facts({ status: "registration_incomplete", payment: null })).headline).toMatch(/^No payment taken\./);
+    // Not shown the payment (or none on file): no claim either way.
+    expect(nextStep(facts({ status: "registration_incomplete", payment: null })).headline).toBe("Registration open.");
     expect(nextStep(facts({ status: "registration_incomplete", payment: { status: "required", dueAt: null } })).headline).toMatch(/^Payment not yet confirmed\./);
     expect(nextStep(facts({ status: "registration_complete", payment: { status: "cancelled", dueAt: null } })).headline).toMatch(/^No payment taken\./);
   });
