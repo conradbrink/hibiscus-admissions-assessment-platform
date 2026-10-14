@@ -74,6 +74,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/students", label: "Students", icon: "students", entries: STUDENT_TABS, match: STUDENT_TABS.map((t) => t.href) },
       { href: "/staff/tasks", label: "Tasks", icon: "tasks", permission: "applications.read" },
       { href: "/staff/analytics", label: "Insights", icon: "analytics", entries: INSIGHT_TABS, match: ["/staff/analytics"] },
+      // Back on the menu on 14 October 2026, after a day folded into the
+      // Enrolment stage, where the school could not find it. It needs its own
+      // permission, held by the chief financial officer alone, so nobody else
+      // sees it here or there. The longer address wins `activeHref`, so this,
+      // not Admissions, is lit on the page.
+      { href: "/staff/enrolment/exports", label: "Ed-admin export", icon: "export", permission: "enrolment.export" },
     ],
   },
   {

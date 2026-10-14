@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { conditionsText, offeredGradeId, parseConditionSelection } from "@/lib/offers/conditions";
 import { clearPromotion, recordPromotion } from "@/lib/promotions/load";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import { commit } from "@/lib/workflow/engine";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
@@ -118,9 +119,12 @@ export async function applyPromotionToOffer(_: StaffActionState, formData: FormD
     if (app.status !== "offer_pending_approval" && app.status !== "offer_draft" && app.status !== "approved") {
       throw new Error("A promotion can only be applied before the offer is sent.");
     }
-    const { data: promo } = await ctx.supabase.from("promotions").select("id, name, is_active").eq("id", p.promotionId).maybeSingle();
+    const { data: promo } = await ctx.supabase.from("promotions").select("id, name, code, is_active").eq("id", p.promotionId).maybeSingle();
     if (!promo) throw new Error("Promotion not found.");
     if (!promo.is_active) throw new Error("That promotion is switched off.");
+    // One place to choose the percentage: the Scholarship picker, which
+    // records the band and re-drafts the letter in the same press.
+    if (isScholarshipCode(promo.code)) throw new Error("Choose a scholarship with the Scholarship picker above.");
     await recordPromotion(admin, app.id, promo.id, "staff", { staffId: ctx.userId, reason: p.reason });
     await admin.from("audit_log").insert({
       actor_type: "staff", actor_id: ctx.userId, actor_label: ctx.actor.label ?? null, action: "promotion.applied", entity_type: "application", entity_id: app.id, application_id: app.id,

@@ -7,6 +7,7 @@ import { getSettings } from "@/lib/settings";
 import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { actorName, journeyMilestones, MILESTONE_EVENT_TYPES, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
+import { MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
 
 /**
  * Everything the applicant page shows, read once through the staff client
@@ -158,7 +159,9 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
       .from("application_events")
       .select("type, occurred_at, actor_type, actor_id, payload, summary")
       .eq("application_id", id)
-      .in("type", MILESTONE_EVENT_TYPES)
+      // And the hand moves, so the bar can leave unticked a stage the child
+      // was moved past (`stagesSkippedByMove`).
+      .in("type", [...MILESTONE_EVENT_TYPES, ...MOVE_EVENT_TYPES])
       .order("id", { ascending: false }),
   ]);
   // Everybody who acted on this record, by name, leavers included: the
@@ -216,6 +219,7 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     followUpDueAt: openTasks.map((t) => t.due_at).filter((d): d is string => Boolean(d)).sort()[0] ?? null,
     hasSat: (attempts ?? []).some((a) => a.status === "submitted" || a.status === "marked"),
     hasDecision: (decisions ?? []).length > 0,
+    registrationReady: app.status === "registration_incomplete" && Boolean(registrationState?.complete),
     now: new Date(),
   };
 
@@ -225,6 +229,8 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
   return {
     app,
     milestones: journeyMilestones(milestoneEvents ?? [], staffName),
+    /** Whether an officer ever moved this child past a stage by hand. */
+    moved: (milestoneEvents ?? []).some((e) => MOVE_EVENT_TYPES.includes(e.type)),
     // The newest thing on the timeline: when the record last moved, and who moved it.
     lastUpdated: latest ? { at: latest.occurred_at, by: actorName(latest, staffName) } : null,
     campus,

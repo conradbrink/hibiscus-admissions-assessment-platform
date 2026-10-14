@@ -82,7 +82,7 @@ export const STAGE_VIEWS: Record<StageKey | "all", readonly StageView[]> = {
   enrolment: [
     { key: "payments", label: "Payments", href: "/staff/payments", permission: "finance.read" },
     { key: "registrations", label: "Registrations", href: "/staff/registrations", permission: "applications.read" },
-    { key: "export", label: "Student export", href: "/staff/enrolment/exports", permission: "data.export" },
+    { key: "export", label: "Student export", href: "/staff/enrolment/exports", permission: "enrolment.export" },
     list("enrolment"),
   ],
   completed: [list("completed")],

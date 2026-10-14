@@ -43,6 +43,7 @@ import { formatMoney } from "@/lib/money";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
+import { moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addApplicantTask,
@@ -115,6 +116,8 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   // keep applications.write; deferring is asked of the graph like the rest.
   const canDefer = canWrite && !terminal && canTransition(app.status, "deferred");
   const canWithdraw = canWrite && !terminal;
+  // The stages ahead that the officer may move the child to by hand.
+  const moveTargets = moveTargetsFor(app.status, permissions);
   const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
 
   // Half day or full day, the starting month and the scholarship band: the
@@ -469,8 +472,12 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         done={app.status === "enrolled"}
         assessmentLabel={app.requires_assessment ? "Assessment" : w.noun === "interview" ? "Interview" : "Visit"}
         // A pre-school family can be decided without ever visiting; the bar
-        // does not tick a visit that never happened.
-        skipped={!app.requires_assessment && !w.lastBooking && w.trials.length === 0 ? ["assessment"] : []}
+        // does not tick a visit that never happened. Nor a stage an officer
+        // moved the child past by hand.
+        skipped={[
+          ...(!app.requires_assessment && !w.lastBooking && w.trials.length === 0 ? (["assessment"] as const) : []),
+          ...stagesSkippedByMove(step.stage, w.milestones, w.moved),
+        ]}
         milestones={w.milestones}
       />
 
@@ -485,6 +492,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
             parentSees={parentNext ? `${parentNext.parentTitle} ${parentNext.parentDetail}` : null}
             secondary={noShowUnderStep ? noShowButton : null}
             offerSettings={offerSettings}
+            moveTargets={moveTargets}
           />
           {/* The work of the day while the assessment is the stage; a record,
               one click away, once the family has moved past it. */}

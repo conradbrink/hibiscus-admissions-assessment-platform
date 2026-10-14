@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { daysAgoDateString, formatDateTime } from "@/lib/format-date";
 import { registrationCompleteness, SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import { requireStaff } from "@/lib/staff/session";
+import { ActionForm } from "@/components/staff/action-form";
+import { can } from "@/lib/permissions";
+import { confirmRegistration } from "./actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -50,8 +53,19 @@ export default async function RegistrationsPage() {
     const pendingDocs = (documents ?? []).filter((d) => d.application_id === a.id && !d.superseded_by && d.review_status === "pending").length;
     return { a, c, pendingDocs, campus: one(a.campuses)?.name, grade: grade?.name };
   });
+  const canWrite = can(permissions, "applications.write");
   const groups = [
-    { key: "incomplete", title: "Still registering", rows: rows.filter((r) => r.a.status === "registration_incomplete") },
+    // Every section done by the same rule the parent's Submit uses, and the
+    // status still waiting on that Submit: the family finished after pressing
+    // it once, or the office uploaded the last document for them. These used
+    // to sit under "Still registering" reading "complete" with no way on.
+    {
+      key: "ready",
+      title: "Filled in, not yet submitted",
+      note: "The family has given everything but has not pressed Submit. Check it, then confirm it for them.",
+      rows: rows.filter((r) => r.a.status === "registration_incomplete" && r.c.complete),
+    },
+    { key: "incomplete", title: "Still registering", rows: rows.filter((r) => r.a.status === "registration_incomplete" && !r.c.complete) },
     { key: "confirm", title: "Awaiting enrolment confirmation", note: "Registration complete. Check the documents, then confirm.", rows: rows.filter((r) => r.a.status === "registration_complete") },
     { key: "enrolled", title: "Enrolled in the last 30 days", rows: rows.filter((r) => r.a.status === "enrolled") },
   ];
@@ -72,7 +86,7 @@ export default async function RegistrationsPage() {
           {g.rows.length ? (
             <div className="overflow-x-auto surface">
               <table className="data-table">
-                <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Since</th><th className="px-3 py-2 font-medium">Outstanding</th><th className="px-3 py-2 font-medium">Documents to check</th></tr></thead>
+                <thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-2 font-medium">Applicant</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Since</th><th className="px-3 py-2 font-medium">Outstanding</th><th className="px-3 py-2 font-medium">Documents to check</th>{g.key === "ready" ? <th className="px-3 py-2"></th> : null}</tr></thead>
                 <tbody className="divide-y divide-border">
                   {g.rows.map(({ a, c, pendingDocs, campus, grade }) => {
                     const todo = SECTIONS.filter((s) => !c.sections[s]).map((s) => SECTION_LABELS[s]);
@@ -83,6 +97,15 @@ export default async function RegistrationsPage() {
                         <td className="px-3 py-2 text-xs">{formatDateTime(a.status_changed_at)}</td>
                         <td className="px-3 py-2 text-xs">{todo.length ? todo.join(", ") : <span className="text-success">complete</span>}{c.missingDocuments.length ? <span className="block text-warning-foreground">missing: {c.missingDocuments.map((d) => d.label).join(", ")}</span> : null}{c.rejectedDocuments.length ? <span className="block text-destructive">re-upload: {c.rejectedDocuments.map((d) => d.label).join(", ")}</span> : null}</td>
                         <td className="px-3 py-2">{pendingDocs ? <Badge variant="warning">{pendingDocs} to review</Badge> : <span className="text-xs text-muted-foreground">—</span>}</td>
+                        {g.key === "ready" ? (
+                          <td className="px-3 py-2">
+                            {canWrite ? (
+                              <ActionForm action={confirmRegistration} label="Confirm registration" size="xs" variant="success" confirm={`Confirm ${a.child_first_name}'s registration for the family? The parent is emailed that everything has been received.`}>
+                                <input type="hidden" name="applicationId" value={a.id} />
+                              </ActionForm>
+                            ) : null}
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })}

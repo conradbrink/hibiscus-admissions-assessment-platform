@@ -15,6 +15,8 @@ import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { applyPromotionToOffer, approveOffer, generateOffer, removePromotionFromOffer, sendOutcome, withdrawOffer } from "./actions";
 import { startLabel } from "@/lib/start-month";
+import { awardLabelOf, awardPercentOf, isScholarshipCode } from "@/lib/promotions/scholarship";
+import { setScholarship } from "@/app/staff/(console)/applications/[id]/actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
@@ -65,7 +67,11 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
   const grades = gradeRows ?? [];
   const offerByApp = new Map((offers ?? []).map((o) => [o.application_id, o]));
   const dealByApp = new Map((applied ?? []).map((d) => [d.application_id, d]));
-  const activeDeals = promotions ?? [];
+  // The scholarship percentage is chosen with its own picker, which re-drafts
+  // the letter (`setScholarship`); the bands are kept out of the general list
+  // so there is one place to choose it.
+  const scholarshipBands = (promotions ?? []).filter((p) => isScholarshipCode(p.code)).sort((a, b) => (awardPercentOf(a.code) ?? 0) - (awardPercentOf(b.code) ?? 0));
+  const activeDeals = (promotions ?? []).filter((p) => !isScholarshipCode(p.code));
   const profileByApp = new Map((profiles ?? []).map((p) => [p.application_id, p]));
   const outcomePending = new Set((tasks ?? []).map((t) => t.application_id));
 
@@ -109,8 +115,22 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
     const d = dealByApp.get(a.id);
     const deal = one(d?.promotions);
     const sourceLabel = d?.source === "code" ? "from the parent's code" : d?.source === "rule" ? "applied by rule" : d?.source === "staff" ? `applied by staff${d.reason ? `: ${d.reason}` : ""}` : "";
+    const heldScholarship = isScholarshipCode(deal?.code) ? (deal?.code ?? null) : null;
     return (
       <div className="mt-3 rounded-lg border border-dashed border-border p-3 text-sm">
+        {canApprove && scholarshipBands.length ? (
+          <ActionForm action={setScholarship} label="Set and re-draft" size="xs" variant="outline" className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-3">
+            <input type="hidden" name="applicationId" value={a.id} />
+            <span className="text-xs font-semibold text-muted-foreground uppercase">Scholarship</span>
+            <NativeSelect name="code" className="h-8 w-44 md:h-8" defaultValue={heldScholarship ?? (deal ? "keep" : "")} aria-label="Scholarship">
+              {/* A child on an ordinary deal starts on "keep", so a stray press cannot take it away. */}
+              {deal && !heldScholarship ? <option value="keep">Keep {deal.name}</option> : null}
+              <option value="">No scholarship</option>
+              {scholarshipBands.map((b) => <option key={b.id} value={b.code ?? ""}>{awardLabelOf(b.code)} of tuition</option>)}
+            </NativeSelect>
+            <Input name="reason" placeholder="Why (optional)" maxLength={500} className="h-8 w-56 md:h-8" />
+          </ActionForm>
+        ) : null}
         <p className="text-xs font-semibold text-muted-foreground uppercase">Promotion</p>
         {deal ? (
           <p className="mt-1">{deal.name}{deal.code ? ` (${deal.code})` : ""} · {sourceLabel}</p>
@@ -129,7 +149,7 @@ export default async function OffersPage({ searchParams }: { searchParams: Promi
                 <Input name="reason" placeholder="Reason (required)" required minLength={3} className="h-8 w-64 md:h-8" />
               </ActionForm>
             ) : (
-              <p className="text-xs text-muted-foreground">No live promotions. Create one under Settings → Promotions.</p>
+              <p className="text-xs text-muted-foreground">No other live promotions. Create one under Settings → Promotions.</p>
             )}
             {deal ? (
               <ActionForm action={removePromotionFromOffer} label="Remove" size="xs" variant="ghost" className="flex flex-wrap items-center gap-2" confirm="Re-draft this offer without the promotion?">

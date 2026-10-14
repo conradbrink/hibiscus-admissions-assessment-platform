@@ -22,6 +22,8 @@ export const PERMISSION_CODES = [
   "applications.write",
   /** Remove an applicant outright. The super administrator alone, by default. */
   "applications.delete",
+  /** Move a child forward past steps (Move to stage). The admissions manager, by default. */
+  "applications.move_stage",
   "assessments.deliver",
   "assessments.score.write",
   "assessments.author",
@@ -40,6 +42,8 @@ export const PERMISSION_CODES = [
   "settings.write",
   "analytics.read",
   "data.export",
+  /** The Ed-admin student export. The chief financial officer, by default. */
+  "enrolment.export",
   "audit.read",
   /** The register: children, families and the school year, after enrolment. */
   "students.read",
@@ -66,6 +70,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "applications.read": "View applicants and the pipeline",
   "applications.write": "Edit applicants, book and reschedule",
   "applications.delete": "Delete an applicant and everything attached to them",
+  "applications.move_stage": "Move an applicant to a later stage, skipping steps, with a reason",
   "assessments.deliver": "Run assessment days: check in, launch, mark no-shows",
   "assessments.score.write": "Mark and amend assessment scores",
   "assessments.author": "Author questions, templates and benchmarks",
@@ -83,6 +88,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "settings.write": "Change campuses, grades, intakes and workflow settings",
   "analytics.read": "View admissions analytics",
   "data.export": "Export applicant data",
+  "enrolment.export": "Export enrolled children to Ed-admin",
   "audit.read": "Read the audit trail",
   "students.read": "View students, families and the school year",
   "students.write": "Edit a student, a family and an enrolment",
@@ -165,7 +171,7 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/crm", "crm.read"],
   ["/staff/analytics/export", "data.export"],
   ["/staff/analytics", "analytics.read"],
-  ["/staff/enrolment", "data.export"],
+  ["/staff/enrolment", "enrolment.export"],
   ["/staff/students", "students.read"],
   ["/staff/reenrolment", "reenrolment.write"],
   ["/staff/onboarding", "students.read"],

@@ -81,6 +81,12 @@ export type TransitionSpec = {
     after?: Json;
   };
   actor: Actor;
+  /**
+   * Allows the override's own moves (`OVERRIDE_TRANSITIONS`) as well as the
+   * ordinary graph. Set only by `lib/workflow/stage-move-actions.ts`, behind
+   * `applications.move_stage`.
+   */
+  override?: boolean;
 };
 
 export class WorkflowError extends Error {
@@ -112,7 +118,7 @@ function stripUndefined(obj: Record<string, Json | undefined> | undefined): Json
  */
 export async function commit(admin: AdminClient, spec: TransitionSpec): Promise<number> {
   if (spec.expectedStatus && spec.newStatus && spec.expectedStatus !== spec.newStatus) {
-    assertTransition(spec.expectedStatus, spec.newStatus);
+    assertTransition(spec.expectedStatus, spec.newStatus, { override: spec.override });
   }
 
   const { data, error } = await admin.rpc("commit_transition", {

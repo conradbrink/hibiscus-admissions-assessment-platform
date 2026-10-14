@@ -37,6 +37,11 @@ import {
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
+import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
+import { mayMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
+import { loadApplicationGraph } from "@/lib/applications";
+import { resolveFeeSchedule } from "@/lib/offers/render";
 import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
@@ -336,6 +341,38 @@ export async function completeCallback(_: StaffActionState, formData: FormData):
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     await onCallbackCompleted(admin, app, parsed.note || null, ctx.actor);
     done(parsed.applicationId);
+  });
+}
+
+/**
+ * Move to stage: an admissions officer moves the child forward along the
+ * journey, skipping the steps between, with a reason. Its own permission
+ * (`applications.move_stage`) rather than `decisions.override`, because it
+ * also speaks for the family (an acceptance) and for finance (a payment
+ * request closed or left for them), and a school may want those apart.
+ */
+export async function moveToStage(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("applications.move_stage");
+    const parsed = idSchema
+      .extend({
+        target: z.enum(["decision", "offer", "payment", "registration"], { error: "Choose the stage to move to." }),
+        reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
+        alreadyPaid: z.literal("on").optional(),
+      })
+      .parse(Object.fromEntries(formData));
+    if (!mayMoveTo(ctx.permissions, parsed.target)) {
+      throw new Error(`Moving a child to ${moveTargetLabel(parsed.target)} also approves on the way, and your account cannot do that.`);
+    }
+    const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
+    await onMovedToStage(admin, app, { target: parsed.target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
+    // The emails the stage landed on sends, now rather than on the next sweep.
+    drainSoon();
+    done(app.id);
+    revalidatePath("/staff/decisions");
+    revalidatePath("/staff/offers");
+    revalidatePath("/staff/payments");
+    revalidatePath("/staff/registrations");
   });
 }
 
@@ -1189,10 +1226,18 @@ export async function setDayPattern(_: StaffActionState, formData: FormData): Pr
  * family pays for the next decade of their child's schooling, which is the
  * weight of signing off an offer, not of correcting a spelling.
  *
- * What it deliberately does not do is touch any offer. A letter already with a
- * family keeps the fees it was drafted with — that is `snapshotFees` working
- * as intended, and silently re-pricing a letter a parent has read would be
- * worse than making somebody press Generate offer again. The screen says so.
+ * Choosing the band re-drafts the offer, on the school's instruction of
+ * 14 October 2026: the percentage on the letter is the admissions officer's
+ * to choose, and choosing it used to leave a warning that the letter still
+ * said the old figure, and a second button to press. Now:
+ *
+ *   - a draft, or a letter waiting for approval, is re-drafted at the new band
+ *     and waits for approval as before;
+ *   - a letter already with the family is withdrawn (their link stops
+ *     working) and re-drafted, and waits for approval: re-pricing a letter a
+ *     parent has read without telling them would be worse than a new one;
+ *   - once the family has accepted, the letter they accepted keeps its fees
+ *     (that is `snapshotFees` working), and only the band on file changes.
  */
 export async function setScholarship(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -1211,35 +1256,83 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const held = await promotionOn(admin, app.id);
     const from = held?.promo.code ?? null;
-    if (from === to) return;
+    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
 
-    if (to === null) {
-      await clearPromotion(admin, app.id);
-    } else {
-      const { data: promo, error } = await admin.from("promotions").select("id, is_active").eq("code", to).maybeSingle();
-      if (error) throw new Error(error.message);
-      if (!promo) throw new Error(`There is no ${to} promotion set up to award.`);
-      if (!promo.is_active) throw new Error(`${to} is switched off. Switch it back on in Promotions before awarding it.`);
-      await recordPromotion(admin, app.id, promo.id, "staff", {
-        staffId: ctx.userId,
-        reason: parsed.reason || "Band set on the applicant page",
+    // The letter in play, and whether saving re-prices it: one waiting for
+    // approval is re-drafted, one with the family is withdrawn and re-drafted.
+    // A draft resting on `offer_draft` is one waiting for fees: drafting it
+    // again would only raise a second "configure fees" task, and it takes the
+    // band when Generate offer is pressed.
+    const { data: letter, error: letterErr } = await admin
+      .from("offers")
+      .select("id, status, promotion_id")
+      .eq("application_id", app.id)
+      .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (letterErr) throw new Error(letterErr.message);
+    const withFamily = Boolean(letter && ["sent", "viewed", "expired"].includes(letter.status) && (app.status === "offer_sent" || app.status === "offer_expired"));
+    const reDraft = withFamily || (letter?.status === "pending_approval" && app.status === "offer_pending_approval");
+
+    // The band on file already: nothing to record, but a letter still priced
+    // under another deal — a band changed before saving re-drafted — is
+    // brought into line, which is what the screen's warning offers.
+    if (from === to && (!reDraft || letter?.promotion_id === (held?.promo.id ?? null))) return;
+
+    // Before anything changes: the family's letter is withdrawn only when a
+    // new one can be priced. Otherwise their link would stop working with
+    // nothing to replace it.
+    if (withFamily) {
+      const graph = await loadApplicationGraph(admin, app.id);
+      if (!graph) throw new Error("That applicant no longer exists.");
+      const schedule = await resolveFeeSchedule(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
+      if (!schedule || schedule.lines.length === 0) {
+        throw new Error("No active fee schedule covers this campus, stage and year, so a new letter could not be priced. Nothing was changed; set the fees first.");
+      }
+    }
+
+    if (from !== to) {
+      if (to === null) {
+        await clearPromotion(admin, app.id);
+      } else {
+        const { data: promo, error } = await admin.from("promotions").select("id, is_active").eq("code", to).maybeSingle();
+        if (error) throw new Error(error.message);
+        if (!promo) throw new Error(`There is no ${to} promotion set up to award.`);
+        if (!promo.is_active) throw new Error(`${to} is switched off. Switch it back on in Promotions before awarding it.`);
+        await recordPromotion(admin, app.id, promo.id, "staff", {
+          staffId: ctx.userId,
+          reason: parsed.reason || "Band set on the applicant page",
+        });
+      }
+      await commit(admin, {
+        applicationId: app.id,
+        expectedStatus: app.status,
+        newStatus: null,
+        nextAction: isNextAction(app.next_action) ? app.next_action : null,
+        event: {
+          type: "scholarship.changed",
+          summary: `Scholarship ${say(from)} → ${say(to)}`,
+          payload: { from, to, reason: parsed.reason ?? null },
+        },
+        audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
+        actor: ctx.actor,
       });
     }
 
-    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: app.status,
-      newStatus: null,
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
-      event: {
-        type: "scholarship.changed",
-        summary: `Scholarship ${say(from)} → ${say(to)}`,
-        payload: { from, to, reason: parsed.reason ?? null },
-      },
-      audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
-      actor: ctx.actor,
-    });
+    if (withFamily && letter) {
+      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
+    }
+    if (reDraft) {
+      const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
+      if (current.error) throw new Error(current.error.message);
+      // Waits for approval whatever `offer_auto_approve` says: the screen
+      // promises the officer a letter to check before it goes.
+      const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
+      if (drafted.blocked) throw new Error("The scholarship is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.");
+      drainSoon();
+    }
     done(app.id);
+    revalidatePath("/staff/offers");
   });
 }

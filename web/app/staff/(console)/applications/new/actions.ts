@@ -14,6 +14,9 @@ import { drainSoon, guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { onEnquiryCreated } from "@/lib/workflow/actions";
+import { canMoveTo, mayMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { STATUS_LABELS } from "@/lib/workflow/states";
+import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
 
 /**
  * A family at the front desk. The same enquiry the parent's own form makes,
@@ -24,6 +27,11 @@ import { onEnquiryCreated } from "@/lib/workflow/actions";
  *
  * Staff may set the grade here. The parent's form cannot: at the desk there
  * is a school report to look at and a family to ask.
+ *
+ * An admissions officer may also move the child straight on (Move to stage,
+ * `applications.move_stage`): a family who has paid already, or a child who
+ * need not sit. Then the enquiry's own email is held and the parent hears
+ * only what the stage they land on says.
  */
 
 const schema = z.object({
@@ -48,6 +56,10 @@ const schema = z.object({
   heardFrom: z.union([z.enum(HEARD_FROM_KEYS), z.literal("")]).optional(),
   heardFromDetail: z.string().trim().max(200).optional().default(""),
   whatsappOptIn: z.string().optional(),
+  // Move straight on (Move to stage), for whoever holds applications.move_stage.
+  target: z.union([z.enum(["decision", "offer", "payment", "registration"]), z.literal("")]).optional(),
+  reason: z.string().trim().max(1000).optional().default(""),
+  alreadyPaid: z.literal("on").optional(),
 });
 
 export async function addApplicant(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
@@ -59,6 +71,9 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
   const state = await guarded(async () => {
     const ctx = await requireStaffAction("applications.write");
     const parsed = schema.parse(Object.fromEntries(formData));
+    const target = parsed.target || null;
+    if (target && !mayMoveTo(ctx.permissions, target)) throw new Error(`Your account cannot move a child to ${moveTargetLabel(target)}.`);
+    if (target && parsed.reason.length < 5) throw new Error("Say why the child is being moved straight on.");
 
     const admin = createAdminClient();
     const verdict = await enforceRateLimit(admin, LIMITS.staffApplicant, ctx.userId);
@@ -115,17 +130,56 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
     created.id = result.applicationId;
 
     // An existing application for this family is opened, not duplicated;
-    // `create_application` returns the one already there.
-    if (!result.created) return;
-
-    const { data: app } = await admin
-      .from("applications")
-      .select("id, reference, status, entry_route, requires_assessment, child_first_name")
-      .eq("id", result.applicationId)
-      .single();
-    if (!app) throw new Error("The applicant was created but could not be read back.");
-    if (app.status === "new_enquiry") {
-      await onEnquiryCreated(admin, app, `${parsed.parentFirstName} ${parsed.parentLastName}`, ctx.actor);
+    // `create_application` returns the one already there. A move asked for
+    // is still made on it, where it lies ahead: the officer asked for this
+    // child to be moved, and dropping that silently would leave them
+    // believing it was.
+    const existing = !result.created;
+    if (!existing && !target) {
+      const { data: app } = await admin
+        .from("applications")
+        .select("id, reference, status, entry_route, requires_assessment, child_first_name")
+        .eq("id", result.applicationId)
+        .single();
+      if (!app) throw new Error("The applicant was created but could not be read back.");
+      if (app.status === "new_enquiry") await onEnquiryCreated(admin, app, `${parsed.parentFirstName} ${parsed.parentLastName}`, ctx.actor);
+    }
+    if (target) {
+      if (!existing) {
+        const { data: app } = await admin
+          .from("applications")
+          .select("id, reference, status, entry_route, requires_assessment, child_first_name")
+          .eq("id", result.applicationId)
+          .single();
+        if (!app) throw new Error("The applicant was created but could not be read back.");
+        if (app.status === "new_enquiry") {
+          await onEnquiryCreated(admin, app, `${parsed.parentFirstName} ${parsed.parentLastName}`, ctx.actor, { holdForMove: true });
+        }
+      }
+      const { data: now, error } = await admin
+        .from("applications")
+        .select("id, status, reference, child_first_name, requires_assessment")
+        .eq("id", result.applicationId)
+        .single();
+      if (error || !now) throw new Error("The applicant was added but could not be read back to move them.");
+      if (canMoveTo(now.status, target)) {
+        try {
+          await onMovedToStage(admin, now, { target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
+        } catch (e) {
+          // Refused before anything changed (no fee schedule, say): the child
+          // is still where the enquiry left them and the held acknowledgement
+          // goes. Stopped part way: the timeline shows how far it got, the
+          // child rests at a legal stage, and this message is how the officer
+          // — who has the family in front of them — finds out. Adding the
+          // family again from this form opens the record.
+          drainSoon();
+          throw new Error(`${parsed.childFirstName} ${existing ? "is on file" : "was added"} (${now.reference}), but could not be moved to ${moveTargetLabel(target)}: ${(e as Error).message}`);
+        }
+      } else if (existing) {
+        throw new Error(`${parsed.childFirstName} is already on file (${now.reference}, ${STATUS_LABELS[now.status]}), and ${moveTargetLabel(target)} is not ahead of them, so nothing was moved.`);
+      }
+      // A new pre-school child is at Decision from the first moment; asked to
+      // go there, they already are.
     }
     drainSoon();
     revalidatePath("/staff/applications");

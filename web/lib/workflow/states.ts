@@ -87,6 +87,52 @@ export function canTransition(from: ApplicationStatus, to: ApplicationStatus): b
 }
 
 /**
+ * Moves only a person with `applications.move_stage` may make, from the
+ * applicant page's Move to stage, with a reason. Kept apart from
+ * {@link TRANSITIONS} on purpose: every screen asks `canTransition` what to
+ * offer (`canBeDecided` among them), and an edge added there would put the
+ * override's moves in front of everybody, as ordinary buttons.
+ *
+ * Two kinds, both added on the school's instruction of 14 October 2026:
+ *
+ *   - Into a decision without an assessment: a booked or missed sitting the
+ *     school has decided the child need not sit.
+ *   - Straight into registration from anywhere before it: a family at the
+ *     desk who has paid already, or whom the school is admitting outright.
+ *     Not from `assessment_in_progress` (the child is at the keyboard) nor
+ *     `payment_processing` (the gateway has the money in flight, and a
+ *     settlement that lands after the move is a different conversation).
+ *
+ * Payment and the offer are reached by the ordinary edges: the override
+ * presses the existing buttons in order (see `lib/workflow/stage-move.ts`).
+ */
+export const OVERRIDE_TRANSITIONS: Partial<Record<ApplicationStatus, readonly ApplicationStatus[]>> = {
+  new_enquiry: ["registration_incomplete"],
+  callback_requested: ["registration_incomplete"],
+  visit_booked: ["registration_incomplete"],
+  assessment_booked: ["awaiting_decision", "registration_incomplete"],
+  no_show: ["awaiting_decision", "registration_incomplete"],
+  assessment_completed: ["registration_incomplete"],
+  awaiting_decision: ["registration_incomplete"],
+  staff_review: ["registration_incomplete"],
+  waitlisted: ["registration_incomplete"],
+  deferred: ["registration_incomplete"],
+  approved: ["registration_incomplete"],
+  offer_draft: ["registration_incomplete"],
+  offer_pending_approval: ["registration_incomplete"],
+  offer_sent: ["registration_incomplete"],
+  offer_expired: ["registration_incomplete"],
+  offer_declined: ["registration_incomplete"],
+  offer_accepted: ["registration_incomplete"],
+  payment_required: ["registration_incomplete"],
+};
+
+/** Whether the override may make this move: an ordinary edge, or one of its own. */
+export function canOverrideTransition(from: ApplicationStatus, to: ApplicationStatus): boolean {
+  return canTransition(from, to) || (OVERRIDE_TRANSITIONS[from]?.includes(to) ?? false);
+}
+
+/**
  * Whether a person may record an outcome from here.
  *
  * Asked of the graph rather than listed beside it. The profile page used to
@@ -187,8 +233,8 @@ export class IllegalTransitionError extends Error {
   }
 }
 
-export function assertTransition(from: ApplicationStatus, to: ApplicationStatus): void {
-  if (!canTransition(from, to)) throw new IllegalTransitionError(from, to);
+export function assertTransition(from: ApplicationStatus, to: ApplicationStatus, opts: { override?: boolean } = {}): void {
+  if (!(opts.override ? canOverrideTransition(from, to) : canTransition(from, to))) throw new IllegalTransitionError(from, to);
 }
 
 // ---------------------------------------------------------------------------
