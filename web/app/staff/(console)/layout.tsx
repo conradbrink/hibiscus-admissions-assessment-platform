@@ -16,7 +16,7 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const groups = visibleNavGroups(ctx.permissions);
   const { count } = await ctx.supabase.from("tasks").select("id", { count: "exact", head: true }).eq("status", "open").eq("assignee_staff_id", ctx.userId);
   return (
-    <div className="staff-console flex min-h-dvh flex-col bg-background md:flex-row print:block print:min-h-0 print:bg-white">
+    <div className="staff-console staff-shell flex min-h-dvh flex-col bg-background md:flex-row print:block print:min-h-0 print:bg-white">
       <StaffSidebar groups={groups} name={ctx.profile.full_name ?? ""} email={ctx.profile.email} className="md:sticky md:top-0 md:h-dvh" />
       <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7 lg:px-10 print:p-0">
         <div className="mx-auto w-full max-w-6xl print:max-w-none">

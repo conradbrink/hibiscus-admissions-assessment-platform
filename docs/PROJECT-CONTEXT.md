@@ -838,12 +838,16 @@ page: `PagePdfButton` in the shared top strip (`StaffTopbar`, both shells),
 shown for `pages.export_pdf` (migration `20261014130000_page_pdf_export.sql`,
 granted to Management and the admissions manager). It records the press
 first (`recordPagePdf` in `app/staff/page-pdf-actions.ts`: `audit_log`
-`page.pdf_downloaded` with the path, filed on the applicant or family when
-the path names one) and opens the browser's print-to-PDF only once that row
-is written, the same refuse-rather-than-unrecorded rule as the list
-downloads. The shell hides its menus, top strip and the applicant page's
-sticky bar with `print:` classes; `globals.css` keeps colours, unclips
-scrolling tables and keeps a table row on one page. Nothing is rendered on
+`page.pdf_downloaded` with the path and query string; filed on the applicant
+or family the path names (`pdfSubjectOf`) only after reading that record
+under the caller's own client; a repeat within ten minutes is one row) and
+opens the browser's print-to-PDF only once that row is written, the same
+refuse-rather-than-unrecorded rule as the list downloads. The shell hides
+its menus, the strip's greeting and buttons and the applicant page's sticky
+bar with `print:` classes (the dashboard keeps its title and date);
+`globals.css`, scoped to `.staff-shell` so parent pages print as before,
+keeps colours, prints scroll boxes at full length and keeps a table row on
+one page. Nothing is rendered on
 the server, so nothing new can leak: the PDF is what the person already
 sees. The browser's own Print is not, and cannot be, gated.
 

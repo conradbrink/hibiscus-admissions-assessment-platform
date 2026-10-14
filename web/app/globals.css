@@ -230,30 +230,27 @@
  * Download PDF (`PagePdfButton`) is the browser's print-to-PDF of the page on
  * screen. The shell takes its menus away with `print:` classes; these rules
  * make the rest come out whole: colours as they are (status badges carry
- * meaning in their colour), wide tables unclipped by their scroll boxes, and
- * a table row never split across two pages.
+ * meaning in their colour), a scrolling box printed at its full length rather
+ * than clipped or spilling over what follows, and a table row never split
+ * across two pages. Scoped to the staff shells (`staff-shell`): a parent
+ * printing their offer letter gets the page as it was before.
  */
 @media print {
   @page {
     margin: 12mm;
   }
-  html,
-  body {
+  body:has(.staff-shell) {
     background: #fff !important;
   }
-  * {
+  .staff-shell * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .overflow-auto,
-  .overflow-x-auto,
-  .overflow-y-auto {
+  .staff-shell :is(.overflow-auto, .overflow-x-auto, .overflow-y-auto) {
     overflow: visible !important;
+    max-height: none !important;
   }
-  tr {
+  .staff-shell tr {
     break-inside: avoid;
-  }
-  a {
-    text-decoration: none;
   }
 }

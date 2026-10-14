@@ -16,7 +16,8 @@ const countBadge =
  * The strip above every page: a greeting with the date, a search that
  * lands on the applicants list, Download PDF for whoever may, the bell with
  * the number of open tasks assigned to this person, and who is signed in.
- * None of it is printed: a page saved as a PDF starts with the page.
+ * Only the dashboard's title and date are printed: a page saved as a PDF
+ * starts with the page, not with the greeting or the buttons.
  */
 export function StaffTopbar({
   name,
@@ -48,13 +49,13 @@ export function StaffTopbar({
   const first = (name || email).split(/[\s@]/)[0];
   const today = new Date();
   const greeting = (
-    <div>
+    <div className="print:hidden">
       <p className="text-sm text-muted-foreground">Welcome back, <span className="font-medium text-foreground">{first}</span> 👋</p>
       <p className="text-xs text-muted-foreground">{formatDate(today)}</p>
     </div>
   );
   return (
-    <header className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
+    <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
       {heading ? (
         <TopbarLead
           path={heading.path}
@@ -70,7 +71,7 @@ export function StaffTopbar({
       ) : (
         greeting
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         <form action={search.action} method="get" role="search" className="relative hidden sm:block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden />
           <input

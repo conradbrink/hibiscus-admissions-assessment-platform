@@ -19,7 +19,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     ctx.supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
   ]);
   return (
-    <div className="min-h-dvh md:p-4 lg:p-6 print:min-h-0 print:p-0">
+    <div className="staff-shell min-h-dvh md:p-4 lg:p-6 print:min-h-0 print:p-0">
       <div className="mx-auto flex min-h-dvh max-w-[1440px] flex-col overflow-hidden bg-card/80 backdrop-blur md:min-h-[calc(100dvh-2rem)] md:flex-row md:rounded-3xl md:border md:border-white/60 md:shadow-lift lg:min-h-[calc(100dvh-3rem)] print:block print:min-h-0 print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:bg-white print:shadow-none print:backdrop-blur-none">
         <StaffSidebar
           groups={groups}

@@ -732,8 +732,10 @@ Who sees the button is ticked per role: **Settings → Staff and roles → What
 each role may do → pages.export_pdf** ("Download any staff page as a PDF"),
 then **Save** under that role. **Management** and the **Admissions manager**
 have it from the start. Each press is written to the audit log
-(`page.pdf_downloaded`, with the page's address and who pressed it); an
-applicant's or a family's page is also filed on their own Audit tab. If that
+(`page.pdf_downloaded`, with the page's full address, filters included, and
+who pressed it); an applicant's page, their registration page and a family's
+page are also filed on that applicant's or family's own Audit tab. Pressing
+again on the same page within ten minutes counts as the same copy. If the
 record cannot be written, the button says so and does not open the print
 window. The permission controls the button, not the browser: anyone can still
 use the browser's own Print, which is not recorded.

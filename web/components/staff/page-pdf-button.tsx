@@ -29,7 +29,8 @@ export function PagePdfButton({ className }: { className: string }) {
       onClick={async () => {
         setBusy(true);
         try {
-          const recorded = await recordPagePdf(pathname);
+          // The query string too: on a list it is what decides who is in it.
+          const recorded = await recordPagePdf(pathname + window.location.search);
           if (recorded.ok) window.print();
           else window.alert(recorded.error);
         } catch {
