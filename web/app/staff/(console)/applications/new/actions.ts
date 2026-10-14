@@ -14,7 +14,7 @@ import { drainSoon, guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { onEnquiryCreated } from "@/lib/workflow/actions";
-import { canMoveTo, mayMoveTo, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
 import { STATUS_LABELS } from "@/lib/workflow/states";
 import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
 
@@ -162,7 +162,10 @@ export async function addApplicant(_: StaffActionState, formData: FormData): Pro
         .eq("id", result.applicationId)
         .single();
       if (error || !now) throw new Error("The applicant was added but could not be read back to move them.");
-      if (canMoveTo(now.status, target)) {
+      // Forward only. This form checks the forward permission, and a family
+      // at the desk is never a reason to withdraw an existing child's offer:
+      // that is done from their own page, which asks for offers.approve.
+      if (moveDirection(now.status, target) === "forward") {
         try {
           await onMovedToStage(admin, now, { target, reason: parsed.reason, alreadyPaid: parsed.alreadyPaid === "on" }, ctx.actor);
         } catch (e) {

@@ -9,7 +9,10 @@ import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import { commit, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
 import { JOURNEY } from "@/lib/workflow/next-step";
 import { hasResults, onOfferAccepted, onOfferApproved, onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
-import { canMoveTo, moveTargetLabel, mootTaskTypes, movePosition, type MoveTarget } from "@/lib/workflow/stage-move";
+import { BACK_MOOT_TASKS, moveDirection, moveTargetLabel, mootTaskTypes, movePosition, type MoveTarget } from "@/lib/workflow/stage-move";
+import { formatMoney } from "@/lib/money";
+import { askable, CHECKOUT_TTL_HOURS, recentAttemptsSince } from "@/lib/payments/attempts";
+import { formatDateTime } from "@/lib/format-date";
 import { STATUS_LABELS } from "@/lib/workflow/states";
 
 /**
@@ -250,6 +253,43 @@ async function toPayment(admin: AdminClient, app: MovingApp, reason: string, act
 }
 
 /**
+ * Withdraws every letter in these statuses, with one `offer.withdrawn` line
+ * each, as `onOfferWithdrawn` writes: it is what the journey bar reads to
+ * stop ticking Offer for a letter that is no longer out, and what tells the
+ * next person why the family's link stopped working. Shared by the move to
+ * Registration and the moves back, so the two cannot drift. Returns how many.
+ */
+async function withdrawLetters(
+  admin: AdminClient,
+  app: MovingApp,
+  statuses: OfferRow["status"][],
+  why: string,
+  reason: string,
+  actor: Actor,
+  failure: string
+): Promise<number> {
+  const { data: withdrawn, error } = await admin
+    .from("offers")
+    .update({ status: "withdrawn", withdrawn_reason: why.slice(0, 300) })
+    .eq("application_id", app.id)
+    .in("status", statuses)
+    .select("id");
+  if (error) throw new WorkflowError(`${app.reference}: ${failure} (${error.message}).`, "database");
+  for (const offer of withdrawn ?? []) {
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: null,
+      event: { type: "offer.withdrawn", summary: `Offer withdrawn: ${why}`, payload: { offer_id: offer.id, reason } },
+      audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason: why } },
+      actor,
+    });
+  }
+  return (withdrawn ?? []).length;
+}
+
+/**
  * Straight into registration, from wherever the child is.
  *
  * No decision row, no offer and no acceptance are invented on the way: none
@@ -275,28 +315,15 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
   const hasOpenRequest = (openRequests ?? []).length > 0;
 
   await releaseAssessment(admin, app, "Moved straight to registration by staff");
-  const { data: withdrawn, error: offErr } = await admin
-    .from("offers")
-    .update({ status: "withdrawn", withdrawn_reason: "Moved straight to registration by staff" })
-    .eq("application_id", app.id)
-    .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
-    .select("id");
-  if (offErr) {
-    throw new WorkflowError(`${app.reference} was not moved on: we could not withdraw its offer (${offErr.message}). Its status is unchanged — please try again.`, "database");
-  }
-  // One line per letter, as `onOfferWithdrawn` writes: it is what the journey
-  // bar reads to stop ticking Offer for a letter that is no longer out.
-  for (const offer of withdrawn ?? []) {
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: null,
-      newStatus: null,
-      nextAction: null,
-      event: { type: "offer.withdrawn", summary: "Offer withdrawn: moved straight to registration by staff", payload: { offer_id: offer.id, reason } },
-      audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason: "Moved straight to registration by staff" } },
-      actor,
-    });
-  }
+  await withdrawLetters(
+    admin,
+    app,
+    ["draft", "pending_approval", "sent", "viewed", "expired"],
+    "moved straight to registration by staff",
+    reason,
+    actor,
+    "was not moved on: we could not withdraw its offer. Its status is unchanged — please try again"
+  );
   if (!move.alreadyPaid) {
     // A part payment is money that has moved, and stays open for finance.
     await mustSucceed(
@@ -320,11 +347,15 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
   );
 
   const settings = await getSettings(admin);
+  // Per move rather than per child: a child moved back and then on to
+  // registration again must hear about it again, and a fixed key would be
+  // dropped as already sent.
+  const moveStamp = Date.now();
   const jobs: JobSpec[] = [
     {
       type: "send_email",
       payload: { template_key: "registration_open", links: ["registration"] },
-      idempotencyKey: `email:${app.id}:registration_open`,
+      idempotencyKey: `email:${app.id}:registration_open:${moveStamp}`,
       precondition: { application_status: ["registration_incomplete"] },
     },
     // `registration_open` again, not `registration_reminder`: that one says
@@ -333,7 +364,7 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
     ...settings.registrationReminderDays.map((days) => ({
       type: "send_email",
       payload: { template_key: "registration_open", links: ["registration"] },
-      idempotencyKey: `email:${app.id}:registration_open:reminder:${days}d`,
+      idempotencyKey: `email:${app.id}:registration_open:${moveStamp}:reminder:${days}d`,
       runAfter: new Date(Date.now() + days * DAY),
       precondition: { application_status: ["registration_incomplete" as const] },
     })),
@@ -377,9 +408,207 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
 }
 
 /**
- * Moves the child forward to the chosen stage. Returns where they landed,
- * which is the stage asked for or (at Payment, when the letter has nothing to
- * pay on acceptance) the one after it.
+ * Why a move back would be refused for money, or null when nothing stops it.
+ *
+ * The money belongs to the payment request of the letter being withdrawn.
+ * Going back would leave it attached to an offer nobody holds, and the next
+ * acceptance would ask the family to pay again. A refund is finance's to
+ * record, and then the move can be made. A zero-amount settlement (nothing
+ * was owed, or a deal waived it) is not money, and does not stop the move.
+ * Nor does a refunded payment, which is no longer held.
+ *
+ * Exported for the applicant page, which hides the way back on the same
+ * answer: two copies of this rule had already drifted apart once.
+ */
+export type MoneyHeld = {
+  reason: string;
+  /**
+   * Worth saying on the applicant page. Every reason is, except money
+   * received: that is how almost every child past Payment got there, and
+   * the page does not offer a refund as a next step to their family.
+   */
+  note: boolean;
+};
+
+export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "id" | "child_first_name">): Promise<MoneyHeld | null> {
+  const [payments, requests, reported] = await Promise.all([
+    admin
+      .from("payments")
+      .select("status, amount_minor, currency, method, provider_ref, created_at, failure_reason")
+      .eq("application_id", app.id)
+      .in("status", ["succeeded", "processing", "expired", "failed"]),
+    // A request mid-payment or part-paid is money in motion even where no
+    // payment row says so (after a refund, or a hand correction); only the
+    // unpaid ones are cancelled on the way back, and this one would block the
+    // next.
+    admin.from("payment_requests").select("id", { count: "exact", head: true }).eq("application_id", app.id).in("status", ["processing", "partially_paid"]),
+    // Finance's open money tasks. A reported payment: the family said they
+    // had paid, and its request is the one the money is to be recorded
+    // against. A payment review: the gateway took a wrong amount, which
+    // leaves the row failed, so no payment row counts it as received. (A
+    // shortfall or a refund review comes with a succeeded payment, which
+    // `held` catches, and stays open after a refund, so it is not asked.)
+    admin.from("tasks").select("type").eq("application_id", app.id).eq("status", "open").in("type", ["confirm_reported_payment", "payment_review"]),
+  ]);
+  const error = payments.error ?? requests.error ?? reported.error;
+  if (error) throw new WorkflowError(error.message, "database");
+  const rows = payments.data ?? [];
+  const name = app.child_first_name;
+
+  const held = rows.filter((p) => p.status === "succeeded" && Number(p.amount_minor) > 0);
+  if (held.length) {
+    const total = held.reduce((sum, p) => sum + Number(p.amount_minor), 0);
+    return { note: false, reason: `${formatMoney(total, held[0].currency)} has been received for ${name}, so their letter cannot be withdrawn. Finance would have to refund it under Payments first.` };
+  }
+  const tasks = (reported.data ?? []).map((t) => t.type);
+  if (tasks.includes("payment_review")) {
+    return {
+      note: true,
+      reason: `A payment for ${name} came in for the wrong amount, and finance has a task to review it. Once finance has dealt with it and marked the task done, you can move them back.`,
+    };
+  }
+  // An attempt still being confirmed, or one that timed out or failed, can
+  // still settle at the gateway for its checkout window (the parent finishing
+  // on their bank's page, then the revive sweep or their "Check again"), and
+  // would land on a request this move had cancelled. A "not paid" from the
+  // gateway inside that window is not final either, so nothing but the
+  // window closing lifts this, and the note says only that.
+  const since = new Date(recentAttemptsSince()).getTime();
+  // A wrong amount is money that did go through, which the review above
+  // already answers for; it is not an attempt still in the air.
+  const live = rows.filter(
+    (p) =>
+      p.status === "processing" ||
+      ((p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since && !p.failure_reason?.startsWith("amount_mismatch"))
+  );
+  if (live.length) {
+    const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
+    if (clears.getTime() > Date.now()) {
+      return { note: true, reason: `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. If it has not gone through by then, you can move them back.` };
+    }
+    // Only a row still "processing" gets here: past its window, so the
+    // sweep has failed to settle it. Waiting will not help; a check will.
+    return { note: true, reason: `An online payment ${name}'s family started is still waiting for the gateway's answer. Ask finance to check it with the gateway under Payments; once it is settled, you can move them back.` };
+  }
+  if (requests.count) {
+    return { note: true, reason: `A payment for ${name} is part-paid or still being confirmed. Finance would have to settle or refund it under Payments before they can be moved back.` };
+  }
+  if (tasks.includes("confirm_reported_payment")) {
+    return { note: true, reason: `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.` };
+  }
+  return null;
+}
+
+async function assertNoMoneyHeld(admin: AdminClient, app: MovingApp): Promise<void> {
+  const held = await moneyHeldReason(admin, app);
+  if (held) throw new WorkflowError(held.reason, "status_conflict");
+}
+
+/**
+ * The jobs a move back leaves behind, which it skips. Each was queued for a
+ * stage the child is no longer at, and most check only the status before
+ * they run: the old payment reminders would quote the cancelled request to
+ * a family who has since accepted a new letter, and the old registration
+ * reminders would arrive alongside the new ones. The money's own checks, the
+ * marking and the document readings stay queued.
+ */
+const STALE_AFTER_MOVE_BACK = ["send_email", "send_whatsapp", "send_outcome", "draft_offer", "offer_expire", "payment_overdue", "auto_enrol"];
+
+/**
+ * Back to Decision, or back to Offer.
+ *
+ * Every letter in play or accepted is withdrawn, each with its own
+ * `offer.withdrawn` line (which is also what tells the journey bar the offer
+ * is no longer out). The family's signed acceptance stays on file: it is what
+ * happened. Unpaid payment requests are cancelled, so the one-open-request
+ * rule does not refuse the next acceptance, and an unstarted checkout
+ * expires. Nothing is emailed: the family hears from the school again when
+ * there is a new decision or a new letter, by the ordinary buttons.
+ *
+ * Back to Offer then drafts the new letter at once, with the conditions the
+ * old one carried, and leaves it for a person to approve — whatever the
+ * auto-approve switch says, as every Move to stage letter does.
+ */
+async function moveBack(admin: AdminClient, app: MovingApp, target: MoveTarget, reason: string, actor: Actor): Promise<MovingApp> {
+  if (target !== "decision" && target !== "offer") {
+    throw new WorkflowError(`A child cannot be moved back to ${moveTargetLabel(target)}.`, "illegal_transition");
+  }
+  await assertNoMoneyHeld(admin, app);
+
+  // The conditions on the letter being replaced, so the new one says them too.
+  const previous = await offerIn(admin, app.id, ["draft", "pending_approval", "sent", "viewed", "expired", "accepted"]);
+  const why = target === "offer" ? `moved back to Offer by staff, to be redrafted: ${reason}` : `moved back to Decision by staff: ${reason}`;
+
+  // The move first, the tidying after. The status check in this commit is
+  // what stops a parent who accepts or pays in the same second: once it is
+  // in, their acceptance and their checkout are both refused by status. Done
+  // the other way round, their acceptance could be withdrawn and their new
+  // payment request cancelled underneath them, and then the move refused.
+  const to: ApplicationStatus = target === "decision" ? "awaiting_decision" : "offer_draft";
+  await commit(admin, {
+    applicationId: app.id,
+    expectedStatus: app.status,
+    newStatus: to,
+    nextAction: target === "decision" ? "await_decision" : "await_offer",
+    event: {
+      type: "application.moved_to_stage",
+      summary: `${moveTargetLabel(target, "back")} by staff: ${reason}`,
+      payload: { from: app.status, to: target, direction: "back", reason },
+    },
+    resolveTaskTypes: [...BACK_MOOT_TASKS],
+    // Back to Decision puts the child in front of whoever decides, as the
+    // rules engine's referral does.
+    tasks:
+      target === "decision"
+        ? [{ type: "review_decision", title: `Decide again on ${app.child_first_name}'s application`, details: `Moved back to Decision by staff. Reason: ${reason}`, priority: "high" }]
+        : [],
+    audit: { action: "application.moved_to_stage", before: { status: app.status }, after: { stage: target, direction: "back", reason } },
+    actor,
+    override: true,
+  });
+
+  // Past this point the child has moved, so a failure cannot say "unchanged,
+  // try again" as `mustSucceed` does: a second press would be refused by
+  // status. It says what is left to do by hand instead.
+  const stopped = "was moved back, but its old letter or payment could not be tidied away. Withdraw the old offer under Edit offer, and ask finance to cancel its payment request";
+  await withdrawLetters(admin, app, ["draft", "pending_approval", "sent", "viewed", "expired", "accepted"], why, reason, actor, stopped);
+  const tidied = await Promise.all([
+    admin.from("payment_requests").update({ status: "cancelled" }).eq("application_id", app.id).in("status", ["required", "failed"]),
+    admin.from("payments").update({ status: "expired", failure_reason: "Moved back by staff" }).eq("application_id", app.id).eq("status", "pending"),
+    admin
+      .from("jobs")
+      .update({ status: "skipped", last_error: "Moved back by staff", completed_at: new Date().toISOString() })
+      .eq("application_id", app.id)
+      .eq("status", "pending")
+      .in("type", STALE_AFTER_MOVE_BACK),
+  ]);
+  const tidyErr = tidied.find((r) => r.error)?.error;
+  if (tidyErr) throw new WorkflowError(`${app.reference}: ${stopped} (${tidyErr.message}).`, "database");
+
+  let cur = await reload(admin, app.id);
+  if (target === "offer") {
+    // Blocked on fees is a resting state with its own task, not a failure:
+    // the child is at Offer, waiting on a fee schedule. Anything else (no
+    // published template, say) is reported as what it is — the child has
+    // moved, and pressing Move again would be refused by status.
+    try {
+      await onOfferDrafted(admin, cur, actor, { conditions: previous?.conditions ?? null, autoApprove: false });
+    } catch (e) {
+      throw new WorkflowError(
+        `${app.child_first_name} was moved back to Offer and the old letter withdrawn, but the new letter could not be drafted: ${(e as Error).message} Once that is fixed, press Create offer on their page.`,
+        e instanceof WorkflowError ? e.code : "database"
+      );
+    }
+    cur = await reload(admin, app.id);
+  }
+  return cur;
+}
+
+/**
+ * Moves the child to the chosen stage, forward or back. Returns where they
+ * landed, which is the stage asked for or (at Payment, when the letter has
+ * nothing to pay on acceptance) the one after it, or (back to Offer, when no
+ * fee schedule prices the new letter) the draft waiting on fees.
  */
 export async function onMovedToStage(admin: AdminClient, app: MovingApp, move: StageMove, actor: Actor): Promise<ApplicationStatus> {
   if (actor.type !== "staff" || !actor.id) {
@@ -387,12 +616,14 @@ export async function onMovedToStage(admin: AdminClient, app: MovingApp, move: S
   }
   const reason = move.reason.trim();
   if (reason.length < 5) throw new WorkflowError("Give a reason of at least a few words.", "illegal_transition");
-  if (!canMoveTo(app.status, move.target)) {
+  const direction = moveDirection(app.status, move.target);
+  if (!direction) {
     throw new WorkflowError(
       `A child who is "${STATUS_LABELS[app.status]}" cannot be moved to ${moveTargetLabel(move.target)}. Reload the page: they may have moved on already.`,
       "status_conflict"
     );
   }
+  if (direction === "back") return (await moveBack(admin, app, move.target, reason, actor)).status;
 
   const from = app.status;
   switch (move.target) {

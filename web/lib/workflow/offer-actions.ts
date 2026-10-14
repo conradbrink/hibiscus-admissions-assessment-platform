@@ -482,17 +482,28 @@ export async function onOfferAccepted(
   const dueAt = new Date(Date.now() + settings.paymentDueDays * DAY);
   const request = await createPaymentRequest(admin, { app, offer, acceptanceId: acceptance.id, dueAt });
 
-  await commit(admin, {
-    applicationId: app.id,
-    expectedStatus: "offer_sent",
-    newStatus: "offer_accepted",
-    nextAction: "pay_fees",
-    nextActionDueAt: dueAt,
-    event: { type: "offer.accepted", summary: "Parent accepted the offer", payload: { offer_id: offer.id, acceptance_id: acceptance.id } },
-    resolveTaskTypes: ["follow_up_expired_offer"],
-    audit: { action: "offer.accepted", entityType: "offer", entityId: offer.id, after: { acceptance_id: acceptance.id, terms_hash: offerSnapshotHash(offer) } },
-    actor,
-  });
+  try {
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: "offer_sent",
+      newStatus: "offer_accepted",
+      nextAction: "pay_fees",
+      nextActionDueAt: dueAt,
+      event: { type: "offer.accepted", summary: "Parent accepted the offer", payload: { offer_id: offer.id, acceptance_id: acceptance.id } },
+      resolveTaskTypes: ["follow_up_expired_offer"],
+      audit: { action: "offer.accepted", entityType: "offer", entityId: offer.id, after: { acceptance_id: acceptance.id, terms_hash: offerSnapshotHash(offer) } },
+      actor,
+    });
+  } catch (e) {
+    // The child moved in the same moment (staff moved them back, say), so
+    // this acceptance did not take. Its request would otherwise hold the
+    // one open slot (`payment_requests_one_open_idx`) and refuse the next
+    // letter's acceptance.
+    if (e instanceof WorkflowError && e.code === "status_conflict") {
+      await admin.from("payment_requests").update({ status: "cancelled" }).eq("id", request.id).eq("status", "required");
+    }
+    throw e;
+  }
 
   const charge = chargeAtAcceptance(feeSnapshotFrom(offer.fees));
   if (securedWithoutPaying(charge)) {

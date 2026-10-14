@@ -887,9 +887,30 @@ What each stage does, and what the parent hears:
 | Payment | Accepted, the offer approved without emailing it, and the family's acceptance recorded on their behalf | Only what to pay (or, when nothing is payable, that registration is next) |
 | Registration | Any offer in play is withdrawn; registration opens | Only that registration is due — no payment messages |
 
-Only stages ahead of the child are offered; a child cannot be moved back.
 Every step skipped is on the timeline with your name and reason, and the
-journey bar leaves the skipped stages unticked. A letter waits for approval
+journey bar leaves the skipped stages unticked.
+
+**Moving back.** From Offer, Payment or Registration a child can also go
+**Back to Decision** or **Back to Offer** (needs **offers.approve**):
+
+| Back to | What happens | The parent hears |
+|---|---|---|
+| Decision | Any offer the family has, or accepted, is withdrawn; an unpaid payment is cancelled; a "Decide again" task opens | Nothing until a new decision and a new offer are sent |
+| Offer | The same, and a new letter is drafted at once with the old one's conditions; it waits for your approval | The new letter, once you approve and send it |
+
+The family's signed acceptance of the old letter stays on file as what
+happened. Reminders already queued for the old stages (payment, offer,
+registration) are dropped, so the family does not get a reminder about a
+letter that no longer stands. A move back is **refused while money is held**
+for the child: money received (refund it under Payments first, or move them
+forward instead), a payment still being confirmed or part-paid, a payment
+the family reported that finance has not confirmed, a payment that came in
+for the wrong amount (until finance marks its review task done), or an
+online payment started in the last 24 hours that could still go through at
+the gateway. It is not offered on screen in those cases; the page says why,
+except when the money was simply received. If the page was open while the
+child moved on, the move is refused and you are asked to reload, rather
+than going the other way. A letter waits for approval
 after Offer even when automatic offer approval is switched on. Registration
 reminders to a family moved on by hand say only that registration is due,
 never that "the place is secured", until a payment has been received.

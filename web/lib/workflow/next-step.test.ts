@@ -270,6 +270,45 @@ describe("journey milestones, after review", () => {
     const again = journeyMilestones([ev("offer.sent", "2026-10-13T10:00:00Z"), ev("offer.withdrawn", "2026-10-12T10:00:00Z"), ev("offer.sent", "2026-10-10T10:00:00Z")], () => "Fiona");
     expect(again.offer?.at).toBe("2026-10-13T10:00:00Z");
   });
+  it("forgets the old decision when a child is moved back to Decision, and not when moved forward", () => {
+    const decided = ev("decision.made", "2026-10-10T10:00:00Z", "", { outcome: "approved" });
+    const back = journeyMilestones([ev("application.moved_to_stage", "2026-10-12T10:00:00Z", "", { to: "decision", direction: "back" }), decided], () => "Fiona");
+    expect(back.decision).toBeUndefined();
+    const forward = journeyMilestones([ev("application.moved_to_stage", "2026-10-12T10:00:00Z", "", { to: "decision" }), decided], () => "Fiona");
+    expect(forward.decision?.label).toBe("Accepted");
+    const decidedAgain = journeyMilestones([ev("decision.made", "2026-10-13T10:00:00Z", "", { outcome: "approved" }), ev("application.moved_to_stage", "2026-10-12T10:00:00Z", "", { to: "decision", direction: "back" }), decided], () => "Fiona");
+    expect(decidedAgain.decision?.at).toBe("2026-10-13T10:00:00Z");
+    // Back to Offer keeps the decision; a settlement of nothing belonged to the old letter.
+    const toOffer = journeyMilestones([ev("application.moved_to_stage", "2026-10-12T10:00:00Z", "", { to: "offer", direction: "back" }), ev("payment.confirmed", "2026-10-11T10:00:00Z"), decided], () => "Fiona");
+    expect(toOffer.decision?.label).toBe("Accepted");
+    expect(toOffer.payment).toBeUndefined();
+  });
+  it("reads a new letter sent after a move back as sent, not as the old letter's acceptance", () => {
+    const m = journeyMilestones(
+      [
+        ev("offer.sent", "2026-10-14T10:00:00Z"),
+        ev("offer.withdrawn", "2026-10-13T10:00:01Z"),
+        ev("application.moved_to_stage", "2026-10-13T10:00:00Z", "", { to: "offer", direction: "back" }),
+        ev("offer.accepted", "2026-10-12T10:00:00Z"),
+        ev("offer.sent", "2026-10-11T10:00:00Z"),
+      ],
+      () => "Fiona"
+    );
+    expect(m.offer).toEqual({ at: "2026-10-14T10:00:00Z", label: "Offer sent", by: "Fiona" });
+  });
+  it("clears a declined letter when the child is moved back to Decision, which withdraws nothing", () => {
+    const m = journeyMilestones(
+      [
+        ev("decision.made", "2026-10-14T10:00:00Z", "", { outcome: "approved" }),
+        ev("application.moved_to_stage", "2026-10-13T10:00:00Z", "", { to: "decision", direction: "back" }),
+        ev("offer.declined", "2026-10-12T10:00:00Z"),
+        ev("offer.sent", "2026-10-11T10:00:00Z"),
+      ],
+      () => "Fiona"
+    );
+    expect(m.offer).toBeUndefined();
+    expect(m.decision?.at).toBe("2026-10-14T10:00:00Z");
+  });
   it("calls an assessment check-in a check-in, and a visit a visit", () => {
     expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for assessment")], () => null).assessment?.label).toBe("Checked in");
     expect(journeyMilestones([ev("booking.checked_in", "2026-10-13T08:00:00Z", "Arrived for visit")], () => null).assessment?.label).toBe("Visited");

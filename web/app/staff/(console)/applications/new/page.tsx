@@ -155,7 +155,7 @@ export default async function NewApplicantPage() {
               // so the parent never receives the "book an assessment" email.
               <fieldset className="space-y-3">
                 <legend className="text-sm font-semibold">Move straight on <span className="font-normal text-muted-foreground">(optional)</span></legend>
-                <MoveStageFields targets={moveTargets} optional />
+                <MoveStageFields targets={moveTargets} status="new_enquiry" optional />
               </fieldset>
             ) : null}
 

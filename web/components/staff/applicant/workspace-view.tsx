@@ -117,7 +117,9 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const canDefer = canWrite && !terminal && canTransition(app.status, "deferred");
   const canWithdraw = canWrite && !terminal;
   // The stages ahead that the officer may move the child to by hand.
-  const moveTargets = moveTargetsFor(app.status, permissions);
+  // The way back is not offered while money is held: the loader asked the
+  // same rule the server refuses by (`moneyHeldReason`).
+  const moveTargets = moveTargetsFor(app.status, permissions, { moneyReceived: w.moneyHeld !== null });
   const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
 
   // Half day or full day, the starting month and the scholarship band: the

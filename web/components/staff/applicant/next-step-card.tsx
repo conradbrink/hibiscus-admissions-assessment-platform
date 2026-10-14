@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import type { NextStep, PrimaryAction } from "@/lib/workflow/next-step";
 import { DecisionPanel } from "@/components/staff/applicant/decision-panel";
 import { MoveStageFields } from "@/components/staff/move-stage-fields";
-import type { MoveTarget } from "@/lib/workflow/stage-move";
+import { moveDirection, type MoveTarget } from "@/lib/workflow/stage-move";
 import { ApproveOfferForm, assessmentResult, bandClass, OfferEditor, OfferPreview, OfferSummary, rulesRecommendation, type OfferSettings } from "@/components/staff/applicant/records";
 import { generateOffer, sendOutcome, withdrawOffer } from "@/app/staff/(console)/offers/actions";
 import { launchAttempt, reissueCode } from "@/app/staff/(console)/assessments/actions";
@@ -117,29 +117,45 @@ export function NextStepCard({
   // Move to stage: the officer's override, for a family who has paid already
   // or a child who need not sit. Quiet and folded, like Decide now instead,
   // because it skips steps every other button on the page waits for.
+  // `moneyHeld` is set only for someone who could otherwise move the child
+  // back. Why the way back is shut is explained (a payment being confirmed,
+  // and until when; a review finance has open); money received is not,
+  // because nearly every child past Payment has paid, and that is no news.
+  const waitToGoBack = w.moneyHeld?.note ? w.moneyHeld.reason : null;
   const moveAside =
-    moveTargets.length > 0 ? (
+    moveTargets.length > 0 || waitToGoBack ? (
       <details className="mt-4 border-t border-border pt-3 text-sm">
         <summary className="cursor-pointer font-medium text-primary">Move to another stage</summary>
-        <ActionForm
-          action={moveToStage}
-          label="Move child"
-          size="sm"
-          variant="outline"
-          className="mt-3 max-w-xl space-y-3"
-          confirmBy={{
-            field: "target",
-            messages: {
-              decision: `Move ${w.app.child_first_name} to Decision without an assessment? A booked assessment is cancelled.`,
-              offer: `Accept ${w.app.child_first_name} and draft the offer? The skipped steps are recorded as done by you.`,
-              payment: `Accept ${w.app.child_first_name}, approve the offer and record the family's acceptance? The parent is emailed what to pay.`,
-              registration: `Move ${w.app.child_first_name} straight to registration? Any offer in play is withdrawn and the parent is emailed the registration form.`,
-            },
-          }}
-        >
-          {idField}
-          <MoveStageFields targets={moveTargets} />
-        </ActionForm>
+        {waitToGoBack ? <p className="mt-2 max-w-xl text-xs text-muted-foreground">Moving back is not available: {waitToGoBack}</p> : null}
+        {moveTargets.length > 0 ? (
+          <ActionForm
+            action={moveToStage}
+            label="Move child"
+            size="sm"
+            variant="outline"
+            className="mt-3 max-w-xl space-y-3"
+            confirmBy={{
+              field: "target",
+              // Decision and Offer can lie behind the child: then the question is
+              // about the letter that is withdrawn, not the steps skipped.
+              messages: {
+                decision:
+                  moveDirection(w.app.status, "decision") === "back"
+                    ? `Move ${w.app.child_first_name} back to Decision? Their offer is withdrawn and any unpaid payment is cancelled. The parent is not emailed.`
+                    : `Move ${w.app.child_first_name} to Decision without an assessment? A booked assessment is cancelled.`,
+                offer:
+                  moveDirection(w.app.status, "offer") === "back"
+                    ? `Move ${w.app.child_first_name} back to Offer? The letter the family has is withdrawn and a new one is drafted for your approval.`
+                    : `Accept ${w.app.child_first_name} and draft the offer? The skipped steps are recorded as done by you.`,
+                payment: `Accept ${w.app.child_first_name}, approve the offer and record the family's acceptance? The parent is emailed what to pay.`,
+                registration: `Move ${w.app.child_first_name} straight to registration? Any offer in play is withdrawn and the parent is emailed the registration form.`,
+              },
+            }}
+          >
+            {idField}
+            <MoveStageFields targets={moveTargets} status={w.app.status} />
+          </ActionForm>
+        ) : null}
       </details>
     ) : null;
 

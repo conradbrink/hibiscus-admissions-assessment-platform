@@ -1,20 +1,31 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { toPermissionSet } from "@/lib/permissions";
-import { canMoveTo, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
+import { backPosition, canMoveTo, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveDirection, moveTargetLabel, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
 import { canBeDecided, canOverrideTransition, canTransition, OVERRIDE_TRANSITIONS, TERMINAL_STATUSES, TRANSITIONS } from "@/lib/workflow/states";
 
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
 
 describe("move to stage: where a child may go", () => {
-  it("offers only the stages ahead, in journey order", () => {
+  it("offers the stages ahead, and Decision and Offer behind, in journey order", () => {
     expect(moveTargetsFrom("new_enquiry")).toEqual(["decision", "offer", "payment", "registration"]);
     expect(moveTargetsFrom("assessment_booked")).toEqual(["decision", "offer", "payment", "registration"]);
     expect(moveTargetsFrom("awaiting_decision")).toEqual(["offer", "payment", "registration"]);
     expect(moveTargetsFrom("waitlisted")).toEqual(["offer", "payment", "registration"]);
-    expect(moveTargetsFrom("offer_sent")).toEqual(["payment", "registration"]);
-    expect(moveTargetsFrom("offer_declined")).toEqual(["payment", "registration"]);
-    expect(moveTargetsFrom("payment_required")).toEqual(["registration"]);
+    expect(moveTargetsFrom("offer_sent")).toEqual(["decision", "payment", "registration"]);
+    expect(moveTargetsFrom("offer_declined")).toEqual(["decision", "payment", "registration"]);
+    expect(moveTargetsFrom("payment_required")).toEqual(["decision", "offer", "registration"]);
+    expect(moveTargetsFrom("registration_incomplete")).toEqual(["decision", "offer"]);
+  });
+
+  it("says which way each move goes", () => {
+    expect(moveDirection("new_enquiry", "offer")).toBe("forward");
+    expect(moveDirection("payment_required", "offer")).toBe("back");
+    expect(moveDirection("payment_required", "decision")).toBe("back");
+    expect(moveDirection("offer_sent", "decision")).toBe("back");
+    expect(moveDirection("registration_complete", "offer")).toBe("back");
+    expect(moveTargetLabel("offer", "back")).toBe("Back to Offer");
+    expect(moveTargetLabel("offer")).toBe("Offer");
   });
 
   it("lets a deferred child go on to any stage from Decision, wherever they paused", () => {
@@ -29,17 +40,42 @@ describe("move to stage: where a child may go", () => {
   });
 
   it("never moves a child at the keyboard, money in flight, or anybody finished", () => {
-    for (const status of ["assessment_in_progress", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled", "declined", "withdrawn"] as ApplicationStatus[]) {
+    for (const status of ["assessment_in_progress", "payment_processing", "paid", "enrolled", "declined", "withdrawn"] as ApplicationStatus[]) {
       expect(moveTargetsFrom(status), status).toEqual([]);
     }
-    for (const status of TERMINAL_STATUSES) expect(movePosition(status)).toBeNull();
+    for (const status of TERMINAL_STATUSES) {
+      expect(movePosition(status)).toBeNull();
+      expect(backPosition(status)).toBeNull();
+    }
   });
 
-  it("never moves backwards or sideways", () => {
-    expect(canMoveTo("offer_sent", "decision")).toBe(false);
+  it("never moves sideways, and goes back only to Decision or Offer", () => {
     expect(canMoveTo("offer_sent", "offer")).toBe(false);
     expect(canMoveTo("awaiting_decision", "decision")).toBe(false);
     expect(canMoveTo("payment_required", "payment")).toBe(false);
+    // Nothing before the offer has a stage behind it to go back to.
+    for (const status of ["new_enquiry", "assessment_booked", "awaiting_decision", "waitlisted", "deferred"] as ApplicationStatus[]) {
+      expect(backPosition(status), status).toBeNull();
+    }
+    // Payment and Registration are never somewhere to go back to.
+    expect(canMoveTo("registration_incomplete", "payment")).toBe(false);
+    expect(canMoveTo("registration_complete", "registration")).toBe(false);
+  });
+
+  it("hides the way back once money has been received, and keeps the way forward", () => {
+    const manager = toPermissionSet(["applications.move_stage", "offers.approve", "decisions.override"]);
+    expect(moveTargetsFor("payment_required", manager, { moneyReceived: true })).toEqual(["registration"]);
+    expect(moveTargetsFor("registration_incomplete", manager, { moneyReceived: true })).toEqual([]);
+    expect(moveTargetsFor("payment_required", manager)).toEqual(["decision", "offer", "registration"]);
+  });
+
+  it("asks an offer approver to go back, because going back withdraws the letter", () => {
+    const decides = toPermissionSet(["applications.move_stage", "decisions.override"]);
+    expect(mayMoveTo(decides, "decision", "back")).toBe(false);
+    expect(mayMoveTo(decides, "decision", "forward")).toBe(true);
+    expect(moveTargetsFor("payment_required", decides)).toEqual(["registration"]);
+    // There is no way back to Payment or Registration, whoever asks.
+    expect(mayMoveTo(toPermissionSet(["admin"]), "payment", "back")).toBe(false);
   });
 
   it("knows its own targets and nothing else", () => {
@@ -90,8 +126,15 @@ describe("move to stage: the graph it relies on", () => {
     }
   });
 
+  it("has an edge for every move back: to a decision, or to a fresh draft", () => {
+    for (const from of ALL) {
+      if (moveDirection(from, "decision") === "back") expect(canOverrideTransition(from, "awaiting_decision"), from).toBe(true);
+      if (moveDirection(from, "offer") === "back") expect(canOverrideTransition(from, "offer_draft"), from).toBe(true);
+    }
+  });
+
   it("reaches a decision by the ordinary graph or its own edge, before Offer and Payment approve", () => {
-    for (const from of ALL.filter((s) => canMoveTo(s, "offer"))) {
+    for (const from of ALL.filter((s) => moveDirection(s, "offer") === "forward")) {
       const pos = movePosition(from)!;
       // Before the decision stage: the override reaches awaiting_decision,
       // from where a person may decide. At it: decidable already.

@@ -30,12 +30,19 @@ import { commit, SYSTEM_ACTOR, WorkflowError, type Actor, type JobSpec, type Tas
  * ordinary route into registration has, the nothing-to-pay ones included.
  */
 export async function registrationReminderKey(admin: AdminClient, applicationId: string): Promise<"registration_reminder" | "registration_open"> {
-  const { count, error } = await admin
-    .from("payment_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("application_id", applicationId)
-    .eq("status", "paid");
+  const { data: paid, error } = await admin.from("payment_requests").select("offer_id").eq("application_id", applicationId).eq("status", "paid");
   if (error) throw new WorkflowError(error.message, "database");
+  if (!paid?.length) return "registration_open";
+  // Only a request on a letter still standing. A move back withdraws the
+  // letter and leaves a settlement of nothing in place (it is not money to
+  // refund), and that must not tell a family who has not paid for the new
+  // letter that their place is secured.
+  const { count, error: offerErr } = await admin
+    .from("offers")
+    .select("id", { count: "exact", head: true })
+    .in("id", paid.map((r) => r.offer_id).filter((id): id is string => Boolean(id)))
+    .neq("status", "withdrawn");
+  if (offerErr) throw new WorkflowError(offerErr.message, "database");
   return (count ?? 0) > 0 ? "registration_reminder" : "registration_open";
 }
 
@@ -380,7 +387,11 @@ async function completeRegistration(
         // confirming) would otherwise never be told everything is in.
         idempotencyKey: `email:${app.id}:registration_received:complete:${today}`,
       },
-      ...(settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}` }] : []),
+      // Stamped, not one key per child: a child moved back to Offer after
+      // completing registration and completed again would otherwise find the
+      // first job's key taken and never be enrolled. The handler checks the
+      // status before it acts, so a stale second job does nothing.
+      ...(settings.autoEnrol ? [{ type: "auto_enrol", payload: {}, idempotencyKey: `auto_enrol:${app.id}:${Date.now()}` }] : []),
     ],
     audit: { action: "registration.completed", entityType: "registration", entityId: app.id, after: event.payload as Json },
     actor,

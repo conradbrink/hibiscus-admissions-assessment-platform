@@ -12,13 +12,17 @@ import { JOURNEY, type JourneyStage } from "@/lib/workflow/next-step";
  * the step before it. The pure half lives here so every rule is a unit test
  * (`stage-move.test.ts`); `stage-move-actions.ts` does the moving.
  *
- * Forward only. Moving a family back past a decision, an accepted offer or a
- * payment means undoing records other people rely on (a decision is
- * append-only, an acceptance is a signed record, money may have moved), and
- * those already have their own tools: withdraw the offer, refund, withdraw.
+ * And back, since the school asked for that too the same day: a child at
+ * Offer, Payment or Registration can go back to Decision (to be decided
+ * again) or to Offer (a fresh letter, drafted for approval). Whatever letter
+ * was out or accepted is withdrawn — the signed acceptance stays on file as
+ * what happened — and an unpaid payment request is closed. Never past money:
+ * once a payment has been received, going back would leave it attached to a
+ * letter nobody holds, so the move is refused until finance has refunded it.
  *
- * Enquiry and Assessment are not targets. Nobody is moved *to* the start, and
- * the assessment is reached by booking one, which the page already does.
+ * Enquiry and Assessment are not targets either way. Nobody is moved *to* the
+ * start, and the assessment is reached by booking one, which the page already
+ * does.
  */
 
 export type MoveTarget = "decision" | "offer" | "payment" | "registration";
@@ -36,6 +40,8 @@ export const MOVE_TARGETS: ReadonlyArray<{
    * door. Decision and Registration record neither.
    */
   needs: readonly PermissionCode[];
+  /** Going back to this stage, where that is allowed: what it does, and what it needs. */
+  back?: { explain: string; needs: readonly PermissionCode[] };
 }> = [
   {
     key: "decision",
@@ -43,6 +49,11 @@ export const MOVE_TARGETS: ReadonlyArray<{
     label: "Decision",
     explain: "Skip the assessment. The child waits for an admission decision. The parent is not emailed.",
     needs: [],
+    back: {
+      explain: "Decide again. Any offer the family has is withdrawn and any unpaid payment is cancelled. The parent is not emailed; a new offer goes once the child is accepted again.",
+      // Withdrawing a letter is an offer approver's act everywhere else.
+      needs: ["offers.approve"],
+    },
   },
   {
     key: "offer",
@@ -50,6 +61,10 @@ export const MOVE_TARGETS: ReadonlyArray<{
     label: "Offer",
     explain: "Accept the child and draft the offer. It waits for approval, and the parent is emailed when it is sent.",
     needs: ["decisions.override"],
+    back: {
+      explain: "Redraft the offer. The letter the family has (or accepted) is withdrawn, any unpaid payment is cancelled, and a new letter waits for your approval before it is sent.",
+      needs: ["offers.approve"],
+    },
   },
   {
     key: "payment",
@@ -67,15 +82,29 @@ export const MOVE_TARGETS: ReadonlyArray<{
   },
 ];
 
+export type MoveDirection = "forward" | "back";
+
 /** Whether this person may make this move at all: Move to stage, and whatever the move does on the way. */
-export function mayMoveTo(permissions: PermissionSet, target: MoveTarget): boolean {
-  const needs = MOVE_TARGETS.find((t) => t.key === target)?.needs ?? [];
+export function mayMoveTo(permissions: PermissionSet, target: MoveTarget, direction: MoveDirection = "forward"): boolean {
+  const t = MOVE_TARGETS.find((x) => x.key === target);
+  const needs = (direction === "back" ? t?.back?.needs : t?.needs) ?? [];
+  if (direction === "back" && !t?.back) return false;
   return can(permissions, "applications.move_stage") && needs.every((p) => can(permissions, p));
 }
 
-/** The stages ahead of this status that this person may move the child to. */
-export function moveTargetsFor(status: ApplicationStatus, permissions: PermissionSet): MoveTarget[] {
-  return moveTargetsFrom(status).filter((t) => mayMoveTo(permissions, t));
+/**
+ * The stages this person may move the child to now, in journey order, either
+ * way. `moneyReceived` (a payment request with money against it) takes the
+ * way back off the list: the server refuses it anyway, and offering a button
+ * that always says no is worse than not offering it.
+ */
+export function moveTargetsFor(status: ApplicationStatus, permissions: PermissionSet, opts: { moneyReceived?: boolean } = {}): MoveTarget[] {
+  return moveTargetsFrom(status).filter((t) => {
+    const direction = moveDirection(status, t);
+    if (!direction) return false;
+    if (direction === "back" && opts.moneyReceived) return false;
+    return mayMoveTo(permissions, t, direction);
+  });
 }
 
 const JOURNEY_INDEX = new Map<JourneyStage, number>(JOURNEY.map((s, i) => [s.key, i]));
@@ -137,18 +166,63 @@ export function movePosition(status: ApplicationStatus): number | null {
   }
 }
 
+/**
+ * Where a status sits for moving *back*, or null where a child cannot be
+ * moved back from here. Only from Offer onwards, because Decision and Offer
+ * are the only stages there is to go back to.
+ *
+ * Null, and why, beyond the statuses before Offer:
+ *   - `payment_processing`: the gateway has the money in flight.
+ *   - `paid`: money has arrived, and registration opens a moment later.
+ *   - `enrolled`, and the closed statuses: finished.
+ *
+ * Registration is included because a child can reach it without paying —
+ * moved there by hand, or with nothing to pay. One who did pay is refused
+ * when the move is made (`assertNoMoneyHeld`), and not offered the move on
+ * screen (`moveTargetsFor`'s `moneyReceived`).
+ */
+export function backPosition(status: ApplicationStatus): number | null {
+  const at = (stage: JourneyStage) => JOURNEY_INDEX.get(stage) ?? null;
+  switch (status) {
+    case "approved":
+    case "offer_draft":
+    case "offer_pending_approval":
+    case "offer_sent":
+    case "offer_expired":
+    case "offer_declined":
+      return at("offer");
+    case "offer_accepted":
+    case "payment_required":
+      return at("payment");
+    case "registration_incomplete":
+    case "registration_complete":
+      return at("registered");
+    default:
+      return null;
+  }
+}
+
 function targetIndex(target: MoveTarget): number {
   const stage = MOVE_TARGETS.find((t) => t.key === target)?.stage;
   return stage ? (JOURNEY_INDEX.get(stage) ?? -1) : -1;
 }
 
-/** Whether a child in this status may be moved to that stage: it must lie ahead. */
-export function canMoveTo(status: ApplicationStatus, target: MoveTarget): boolean {
-  const from = movePosition(status);
-  return from !== null && targetIndex(target) > from;
+/** Which way a move to this stage goes from this status, or null where it is not allowed. */
+export function moveDirection(status: ApplicationStatus, target: MoveTarget): MoveDirection | null {
+  const ahead = movePosition(status);
+  if (ahead !== null && targetIndex(target) > ahead) return "forward";
+  const behind = backPosition(status);
+  const canGoBack = Boolean(MOVE_TARGETS.find((t) => t.key === target)?.back);
+  if (canGoBack && behind !== null && targetIndex(target) < behind) return "back";
+  return null;
 }
 
-/** The stages ahead of this status, in journey order; empty where nothing may be moved. */
+/** Whether a child in this status may be moved to that stage, either way. */
+export function canMoveTo(status: ApplicationStatus, target: MoveTarget): boolean {
+  return moveDirection(status, target) !== null;
+}
+
+/** The stages this status may move to, either way, in journey order; empty where nothing may be moved. */
 export function moveTargetsFrom(status: ApplicationStatus): MoveTarget[] {
   return MOVE_TARGETS.filter((t) => canMoveTo(status, t.key)).map((t) => t.key);
 }
@@ -157,8 +231,16 @@ export function isMoveTarget(value: unknown): value is MoveTarget {
   return MOVE_TARGETS.some((t) => t.key === value);
 }
 
-export function moveTargetLabel(target: MoveTarget): string {
-  return MOVE_TARGETS.find((t) => t.key === target)?.label ?? target;
+/** "Payment", or "Back to Offer". */
+export function moveTargetLabel(target: MoveTarget, direction: MoveDirection = "forward"): string {
+  const label = MOVE_TARGETS.find((t) => t.key === target)?.label ?? target;
+  return direction === "back" ? `Back to ${label}` : label;
+}
+
+/** What the move does and what the parent hears, as the picker says it. */
+export function moveTargetExplain(target: MoveTarget, direction: MoveDirection): string {
+  const t = MOVE_TARGETS.find((x) => x.key === target);
+  return (direction === "back" ? t?.back?.explain : t?.explain) ?? "";
 }
 
 /**
@@ -197,6 +279,19 @@ export function stagesSkippedByMove(
   const now = JOURNEY_INDEX.get(current) ?? 0;
   return JOURNEY.filter((s, i) => i > 0 && i < now && !milestones[s.key]).map((s) => s.key);
 }
+
+/**
+ * The tasks a move back makes pointless: those about the letter and the
+ * payment that have just been withdrawn and cancelled, and the enrolment a
+ * registration was heading for. Not `confirm_reported_payment`: money a
+ * family says they sent still has to be found, whatever stage they are at.
+ */
+export const BACK_MOOT_TASKS: readonly string[] = [
+  ...STAGE_TASKS.offer,
+  ...STAGE_TASKS.payment,
+  "confirm_enrolment",
+  "documents_missing",
+];
 
 /** Every task type belonging to a stage before the target. */
 export function mootTaskTypes(target: MoveTarget): string[] {
