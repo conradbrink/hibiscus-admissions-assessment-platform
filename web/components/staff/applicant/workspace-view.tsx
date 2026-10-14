@@ -117,13 +117,9 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   const canDefer = canWrite && !terminal && canTransition(app.status, "deferred");
   const canWithdraw = canWrite && !terminal;
   // The stages ahead that the officer may move the child to by hand.
-  // The way back is not offered once money is in, on its way, or reported
-  // and not yet confirmed: the server would refuse it (`assertNoMoneyHeld`).
-  const moneyReceived =
-    Number(w.paymentRequest?.paid_minor ?? 0) > 0 ||
-    ["processing", "partially_paid"].includes(w.paymentRequest?.status ?? "") ||
-    w.openTasks.some((t) => t.type === "confirm_reported_payment");
-  const moveTargets = moveTargetsFor(app.status, permissions, { moneyReceived });
+  // The way back is not offered while money is held: the loader asked the
+  // same rule the server refuses by (`moneyHeldReason`).
+  const moveTargets = moveTargetsFor(app.status, permissions, { moneyReceived: w.moneyHeld !== null });
   const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
 
   // Half day or full day, the starting month and the scholarship band: the

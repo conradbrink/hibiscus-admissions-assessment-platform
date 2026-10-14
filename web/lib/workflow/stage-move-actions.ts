@@ -11,6 +11,8 @@ import { JOURNEY } from "@/lib/workflow/next-step";
 import { hasResults, onOfferAccepted, onOfferApproved, onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { BACK_MOOT_TASKS, moveDirection, moveTargetLabel, mootTaskTypes, movePosition, type MoveTarget } from "@/lib/workflow/stage-move";
 import { formatMoney } from "@/lib/money";
+import { askable, CHECKOUT_TTL_HOURS, recentAttemptsSince } from "@/lib/payments/attempts";
+import { formatDateTime } from "@/lib/format-date";
 import { STATUS_LABELS } from "@/lib/workflow/states";
 
 /**
@@ -406,7 +408,7 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
 }
 
 /**
- * Refuses a move back once money has been received for this child.
+ * Why a move back would be refused for money, or null when nothing stops it.
  *
  * The money belongs to the payment request of the letter being withdrawn.
  * Going back would leave it attached to an offer nobody holds, and the next
@@ -414,52 +416,72 @@ async function toRegistration(admin: AdminClient, app: MovingApp, move: StageMov
  * record, and then the move can be made. A zero-amount settlement (nothing
  * was owed, or a deal waived it) is not money, and does not stop the move.
  * Nor does a refunded payment, which is no longer held.
+ *
+ * Exported for the applicant page, which hides the way back on the same
+ * answer: two copies of this rule had already drifted apart once.
  */
-async function assertNoMoneyHeld(admin: AdminClient, app: MovingApp): Promise<void> {
-  const { data, error } = await admin
-    .from("payments")
-    .select("status, amount_minor, currency")
-    .eq("application_id", app.id)
-    .in("status", ["succeeded", "processing"]);
+export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "id" | "child_first_name">): Promise<string | null> {
+  const [payments, requests, reported] = await Promise.all([
+    admin
+      .from("payments")
+      .select("status, amount_minor, currency, method, provider_ref, created_at")
+      .eq("application_id", app.id)
+      .in("status", ["succeeded", "processing", "expired", "failed"]),
+    // A request mid-payment or part-paid is money in motion even where no
+    // payment row says so (after a refund, or a hand correction); only the
+    // unpaid ones are cancelled on the way back, and this one would block the
+    // next.
+    admin.from("payment_requests").select("id", { count: "exact", head: true }).eq("application_id", app.id).in("status", ["processing", "partially_paid"]),
+    // The family said they had paid, and finance has not found it yet. Its
+    // request is the one the money is to be recorded against; cancelling it
+    // would leave finance nowhere to put money the family really sent.
+    admin.from("tasks").select("id", { count: "exact", head: true }).eq("application_id", app.id).eq("type", "confirm_reported_payment").eq("status", "open"),
+  ]);
+  const error = payments.error ?? requests.error ?? reported.error;
   if (error) throw new WorkflowError(error.message, "database");
-  const rows = data ?? [];
+  const rows = payments.data ?? [];
+  const name = app.child_first_name;
   if (rows.some((p) => p.status === "processing")) {
-    throw new WorkflowError(`An online payment for ${app.child_first_name} is still being confirmed. Wait for it, or check it with the gateway, before moving them back.`, "status_conflict");
+    return `An online payment for ${name} is still being confirmed. Wait for it, or check it with the gateway, before moving them back.`;
   }
-  const held = rows.filter((p) => Number(p.amount_minor) > 0);
+  const held = rows.filter((p) => p.status === "succeeded" && Number(p.amount_minor) > 0);
   if (held.length) {
     const total = held.reduce((sum, p) => sum + Number(p.amount_minor), 0);
-    throw new WorkflowError(
-      `${formatMoney(total, held[0].currency)} has been received for ${app.child_first_name}. Ask finance to refund it under Payments first, or move them forward instead.`,
-      "status_conflict"
-    );
+    return `${formatMoney(total, held[0].currency)} has been received for ${name}. Ask finance to refund it under Payments first, or move them forward instead.`;
   }
-  // A request mid-payment or part-paid is money in motion even where no
-  // payment row says so (after a refund, or a hand correction); only the
-  // unpaid ones are cancelled below, and this one would block the next.
-  const { count: moving, error: reqErr } = await admin
-    .from("payment_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("application_id", app.id)
-    .in("status", ["processing", "partially_paid"]);
-  if (reqErr) throw new WorkflowError(reqErr.message, "database");
-  if (moving) {
-    throw new WorkflowError(`A payment for ${app.child_first_name} is part-paid or still being confirmed. Ask finance to settle or refund it under Payments before moving them back.`, "status_conflict");
+  // An attempt that timed out or failed can still settle at the gateway for
+  // its checkout window (the parent finishing on their bank's page, then the
+  // revive sweep or their "Check again"), and would land on a request this
+  // move had cancelled.
+  const since = new Date(recentAttemptsSince()).getTime();
+  const live = rows.filter((p) => (p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since);
+  if (live.length) {
+    const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
+    return `An online payment ${name}'s family started could still go through at the gateway until ${formatDateTime(clears)}. Move them back after that, or ask finance to check it with the gateway first.`;
   }
-  // The family said they had paid, and finance has not found it yet. Its
-  // request is the one the money is to be recorded against; cancelling it
-  // would leave finance nowhere to put money the family really sent.
-  const { count: reported, error: taskErr } = await admin
-    .from("tasks")
-    .select("id", { count: "exact", head: true })
-    .eq("application_id", app.id)
-    .eq("type", "confirm_reported_payment")
-    .eq("status", "open");
-  if (taskErr) throw new WorkflowError(taskErr.message, "database");
-  if (reported) {
-    throw new WorkflowError(`The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${app.child_first_name} back.`, "status_conflict");
+  if (requests.count) {
+    return `A payment for ${name} is part-paid or still being confirmed. Ask finance to settle or refund it under Payments before moving them back.`;
   }
+  if (reported.count) {
+    return `The family said they had already paid, and finance has not confirmed it yet. Ask finance to record the payment (or close their task) before moving ${name} back.`;
+  }
+  return null;
 }
+
+async function assertNoMoneyHeld(admin: AdminClient, app: MovingApp): Promise<void> {
+  const reason = await moneyHeldReason(admin, app);
+  if (reason) throw new WorkflowError(reason, "status_conflict");
+}
+
+/**
+ * The jobs a move back leaves behind, which it skips. Each was queued for a
+ * stage the child is no longer at, and most check only the status before
+ * they run: the old payment reminders would quote the cancelled request to
+ * a family who has since accepted a new letter, and the old registration
+ * reminders would arrive alongside the new ones. The money's own checks, the
+ * marking and the document readings stay queued.
+ */
+const STALE_AFTER_MOVE_BACK = ["send_email", "send_whatsapp", "send_outcome", "draft_offer", "offer_expire", "payment_overdue", "auto_enrol"];
 
 /**
  * Back to Decision, or back to Offer.
@@ -519,15 +541,33 @@ async function moveBack(admin: AdminClient, app: MovingApp, target: MoveTarget, 
   // status. It says what is left to do by hand instead.
   const stopped = "was moved back, but its old letter or payment could not be tidied away. Withdraw the old offer under Edit offer, and ask finance to cancel its payment request";
   await withdrawLetters(admin, app, ["draft", "pending_approval", "sent", "viewed", "expired", "accepted"], why, reason, actor, stopped);
-  const { error: reqErr } = await admin.from("payment_requests").update({ status: "cancelled" }).eq("application_id", app.id).in("status", ["required", "failed"]);
-  const { error: payErr } = await admin.from("payments").update({ status: "expired", failure_reason: "Moved back by staff" }).eq("application_id", app.id).eq("status", "pending");
-  if (reqErr || payErr) throw new WorkflowError(`${app.reference}: ${stopped} (${(reqErr ?? payErr)!.message}).`, "database");
+  const tidied = await Promise.all([
+    admin.from("payment_requests").update({ status: "cancelled" }).eq("application_id", app.id).in("status", ["required", "failed"]),
+    admin.from("payments").update({ status: "expired", failure_reason: "Moved back by staff" }).eq("application_id", app.id).eq("status", "pending"),
+    admin
+      .from("jobs")
+      .update({ status: "skipped", last_error: "Moved back by staff", completed_at: new Date().toISOString() })
+      .eq("application_id", app.id)
+      .eq("status", "pending")
+      .in("type", STALE_AFTER_MOVE_BACK),
+  ]);
+  const tidyErr = tidied.find((r) => r.error)?.error;
+  if (tidyErr) throw new WorkflowError(`${app.reference}: ${stopped} (${tidyErr.message}).`, "database");
 
   let cur = await reload(admin, app.id);
   if (target === "offer") {
     // Blocked on fees is a resting state with its own task, not a failure:
-    // the child is at Offer, waiting on a fee schedule.
-    await onOfferDrafted(admin, cur, actor, { conditions: previous?.conditions ?? null, autoApprove: false });
+    // the child is at Offer, waiting on a fee schedule. Anything else (no
+    // published template, say) is reported as what it is — the child has
+    // moved, and pressing Move again would be refused by status.
+    try {
+      await onOfferDrafted(admin, cur, actor, { conditions: previous?.conditions ?? null, autoApprove: false });
+    } catch (e) {
+      throw new WorkflowError(
+        `${app.child_first_name} was moved back to Offer and the old letter withdrawn, but the new letter could not be drafted: ${(e as Error).message} Once that is fixed, press Create offer on their page.`,
+        e instanceof WorkflowError ? e.code : "database"
+      );
+    }
     cur = await reload(admin, app.id);
   }
   return cur;

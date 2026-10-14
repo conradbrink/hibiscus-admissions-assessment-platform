@@ -849,9 +849,16 @@ journey bar leaves the skipped stages unticked.
 | Offer | The same, and a new letter is drafted at once with the old one's conditions; it waits for your approval | The new letter, once you approve and send it |
 
 The family's signed acceptance of the old letter stays on file as what
-happened. A move back is **refused once money has been received** for the
-child: refund it under Payments first (or move them forward instead). It is
-not offered on screen in that case. A letter waits for approval
+happened. Reminders already queued for the old stages (payment, offer,
+registration) are dropped, so the family does not get a reminder about a
+letter that no longer stands. A move back is **refused while money is held**
+for the child: money received (refund it under Payments first, or move them
+forward instead), a payment still being confirmed or part-paid, a payment
+the family reported that finance has not confirmed, or an online payment
+started in the last 24 hours that could still go through at the gateway.
+It is not offered on screen in those cases. If the page was open while the
+child moved on, the move is refused and you are asked to reload, rather
+than going the other way. A letter waits for approval
 after Offer even when automatic offer approval is switched on. Registration
 reminders to a family moved on by hand say only that registration is due,
 never that "the place is secured", until a payment has been received.

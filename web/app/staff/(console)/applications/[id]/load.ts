@@ -7,7 +7,9 @@ import { getSettings } from "@/lib/settings";
 import type { StaffContext } from "@/lib/staff/session";
 import { loadSummaryInputs, summaryView } from "@/lib/summary/generate";
 import { actorName, journeyMilestones, MILESTONE_EVENT_TYPES, nextStep, type ApplicantFacts } from "@/lib/workflow/next-step";
-import { MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { backPosition, MOVE_EVENT_TYPES } from "@/lib/workflow/stage-move";
+import { moneyHeldReason } from "@/lib/workflow/stage-move-actions";
 
 /**
  * Everything the applicant page shows, read once through the staff client
@@ -223,12 +225,21 @@ export async function loadApplicantWorkspace(supabase: StaffContext["supabase"],
     now: new Date(),
   };
 
+  // Why the way back is shut, if it is: the server's own rule, asked only
+  // where a move back could be offered. The row was just read under RLS, so
+  // this person may see the child; payments they may not see are still what
+  // decides, which is why it reads through the service role.
+  const moneyHeld =
+    can(permissions, "applications.move_stage") && backPosition(app.status) !== null ? await moneyHeldReason(createAdminClient(), app) : null;
+
   const staffName = (staffId: string) => (actors ?? []).find((m) => m.id === staffId)?.full_name ?? null;
   const latest = events?.[0] ?? null;
 
   return {
     app,
     milestones: journeyMilestones(milestoneEvents ?? [], staffName),
+    /** Why moving this child back would be refused for money, or null. */
+    moneyHeld,
     /** Whether an officer ever moved this child past a stage by hand. */
     moved: (milestoneEvents ?? []).some((e) => MOVE_EVENT_TYPES.includes(e.type)),
     // The newest thing on the timeline: when the record last moved, and who moved it.

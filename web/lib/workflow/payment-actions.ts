@@ -35,14 +35,20 @@ const MOVED_PAST_PAYMENT: ReadonlySet<string> = new Set(["registration_incomplet
  * hold stale, so it cannot tell those apart on its own.
  */
 async function movedToRegistration(admin: AdminClient, applicationId: string): Promise<boolean> {
-  const { count, error } = await admin
+  // The latest move only. A child moved on to registration and then back to
+  // Offer has paid since through an ordinary letter, so a duplicate charge
+  // then is money to refund, not the confirmation the old move asked for.
+  const { data, error } = await admin
     .from("application_events")
-    .select("id", { count: "exact", head: true })
+    .select("payload")
     .eq("application_id", applicationId)
     .eq("type", "application.moved_to_stage")
-    .eq("payload->>to", "registration");
+    .order("occurred_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
   if (error) throw new WorkflowError(error.message, "database");
-  return (count ?? 0) > 0;
+  const payload = (data?.payload && typeof data.payload === "object" ? data.payload : {}) as Record<string, unknown>;
+  return payload.to === "registration";
 }
 
 function due(request: Pick<PaymentRequestRow, "due_at">): Date {

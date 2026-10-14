@@ -70,7 +70,7 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "applications.read": "View applicants and the pipeline",
   "applications.write": "Edit applicants, book and reschedule",
   "applications.delete": "Delete an applicant and everything attached to them",
-  "applications.move_stage": "Move an applicant to a later stage, skipping steps, with a reason",
+  "applications.move_stage": "Move an applicant to another stage, with a reason: on past steps, or back to Decision or Offer (going back also needs offers.approve)",
   "assessments.deliver": "Run assessment days: check in, launch, mark no-shows",
   "assessments.score.write": "Mark and amend assessment scores",
   "assessments.author": "Author questions, templates and benchmarks",

@@ -19,30 +19,40 @@ import { MOVE_TARGETS, moveDirection, moveTargetExplain, moveTargetLabel, type M
  * is chosen.
  *
  * `status` says which way each choice goes: from a child at Payment, Decision
- * and Offer lie behind, and read "Back to Decision" and "Back to Offer".
+ * and Offer lie behind, and read "Back to Decision" and "Back to Offer". The
+ * way the officer saw is posted with the choice, so a page left open while
+ * the child moved on cannot turn "Move to Decision" into "Back to Decision".
+ * Nothing behind is chosen for them: the picker starts on the first stage
+ * ahead, or on nothing when every choice goes back.
  */
 export function MoveStageFields({ targets, status, optional = false }: { targets: readonly MoveTarget[]; status: ApplicationStatus; optional?: boolean }) {
   const shown = MOVE_TARGETS.filter((t) => targets.includes(t.key));
-  const fallback: MoveTarget | "" = optional ? "" : (shown[0]?.key ?? "");
+  const fallback: MoveTarget | "" = optional ? "" : (shown.find((t) => moveDirection(status, t.key) === "forward")?.key ?? "");
   const [picked, setTarget] = useState<MoveTarget | "">(fallback);
   // The form outlives a successful move: the page refreshes with fewer stages
   // ahead, and a choice that is no longer offered would leave the picker
   // showing one stage while the reason box (keyed to the old one) vanished.
   const target = picked === "" || shown.some((t) => t.key === picked) ? picked : fallback;
   const chosen = shown.find((t) => t.key === target) ?? null;
+  const direction = chosen ? (moveDirection(status, chosen.key) ?? "forward") : null;
 
   return (
     <div className="space-y-3">
       <label className="block text-xs">
         <span className="mb-1 block font-semibold text-muted-foreground">Move to</span>
-        <NativeSelect name="target" value={target} onChange={(e) => setTarget(e.target.value as MoveTarget | "")} className="w-full sm:w-64">
-          {optional ? <option value="">Do not move — start at the enquiry</option> : null}
+        <NativeSelect name="target" value={target} required={!optional} onChange={(e) => setTarget(e.target.value as MoveTarget | "")} className="w-full sm:w-64">
+          {optional ? <option value="">Do not move — start at the enquiry</option> : target === "" ? <option value="" disabled>Choose a stage</option> : null}
           {shown.map((t) => (
             <option key={t.key} value={t.key}>{moveTargetLabel(t.key, moveDirection(status, t.key) ?? "forward")}</option>
           ))}
         </NativeSelect>
       </label>
-      {chosen ? <p className="text-xs text-muted-foreground">{moveTargetExplain(chosen.key, moveDirection(status, chosen.key) ?? "forward")}</p> : null}
+      {chosen && direction ? (
+        <>
+          <input type="hidden" name="direction" value={direction} />
+          <p className="text-xs text-muted-foreground">{moveTargetExplain(chosen.key, direction)}</p>
+        </>
+      ) : null}
       {target === "registration" ? (
         <label className="flex items-start gap-2 text-xs">
           <input type="checkbox" name="alreadyPaid" className="mt-0.5" />

@@ -608,9 +608,19 @@ type StageRule = { type: string; label: string | ((payload: Record<string, unkno
  * The events that mark each stage done, in order of preference: the first
  * rule with a match wins, and within it the newest event. `undoneBy` names
  * events that take a stage back: an offer sent and then withdrawn is not an
- * offer out, so the newest of the stage's events decides.
+ * offer out, so the newest of the stage's events decides. A child moved back
+ * to Decision is waiting on a new decision, and the old one under the bar
+ * would read as if it had been made already.
  */
-const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: string[] }> = {
+type UndoRule = string | { type: string; when: (payload: Record<string, unknown>) => boolean };
+const movedBackTo = (...stages: string[]): UndoRule => ({
+  type: "application.moved_to_stage",
+  when: (p) => p.direction === "back" && stages.includes(String(p.to)),
+});
+const payloadOf = (e: EventLike): Record<string, unknown> => (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
+const undoes = (u: UndoRule, e: EventLike): boolean => (typeof u === "string" ? u === e.type : u.type === e.type && u.when(payloadOf(e)));
+
+const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: UndoRule[] }> = {
   enquiry: { rules: [{ type: "enquiry.created", label: "Enquiry received" }] },
   assessment: {
     rules: [
@@ -626,6 +636,7 @@ const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: string
         label: (p) => (p.outcome === "approved" ? "Accepted" : p.outcome === "waitlisted" ? "Waitlisted" : p.outcome === "declined" ? "Declined" : "Decided"),
       },
     ],
+    undoneBy: [movedBackTo("decision")],
   },
   offer: {
     rules: [
@@ -634,13 +645,15 @@ const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: string
     ],
     undoneBy: ["offer.withdrawn"],
   },
-  payment: { rules: [{ type: "payment.confirmed", label: "Paid" }] },
+  // Only a settlement of nothing can be behind a move back (money held
+  // refuses it), and it belonged to the letter that was withdrawn.
+  payment: { rules: [{ type: "payment.confirmed", label: "Paid" }], undoneBy: [movedBackTo("decision", "offer")] },
   registered: { rules: [{ type: "enrolment.completed", label: "Registered" }] },
 };
 
 /** Every event type the milestones read, for the query that fetches them. */
 export const MILESTONE_EVENT_TYPES: string[] = [
-  ...new Set(Object.values(STAGE_EVENTS).flatMap((x) => [...x.rules.map((r) => r.type), ...(x.undoneBy ?? [])])),
+  ...new Set(Object.values(STAGE_EVENTS).flatMap((x) => [...x.rules.map((r) => r.type), ...(x.undoneBy ?? []).map((u) => (typeof u === "string" ? u : u.type))])),
 ];
 
 /**
@@ -652,13 +665,13 @@ export function journeyMilestones(events: readonly (EventLike & { summary?: stri
   const out: Partial<Record<JourneyStage, Milestone>> = {};
   for (const stage of Object.keys(STAGE_EVENTS) as JourneyStage[]) {
     const { rules, undoneBy = [] } = STAGE_EVENTS[stage];
-    const newest = events.find((x) => undoneBy.includes(x.type) || rules.some((r) => r.type === x.type));
-    if (!newest || undoneBy.includes(newest.type)) continue;
+    const undone = (x: EventLike) => undoneBy.some((u) => undoes(u, x));
+    const newest = events.find((x) => undone(x) || rules.some((r) => r.type === x.type));
+    if (!newest || undone(newest)) continue;
     for (const rule of rules) {
       const e = events.find((x) => x.type === rule.type);
       if (!e) continue;
-      const payload = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
-      out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payload, e), by: actorName(e, nameOf) };
+      out[stage] = { at: e.occurred_at, label: typeof rule.label === "string" ? rule.label : rule.label(payloadOf(e), e), by: actorName(e, nameOf) };
       break;
     }
   }

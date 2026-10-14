@@ -360,10 +360,17 @@ export async function moveToStage(_: StaffActionState, formData: FormData): Prom
         target: z.enum(["decision", "offer", "payment", "registration"], { error: "Choose the stage to move to." }),
         reason: z.string().trim().min(5, "Give a reason of at least a few words.").max(1000),
         alreadyPaid: z.literal("on").optional(),
+        direction: z.enum(["forward", "back"]).optional(),
       })
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const direction = moveDirection(app.status, parsed.target) ?? "forward";
+    // The page posts the way the officer saw. A child who moved on while it
+    // was open would otherwise turn a confirmed "Move to Decision" into a
+    // move back that withdraws their letter, with no warning.
+    if (parsed.direction && parsed.direction !== direction) {
+      throw new Error(`${app.child_first_name} has moved since this page was loaded, so this would now be ${direction === "back" ? "a move back" : "a move forward"}. Reload the page and choose again.`);
+    }
     if (!mayMoveTo(ctx.permissions, parsed.target, direction)) {
       throw new Error(
         direction === "back"
