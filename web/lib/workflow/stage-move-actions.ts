@@ -434,7 +434,7 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   const [payments, requests, reported] = await Promise.all([
     admin
       .from("payments")
-      .select("status, amount_minor, currency, method, provider_ref, created_at")
+      .select("status, amount_minor, currency, method, provider_ref, created_at, failure_reason")
       .eq("application_id", app.id)
       .in("status", ["succeeded", "processing", "expired", "failed"]),
     // A request mid-payment or part-paid is money in motion even where no
@@ -474,8 +474,12 @@ export async function moneyHeldReason(admin: AdminClient, app: Pick<MovingApp, "
   // gateway inside that window is not final either, so nothing but the
   // window closing lifts this, and the note says only that.
   const since = new Date(recentAttemptsSince()).getTime();
+  // A wrong amount is money that did go through, which the review above
+  // already answers for; it is not an attempt still in the air.
   const live = rows.filter(
-    (p) => p.status === "processing" || ((p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since)
+    (p) =>
+      p.status === "processing" ||
+      ((p.status === "expired" || p.status === "failed") && askable(p) && new Date(p.created_at).getTime() >= since && !p.failure_reason?.startsWith("amount_mismatch"))
   );
   if (live.length) {
     const clears = new Date(Math.max(...live.map((p) => new Date(p.created_at).getTime())) + CHECKOUT_TTL_HOURS * 3_600_000);
