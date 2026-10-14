@@ -8,6 +8,17 @@ import { NOINDEX_PATHS, securityHeaders } from "./lib/security-headers";
  */
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async redirects() {
+    return [
+      // The staff orientation was removed on 13 October 2026. For the month
+      // before, a first visit to the dashboard was sent there, so browsers
+      // still open /staff/orientation from history, bookmarks and start pages.
+      // Without this, that person lands on a bare "not found" and believes the
+      // orientation is still waiting for them. Temporary, so that no browser
+      // caches it for good in case the path is ever used again.
+      { source: "/staff/orientation/:path*", destination: "/staff", permanent: false },
+    ];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders() },
