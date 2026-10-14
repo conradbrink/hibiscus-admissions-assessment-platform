@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Bell, Search, SquareCheck } from "lucide-react";
 import { initials } from "@/components/staff/initials";
+import { PagePdfButton } from "@/components/staff/page-pdf-button";
 import { TopbarLead } from "@/components/staff/topbar-lead";
 import { formatDate, formatWeekdayDate } from "@/lib/format-date";
 
@@ -13,8 +14,10 @@ const countBadge =
 
 /**
  * The strip above every page: a greeting with the date, a search that
- * lands on the applicants list, the bell with the number of open tasks
- * assigned to this person, and who is signed in.
+ * lands on the applicants list, Download PDF for whoever may, the bell with
+ * the number of open tasks assigned to this person, and who is signed in.
+ * Only the dashboard's title and date are printed: a page saved as a PDF
+ * starts with the page, not with the greeting or the buttons.
  */
 export function StaffTopbar({
   name,
@@ -24,6 +27,7 @@ export function StaffTopbar({
   tasksHref = "/staff/tasks?mine=1",
   notifications,
   heading,
+  pdf = false,
 }: {
   name: string;
   email: string;
@@ -39,11 +43,13 @@ export function StaffTopbar({
    * day it is, not who is signed in (their name is on the right already).
    */
   heading?: { path: string; title: string };
+  /** Whether to offer Download PDF: `pages.export_pdf`. */
+  pdf?: boolean;
 }) {
   const first = (name || email).split(/[\s@]/)[0];
   const today = new Date();
   const greeting = (
-    <div>
+    <div className="print:hidden">
       <p className="text-sm text-muted-foreground">Welcome back, <span className="font-medium text-foreground">{first}</span> 👋</p>
       <p className="text-xs text-muted-foreground">{formatDate(today)}</p>
     </div>
@@ -65,7 +71,7 @@ export function StaffTopbar({
       ) : (
         greeting
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 print:hidden">
         <form action={search.action} method="get" role="search" className="relative hidden sm:block">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} aria-hidden />
           <input
@@ -76,6 +82,7 @@ export function StaffTopbar({
             className="h-9 w-60 rounded-lg border border-border bg-card pr-3 pl-9 text-sm text-foreground transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-muted-foreground hover:border-input focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/15"
           />
         </form>
+        {pdf ? <PagePdfButton className={iconLink} /> : null}
         {notifications ? (
           <Link href={notifications.href} aria-label={`${notifications.unread} unread notifications`} className={iconLink}>
             <Bell className="size-4" strokeWidth={1.75} aria-hidden />

@@ -830,6 +830,27 @@ now covers the analytics download and the per-child JSON only. The
 super administrator's, because it carries finance permissions an admissions
 manager does not hold (`can_grant_role`).
 
+### Download any page as a PDF (14 October 2026)
+
+Asked for after the list downloads: "a pdf export on the pages, and have it
+as a permission". One button for every staff page rather than a document per
+page: `PagePdfButton` in the shared top strip (`StaffTopbar`, both shells),
+shown for `pages.export_pdf` (migration `20261014130000_page_pdf_export.sql`,
+granted to Management and the admissions manager). It records the press
+first (`recordPagePdf` in `app/staff/page-pdf-actions.ts`: `audit_log`
+`page.pdf_downloaded` with the path and query string; filed on the applicant
+or family the path names (`pdfSubjectOf`) only after reading that record
+under the caller's own client; a repeat within ten minutes is one row) and
+opens the browser's print-to-PDF only once that row is written, the same
+refuse-rather-than-unrecorded rule as the list downloads. The shell hides
+its menus, the strip's greeting and buttons and the applicant page's sticky
+bar with `print:` classes (the dashboard keeps its title and date);
+`globals.css`, scoped to `.staff-shell` so parent pages print as before,
+keeps colours, prints scroll boxes at full length and keeps a table row on
+one page. Nothing is rendered on
+the server, so nothing new can leak: the PDF is what the person already
+sees. The browser's own Print is not, and cannot be, gated.
+
 ### The families behind a figure, and downloading the list (14 October 2026)
 
 Asked for by the school's management: click a number on Insights and see

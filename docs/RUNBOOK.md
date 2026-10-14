@@ -717,6 +717,32 @@ see, in the file as on screen. Every download is written to the audit log
 that record cannot be written, the download is refused rather than made
 unrecorded.
 
+## Downloading any page as a PDF
+
+Every staff page, in admissions and in the CRM, has a **Download PDF**
+button (the page-with-an-arrow icon) in the strip at the top, beside the
+tasks icon. It opens the browser's print window: choose **Save as PDF** as
+the printer. The PDF is the page as it is on screen, with its filters and
+open sections, without the menu, the top strip or the sticky bar at the
+bottom of an applicant's page. A folded section prints folded, so open it
+first if you need it. For a wide table, choose **Landscape** in the same
+window.
+
+Who sees the button is ticked per role: **Settings → Staff and roles → What
+each role may do → pages.export_pdf** ("Download any staff page as a PDF"),
+then **Save** under that role. **Management** and the **Admissions manager**
+have it from the start. Each press is written to the audit log
+(`page.pdf_downloaded`, with the page's full address, filters included, and
+who pressed it); an applicant's page, their registration page and a family's
+page are also filed on that applicant's or family's own Audit tab. Pressing
+again on the same page within ten minutes counts as the same copy. If the
+record cannot be written, the button says so and does not open the print
+window. The permission controls the button, not the browser: anyone can still
+use the browser's own Print, which is not recorded.
+
+The applicant lists keep their own **Excel** and **PDF** downloads (above),
+which hold the whole list rather than the page of fifty on screen.
+
 ## Exporting students to Ed-admin
 
 **Ed-admin export** in the menu (also under Admissions → Enrolment → Student

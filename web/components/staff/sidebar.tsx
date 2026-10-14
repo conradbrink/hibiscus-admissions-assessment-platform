@@ -130,7 +130,7 @@ export function StaffSidebar({
 
   return (
     <>
-      <aside className={cn("hidden w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex", className)}>
+      <aside className={cn("hidden w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex print:hidden", className)}>
         <div className="px-5 pt-5 pb-4">
           <Link href={product.home} aria-label={`Hibiscus ${product.label}`} className="block w-fit">
             <Logo className="h-8 w-auto" />
@@ -139,7 +139,7 @@ export function StaffSidebar({
         {nav}
         {footer}
       </aside>
-      <div className="flex h-13 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 md:hidden">
+      <div className="flex h-13 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 md:hidden print:hidden">
         <Link href={product.home} aria-label={`Hibiscus ${product.label}`}>
           <Logo className="h-7 w-auto" />
         </Link>
@@ -148,7 +148,7 @@ export function StaffSidebar({
         </button>
       </div>
       {open ? (
-        <div className="fixed inset-0 top-13 z-40 flex flex-col bg-sidebar pt-3 md:hidden">
+        <div className="fixed inset-0 top-13 z-40 flex flex-col bg-sidebar pt-3 md:hidden print:hidden">
           {nav}
           {footer}
         </div>
