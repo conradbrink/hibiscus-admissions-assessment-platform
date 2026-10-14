@@ -235,9 +235,13 @@
  * across two pages. Scoped to the staff shells (`staff-shell`): a parent
  * printing their offer letter gets the page as it was before.
  */
+@page staff {
+  margin: 12mm;
+}
 @media print {
-  @page {
-    margin: 12mm;
+  /* A named page, because an @page rule cannot be scoped by a selector. */
+  .staff-shell {
+    page: staff;
   }
   body:has(.staff-shell) {
     background: #fff !important;

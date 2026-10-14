@@ -24,9 +24,10 @@ export async function recordPagePdf(page: string): Promise<{ ok: true } | { ok: 
   try {
     ctx = await requireStaffAction("pages.export_pdf");
   } catch (e) {
+    // ForbiddenError is also what a signed-out session gets, so it says both.
     return e instanceof ForbiddenError
-      ? { ok: false, error: "Your account cannot download pages as PDF." }
-      : { ok: false, error: "Your sign-in could not be checked. Reload the page and try again." };
+      ? { ok: false, error: "Your account cannot download pages as PDF, or you have been signed out. Reload the page to check." }
+      : { ok: false, error: "Your sign-in needs checking. Reload the page, sign in again if asked, and try again." };
   }
   if (typeof page !== "string" || !page.startsWith("/staff")) return { ok: false, error: "Only a staff page can be downloaded." };
   const path = page.slice(0, 500);
@@ -37,6 +38,7 @@ export async function recordPagePdf(page: string): Promise<{ ok: true } | { ok: 
   const { count: recent } = await admin
     .from("audit_log")
     .select("id", { count: "exact", head: true })
+    .eq("entity_type", "page")
     .eq("action", "page.pdf_downloaded")
     .eq("actor_id", ctx.userId)
     .eq("after->>path", path)
@@ -47,12 +49,17 @@ export async function recordPagePdf(page: string): Promise<{ ok: true } | { ok: 
   // the address is the browser's word, and a row on somebody else's Audit tab
   // for a page never shown would be a false record.
   let { applicationId, familyId } = pdfSubjectOf(path);
+  // A read that fails refuses the copy, like a failed write: filed on nobody,
+  // the next press inside ten minutes would be taken as already recorded.
+  const unrecorded = { ok: false as const, error: "The download could not be recorded, so it was not made. Please try again." };
   if (applicationId) {
-    const { data } = await ctx.supabase.from("applications").select("id").eq("id", applicationId).maybeSingle();
+    const { data, error } = await ctx.supabase.from("applications").select("id").eq("id", applicationId).maybeSingle();
+    if (error) return unrecorded;
     if (!data) applicationId = null;
   }
   if (familyId) {
-    const { data } = await ctx.supabase.from("families").select("id").eq("id", familyId).maybeSingle();
+    const { data, error } = await ctx.supabase.from("families").select("id").eq("id", familyId).maybeSingle();
+    if (error) return unrecorded;
     if (!data) familyId = null;
   }
 
@@ -68,7 +75,7 @@ export async function recordPagePdf(page: string): Promise<{ ok: true } | { ok: 
   });
   if (error) {
     console.warn("[pdf] could not record a page download", error.message);
-    return { ok: false, error: "The download could not be recorded, so it was not made. Please try again." };
+    return unrecorded;
   }
   return { ok: true };
 }
