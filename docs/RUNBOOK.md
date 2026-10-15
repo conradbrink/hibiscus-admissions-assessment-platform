@@ -756,12 +756,33 @@ a super administrator opens **Set up → People**, finds the CFO and adds the
 because it carries finance permissions they do not hold. Nobody else sees the
 menu item, the Enrolment switch or the page.
 
-1. **Parent details (CSV)** — 96 columns, the guardians and their contact
-   details. Take this one first. It changes nothing, so it can be taken as
-   often as you like.
-2. **Student details (CSV)** — 33 columns, the children. This is the one that
-   records the transfer: it creates the batch and marks those records as
-   sent, so the default view then shows only what is new.
+1. **Parent details (Excel)** — the guardians and their contact details, one
+   row per family. Take this one first. It changes nothing, so it can be
+   taken as often as you like.
+2. **Student details (Excel)** — one sheet of 33 columns, one row per child.
+   This is the one that records the transfer: it creates the batch and marks
+   those records as sent, so the default view then shows only what is new.
+
+The parent file is a workbook with **six tabs**, in the layout of Ed-admin's
+own Parents import template. Every tab starts with the family code:
+
+| Tab | What is on it |
+| --- | --- |
+| Basic | Each guardian's names, title, relation and gender; home language; salutation |
+| G1 Contact | The first guardian's home phone, cell, email and nationality |
+| G1 Address | The first guardian's address and up to three emergency contacts |
+| G2 Contact | The second guardian's phone, cell, email and nationality |
+| G2 Address | The second guardian's address |
+| Accounts (By Family Code) | The billing address, phone and email |
+
+**Import every tab, not just the first, and import Basic first.** Basic
+creates each family; the other tabs add details to a family code that must
+already exist. Basic has no phone numbers, emails or addresses. If every
+family arrives in Ed-admin with names but none of those, the other five tabs
+were not imported. One family with a gap may simply not have given that
+detail: phone, email and address are optional at registration. The G2 tabs
+list only the families that have a second guardian, so in a batch with none
+they hold only the header row and there is nothing to import from them.
 
 They are separate files on purpose — that system will not take parent and
 student details together. The **only** thing in both is the **family code**,
@@ -772,9 +793,11 @@ attach each child to the account the first one opened.
 A past batch can be taken again as either half, from the list at the bottom.
 The pair always matches, because both are rendered from the same records.
 
-Columns we do not collect (employer, passport number, debit order, religion,
-class) are present and empty, because a row has to be the same shape as the
-header. Dates are written `dd/mm/yyyy`.
+Columns we do not collect are present and empty, because a row has to be the
+same shape as the header. Among them: a guardian's profession, company, work
+phone, fax and passport number; every post code; and a child's religion,
+class, email and cell. An empty column of this kind does not mean the import
+failed. Dates are written `dd/mm/yyyy`.
 
 The older, configurable layout is still there under *Or the older,
 configurable layout*, with its columns under **Set up → Export columns**;

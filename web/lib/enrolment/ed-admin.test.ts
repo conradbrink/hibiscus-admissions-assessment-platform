@@ -14,6 +14,8 @@ import {
   G1_ADDRESS_COLUMNS,
   G1_CONTACT_COLUMNS,
   G2_ADDRESS_COLUMNS,
+  G2_CONTACT_COLUMNS,
+  parentSheets,
   parentWorkbook,
   phoneFor,
   studentRow,
@@ -122,6 +124,12 @@ describe("the school's own sheets", () => {
     // either one would stop the importer matching.
     expect(BASIC_COLUMNS[0]).toBe("Family/Sponsor Code*");
     expect(G1_CONTACT_COLUMNS[0]).toBe("Family/SponsorCode*");
+    // G2 Contact spaces it although G1 Contact does not. Checked against
+    // their template on 15 October 2026.
+    expect(G2_CONTACT_COLUMNS[0]).toBe("Family/Sponsor Code*");
+    expect(G1_ADDRESS_COLUMNS[0]).toBe("Family/SponsorCode*");
+    expect(G2_ADDRESS_COLUMNS[0]).toBe("Family/SponsorCode*");
+    expect(ACCOUNTS_COLUMNS[0]).toBe("Family/SponsorCode*");
     expect(BASIC_COLUMNS).toHaveLength(17);
     expect(G1_CONTACT_COLUMNS).toHaveLength(14);
     expect(G1_ADDRESS_COLUMNS).toHaveLength(22);
@@ -157,6 +165,11 @@ describe("the school's own sheets", () => {
     expect(parts.map((p) => p.name)).toContain("xl/workbook.xml");
     const wb = parts.find((p) => p.name === "xl/workbook.xml")!.data.toString("utf8");
     expect(wb).toContain('name="Basic"');
+    // The names and order of their template's parent sheets, checked against
+    // it on 15 October 2026.
+    expect(parentSheets([family]).map((s) => s.name)).toEqual([
+      "Basic", "G1 Contact", "G1 Address", "G2 Contact", "G2 Address", "Accounts (By Family Code)",
+    ]);
   });
 });
 

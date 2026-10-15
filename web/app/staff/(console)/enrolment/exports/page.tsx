@@ -17,10 +17,11 @@ function isTemplateBatch(columnsSnapshot: unknown): boolean {
 }
 
 /**
- * Enrolled students as a file for the student management system. The
- * columns are configuration; each record remembers the batch that carried
- * it, so "not yet exported" is the default view and nothing is sent twice
- * by accident. Reads through RLS: a campus team exports its own students.
+ * Enrolled students as files for the student management system: Ed-admin's
+ * own two workbooks, with fixed columns, or the older layout whose columns
+ * are configuration. Each record remembers the batch that carried it, so
+ * "not yet exported" is the default view and nothing is sent twice by
+ * accident. Reads through RLS: a campus team exports its own students.
  */
 export default async function ExportsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -55,7 +56,7 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
         data={header}
         stage="enrolment"
         view="export"
-        description="Enrolled students as a CSV or JSON file for the student management system. Each download is a batch; records remember which batch carried them."
+        description="Enrolled students as Excel workbooks in Ed-admin's own layout, or as CSV or JSON in the older configurable one. The student file records a batch; records remember which batch carried them."
       />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
@@ -84,9 +85,14 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
               statement. Take the parent file first, then the student file — the student file is the one that records
               the transfer and marks these records as sent.
             </p>
+            <p className="mb-3 max-w-2xl text-xs text-muted-foreground">
+              The parent file is an Excel workbook with six tabs: Basic, G1 Contact, G1 Address, G2 Contact, G2 Address
+              and Accounts (By Family Code). Basic has the names, titles and relations but no phone numbers, emails or
+              addresses; those are on the other tabs. Import Basic first, then every other tab.
+            </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" name="layout" value="parent" size="lg" variant="outline">Parent details (CSV)</Button>
-              <Button type="submit" name="layout" value="student" size="lg">Student details (CSV) — {rows.length}</Button>
+              <Button type="submit" name="layout" value="parent" size="lg" variant="outline">Parent details (Excel)</Button>
+              <Button type="submit" name="layout" value="student" size="lg">Student details (Excel) — {rows.length}</Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Ed-admin knows a stage by its own name — <code>Stage5-HPS</code>, <code>NURSERY-TLK</code> — and ignores

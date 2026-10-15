@@ -260,8 +260,9 @@ export const BASIC_COLUMNS: readonly string[] = [
 ];
 
 const contactColumns = (g: "G1" | "G2"): string[] => [
-  // Their own inconsistency: a space after "Family/Sponsor" on G1 and G2's
-  // Basic sheet, none on the address sheets. Reproduced, not corrected.
+  // Their own inconsistency: "Family/Sponsor Code*" with a space on Basic and
+  // G2 Contact, without on every other sheet, G1 Contact included. Checked
+  // against their template on 15 October 2026. Reproduced, not corrected.
   g === "G1" ? "Family/SponsorCode*" : "Family/Sponsor Code*",
   `${g} Last Name`, `${g} First Name`, `${g} Home Phone`, `${g} Cell`, `${g} Email`,
   `${g} Profession`, `${g} Company`, `${g} Work Phone`, `${g} Work Fax`,
@@ -392,9 +393,10 @@ function byFamily(families: FamilyExport[]): FamilyExport[] {
   return families.filter((f) => (seen.has(f.familyCode) ? false : (seen.add(f.familyCode), true)));
 }
 
-export function parentWorkbook(all: FamilyExport[]): Buffer {
+/** The parent workbook's sheets before they are zipped, so their names can be checked. */
+export function parentSheets(all: FamilyExport[]): Sheet[] {
   const families = byFamily(all);
-  const sheets: Sheet[] = [
+  return [
     { name: "Basic", headers: BASIC_COLUMNS, rows: families.map(basicRow) },
     { name: "G1 Contact", headers: G1_CONTACT_COLUMNS, rows: families.map((f) => contactRow(f, f.record.guardians[0])) },
     { name: "G1 Address", headers: G1_ADDRESS_COLUMNS, rows: families.map((f) => addressRow(f, f.record.guardians[0], f.record.emergency_contacts)) },
@@ -402,7 +404,10 @@ export function parentWorkbook(all: FamilyExport[]): Buffer {
     { name: "G2 Address", headers: G2_ADDRESS_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => addressRow(f, f.record.guardians[1], [])) },
     { name: "Accounts (By Family Code)", headers: ACCOUNTS_COLUMNS, rows: families.map(accountsRow) },
   ];
-  return buildWorkbook(sheets);
+}
+
+export function parentWorkbook(all: FamilyExport[]): Buffer {
+  return buildWorkbook(parentSheets(all));
 }
 
 /** What was left out because their lists do not carry the spelling we hold. */
