@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applicableAgreements, applicableRequirements, missingDocumentsText, nextStep, registrationCompleteness } from "@/lib/registration/completeness";
 import { changedFromApplication } from "@/lib/registration/prefill";
-import { familySchema, issuesToFields, signatureMatches, studentSchema } from "@/lib/registration/schema";
+import { agreementsSchema, familySchema, issuesToFields, signatureMatches, studentSchema } from "@/lib/registration/schema";
 import type { AgreementAcceptanceRow, AgreementTemplateRow, DocumentRequirementRow, DocumentRow, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 const req = (code: string, required = true, min: number | null = null): DocumentRequirementRow => ({
@@ -314,12 +314,34 @@ describe("schemas", () => {
     // Still the guardian's name, not any name.
     expect(signatureMatches("Jose Moeti", "Kágo", "Moeti")).toBe(false);
   });
-  it("still accepts every signature the plain fold accepted", () => {
-    // A stricter rule refused these, and a refused signature is a parent
-    // stuck at the last step of registration.
+  it("accepts a letter typed the way a keyboard without it would, either way round", () => {
+    expect(signatureMatches("Ayse Yilmaz", "Ayşe", "Yılmaz")).toBe(true);
+    expect(signatureMatches("Malgorzata Nowak", "Małgorzata", "Nowak")).toBe(true);
+    expect(signatureMatches("Soren Berg", "Søren", "Berg")).toBe(true);
+    expect(signatureMatches("Łukasz Nowak", "Lukasz", "Nowak")).toBe(true);
+    expect(signatureMatches("Anne Mueller", "Anne", "Müller")).toBe(true);
+    expect(signatureMatches("Anne Muller", "Anne", "Müller")).toBe(true);
+    expect(signatureMatches("Hans Strauss", "Hans", "Strauß")).toBe(true);
+  });
+  it("matches each part of the name on its own terms", () => {
+    // The first part matches only under the old fold, the second only with
+    // the accents off; taken whole, neither fold matched both.
+    expect(signatureMatches("Isikli Ozturk", "Işıklı", "Öztürk")).toBe(true);
+  });
+  it("accepts a signature in the name's own script", () => {
+    // Folded to a-z it was nothing, and an empty signature is refused.
+    expect(signatureMatches("王小明", "小明", "王")).toBe(true);
+    expect(signatureMatches("محمد علي", "محمد", "علي")).toBe(true);
+  });
+  it("never refuses a signature the old a-z check accepted", () => {
+    // A refused signature is a parent stuck at the last step of registration.
     expect(signatureMatches("Isikli Demir", "Işıklı", "Demir")).toBe(true);
     expect(signatureMatches("Lukasz Nowak", "Łukasz", "Nowak")).toBe(true);
     expect(signatureMatches("Mohammed Ali", "محمد", "Ali")).toBe(true);
+  });
+  it("stores a full-width signature in ordinary letters", () => {
+    const parsed = agreementsSchema.safeParse({ signatureName: "Ｋａｇｏ Ｍｏｅｔｉ" });
+    expect(parsed.success && parsed.data.signatureName).toBe("Kago Moeti");
   });
 });
 

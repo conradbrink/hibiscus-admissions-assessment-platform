@@ -173,7 +173,10 @@ export const emergencySchema = z.object({
 });
 
 export const agreementsSchema = z.object({
-  signatureName: required(120, "Type your full name as your signature."),
+  // NFKC turns full-width letters from a CJK keyboard into ordinary ones. The
+  // signature is stored as typed and printed on the signed-agreements PDF,
+  // whose font has no full-width glyphs.
+  signatureName: required(120, "Type your full name as your signature.").transform((v) => v.normalize("NFKC")),
   acceptedKeys: z.array(z.string().regex(/^[a-z0-9_]+$/)).default([]),
   /**
    * The agreements the parent answered *no* to. Only an agreement the school
@@ -194,25 +197,56 @@ export function issuesToFields(error: z.ZodError): Record<string, string> {
   return out;
 }
 
+/** Latin letters NFKD cannot split, spelled as a keyboard without them would. */
+const LATIN_LETTERS: Record<string, string> = { "ı": "i", "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ß": "ss", "æ": "ae", "œ": "oe", "þ": "th" };
+const UMLAUTS: Record<string, string> = { "ä": "ae", "ö": "oe", "ü": "ue" };
+
+/**
+ * A name folded for the signature check: accents off (NFKD, which also turns
+ * full-width letters from a CJK keyboard into ordinary ones), the letters
+ * above spelled out, letters of every script kept, everything else gone.
+ * `umlautAsE` spells ü as "ue", the way a German speaker without the key
+ * types it; without it ü is plain "u".
+ */
+function signatureFold(value: string, umlautAsE: boolean): string {
+  let s = value.toLowerCase();
+  if (umlautAsE) s = s.replace(/[äöü]/g, (c) => UMLAUTS[c]);
+  return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[ıłøđðßæœþ]/g, (c) => LATIN_LETTERS[c])
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
 /**
  * The typed signature must be the primary guardian's name, loosely: case,
- * spacing and accents aside.
+ * spacing, accents and the way a letter is typed on a keyboard without it
+ * all aside.
  *
- * Folding to a-z alone dropped an accented letter outright, so "Kágo" became
- * "kgo" while the signature "Kago" kept its a, and the parent was refused for
- * leaving the accent out. The same fold with the accents taken off first is
- * tried as well, as an alternative and not a replacement: a stricter rule
- * refused names the plain fold accepts ("Isikli" for "Işıklı", a Latin
- * signature for a name in another script), which would block a parent at the
- * last step of registration.
+ * It used to fold everything to a-z, which drops an accented letter outright:
+ * "Kágo" became "kgo" while the signature "Kago" kept its a, so the parent
+ * was refused for leaving the accent out. "Yilmaz" for "Yılmaz" and "Mueller"
+ * for "Müller" were refused the same way, and a signature in the name's own
+ * script folded to nothing and was refused too.
+ *
+ * Each part of the name may now match under that old fold or under
+ * `signatureFold` either way. These are alternatives, never replacements:
+ * the check only accepts more than it did, because a refused signature is a
+ * parent stuck at the last step of registration. That keeps one old
+ * looseness on purpose — a part with no Latin letters is "included" in any
+ * Latin signature, which is how "Mohammed Ali" signs for محمد علي.
  */
 export function signatureMatches(signature: string, firstName: string, lastName: string): boolean {
-  const plain = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
-  // NFKD also turns full-width letters from a CJK keyboard into plain ones.
-  const unaccented = (s: string) => plain(s.normalize("NFKD").replace(/\p{M}/gu, ""));
-  const matches = (fold: (s: string) => string) => {
-    const sig = fold(signature);
-    return sig.length > 0 && sig.includes(fold(firstName)) && sig.includes(fold(lastName));
-  };
-  return matches(plain) || matches(unaccented);
+  const folds = [
+    (s: string) => s.toLowerCase().replace(/[^a-z]/g, ""),
+    (s: string) => signatureFold(s, false),
+    (s: string) => signatureFold(s, true),
+  ];
+  if (!folds.some((fold) => fold(signature).length > 0)) return false;
+  return [firstName, lastName].every((part) =>
+    folds.some((fold) => {
+      const sig = fold(signature);
+      return sig.length > 0 && sig.includes(fold(part));
+    })
+  );
 }
