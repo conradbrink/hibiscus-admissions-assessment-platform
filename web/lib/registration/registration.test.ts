@@ -304,6 +304,23 @@ describe("schemas", () => {
     expect(signatureMatches("Kago", "Kago", "Moeti")).toBe(false);
     expect(signatureMatches("", "Kago", "Moeti")).toBe(false);
   });
+  it("accepts a signature typed with or without the name's accents", () => {
+    // "Kágo" used to fold to "kgo", so the plain "Kago" was refused.
+    expect(signatureMatches("Kago Moeti", "Kágo", "Moeti")).toBe(true);
+    expect(signatureMatches("Kágo Moéti", "Kago", "Moeti")).toBe(true);
+    expect(signatureMatches("Jose Dos Santos", "José", "dos Santos")).toBe(true);
+    // Full-width letters from a CJK keyboard are the same name.
+    expect(signatureMatches("Ｋａｇｏ Ｍｏｅｔｉ", "Kago", "Moeti")).toBe(true);
+    // Still the guardian's name, not any name.
+    expect(signatureMatches("Jose Moeti", "Kágo", "Moeti")).toBe(false);
+  });
+  it("still accepts every signature the plain fold accepted", () => {
+    // A stricter rule refused these, and a refused signature is a parent
+    // stuck at the last step of registration.
+    expect(signatureMatches("Isikli Demir", "Işıklı", "Demir")).toBe(true);
+    expect(signatureMatches("Lukasz Nowak", "Łukasz", "Nowak")).toBe(true);
+    expect(signatureMatches("Mohammed Ali", "محمد", "Ali")).toBe(true);
+  });
 });
 
 describe("prefill diff", () => {

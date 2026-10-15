@@ -194,9 +194,25 @@ export function issuesToFields(error: z.ZodError): Record<string, string> {
   return out;
 }
 
-/** The typed signature must be the primary guardian's name, loosely: case and spacing aside. */
+/**
+ * The typed signature must be the primary guardian's name, loosely: case,
+ * spacing and accents aside.
+ *
+ * Folding to a-z alone dropped an accented letter outright, so "Kágo" became
+ * "kgo" while the signature "Kago" kept its a, and the parent was refused for
+ * leaving the accent out. The same fold with the accents taken off first is
+ * tried as well, as an alternative and not a replacement: a stricter rule
+ * refused names the plain fold accepts ("Isikli" for "Işıklı", a Latin
+ * signature for a name in another script), which would block a parent at the
+ * last step of registration.
+ */
 export function signatureMatches(signature: string, firstName: string, lastName: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
-  const sig = norm(signature);
-  return sig.length > 0 && sig.includes(norm(firstName)) && sig.includes(norm(lastName));
+  const plain = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+  // NFKD also turns full-width letters from a CJK keyboard into plain ones.
+  const unaccented = (s: string) => plain(s.normalize("NFKD").replace(/\p{M}/gu, ""));
+  const matches = (fold: (s: string) => string) => {
+    const sig = fold(signature);
+    return sig.length > 0 && sig.includes(fold(firstName)) && sig.includes(fold(lastName));
+  };
+  return matches(plain) || matches(unaccented);
 }
