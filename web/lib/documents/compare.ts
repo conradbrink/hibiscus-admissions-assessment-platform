@@ -57,8 +57,13 @@ function str(v: Json | undefined): string | null {
   return oneLineOrNull(v);
 }
 
-/** Letters of any script left once the Latin ones are taken out (NFKD first, so full-width Latin counts as Latin). */
-const otherScript = (s: string) => /\p{L}/u.test(s.normalize("NFKD").replace(/\p{Script=Latin}/gu, ""));
+/**
+ * Letters of another script: what is left once the Latin ones are taken
+ * out, NFKD first so full-width Latin counts as Latin. Common and Inherited
+ * go too: the ʿ of Saʿid and the ʻ of Kaʻiulani are letters that belong to
+ * no script, and a name transliterated with them is still a Latin name.
+ */
+const otherScript = (s: string) => /\p{L}/u.test(s.normalize("NFKD").replace(/[\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/gu, ""));
 const hasLetters = (s: string) => /\p{L}/u.test(s);
 
 /**
@@ -131,6 +136,9 @@ function gradeMatch(registration: string | null, document: string | null): Match
 
 function overlapMatch(a: string | null, b: string | null): Match {
   if (!a || !b) return "unverified";
+  // Dropping the other script and comparing what is left matched "上海
+  // Hospital" with "Beijing Hospital" on "hospital" alone.
+  if (otherScript(a) || otherScript(b)) return "unverified";
   const ta = tokens(a, true);
   const tb = new Set(tokens(b, true));
   if (!ta.length || !tb.size) return "unverified";
@@ -199,12 +207,17 @@ export type MismatchFlag = {
  * a task of its own for a person to check the document by eye: it is never
  * a flag, so the parent sees nothing and is emailed nothing.
  *
- * Closing: a reading with no disagreement closes open mismatch tasks, as it
- * always has. A by-eye task is closed by staff accepting or rejecting the
- * document, or replaced by a new reading that again cannot compare the
- * name; a reading that merely fails to read the name leaves it open, since
- * nobody has looked. A document staff have already accepted opens no by-eye
- * task: they have checked it, and Accept is no longer offered to close one.
+ * Both kinds of task are kept per kind of document (see `mismatchTaskType`),
+ * and a reading only ever closes its own kind's:
+ *
+ * - The mismatch task is replaced by every reading: closed, and opened again
+ *   if this reading still differs. A re-read no longer adds a second one.
+ * - The by-eye task is replaced by a reading that again cannot compare the
+ *   name, and closed by one whose names the machine could compare (a
+ *   replacement document in Latin letters). A reading that merely fails to
+ *   read the name leaves it open, since nobody has looked.
+ * - A document staff have already accepted or rejected opens no by-eye task:
+ *   they have looked at it, and the buttons that close one are gone.
  */
 export function documentReadingOutcome(input: {
   childFirstName: string;
@@ -212,15 +225,17 @@ export function documentReadingOutcome(input: {
   confidence: number;
   flags: MismatchFlag[];
   comparisons: Comparison[];
-  documentAccepted: boolean;
+  documentReviewed: boolean;
 }): { summary: string; tasks: ReadingTask[]; resolveTaskTypes: string[]; unreadableFields: Comparison["field"][] } {
   const label = input.requirementCode.replace(/_/g, " ");
-  const unreadableNames = input.comparisons.filter((c) => c.match === "unreadable");
-  const askAPerson = unreadableNames.length > 0 && !input.documentAccepted;
+  const names = input.comparisons.filter((c) => NAME_FIELDS.has(c.field));
+  const unreadableNames = names.filter((c) => c.match === "unreadable");
+  const namesSettled = names.some((c) => c.match === "same" || c.match === "differs") && !unreadableNames.length;
+  const askAPerson = unreadableNames.length > 0 && !input.documentReviewed;
   const tasks: ReadingTask[] = [];
   if (input.flags.length) {
     tasks.push({
-      type: "review_document_mismatch",
+      type: mismatchTaskType(input.requirementCode),
       title: `${input.childFirstName}: ${label} differs from the registration`,
       details: `${mismatchText(input.flags)}\n\nThe reading is a proposal (confidence ${Math.round(input.confidence * 100)}%). Open the registration to compare, then ask the parent to confirm or correct the form. Nothing has been changed.`,
       priority: "normal",
@@ -235,18 +250,39 @@ export function documentReadingOutcome(input: {
       priority: "normal",
     });
   }
-  const unreadableNote = askAPerson ? "; the name could not be compared, and a person will check it" : "";
+  const notCompared = unreadableNames.length ? `the name could not be compared${askAPerson ? ", and a person will check it" : ""}` : "";
   const summary = input.flags.length
-    ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})${unreadableNote}`
-    : unreadableNames.length
-      ? `Document read: the name on the ${label} could not be compared${askAPerson ? "; a person will check it" : ""}`
+    ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})${notCompared ? `; ${notCompared}` : ""}`
+    : notCompared
+      ? `Document read: on the ${label}, ${notCompared}`
       : `Document read: ${label} agrees with the registration`;
   return {
     summary,
     tasks,
-    resolveTaskTypes: [...(input.flags.length ? [] : ["review_document_mismatch"]), ...(askAPerson ? [unreadableTaskType(input.requirementCode)] : [])],
+    resolveTaskTypes: [
+      mismatchTaskType(input.requirementCode),
+      // Opened before mismatch tasks were kept per kind of document; closed,
+      // as they always were, by a reading with no disagreement.
+      ...(input.flags.length ? [] : [LEGACY_MISMATCH_TASK_TYPE]),
+      ...(askAPerson || namesSettled ? [unreadableTaskType(input.requirementCode)] : []),
+    ],
     unreadableFields: unreadableNames.map((c) => c.field),
   };
+}
+
+const NAME_FIELDS: ReadonlySet<Comparison["field"]> = new Set(["legal_first_name", "legal_last_name", "full_name"]);
+
+/** The single, application-wide mismatch type used before 15 October 2026; open ones may still exist. */
+export const LEGACY_MISMATCH_TASK_TYPE = "review_document_mismatch";
+
+/**
+ * One mismatch task type per kind of document, for the reason given at
+ * `unreadableTaskType`: tasks are resolved by type across the application,
+ * and with one type an agreeing school report closed the birth
+ * certificate's task while its flag stayed on the parent's form.
+ */
+export function mismatchTaskType(requirementCode: string): string {
+  return `${LEGACY_MISMATCH_TASK_TYPE}:${requirementCode}`;
 }
 
 type ReadingTask = { type: string; title: string; details: string; priority: "normal" };

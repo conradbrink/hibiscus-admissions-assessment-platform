@@ -1,8 +1,8 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
-import { isExtractable } from "@/lib/documents/extraction-schemas";
-import { documentReadingOutcome, mismatchText, parseMismatchFlags, unreadableTaskType, type Comparison, type MismatchFlag } from "@/lib/documents/compare";
+import { EXTRACTABLE_CODES, isExtractable } from "@/lib/documents/extraction-schemas";
+import { documentReadingOutcome, LEGACY_MISMATCH_TASK_TYPE, mismatchTaskType, mismatchText, parseMismatchFlags, unreadableTaskType, type Comparison, type MismatchFlag } from "@/lib/documents/compare";
 import { missingDocumentsText, outstandingItemsText, type Completeness } from "@/lib/registration/completeness";
 
 const DAY = 86_400_000;
@@ -76,7 +76,8 @@ export async function onRegistrationSaved(
     nextAction: null,
     event: { type: "registration.section_saved", summary: `Registration: ${section} saved${opts.clearedMismatch ? " (document check answered)" : ""}`, payload: { section, prefill_changed: changedFields } },
     tasks,
-    resolveTaskTypes: opts.clearedMismatch ? ["review_document_mismatch"] : [],
+    // The parent answered the flags, all of them: every kind of document's mismatch task closes.
+    resolveTaskTypes: opts.clearedMismatch ? [LEGACY_MISMATCH_TASK_TYPE, ...[...EXTRACTABLE_CODES].map(mismatchTaskType)] : [],
     actor,
   });
 }
@@ -126,13 +127,16 @@ export async function onDocumentExtracted(
   document: Pick<DocumentRow, "id" | "requirement_code" | "review_status">,
   reading: { confidence: number; flags: MismatchFlag[]; comparisons: Comparison[]; existingFlags: Json | null }
 ): Promise<void> {
+  // Read again now: the reading took as long as the model did, and staff
+  // may have accepted or rejected the document meanwhile.
+  const { data: current } = await admin.from("documents").select("review_status").eq("id", document.id).maybeSingle();
   const outcome = documentReadingOutcome({
     childFirstName: app.child_first_name,
     requirementCode: document.requirement_code,
     confidence: reading.confidence,
     flags: reading.flags,
     comparisons: reading.comparisons,
-    documentAccepted: document.review_status === "accepted",
+    documentReviewed: (current?.review_status ?? document.review_status) !== "pending",
   });
   // Replace this document's flags; keep the others'.
   const kept = parseMismatchFlags(reading.existingFlags).filter((f) => f.requirement_code !== document.requirement_code);

@@ -596,8 +596,11 @@ design.
    parent is not emailed. Look at the document: if it is the right child,
    accept it; if not, reject it with a reason and the parent is asked to
    upload it again. Either closes the task, and the badge then reads
-   **checked by eye**. A reading of a document that is already accepted
-   opens no such task.
+   **checked by eye**. So does a replacement document whose name the
+   machine can compare. A reading of a document that is already accepted
+   or rejected opens no such task. Each kind of document has its own
+   tasks, so dealing with the birth certificate never closes the school
+   report's.
 5. A reading can both differ on another detail (a date of birth) and have a
    name to check by eye. Then both tasks open: the difference is flagged
    to the parent as in step 2, the name is not.

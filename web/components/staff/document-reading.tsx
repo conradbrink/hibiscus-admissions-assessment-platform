@@ -16,7 +16,8 @@ export function DocumentReading({ document }: { document: Pick<DocumentRow, "ext
   const fields = (document.extracted_fields && typeof document.extracted_fields === "object" && !Array.isArray(document.extracted_fields) ? document.extracted_fields : {}) as Record<string, Json>;
   const comparisons = (Array.isArray(fields.comparisons) ? fields.comparisons : []) as unknown as Comparison[];
   const confidence = typeof fields.confidence === "number" ? Math.round(fields.confidence * 100) : null;
-  const checked = document.review_status === "accepted";
+  // Accepting or rejecting the document is the check by eye being done.
+  const checked = document.review_status !== "pending";
 
   return (
     <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
@@ -32,8 +33,6 @@ export function DocumentReading({ document }: { document: Pick<DocumentRow, "ext
                 <td className="py-0.5 pr-2">{c.document_value ?? "—"}</td>
                 <td className="py-0.5 pr-2 text-muted-foreground">form: {c.registration_value ?? "—"}</td>
                 <td className="py-0.5 text-right">
-                  {/* A name the machine could not compare is checked by a person; once
-                      the document is accepted, that check is done. */}
                   <Badge variant={c.match === "same" || (c.match === "unreadable" && checked) ? "success" : c.match === "differs" || c.match === "unreadable" ? "warning" : "muted"}>
                     {c.match === "same" ? "same" : c.match === "differs" ? "differs" : c.match === "unreadable" ? (checked ? "checked by eye" : "check by eye") : "not compared"}
                   </Badge>
