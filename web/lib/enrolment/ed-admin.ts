@@ -260,8 +260,9 @@ export const BASIC_COLUMNS: readonly string[] = [
 ];
 
 const contactColumns = (g: "G1" | "G2"): string[] => [
-  // Their own inconsistency: a space after "Family/Sponsor" on G1 and G2's
-  // Basic sheet, none on the address sheets. Reproduced, not corrected.
+  // Their own inconsistency: "Family/Sponsor Code*" with a space on Basic and
+  // G2 Contact, without on every other sheet, G1 Contact included. Checked
+  // against their template on 15 October 2026. Reproduced, not corrected.
   g === "G1" ? "Family/SponsorCode*" : "Family/Sponsor Code*",
   `${g} Last Name`, `${g} First Name`, `${g} Home Phone`, `${g} Cell`, `${g} Email`,
   `${g} Profession`, `${g} Company`, `${g} Work Phone`, `${g} Work Fax`,
