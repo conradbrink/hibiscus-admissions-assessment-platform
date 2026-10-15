@@ -78,7 +78,7 @@ describe("which agreements an applicant is asked for", () => {
 describe("an agreement the parent may refuse", () => {
   const preschool = {
     registration: stamped(),
-    contacts: [contact("primary_guardian"), contact("secondary_guardian"), contact("emergency")],
+    contacts: [contact("primary_guardian"), contact("emergency")],
     requirements,
     documents: [doc("birth_certificate"), doc("vaccination_card")],
     gradeSort: 4,
@@ -122,7 +122,7 @@ describe("an agreement the parent may refuse", () => {
 });
 
 describe("completeness", () => {
-  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("secondary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [answer("policies")] };
+  const base = { registration: stamped(), contacts: [contact("primary_guardian"), contact("emergency")], requirements, gradeSort: 60, agreementTemplates: [template("policies")], acceptances: [answer("policies")] };
 
   it("is complete when every section is stamped, required documents are uploaded and agreements accepted", () => {
     const c = registrationCompleteness({ ...base, documents: [doc("birth_certificate"), doc("vaccination_card"), doc("school_report")] });
@@ -146,14 +146,6 @@ describe("completeness", () => {
     expect(c.sections.agreements).toBe(false);
     expect(c.sections.emergency).toBe(false);
     expect(c.missingAgreements.map((t) => t.key)).toEqual(["policies"]);
-  });
-  it("sends a family without a second guardian back to the family step", () => {
-    // Required from 15 October 2026. A family step saved before then with one
-    // guardian has its stamp, and is still not complete.
-    const c = registrationCompleteness({ ...base, contacts: [contact("primary_guardian"), contact("emergency")], documents: [doc("birth_certificate"), doc("vaccination_card"), doc("school_report")] });
-    expect(c.sections.family).toBe(false);
-    expect(c.complete).toBe(false);
-    expect(nextStep(c)).toBe("family");
   });
   it("with nothing at all, the first step is the student section", () => {
     const c = registrationCompleteness({ ...base, registration: null, contacts: [], documents: [] });
@@ -262,6 +254,22 @@ describe("schemas", () => {
     expect(familySchema.safeParse({ primary, ...second, secondaryMobile: "71234568" }).success).toBe(false);
     const spaced = familySchema.safeParse({ primary, ...second, secondaryMobile: "+267 71 234 568" });
     expect(spaced.success && spaced.data.secondaryMobile).toBe("+26771234568");
+  });
+  it("refuses the first guardian entered again as the second", () => {
+    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
+    const again = familySchema.safeParse({ primary, ...second, secondaryFirstName: " kago ", secondaryLastName: "MOETI" });
+    expect(again.success).toBe(false);
+    if (!again.success) expect(issuesToFields(again.error).secondaryFirstName).toContain("different person");
+    // A couple may share an email and a mobile.
+    expect(familySchema.safeParse({ primary, ...second, secondaryEmail: primary.email, secondaryMobile: primary.mobile }).success).toBe(true);
+  });
+  it("takes the second guardian's nationality from the list, as the first's", () => {
+    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
+    const listed = familySchema.safeParse({ primary, ...second, secondaryNationality: "botswana" });
+    expect(listed.success && listed.data.secondaryNationality).toBe("Motswana");
+    expect(familySchema.safeParse({ primary, ...second, secondaryNationality: "Narnian" }).success).toBe(false);
+    const blank = familySchema.safeParse({ primary, ...second, secondaryNationality: "" });
+    expect(blank.success && blank.data.secondaryNationality).toBe(null);
   });
   it("takes a mobile number only in the form WhatsApp accepts", () => {
     const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com" };

@@ -299,10 +299,19 @@ export const ACCOUNTS_COLUMNS: readonly string[] = [
   "Inv. Phone", "Inv. Cell", "Inv. Email", "Inv. Fax", "Email Statement",
 ];
 
+/**
+ * Relationships that make two guardians a couple for the salutation. Since the
+ * second guardian became required, a parent on their own names a grandparent,
+ * who often shares the surname; "Mrs and Mr Moeti family" would address a
+ * father and his mother as a married couple.
+ */
+const PARENT_RELATIONSHIPS = new Set(["mother", "father", "parent", "guardian", "stepmother", "stepfather", "step-mother", "step-father"]);
+const isParent = (g: Guardian) => PARENT_RELATIONSHIPS.has((g.relationship ?? "").toLowerCase());
+
 function salutation(g1: Guardian | undefined, g2: Guardian | undefined): string {
   if (!g1) return "";
   const a = fromGuardian(g1);
-  if (g2 && g2.last_name === g1.last_name) {
+  if (g2 && g2.last_name === g1.last_name && isParent(g1) && isParent(g2)) {
     const b = fromGuardian(g2);
     const titles = [b.title, a.title].filter(Boolean).join(" and ");
     return `${titles || "The"} ${g1.last_name} family`.replace(/^The /, "The ").trim();
@@ -396,12 +405,18 @@ function byFamily(families: FamilyExport[]): FamilyExport[] {
 /** The parent workbook's sheets before they are zipped, so their names can be checked. */
 export function parentSheets(all: FamilyExport[]): Sheet[] {
   const families = byFamily(all);
+  // The form asks for the second guardian's "Home address, if different", so
+  // a blank one is the first guardian's address, not no address.
+  const second = (f: FamilyExport): Guardian => {
+    const [g1, g2] = f.record.guardians;
+    return { ...g2, address: g2.address || g1?.address || null };
+  };
   return [
     { name: "Basic", headers: BASIC_COLUMNS, rows: families.map(basicRow) },
     { name: "G1 Contact", headers: G1_CONTACT_COLUMNS, rows: families.map((f) => contactRow(f, f.record.guardians[0])) },
     { name: "G1 Address", headers: G1_ADDRESS_COLUMNS, rows: families.map((f) => addressRow(f, f.record.guardians[0], f.record.emergency_contacts)) },
     { name: "G2 Contact", headers: G2_CONTACT_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => contactRow(f, f.record.guardians[1])) },
-    { name: "G2 Address", headers: G2_ADDRESS_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => addressRow(f, f.record.guardians[1], [])) },
+    { name: "G2 Address", headers: G2_ADDRESS_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => addressRow(f, second(f), [])) },
     { name: "Accounts (By Family Code)", headers: ACCOUNTS_COLUMNS, rows: families.map(accountsRow) },
   ];
 }

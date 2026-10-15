@@ -98,16 +98,12 @@ export function registrationCompleteness(input: {
   const answers = new Map(input.acceptances.map((a) => [a.agreement_template_id, a]));
   const missingAgreements = requiredAgreements.filter((t) => !agreementSatisfied(t, answers.get(t.id)));
   const hasPrimary = input.contacts.some((c) => c.kind === "primary_guardian");
-  // A second guardian is required from 15 October 2026. A family step saved
-  // before then without one is incomplete again, so the parent is sent back
-  // to it rather than the registration going to Ed-admin with empty G2 sheets.
-  const hasSecondary = input.contacts.some((c) => c.kind === "secondary_guardian");
   const hasEmergency = input.contacts.some((c) => c.kind === "emergency");
 
   const sections: Record<Section, boolean> = {
     student: !!r?.student_completed_at,
     medical: !!r?.medical_completed_at,
-    family: !!r?.family_completed_at && hasPrimary && hasSecondary,
+    family: !!r?.family_completed_at && hasPrimary,
     emergency: !!r?.emergency_completed_at && hasEmergency,
     documents: missingDocuments.length === 0 && rejectedDocuments.length === 0,
     agreements: missingAgreements.length === 0 && !!r?.agreements_completed_at,

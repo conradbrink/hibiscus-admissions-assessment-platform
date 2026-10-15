@@ -110,8 +110,9 @@ export function FamilyForm({
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Second parent or guardian</legend>
         <p className="text-xs text-muted-foreground">
-          The school needs a second adult it can contact. This can be the child&rsquo;s other parent. If there is no other
-          parent, give another adult who looks after the child, such as a grandparent. We need their email and mobile number.
+          The school needs a second parent or guardian it can contact. This can be the child&rsquo;s other parent. If there
+          is no other parent, give another person who looks after the child, such as a grandparent. We need their email and
+          mobile number.
         </p>
         <TitleSelect name="secondaryTitle" value={s("title")} error={f.secondaryTitle} readOnly={readOnly} />
         {input("secondaryFirstName", "First name", s("firstName"), { required: true })}

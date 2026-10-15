@@ -348,19 +348,20 @@ been received, and a **Confirm enrolment** task opens. It is refused, with
 what is missing, unless the same rule the parent's Submit uses says the
 registration is complete — enrolment would refuse it a step later anyway.
 
-## The Family section says incomplete
+## Two parents or guardians on every registration
 
 From 15 October 2026 the Family step asks for **two** parents or guardians,
 and an email and a mobile number for each. There is no exception for a family
-with one parent: they give another adult who looks after the child, such as a
-grandparent. The school's other system, Ed-admin, gets this person on its G2
-tabs.
+with one parent: they give another person who looks after the child, such as
+a grandparent. The step refuses a second guardian with the same name as the
+first. The school's other system, Ed-admin, gets this person on its G2 tabs.
 
-A family that saved the Family step before then with only one guardian is
-sent back to it: the Family section shows as not done, and **Confirm
-registration** and enrolment are both refused until the parent adds the
-second guardian. The office cannot enter a guardian for the family; ask the
-parent to open their link and finish the Family step.
+The rule is checked when the parent saves the Family step. A family that
+saved it before then with one guardian is not sent back: their registration
+stays complete, and their G2 tabs are empty in the Ed-admin file. The office
+cannot enter a guardian for a family. While the registration is still open,
+the parent can add one by opening their link and saving the Family step
+again.
 
 ## A document will not upload
 

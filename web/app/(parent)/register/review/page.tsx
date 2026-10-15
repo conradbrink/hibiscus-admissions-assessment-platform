@@ -63,7 +63,7 @@ export default async function ReviewStep() {
         </dl>
         <dl className="surface p-4">
           <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Family and emergency contacts</p>
-          {guardians.map((g) => <Row key={g.id} label={g.kind === "primary_guardian" ? "Primary" : "Second guardian"} value={`${g.first_name} ${g.last_name} (${RELATIONSHIP_LABELS[g.relationship]}) · ${g.mobile ?? g.phone ?? ""} · ${g.email ?? ""}`} />)}
+          {guardians.map((g) => <Row key={g.id} label={g.kind === "primary_guardian" ? "Primary" : "Second parent or guardian"} value={`${g.first_name} ${g.last_name} (${RELATIONSHIP_LABELS[g.relationship]}) · ${g.mobile ?? g.phone ?? ""} · ${g.email ?? ""}`} />)}
           {emergency.map((e) => <Row key={e.id} label="Emergency" value={`${e.first_name} ${e.last_name} (${RELATIONSHIP_LABELS[e.relationship]}) · ${e.phone ?? ""}`} />)}
         </dl>
       </section>

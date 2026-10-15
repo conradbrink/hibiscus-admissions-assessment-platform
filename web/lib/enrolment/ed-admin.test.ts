@@ -255,6 +255,33 @@ describe("the values their importer will accept", () => {
   });
 });
 
+describe("the second guardian, required since 15 October 2026", () => {
+  const salutationOf = (f: FamilyExport) => basicRow(f)[BASIC_COLUMNS.indexOf("Family Salutation*")];
+  const withSecond = (g2: Partial<StudentRecordSnapshot["guardians"][number]>): FamilyExport => ({
+    ...family,
+    record: { ...record, guardians: [record.guardians[0], { ...record.guardians[1], ...g2 }] },
+  });
+
+  it("addresses two parents with one surname as a couple", () => {
+    expect(salutationOf(family)).toBe("Mr and Mrs Coetzer family");
+  });
+
+  it("does not address a parent and a grandparent as a couple", () => {
+    // A parent on their own now names another adult, often their own mother.
+    const grandmother = withSecond({ title: "Mrs", gender: "F", first_name: "Elna", relationship: "grandparent" });
+    expect(salutationOf(grandmother)).toBe("Mrs Sanet Coetzer");
+  });
+
+  it("gives the second guardian the first one's address when the form's 'if different' was left blank", () => {
+    const g2Address = parentSheets([family]).find((s) => s.name === "G2 Address")!;
+    const row = g2Address.rows[0];
+    expect(row[G2_ADDRESS_COLUMNS.indexOf("G2Addr1")]).toBe("Plot 123");
+    // An address of their own is kept.
+    const own = parentSheets([withSecond({ address: "Plot 9, Tlokweng" })]).find((s) => s.name === "G2 Address")!;
+    expect(own.rows[0][G2_ADDRESS_COLUMNS.indexOf("G2Addr1")]).toBe("Plot 9");
+  });
+});
+
 describe("one row per family", () => {
   const sibling: FamilyExport = {
     ...family,

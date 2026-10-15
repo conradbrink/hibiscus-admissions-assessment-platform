@@ -135,7 +135,13 @@ const guardian = z.object({
  * the only one names another adult who cares for the child, such as a
  * grandparent. The field names stay flat (`secondaryFirstName`) because the
  * form and the saved values already use them.
+ *
+ * A second guardian with the first one's name is refused: it is the one way
+ * a parent on their own could fill the section without naming anybody else.
+ * A shared email or mobile is allowed, because couples share them.
  */
+const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/\s+/g, " ") === b.trim().toLowerCase().replace(/\s+/g, " ");
+
 export const familySchema = z.object({
   primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
   secondaryTitle: z.enum(TITLES, { error: "Choose a title." }),
@@ -147,7 +153,12 @@ export const familySchema = z.object({
   secondaryMobile: z.string().trim().min(1, "Enter the second parent or guardian's mobile number.").pipe(mobileNumber),
   secondaryPhone: optional(40),
   secondaryAddress: optional(300),
-  secondaryNationality: optional(80),
+  // From the list, as the first guardian's is: Ed-admin drops any other spelling.
+  secondaryNationality: optionalNationality,
+}).superRefine((v, ctx) => {
+  if (sameName(v.primary.firstName, v.secondaryFirstName) && sameName(v.primary.lastName, v.secondaryLastName)) {
+    ctx.addIssue({ code: "custom", path: ["secondaryFirstName"], message: "Give a different person from the first parent or guardian." });
+  }
 });
 
 export const emergencySchema = z.object({
