@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { toPermissionSet } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, OfferRow } from "@/lib/supabase/types";
-import { SYSTEM_ACTOR } from "@/lib/workflow/engine";
+import { SYSTEM_ACTOR, type Actor } from "@/lib/workflow/engine";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
+import { mayMoveTo } from "@/lib/workflow/stage-move";
+import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
 
 /**
  * Redrafting the offers a fee change left behind, by hand.
@@ -27,9 +30,14 @@ import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
  * - Sent or viewed: withdrawn by `onOfferWithdrawn`, with the reason, and
  *   drafted again with the conditions the old letter carried. The family saw
  *   the old letter; the new one is theirs once it is approved.
- * - Accepted: listed and left alone. Going back from an accepted letter is
- *   Move to stage → back to Offer, which needs a signed-in member of staff
- *   and refuses once money has been received, so it is a person's move.
+ * - Accepted: left alone unless `REDRAFT_STAFF_EMAIL` names the member of
+ *   staff who has agreed to make the move. Going back from an accepted letter
+ *   is Move to stage → back to Offer (`onMovedToStage`): the letter is
+ *   withdrawn, the signed acceptance stays on file, the unpaid payment request
+ *   is cancelled and a new letter is drafted. It is recorded as that person's
+ *   act, so it needs their account, active and holding the permissions the
+ *   button asks for, and it is refused as the button is once money has been
+ *   received.
  *
  * Every new letter waits for approval, whatever `offer_auto_approve` says:
  * nothing is emailed to a family from here.
@@ -39,6 +47,7 @@ const campusCodes = (process.env.REDRAFT_CAMPUSES ?? "").split(",").map((s) => s
 const year = process.env.REDRAFT_YEAR ?? "";
 const reason = process.env.REDRAFT_REASON?.trim() || "Fees changed; redrafted on the current fee schedule";
 const commit = process.env.REDRAFT_COMMIT === "1";
+const staffEmail = process.env.REDRAFT_STAFF_EMAIL?.trim().toLowerCase() || null;
 
 type App = Pick<ApplicationRow, "id" | "reference" | "status" | "child_first_name" | "requires_assessment">;
 type Line = { code: string; amount_minor: number };
@@ -46,6 +55,12 @@ type Line = { code: string; amount_minor: number };
 function linesOf(fees: unknown): Line[] {
   const lines = (fees as { lines?: Line[] } | null)?.lines ?? [];
   return lines.map((l) => ({ code: l.code, amount_minor: Number(l.amount_minor) }));
+}
+
+/** Same codes, same amounts, in any order. */
+function sameFees(a: Line[], b: Line[]): boolean {
+  const key = (lines: Line[]) => JSON.stringify([...lines].sort((x, y) => x.code.localeCompare(y.code)).map((l) => [l.code, l.amount_minor]));
+  return key(a) === key(b);
 }
 
 function describeChange(before: Line[], after: Line[]): string {
@@ -62,6 +77,26 @@ describe("redraft offers after a fee change", () => {
       return;
     }
     const admin = createAdminClient();
+
+    // The person an accepted letter's move back is recorded against. Checked
+    // as the applicant page checks the button, since this stands in for it.
+    let staff: Actor | null = null;
+    if (staffEmail) {
+      const { data: profile, error: profileError } = await admin.from("staff_profiles").select("id, email, is_active").eq("email", staffEmail).maybeSingle();
+      if (profileError) throw new Error(profileError.message);
+      if (!profile?.is_active) throw new Error(`no active staff account for ${staffEmail}`);
+      const { data: roles, error: roleError } = await admin.from("staff_roles").select("role_id").eq("staff_id", profile.id);
+      if (roleError) throw new Error(roleError.message);
+      const { data: granted, error: grantError } = await admin
+        .from("role_permissions")
+        .select("permission_code")
+        .in("role_id", (roles ?? []).map((r) => r.role_id));
+      if (grantError) throw new Error(grantError.message);
+      if (!mayMoveTo(toPermissionSet((granted ?? []).map((g) => g.permission_code)), "offer", "back")) {
+        throw new Error(`${staffEmail} may not move a child back to Offer`);
+      }
+      staff = { type: "staff", id: profile.id, label: profile.email };
+    }
 
     const [{ data: campuses, error: campusError }, { data: years, error: yearError }] = await Promise.all([
       admin.from("campuses").select("id, code").in("code", campusCodes),
@@ -111,14 +146,32 @@ describe("redraft offers after a fee change", () => {
     for (const { offer, app } of rows) {
       const before = linesOf(offer.fees);
       const expected = nowBySchedule.get(offer.fee_schedule_id ?? "") ?? [];
-      const plan =
-        offer.status === "accepted" ? "SKIP (accepted: Move to stage → back to Offer, by a person)" : offer.status === "sent" || offer.status === "viewed" ? "withdraw and redraft" : "redraft in place";
+      // A letter already on the schedule as it is now is left alone, whatever
+      // its status. Run twice, or after staff have redrafted some by hand, the
+      // script must not take back a letter a family has just accepted at the
+      // right figures. A promotion changes the snapshot on purpose, so a
+      // promoted letter cannot be compared with the schedule and is a
+      // person's call.
+      const current = sameFees(before, expected);
+      const plan = current
+        ? "already on the current fees: nothing to do"
+        : offer.promotion_id
+          ? "SKIP (has a promotion: compare it with the schedule by hand)"
+          : offer.status === "accepted"
+          ? staff
+            ? `move back to Offer, as ${staff.label}`
+            : "SKIP (accepted: needs REDRAFT_STAFF_EMAIL, or Move to stage → back to Offer on the page)"
+          : offer.status === "sent" || offer.status === "viewed"
+            ? "withdraw and redraft"
+            : "redraft in place";
       console.log(`  ${app.reference}  ${app.child_first_name}  offer ${offer.status}, application ${app.status}: ${plan}`);
       console.log(`      ${describeChange(before, expected)}`);
-      if (!commit || offer.status === "accepted") continue;
+      if (!commit || current || offer.promotion_id || (offer.status === "accepted" && !staff)) continue;
 
       try {
-        if (offer.status === "sent" || offer.status === "viewed") {
+        if (offer.status === "accepted") {
+          await onMovedToStage(admin, app, { target: "offer", reason, alreadyPaid: false }, staff!);
+        } else if (offer.status === "sent" || offer.status === "viewed") {
           await onOfferWithdrawn(admin, app, offer, reason, SYSTEM_ACTOR);
           const { data: reloaded, error } = await admin.from("applications").select("id, reference, status, child_first_name, requires_assessment").eq("id", app.id).single();
           if (error || !reloaded) throw new Error(error?.message ?? "application vanished");
