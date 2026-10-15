@@ -211,100 +211,92 @@ describe("schemas", () => {
     const rare = studentSchema.safeParse({ ...ok, homeLanguage: "Klingon" });
     expect(rare.success && rare.data.homeLanguage).toBe("Klingon");
   });
+  const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
   /** A complete second guardian, as the form posts it. */
-  const second = {
-    secondaryTitle: "Mrs",
-    secondaryFirstName: "Neo",
-    secondaryLastName: "Moeti",
-    secondaryRelationship: "mother",
-    secondaryGender: "F",
-    secondaryEmail: "neo@example.com",
-    secondaryMobile: "+26771234568",
-  };
+  const secondary = { title: "Mrs", firstName: "Neo", lastName: "Moeti", relationship: "mother", gender: "F", email: "neo@example.com", mobile: "+26771234568" };
+  const withSecond = (changes: Record<string, unknown>) => ({ primary, secondary: { ...secondary, ...changes } });
 
   it("refuses the family step with the second guardian left blank", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
     // Required from 15 October 2026, with no exception for a family with one
     // parent: they name another adult who looks after the child. A native
     // select posts "" when left on "Choose…", so this is an untouched section.
-    const untouched = familySchema.safeParse({ primary, secondaryTitle: "", secondaryRelationship: "", secondaryGender: "", secondaryFirstName: "", secondaryLastName: "", secondaryEmail: "", secondaryMobile: "", secondaryPhone: "", secondaryAddress: "", secondaryNationality: "" });
+    const blank = { title: "", firstName: "", lastName: "", relationship: "", gender: "", email: "", mobile: "", phone: "", address: "", nationality: "" };
+    const untouched = familySchema.safeParse({ primary, secondary: blank });
     expect(untouched.success).toBe(false);
     if (!untouched.success) {
       expect(Object.keys(issuesToFields(untouched.error)).sort()).toEqual([
-        "secondaryEmail", "secondaryFirstName", "secondaryGender", "secondaryLastName", "secondaryMobile", "secondaryRelationship", "secondaryTitle",
+        "secondary.email", "secondary.firstName", "secondary.gender", "secondary.lastName", "secondary.mobile", "secondary.relationship", "secondary.title",
       ]);
     }
-    // Leaving the fields out altogether is no different.
+    // Leaving the section out altogether is no different.
     expect(familySchema.safeParse({ primary }).success).toBe(false);
     // A value outside the list is still refused.
-    expect(familySchema.safeParse({ primary, ...second, secondaryTitle: "Sir" }).success).toBe(false);
-    expect(familySchema.safeParse({ primary, ...second }).success).toBe(true);
+    expect(familySchema.safeParse(withSecond({ title: "Sir" })).success).toBe(false);
+    expect(familySchema.safeParse({ primary, secondary }).success).toBe(true);
   });
 
   it("asks the second guardian for an email and a mobile, as it does the first", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
-    const noEmail = familySchema.safeParse({ primary, ...second, secondaryEmail: "" });
+    const noEmail = familySchema.safeParse(withSecond({ email: "" }));
     expect(noEmail.success).toBe(false);
-    if (!noEmail.success) expect(issuesToFields(noEmail.error).secondaryEmail).toBe("Enter a valid email address.");
-    expect(familySchema.safeParse({ primary, ...second, secondaryEmail: "not an email" }).success).toBe(false);
-    const noMobile = familySchema.safeParse({ primary, ...second, secondaryMobile: "" });
+    if (!noEmail.success) expect(issuesToFields(noEmail.error)["secondary.email"]).toBe("Enter a valid email address.");
+    expect(familySchema.safeParse(withSecond({ email: "not an email" })).success).toBe(false);
+    const noMobile = familySchema.safeParse(withSecond({ mobile: "" }));
     expect(noMobile.success).toBe(false);
-    if (!noMobile.success) expect(issuesToFields(noMobile.error).secondaryMobile).toContain("second parent or guardian's mobile");
+    if (!noMobile.success) expect(Object.keys(issuesToFields(noMobile.error))).toContain("secondary.mobile");
     // The second mobile is held to the same rule as the first.
-    expect(familySchema.safeParse({ primary, ...second, secondaryMobile: "71234568" }).success).toBe(false);
-    const spaced = familySchema.safeParse({ primary, ...second, secondaryMobile: "+267 71 234 568" });
-    expect(spaced.success && spaced.data.secondaryMobile).toBe("+26771234568");
+    expect(familySchema.safeParse(withSecond({ mobile: "71234568" })).success).toBe(false);
+    const spaced = familySchema.safeParse(withSecond({ mobile: "+267 71 234 568" }));
+    expect(spaced.success && spaced.data.secondary.mobile).toBe("+26771234568");
   });
-  it("refuses the first guardian entered again as the second", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
-    const again = familySchema.safeParse({ primary, ...second, secondaryFirstName: " kago ", secondaryLastName: "MOETI" });
+  it("refuses the primary guardian entered again as the second", () => {
+    // Same name and same mobile, whatever the case, spacing or accents.
+    const again = familySchema.safeParse(withSecond({ firstName: " kágo ", lastName: "MOETI", mobile: primary.mobile }));
     expect(again.success).toBe(false);
-    if (!again.success) expect(issuesToFields(again.error).secondaryFirstName).toContain("different person");
+    if (!again.success) expect(issuesToFields(again.error)["secondary.firstName"]).toContain("different person");
+    // A father and the grandfather he names can share a name; their mobiles differ.
+    expect(familySchema.safeParse(withSecond({ firstName: "Kago", lastName: "Moeti", relationship: "grandparent", title: "Mr", gender: "M" })).success).toBe(true);
     // A couple may share an email and a mobile.
-    expect(familySchema.safeParse({ primary, ...second, secondaryEmail: primary.email, secondaryMobile: primary.mobile }).success).toBe(true);
+    expect(familySchema.safeParse(withSecond({ email: primary.email, mobile: primary.mobile })).success).toBe(true);
   });
   it("takes the second guardian's nationality from the list, as the first's", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
-    const listed = familySchema.safeParse({ primary, ...second, secondaryNationality: "botswana" });
-    expect(listed.success && listed.data.secondaryNationality).toBe("Motswana");
-    expect(familySchema.safeParse({ primary, ...second, secondaryNationality: "Narnian" }).success).toBe(false);
-    const blank = familySchema.safeParse({ primary, ...second, secondaryNationality: "" });
-    expect(blank.success && blank.data.secondaryNationality).toBe(null);
+    const listed = familySchema.safeParse(withSecond({ nationality: "botswana" }));
+    expect(listed.success && listed.data.secondary.nationality).toBe("Motswana");
+    expect(familySchema.safeParse(withSecond({ nationality: "Narnian" })).success).toBe(false);
+    const blank = familySchema.safeParse(withSecond({ nationality: "" }));
+    expect(blank.success && blank.data.secondary.nationality).toBe(null);
   });
   it("takes a mobile number only in the form WhatsApp accepts", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com" };
+    const noMobile = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com" };
     // Without a country code we would be guessing which country it is from.
-    const bare = familySchema.safeParse({ primary: { ...primary, mobile: "71234567" }, ...second });
+    const bare = familySchema.safeParse({ primary: { ...noMobile, mobile: "71234567" }, secondary });
     expect(bare.success).toBe(false);
     // A Gaborone landline is a real number and still no use for a message.
-    const landline = familySchema.safeParse({ primary: { ...primary, mobile: "+2673971234" }, ...second });
+    const landline = familySchema.safeParse({ primary: { ...noMobile, mobile: "+2673971234" }, secondary });
     expect(landline.success).toBe(false);
     // Spaces and a trunk zero are the parent's business, not the database's.
-    const spaced = familySchema.safeParse({ primary: { ...primary, mobile: "+267 71 234 567" }, ...second });
+    const spaced = familySchema.safeParse({ primary: { ...noMobile, mobile: "+267 71 234 567" }, secondary });
     expect(spaced.success && spaced.data.primary.mobile).toBe("+26771234567");
     // The other phone stays optional for both.
     expect(spaced.success && spaced.data.primary.phone).toBe(null);
-    expect(spaced.success && spaced.data.secondaryPhone).toBe(null);
+    expect(spaced.success && spaced.data.secondary.phone).toBe(null);
   });
   it("asks every guardian for what the Ed-admin import will not do without", () => {
-    const primary = { title: "Mr", firstName: "Kago", lastName: "Moeti", relationship: "father", gender: "M", email: "kago@example.com", mobile: "+26771234567" };
     // Gender is its own answer now. It used to be read off the title, which
     // says nothing for a Dr or a Reverend, and the row was refused on import.
     const noGender: Record<string, unknown> = { ...primary };
     delete noGender.gender;
-    expect(familySchema.safeParse({ primary: noGender, ...second }).success).toBe(false);
-    const asDoctor = familySchema.safeParse({ primary: { ...primary, title: "Dr", relationship: "guardian" }, ...second });
+    expect(familySchema.safeParse({ primary: noGender, secondary }).success).toBe(false);
+    const asDoctor = familySchema.safeParse({ primary: { ...primary, title: "Dr", relationship: "guardian" }, secondary });
     expect(asDoctor.success && asDoctor.data.primary.gender).toBe("M");
 
     // Ed-admin wants a number on every guardian it is given, and an email
     // does not stand in for one.
-    const emailOnly = familySchema.safeParse({ primary, ...second, secondaryMobile: undefined });
+    const emailOnly = familySchema.safeParse(withSecond({ mobile: undefined }));
     expect(emailOnly.success).toBe(false);
-    if (!emailOnly.success) expect(Object.keys(issuesToFields(emailOnly.error))).toContain("secondaryMobile");
+    if (!emailOnly.success) expect(Object.keys(issuesToFields(emailOnly.error))).toContain("secondary.mobile");
 
     // And a second guardian without a gender is refused too.
-    const noSecondGender = familySchema.safeParse({ primary, ...second, secondaryGender: "" });
-    expect(noSecondGender.success).toBe(false);
+    expect(familySchema.safeParse(withSecond({ gender: "" })).success).toBe(false);
   });
   it("matches the signature loosely to the guardian's name", () => {
     expect(signatureMatches("Kago Moeti", "Kago", "Moeti")).toBe(true);

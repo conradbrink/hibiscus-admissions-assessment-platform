@@ -266,10 +266,31 @@ describe("the second guardian, required since 15 October 2026", () => {
     expect(salutationOf(family)).toBe("Mr and Mrs Coetzer family");
   });
 
-  it("does not address a parent and a grandparent as a couple", () => {
-    // A parent on their own now names another adult, often their own mother.
+  it("does not address a parent and another relative as a couple", () => {
+    // A parent on their own now names another adult, often their own mother
+    // or sister, and the form lets them call her "Guardian".
     const grandmother = withSecond({ title: "Mrs", gender: "F", first_name: "Elna", relationship: "grandparent" });
-    expect(salutationOf(grandmother)).toBe("Mrs Sanet Coetzer");
+    expect(salutationOf(grandmother)).toBe("The Coetzer family");
+    const sister = withSecond({ title: "Miss", gender: "F", first_name: "Lize", relationship: "guardian" });
+    expect(salutationOf(sister)).toBe("The Coetzer family");
+  });
+
+  it("still addresses grandparents raising a grandchild as one family", () => {
+    const grandparents: FamilyExport = {
+      ...family,
+      record: {
+        ...record,
+        guardians: [
+          { ...record.guardians[0], relationship: "grandparent" },
+          { ...record.guardians[1], relationship: "grandparent" },
+        ],
+      },
+    };
+    expect(salutationOf(grandparents)).toBe("The Coetzer family");
+  });
+
+  it("matches the surname whatever its case", () => {
+    expect(salutationOf(withSecond({ last_name: "coetzer " }))).toBe("Mr and Mrs Coetzer family");
   });
 
   it("gives the second guardian the first one's address when the form's 'if different' was left blank", () => {

@@ -300,18 +300,26 @@ export const ACCOUNTS_COLUMNS: readonly string[] = [
 ];
 
 /**
- * Relationships that make two guardians a couple for the salutation. Since the
- * second guardian became required, a parent on their own names a grandparent,
- * who often shares the surname; "Mrs and Mr Moeti family" would address a
- * father and his mother as a married couple.
+ * The relationships that make two guardians with one surname the child's
+ * parents, addressed together by their titles.
+ *
+ * Since the second guardian became required, a parent on their own names
+ * another adult, often their own mother or sister, who shares the surname
+ * and may be entered as "Guardian". Addressing that pair by their titles,
+ * "Mrs and Mr Moeti family", reads as a married couple. So only a pair who
+ * are both the child's parents get the titles; any other pair with one
+ * surname, grandparents raising a grandchild included, is "The Moeti family",
+ * which is right whoever they are.
  */
-const PARENT_RELATIONSHIPS = new Set(["mother", "father", "parent", "guardian", "stepmother", "stepfather", "step-mother", "step-father"]);
-const isParent = (g: Guardian) => PARENT_RELATIONSHIPS.has((g.relationship ?? "").toLowerCase());
+const PARENTS = new Set(["mother", "father", "parent"]);
 
 function salutation(g1: Guardian | undefined, g2: Guardian | undefined): string {
   if (!g1) return "";
   const a = fromGuardian(g1);
-  if (g2 && g2.last_name === g1.last_name && isParent(g1) && isParent(g2)) {
+  const surname = (g: Guardian) => (g.last_name ?? "").trim().toLowerCase();
+  if (g2 && surname(g2) === surname(g1)) {
+    const parents = PARENTS.has((g1.relationship ?? "").toLowerCase()) && PARENTS.has((g2.relationship ?? "").toLowerCase());
+    if (!parents) return `The ${g1.last_name} family`;
     const b = fromGuardian(g2);
     const titles = [b.title, a.title].filter(Boolean).join(" and ");
     return `${titles || "The"} ${g1.last_name} family`.replace(/^The /, "The ").trim();

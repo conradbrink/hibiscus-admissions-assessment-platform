@@ -74,7 +74,7 @@ export function FamilyForm({
   const f = state.fields ?? {};
   const sv = state.values ?? {};
   const p = (k: string) => sv[`primary.${k}`] ?? primary[k] ?? "";
-  const s = (k: string) => sv[`secondary${k[0].toUpperCase()}${k.slice(1)}`] ?? secondary[k] ?? "";
+  const s = (k: string) => sv[`secondary.${k}`] ?? secondary[k] ?? "";
   const pre = (k: string) => prefilled.includes(`primary.${k}`);
   const input = (name: string, label: string, value: string, opts: { required?: boolean; type?: string; hint?: string; prefilled?: boolean } = {}) => (
     <Field id={name} label={label} error={f[name]} hint={opts.hint} prefilled={opts.prefilled}>
@@ -114,18 +114,18 @@ export function FamilyForm({
           is no other parent, give another person who looks after the child, such as a grandparent. We need their email and
           mobile number.
         </p>
-        <TitleSelect name="secondaryTitle" value={s("title")} error={f.secondaryTitle} readOnly={readOnly} />
-        {input("secondaryFirstName", "First name", s("firstName"), { required: true })}
-        {input("secondaryLastName", "Surname", s("lastName"), { required: true })}
-        <RelationshipSelect name="secondaryRelationship" value={s("relationship")} error={f.secondaryRelationship} readOnly={readOnly} />
-        <GenderSelect name="secondaryGender" value={s("gender")} error={f.secondaryGender} readOnly={readOnly} />
-        {input("secondaryEmail", "Email", s("email"), { required: true, type: "email" })}
-        <Field id="secondaryMobile" label="Mobile" error={f.secondaryMobile}>
-          <MobileInput name="secondaryMobile" defaultValue={s("mobile")} required readOnly={readOnly} invalid={Boolean(f.secondaryMobile)} />
+        <TitleSelect name="secondary.title" value={s("title")} error={f["secondary.title"]} readOnly={readOnly} />
+        {input("secondary.firstName", "First name", s("firstName"), { required: true })}
+        {input("secondary.lastName", "Surname", s("lastName"), { required: true })}
+        <RelationshipSelect name="secondary.relationship" value={s("relationship")} error={f["secondary.relationship"]} readOnly={readOnly} />
+        <GenderSelect name="secondary.gender" value={s("gender")} error={f["secondary.gender"]} readOnly={readOnly} />
+        {input("secondary.email", "Email", s("email"), { required: true, type: "email" })}
+        <Field id="secondary.mobile" label="Mobile" error={f["secondary.mobile"]}>
+          <MobileInput name="secondary.mobile" defaultValue={s("mobile")} required readOnly={readOnly} invalid={Boolean(f["secondary.mobile"])} />
         </Field>
-        {input("secondaryPhone", "Other phone", s("phone"), { type: "tel" })}
-        {input("secondaryAddress", "Home address, if different", s("address"))}
-        <CountryField name="secondaryNationality" label="Nationality" kind="nationality" initial={s("nationality")} error={f.secondaryNationality} fields={f} readOnly={readOnly} />
+        {input("secondary.phone", "Other phone", s("phone"), { type: "tel" })}
+        {input("secondary.address", "Home address, if different", s("address"))}
+        <CountryField name="secondary.nationality" label="Nationality" kind="nationality" initial={s("nationality")} error={f["secondary.nationality"]} fields={f} readOnly={readOnly} />
       </fieldset>
       {state.error ? <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{state.error}</p> : null}
       {!readOnly ? (

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { canonicalCountry, canonicalNationality } from "@/lib/countries";
+import { normaliseText } from "@/lib/documents/compare";
 import { canonicalFromList, LANGUAGES, MEDICAL_AIDS } from "@/lib/pick-lists";
 import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 
@@ -133,31 +134,27 @@ const guardian = z.object({
  * reached Ed-admin with nothing on its G2 sheets. From 15 October 2026 every
  * registration needs a second guardian, with no exception: a parent who is
  * the only one names another adult who cares for the child, such as a
- * grandparent. The field names stay flat (`secondaryFirstName`) because the
- * form and the saved values already use them.
+ * grandparent.
  *
- * A second guardian with the first one's name is refused: it is the one way
- * a parent on their own could fill the section without naming anybody else.
- * A shared email or mobile is allowed, because couples share them.
+ * Both are the same `guardian` rules. The second guardian used to have its
+ * own hand-written copy, and the copy drifted: its nationality was never
+ * checked against the list, and Ed-admin dropped the ones it did not know.
  */
-const sameName = (a: string, b: string) => a.trim().toLowerCase().replace(/\s+/g, " ") === b.trim().toLowerCase().replace(/\s+/g, " ");
+const requiredGuardian = guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber });
 
-export const familySchema = z.object({
-  primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
-  secondaryTitle: z.enum(TITLES, { error: "Choose a title." }),
-  secondaryFirstName: required(80, "Enter the second parent or guardian's first name."),
-  secondaryLastName: required(80, "Enter the second parent or guardian's surname."),
-  secondaryRelationship: z.enum(RELATIONSHIPS, { error: "Choose the relationship." }),
-  secondaryGender: z.enum(GUARDIAN_GENDERS, { error: "Choose female or male." }),
-  secondaryEmail: z.email("Enter a valid email address.").max(160),
-  secondaryMobile: z.string().trim().min(1, "Enter the second parent or guardian's mobile number.").pipe(mobileNumber),
-  secondaryPhone: optional(40),
-  secondaryAddress: optional(300),
-  // From the list, as the first guardian's is: Ed-admin drops any other spelling.
-  secondaryNationality: optionalNationality,
-}).superRefine((v, ctx) => {
-  if (sameName(v.primary.firstName, v.secondaryFirstName) && sameName(v.primary.lastName, v.secondaryLastName)) {
-    ctx.addIssue({ code: "custom", path: ["secondaryFirstName"], message: "Give a different person from the first parent or guardian." });
+/**
+ * The parent entered again as the second guardian: the same name *and* the
+ * same mobile. A name alone is not enough, because a father and the
+ * grandfather he names can share one; a mobile alone is not either, because
+ * couples share them.
+ */
+function sameGuardian(a: z.infer<typeof requiredGuardian>, b: z.infer<typeof requiredGuardian>): boolean {
+  return normaliseText(a.firstName) === normaliseText(b.firstName) && normaliseText(a.lastName) === normaliseText(b.lastName) && a.mobile === b.mobile;
+}
+
+export const familySchema = z.object({ primary: requiredGuardian, secondary: requiredGuardian }).superRefine((v, ctx) => {
+  if (sameGuardian(v.primary, v.secondary)) {
+    ctx.addIssue({ code: "custom", path: ["secondary", "firstName"], message: "Give a different person from the primary parent or guardian." });
   }
 });
 

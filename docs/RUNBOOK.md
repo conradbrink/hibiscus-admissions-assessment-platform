@@ -353,8 +353,9 @@ registration is complete — enrolment would refuse it a step later anyway.
 From 15 October 2026 the Family step asks for **two** parents or guardians,
 and an email and a mobile number for each. There is no exception for a family
 with one parent: they give another person who looks after the child, such as
-a grandparent. The step refuses a second guardian with the same name as the
-first. The school's other system, Ed-admin, gets this person on its G2 tabs.
+a grandparent. The step refuses a second guardian with the same name and the
+same mobile as the primary one, which is the parent entered twice. The
+school's other system, Ed-admin, gets this person on its G2 tabs.
 
 The rule is checked when the parent saves the Family step. A family that
 saved it before then with one guardian is not sent back: their registration
@@ -796,10 +797,10 @@ already exist. Basic has no phone numbers, emails or addresses. If every
 family arrives in Ed-admin with names but none of those, the other five tabs
 were not imported. One family with a gap may simply not have given that
 detail: an address and a home phone are optional at registration. An email
-and a mobile are not, for either guardian, on any registration saved from
-15 October 2026. Every registration from that date also has a second
-guardian. A family registered before then may not, and the G2 tabs list only
-the families that have one; in a batch with none they hold only the header
+and a mobile are not, for either guardian, on a Family step saved from
+15 October 2026, and a Family step saved from that date always has a second
+guardian. A family that saved it before then may not, and the G2 tabs list
+only the families that have one; in a batch with none they hold only the header
 row and there is nothing to import from them.
 
 They are separate files on purpose — that system will not take parent and
