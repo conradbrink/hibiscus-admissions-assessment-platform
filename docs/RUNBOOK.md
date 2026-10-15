@@ -775,10 +775,14 @@ own Parents import template. Every tab starts with the family code:
 | G2 Address | The second guardian's address |
 | Accounts (By Family Code) | The billing address, phone and email |
 
-**Import every tab, not just the first.** Basic holds only the names. If a
-family arrives in Ed-admin with names but no phone number, email or address,
-the other five tabs were not imported. The G2 tabs list only the families
-that have a second guardian.
+**Import every tab, not just the first, and import Basic first.** Basic
+creates each family; the other tabs add details to a family code that must
+already exist. Basic has no phone numbers, emails or addresses. If every
+family arrives in Ed-admin with names but none of those, the other five tabs
+were not imported. One family with a gap may simply not have given that
+detail: phone, email and address are optional at registration. The G2 tabs
+list only the families that have a second guardian, so in a batch with none
+they hold only the header row and there is nothing to import from them.
 
 They are separate files on purpose — that system will not take parent and
 student details together. The **only** thing in both is the **family code**,
@@ -789,9 +793,11 @@ attach each child to the account the first one opened.
 A past batch can be taken again as either half, from the list at the bottom.
 The pair always matches, because both are rendered from the same records.
 
-Columns we do not collect (a guardian's profession, company, work phone and
-passport number; a child's religion and class) are present and empty, because
-a row has to be the same shape as the header. Dates are written `dd/mm/yyyy`.
+Columns we do not collect are present and empty, because a row has to be the
+same shape as the header. Among them: a guardian's profession, company, work
+phone, fax and passport number; every post code; and a child's religion,
+class, email and cell. An empty column of this kind does not mean the import
+failed. Dates are written `dd/mm/yyyy`.
 
 The older, configurable layout is still there under *Or the older,
 configurable layout*, with its columns under **Set up → Export columns**;

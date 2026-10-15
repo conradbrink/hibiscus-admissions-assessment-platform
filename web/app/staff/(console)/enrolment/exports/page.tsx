@@ -17,10 +17,11 @@ function isTemplateBatch(columnsSnapshot: unknown): boolean {
 }
 
 /**
- * Enrolled students as a file for the student management system. The
- * columns are configuration; each record remembers the batch that carried
- * it, so "not yet exported" is the default view and nothing is sent twice
- * by accident. Reads through RLS: a campus team exports its own students.
+ * Enrolled students as files for the student management system: Ed-admin's
+ * own two workbooks, with fixed columns, or the older layout whose columns
+ * are configuration. Each record remembers the batch that carried it, so
+ * "not yet exported" is the default view and nothing is sent twice by
+ * accident. Reads through RLS: a campus team exports its own students.
  */
 export default async function ExportsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -55,7 +56,7 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
         data={header}
         stage="enrolment"
         view="export"
-        description="Enrolled students as Excel workbooks in Ed-admin's own layout, for the student management system. Each download is a batch; records remember which batch carried them."
+        description="Enrolled students as Excel workbooks in Ed-admin's own layout, or as CSV or JSON in the older configurable one. The student file records a batch; records remember which batch carried them."
       />
 
       <form method="get" className="mb-4 flex flex-wrap items-end gap-2">
@@ -86,8 +87,8 @@ export default async function ExportsPage({ searchParams }: { searchParams: Prom
             </p>
             <p className="mb-3 max-w-2xl text-xs text-muted-foreground">
               The parent file is an Excel workbook with six tabs: Basic, G1 Contact, G1 Address, G2 Contact, G2 Address
-              and Accounts. Basic holds only the names. Phone numbers, emails and addresses are on the other tabs, so
-              import every tab, not just the first.
+              and Accounts (By Family Code). Basic has the names, titles and relations but no phone numbers, emails or
+              addresses; those are on the other tabs. Import Basic first, then every other tab.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" name="layout" value="parent" size="lg" variant="outline">Parent details (Excel)</Button>
