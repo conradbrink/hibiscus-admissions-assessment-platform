@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { canonicalCountry, canonicalNationality } from "@/lib/countries";
-import { normaliseText } from "@/lib/documents/compare";
+import { foldName } from "@/lib/names";
 import { canonicalFromList, LANGUAGES, MEDICAL_AIDS } from "@/lib/pick-lists";
 import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 
@@ -140,16 +140,22 @@ const guardian = z.object({
  * own hand-written copy, and the copy drifted: its nationality was never
  * checked against the list, and Ed-admin dropped the ones it did not know.
  */
-const requiredGuardian = guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber });
+const requiredGuardian = guardian.extend({
+  email: z.email("Enter a valid email address.").max(160),
+  // `mobileNumber` asks for "a mobile number we can reach you on", which is
+  // right on the enquiry form and wrong under the second guardian's name.
+  mobile: z.string().trim().min(1, "Enter a mobile number.").pipe(mobileNumber),
+});
 
 /**
- * The parent entered again as the second guardian: the same name *and* the
- * same mobile. A name alone is not enough, because a father and the
- * grandfather he names can share one; a mobile alone is not either, because
- * couples share them.
+ * The parent entered again as the second guardian: the same name and the
+ * same mobile or email. A name alone is not enough, because a father and the
+ * grandfather he names can share one; a mobile or an email alone is not
+ * either, because couples share them.
  */
 function sameGuardian(a: z.infer<typeof requiredGuardian>, b: z.infer<typeof requiredGuardian>): boolean {
-  return normaliseText(a.firstName) === normaliseText(b.firstName) && normaliseText(a.lastName) === normaliseText(b.lastName) && a.mobile === b.mobile;
+  const sameName = foldName(a.firstName) === foldName(b.firstName) && foldName(a.lastName) === foldName(b.lastName);
+  return sameName && (a.mobile === b.mobile || a.email.trim().toLowerCase() === b.email.trim().toLowerCase());
 }
 
 export const familySchema = z.object({ primary: requiredGuardian, secondary: requiredGuardian }).superRefine((v, ctx) => {

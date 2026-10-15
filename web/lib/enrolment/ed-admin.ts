@@ -1,6 +1,7 @@
 import accepted from "@/content/enrolment/accepted-values.json";
 import edAdminCodes from "@/content/enrolment/ed-admin-codes.json";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
+import { foldName } from "@/lib/names";
 import { buildWorkbook, type Sheet } from "@/lib/enrolment/xlsx";
 
 /**
@@ -312,17 +313,14 @@ export const ACCOUNTS_COLUMNS: readonly string[] = [
  * which is right whoever they are.
  */
 const PARENTS = new Set(["mother", "father", "parent"]);
+const isParent = (g: Guardian) => PARENTS.has((g.relationship ?? "").trim().toLowerCase());
 
 function salutation(g1: Guardian | undefined, g2: Guardian | undefined): string {
   if (!g1) return "";
   const a = fromGuardian(g1);
-  const surname = (g: Guardian) => (g.last_name ?? "").trim().toLowerCase();
-  if (g2 && surname(g2) === surname(g1)) {
-    const parents = PARENTS.has((g1.relationship ?? "").toLowerCase()) && PARENTS.has((g2.relationship ?? "").toLowerCase());
-    if (!parents) return `The ${g1.last_name} family`;
-    const b = fromGuardian(g2);
-    const titles = [b.title, a.title].filter(Boolean).join(" and ");
-    return `${titles || "The"} ${g1.last_name} family`.replace(/^The /, "The ").trim();
+  if (g2 && foldName(g2.last_name) === foldName(g1.last_name)) {
+    const titles = isParent(g1) && isParent(g2) ? [fromGuardian(g2).title, a.title].filter(Boolean).join(" and ") : "";
+    return `${titles || "The"} ${g1.last_name.trim()} family`;
   }
   return [a.title, g1.first_name, g1.last_name].filter(Boolean).join(" ");
 }

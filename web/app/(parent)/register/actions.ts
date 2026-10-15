@@ -6,6 +6,7 @@ import { normaliseMobile } from "@/lib/contacts";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { drainSoon } from "@/lib/parent/actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { nest } from "@/lib/registration/form-values";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
 import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
@@ -117,22 +118,14 @@ export async function saveMedical(_prev: RegisterFormState, formData: FormData):
   redirect("/register/family");
 }
 
-/** Nested form names ("primary.firstName") into the object the schema expects. */
-function nest(values: Record<string, string>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(values)) {
-    const [head, tail] = k.split(".");
-    if (tail) {
-      const group = (out[head] ??= {}) as Record<string, string>;
-      group[tail] = v;
-    } else out[head] = v;
-  }
-  return out;
-}
-
 export async function saveFamily(_prev: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
   const values = valuesOf(formData);
-  const parsed = familySchema.safeParse(nest(values));
+  const nested = nest(values);
+  // A page opened before the second guardian was required posts the old
+  // field names, and the only error would sit on no field at all: the save
+  // would look as if it did nothing.
+  if (!nested.secondary) return { error: "This page has changed since you opened it. Reload it, then fill in the second parent or guardian.", values };
+  const parsed = familySchema.safeParse(nested);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
     const { admin, graph } = await openSession();

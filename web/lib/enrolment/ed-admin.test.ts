@@ -289,8 +289,9 @@ describe("the second guardian, required since 15 October 2026", () => {
     expect(salutationOf(grandparents)).toBe("The Coetzer family");
   });
 
-  it("matches the surname whatever its case", () => {
+  it("matches the surname whatever its case, spacing or accents", () => {
     expect(salutationOf(withSecond({ last_name: "coetzer " }))).toBe("Mr and Mrs Coetzer family");
+    expect(salutationOf(withSecond({ last_name: "Coétzer" }))).toBe("Mr and Mrs Coetzer family");
   });
 
   it("gives the second guardian the first one's address when the form's 'if different' was left blank", () => {
