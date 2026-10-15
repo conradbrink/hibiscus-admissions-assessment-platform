@@ -34,7 +34,9 @@ export type RegistrationFacts = {
 
 export function normaliseText(s: string | null | undefined): string {
   return (s ?? "")
-    .normalize("NFD")
+    // NFKD rather than NFD: a document from China or Japan may print a name
+    // in full-width letters, Ｔｈａｔｏ, which NFKD makes ordinary ones.
+    .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -67,7 +69,7 @@ function str(v: Json | undefined): string | null {
  * document by eye, and the parent is not told.
  */
 function unreadable(registrationValue: string, documentValue: string): boolean {
-  const hasLetters = (s: string) => tokens(s).some((t) => /[a-z]/.test(t));
+  const hasLetters = (s: string) => /[a-z]/.test(normaliseText(s));
   return !hasLetters(registrationValue) || !hasLetters(documentValue);
 }
 
@@ -178,10 +180,10 @@ export function documentReadingOutcome(input: {
   confidence: number;
   flags: MismatchFlag[];
   comparisons: Comparison[];
-}): { summary: string; tasks: Array<{ type: string; title: string; details: string; priority: "normal" }> } {
+}): { summary: string; tasks: ReadingTask[]; unreadableFields: Comparison["field"][] } {
   const label = input.requirementCode.replace(/_/g, " ");
   const unreadableNames = input.comparisons.filter((c) => c.match === "unreadable");
-  const tasks: Array<{ type: string; title: string; details: string; priority: "normal" }> = [];
+  const tasks: ReadingTask[] = [];
   if (input.flags.length) {
     tasks.push({
       type: "review_document_mismatch",
@@ -191,20 +193,33 @@ export function documentReadingOutcome(input: {
     });
   }
   if (unreadableNames.length) {
-    const lines = unreadableNames.map((c) => `${c.label}: the ${label} shows ${c.document_value ?? "—"}; the form says ${c.registration_value ?? "—"}`).join("\n");
+    const lines = mismatchText(unreadableNames.map((c) => ({ ...c, requirement_code: input.requirementCode, document_id: "" })));
     tasks.push({
-      type: "review_document_unreadable",
+      type: unreadableTaskType(input.requirementCode),
       title: `${input.childFirstName}: check the name on the ${label} by eye`,
-      details: `${lines}\n\nThese names could not be compared by machine: one is written without Latin letters, or the reading has no name in it. Check the document against the registration yourself. The parent has not been told, and nothing has been changed.`,
+      details: `${lines}\n\nThese names could not be compared by machine: one of them has no letters of the Latin alphabet. Check the document against the registration yourself. The parent has not been told, and nothing has been changed.`,
       priority: "normal",
     });
   }
+  const unreadableNote = unreadableNames.length ? "; the name could not be compared, and a person will check it" : "";
   const summary = input.flags.length
-    ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})`
+    ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})${unreadableNote}`
     : unreadableNames.length
       ? `Document read: the name on the ${label} could not be compared; a person will check it`
       : `Document read: ${label} agrees with the registration`;
-  return { summary, tasks };
+  return { summary, tasks, unreadableFields: unreadableNames.map((c) => c.field) };
+}
+
+type ReadingTask = { type: string; title: string; details: string; priority: "normal" };
+
+/**
+ * One by-eye task type per kind of document. Tasks are resolved by type
+ * across the application, so a single type would let a reading of the school
+ * report close the birth certificate's task before anybody had looked at it.
+ * A family has one live document of each kind.
+ */
+export function unreadableTaskType(requirementCode: string): string {
+  return `review_document_unreadable:${requirementCode}`;
 }
 
 export function mismatchFlags(comparisons: Comparison[], requirementCode: string, documentId: string): MismatchFlag[] {

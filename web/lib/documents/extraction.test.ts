@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareExtraction, documentReadingOutcome, mismatchFlags, mismatchText, normaliseText, parseMismatchFlags, type RegistrationFacts } from "@/lib/documents/compare";
+import { compareExtraction, documentReadingOutcome, mismatchFlags, mismatchText, normaliseText, parseMismatchFlags, unreadableTaskType, type RegistrationFacts } from "@/lib/documents/compare";
 import { BIRTH_CERTIFICATE_SCHEMA, devOutputFor, isExtractable, SCHOOL_REPORT_SCHEMA, schemaFor, systemPromptFor } from "@/lib/documents/extraction-schemas";
 
 const registration = {
@@ -106,7 +106,8 @@ describe("compareExtraction", () => {
       const flags = mismatchFlags(comparisons, "birth_certificate", "doc-1");
       expect(flags).toEqual([]);
       const outcome = documentReadingOutcome({ childFirstName: "Wei", requirementCode: "birth_certificate", confidence: 0.9, flags, comparisons });
-      expect(outcome.tasks.map((t) => t.type)).toEqual(["review_document_unreadable"]);
+      expect(outcome.tasks.map((t) => t.type)).toEqual(["review_document_unreadable:birth_certificate"]);
+      expect(outcome.unreadableFields).toEqual(["legal_first_name", "legal_last_name"]);
       expect(outcome.tasks[0].title).toBe("Wei: check the name on the birth certificate by eye");
       expect(outcome.tasks[0].details).toContain("First names: the birth certificate shows 娜; the form says 伟");
       expect(outcome.tasks[0].details).toContain("The parent has not been told");
@@ -114,10 +115,30 @@ describe("compareExtraction", () => {
     });
   });
 
+  it("keeps one by-eye task type per kind of document", () => {
+    // Tasks are resolved by type, so a reading of the school report must not
+    // close the birth certificate's task.
+    expect(unreadableTaskType("birth_certificate")).not.toBe(unreadableTaskType("school_report"));
+  });
+
+  it("says in the summary when a differing reading also had a name it could not compare", () => {
+    const chinese: RegistrationFacts = { ...registration, legal_first_name: "伟", legal_middle_names: null, legal_last_name: "王" };
+    const comparisons = compareExtraction(chinese, { first_names: "娜", last_name: "李", date_of_birth: "2017-04-16", place_of_birth: null, sex: null }, "birth_certificate");
+    const flags = mismatchFlags(comparisons, "birth_certificate", "d");
+    const out = documentReadingOutcome({ childFirstName: "Wei", requirementCode: "birth_certificate", confidence: 0.9, flags, comparisons });
+    expect(out.summary).toBe("Document read: birth certificate differs from the registration (date of birth); the name could not be compared, and a person will check it");
+    expect(out.tasks.map((t) => t.type)).toEqual(["review_document_mismatch", "review_document_unreadable:birth_certificate"]);
+  });
+
+  it("reads a name printed in full-width letters", () => {
+    const c = compareExtraction(registration, { first_names: "Ｔｈａｔｏ Ｎｅｏ", last_name: "Ｍｏｙｏ", date_of_birth: null, place_of_birth: null, sex: null }, "birth_certificate");
+    expect(Object.fromEntries(c.map((x) => [x.field, x.match]))).toMatchObject({ legal_first_name: "same", legal_last_name: "same" });
+  });
+
   it("words a reading that agrees, and one that differs, as before", () => {
     const agrees = compareExtraction(registration, { first_names: "Thato Neo", last_name: "Moyo", date_of_birth: "2017-04-15", place_of_birth: "Gaborone", sex: "female" }, "birth_certificate");
     const ok = documentReadingOutcome({ childFirstName: "Thato", requirementCode: "birth_certificate", confidence: 0.9, flags: mismatchFlags(agrees, "birth_certificate", "d"), comparisons: agrees });
-    expect(ok).toEqual({ summary: "Document read: birth certificate agrees with the registration", tasks: [] });
+    expect(ok).toEqual({ summary: "Document read: birth certificate agrees with the registration", tasks: [], unreadableFields: [] });
     const differs = compareExtraction(registration, { first_names: "Thato Neo", last_name: "Dube", date_of_birth: "2017-04-15", place_of_birth: null, sex: null }, "birth_certificate");
     const flags = mismatchFlags(differs, "birth_certificate", "d");
     const out = documentReadingOutcome({ childFirstName: "Thato", requirementCode: "birth_certificate", confidence: 0.9, flags, comparisons: differs });

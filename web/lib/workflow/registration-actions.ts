@@ -2,7 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationGraph } from "@/lib/applications";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
-import { documentReadingOutcome, mismatchText, parseMismatchFlags, type Comparison, type MismatchFlag } from "@/lib/documents/compare";
+import { documentReadingOutcome, mismatchText, parseMismatchFlags, unreadableTaskType, type Comparison, type MismatchFlag } from "@/lib/documents/compare";
 import { missingDocumentsText, outstandingItemsText, type Completeness } from "@/lib/registration/completeness";
 
 const DAY = 86_400_000;
@@ -146,10 +146,22 @@ export async function onDocumentExtracted(
     event: {
       type: "document.extracted",
       summary: outcome.summary,
-      payload: { document_id: document.id, requirement_code: document.requirement_code, confidence: reading.confidence, mismatches: reading.flags as unknown as Json },
+      payload: {
+        document_id: document.id,
+        requirement_code: document.requirement_code,
+        confidence: reading.confidence,
+        mismatches: reading.flags as unknown as Json,
+        unreadable: outcome.unreadableFields,
+      },
     },
     tasks: outcome.tasks,
-    resolveTaskTypes: reading.flags.length ? [] : ["review_document_mismatch"],
+    // A fresh reading of this document replaces its own by-eye task rather
+    // than adding a second. Mismatch tasks close only when the reading
+    // agreed: a name that could not be compared is not agreement.
+    resolveTaskTypes: [
+      unreadableTaskType(document.requirement_code),
+      ...(reading.flags.length || outcome.unreadableFields.length ? [] : ["review_document_mismatch"]),
+    ],
     actor: SYSTEM_ACTOR,
   });
 }
@@ -230,6 +242,8 @@ export async function onDocumentReviewed(
           ]
         : [],
     audit: { action: "document.reviewed", entityType: "document", entityId: document.id, after: { status: review.status, note: review.note } },
+    // Accepting or rejecting the document is the check by eye being done.
+    resolveTaskTypes: [unreadableTaskType(document.requirement_code)],
     actor,
   });
 }
