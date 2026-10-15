@@ -987,7 +987,8 @@ applications at those campuses have no month yet and the letter names the
 term until somebody sets one.
 
 Potch prices the month at two rates, half day and full day, with lunch in the
-price for Babies to Juniors and R400 a month on top for Grade RR and Grade R.
+price for Babies to Juniors and charged on top for Grade RR and Grade R (R400
+a month in 2026, R500 in 2027).
 Set **Full or half day?** on the applicant and the letter quotes that rate;
 until then it quotes both and asks the family which suits them.
 
