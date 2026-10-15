@@ -173,7 +173,10 @@ export const emergencySchema = z.object({
 });
 
 export const agreementsSchema = z.object({
-  signatureName: required(120, "Type your full name as your signature."),
+  // NFKC turns full-width letters from a CJK keyboard into ordinary ones,
+  // which the signed-agreements PDF's font can print. It runs first, so the
+  // trim and the cap apply to what is stored.
+  signatureName: z.preprocess((v) => (typeof v === "string" ? v.normalize("NFKC") : v), required(120, "Type your full name as your signature.")),
   acceptedKeys: z.array(z.string().regex(/^[a-z0-9_]+$/)).default([]),
   /**
    * The agreements the parent answered *no* to. Only an agreement the school
@@ -194,9 +197,55 @@ export function issuesToFields(error: z.ZodError): Record<string, string> {
   return out;
 }
 
-/** The typed signature must be the primary guardian's name, loosely: case and spacing aside. */
+/** Letters NFKD cannot split, spelled as a keyboard without them would; ς is Greek's final σ. */
+const LATIN_LETTERS: Record<string, string> = { "ı": "i", "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ß": "ss", "æ": "ae", "œ": "oe", "þ": "th", "ς": "σ" };
+/** The other way to type them: "Mueller" for Müller, "Soeren" for Søren, "Aase" for Åse. */
+const SPELLED_OUT: Record<string, string> = { "ä": "ae", "ö": "oe", "ü": "ue", "ø": "oe", "å": "aa" };
+
+/**
+ * A name folded for the signature check: NFKC first (so a decomposed ü is
+ * one letter and full-width or styled letters are ordinary ones), then lower
+ * case, accents off, the letters above spelled out, letters of every script
+ * kept and everything else gone. `spelledOut` takes ü as "ue" and ø as "oe";
+ * without it they are plain "u" and "o".
+ */
+function signatureFold(value: string, spelledOut: boolean): string {
+  let s = value.normalize("NFKC").toLowerCase();
+  if (spelledOut) s = s.replace(/[äöüøå]/g, (c) => SPELLED_OUT[c]);
+  return s
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[ıłøđðßæœþς]/g, (c) => LATIN_LETTERS[c])
+    .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+const SIGNATURE_FOLDS: Array<(s: string) => string> = [
+  (s) => s.toLowerCase().replace(/[^a-z]/g, ""),
+  (s) => signatureFold(s, false),
+  (s) => signatureFold(s, true),
+];
+
+/**
+ * The typed signature must be the primary guardian's name, loosely: case,
+ * spacing, accents and the way a letter is typed on a keyboard without it
+ * all aside.
+ *
+ * It used to fold everything to a-z, which drops an accented letter outright:
+ * "Kágo" became "kgo" while the signature "Kago" kept its a, so the parent
+ * was refused for leaving the accent out. "Yilmaz" for "Yılmaz" and "Mueller"
+ * for "Müller" were refused the same way, and a signature in the name's own
+ * script folded to nothing and was refused too.
+ *
+ * Each part of the name may now match under that old fold or under
+ * `signatureFold` either way. These are alternatives, never replacements:
+ * the check only accepts more than it did, because a refused signature is a
+ * parent stuck at the last step of registration. That keeps one old
+ * looseness on purpose — a part with no Latin letters is "included" in any
+ * Latin signature, which is how "Mohammed Ali" signs for محمد علي.
+ */
 export function signatureMatches(signature: string, firstName: string, lastName: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
-  const sig = norm(signature);
-  return sig.length > 0 && sig.includes(norm(firstName)) && sig.includes(norm(lastName));
+  const signed = SIGNATURE_FOLDS.map((fold) => fold(signature));
+  return [firstName, lastName].every((part) =>
+    SIGNATURE_FOLDS.some((fold, i) => signed[i].length > 0 && signed[i].includes(fold(part)))
+  );
 }

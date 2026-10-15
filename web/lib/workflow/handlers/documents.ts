@@ -75,6 +75,7 @@ export async function documentExtractHandler(admin: AdminClient, job: JobRow): P
   await onDocumentExtracted(admin, app, document, {
     confidence: result.confidence,
     flags: mismatchFlags(comparisons, document.requirement_code, document.id),
+    comparisons,
     existingFlags: registration?.mismatch_flags ?? null,
   });
   return { outcome: "done" };

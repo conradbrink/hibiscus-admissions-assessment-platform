@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applicableAgreements, applicableRequirements, missingDocumentsText, nextStep, registrationCompleteness } from "@/lib/registration/completeness";
 import { changedFromApplication } from "@/lib/registration/prefill";
-import { familySchema, issuesToFields, signatureMatches, studentSchema } from "@/lib/registration/schema";
+import { agreementsSchema, familySchema, issuesToFields, signatureMatches, studentSchema } from "@/lib/registration/schema";
 import type { AgreementAcceptanceRow, AgreementTemplateRow, DocumentRequirementRow, DocumentRow, RegistrationContactRow, RegistrationRow } from "@/lib/supabase/types";
 
 const req = (code: string, required = true, min: number | null = null): DocumentRequirementRow => ({
@@ -303,6 +303,54 @@ describe("schemas", () => {
     expect(signatureMatches("  KAGO   MOETI ", "Kago", "Moeti")).toBe(true);
     expect(signatureMatches("Kago", "Kago", "Moeti")).toBe(false);
     expect(signatureMatches("", "Kago", "Moeti")).toBe(false);
+  });
+  it("accepts a signature typed with or without the name's accents", () => {
+    // "Kágo" used to fold to "kgo", so the plain "Kago" was refused.
+    expect(signatureMatches("Kago Moeti", "Kágo", "Moeti")).toBe(true);
+    expect(signatureMatches("Kágo Moéti", "Kago", "Moeti")).toBe(true);
+    expect(signatureMatches("Jose Dos Santos", "José", "dos Santos")).toBe(true);
+    // Full-width letters from a CJK keyboard are the same name.
+    expect(signatureMatches("Ｋａｇｏ Ｍｏｅｔｉ", "Kago", "Moeti")).toBe(true);
+    // Still the guardian's name, not any name.
+    expect(signatureMatches("Jose Moeti", "Kágo", "Moeti")).toBe(false);
+  });
+  it("accepts a letter typed the way a keyboard without it would, either way round", () => {
+    expect(signatureMatches("Ayse Yilmaz", "Ayşe", "Yılmaz")).toBe(true);
+    expect(signatureMatches("Malgorzata Nowak", "Małgorzata", "Nowak")).toBe(true);
+    expect(signatureMatches("Soren Berg", "Søren", "Berg")).toBe(true);
+    expect(signatureMatches("Łukasz Nowak", "Lukasz", "Nowak")).toBe(true);
+    expect(signatureMatches("Anne Mueller", "Anne", "Müller")).toBe(true);
+    expect(signatureMatches("Anne Muller", "Anne", "Müller")).toBe(true);
+    expect(signatureMatches("Hans Strauss", "Hans", "Strauß")).toBe(true);
+    expect(signatureMatches("Soeren Berg", "Søren", "Berg")).toBe(true);
+    expect(signatureMatches("Aase Berg", "Åse", "Berg")).toBe(true);
+    // A name saved with a decomposed ü (u followed by a combining mark).
+    expect(signatureMatches("Anne Mueller", "Anne", "Müller")).toBe(true);
+    // Capitals with no space: Greek lowercases a final Σ to ς only at a word's end.
+    expect(signatureMatches("ΝΙΚΟΣΠΑΠΑΣ", "Νίκος", "Παπάς")).toBe(true);
+  });
+  it("matches each part of the name on its own terms", () => {
+    // The first part matches only under the old fold, the second only with
+    // the accents off; taken whole, neither fold matched both.
+    expect(signatureMatches("Isikli Ozturk", "Işıklı", "Öztürk")).toBe(true);
+  });
+  it("accepts a signature in the name's own script", () => {
+    // Folded to a-z it was nothing, and an empty signature is refused.
+    expect(signatureMatches("王小明", "小明", "王")).toBe(true);
+    expect(signatureMatches("محمد علي", "محمد", "علي")).toBe(true);
+  });
+  it("never refuses a signature the old a-z check accepted", () => {
+    // A refused signature is a parent stuck at the last step of registration.
+    expect(signatureMatches("Isikli Demir", "Işıklı", "Demir")).toBe(true);
+    expect(signatureMatches("Lukasz Nowak", "Łukasz", "Nowak")).toBe(true);
+    expect(signatureMatches("Mohammed Ali", "محمد", "Ali")).toBe(true);
+  });
+  it("stores a full-width signature in ordinary letters, trimmed and capped", () => {
+    const parsed = agreementsSchema.safeParse({ signatureName: "Ｋａｇｏ Ｍｏｅｔｉ" });
+    expect(parsed.success && parsed.data.signatureName).toBe("Kago Moeti");
+    // The cap applies to what is stored, after NFKC has expanded it.
+    expect(agreementsSchema.safeParse({ signatureName: "ﷺ".repeat(10) }).success).toBe(false);
+    expect(signatureMatches("𝐊𝐚𝐠𝐨 𝐌𝐨𝐞𝐭𝐢", "Kago", "Moeti")).toBe(true);
   });
 });
 
