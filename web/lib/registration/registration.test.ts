@@ -250,20 +250,13 @@ describe("schemas", () => {
     const spaced = familySchema.safeParse(withSecond({ mobile: "+267 71 234 568" }));
     expect(spaced.success && spaced.data.secondary.mobile).toBe("+26771234568");
   });
-  it("refuses the primary guardian entered again as the second", () => {
-    // Same name and same mobile, whatever the case, spacing or accents.
-    const again = familySchema.safeParse(withSecond({ firstName: " kágo ", lastName: "MOETI", mobile: primary.mobile }));
-    expect(again.success).toBe(false);
-    if (!again.success) expect(issuesToFields(again.error)["secondary.firstName"]).toContain("different person");
-    // Same name and same email, with another number, is still the same person.
-    expect(familySchema.safeParse(withSecond({ firstName: "Kago", lastName: "Moeti", email: "KAGO@example.com", mobile: "+26772222222" })).success).toBe(false);
-    // A father and the grandfather he names can share a name; their mobiles and emails differ.
-    expect(familySchema.safeParse(withSecond({ firstName: "Kago", lastName: "Moeti", relationship: "grandparent", title: "Mr", gender: "M" })).success).toBe(true);
-    // A couple may share an email and a mobile.
+  it("does not refuse a second guardian for sharing the primary's name, mobile or email", () => {
+    // Every check for "the parent entered twice" refused a real family, and a
+    // family refused here cannot finish registering. A father and the
+    // grandfather he names, with the household email:
+    expect(familySchema.safeParse(withSecond({ firstName: "Kago", lastName: "Moeti", relationship: "grandparent", title: "Mr", gender: "M", email: primary.email })).success).toBe(true);
+    // A couple with one mobile and one email:
     expect(familySchema.safeParse(withSecond({ email: primary.email, mobile: primary.mobile })).success).toBe(true);
-    // Including a couple whose names have no Latin letters to compare.
-    const couple = { primary: { ...primary, firstName: "伟", lastName: "王" }, secondary: { ...secondary, firstName: "娜", lastName: "李", mobile: primary.mobile } };
-    expect(familySchema.safeParse(couple).success).toBe(true);
   });
   it("takes the second guardian's nationality from the list, as the first's", () => {
     const listed = familySchema.safeParse(withSecond({ nationality: "botswana" }));

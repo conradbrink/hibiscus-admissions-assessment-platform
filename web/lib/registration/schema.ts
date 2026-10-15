@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { canonicalCountry, canonicalNationality } from "@/lib/countries";
-import { foldName } from "@/lib/names";
 import { canonicalFromList, LANGUAGES, MEDICAL_AIDS } from "@/lib/pick-lists";
 import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 
@@ -148,21 +147,14 @@ const requiredGuardian = guardian.extend({
 });
 
 /**
- * The parent entered again as the second guardian: the same name and the
- * same mobile or email. A name alone is not enough, because a father and the
- * grandfather he names can share one; a mobile or an email alone is not
- * either, because couples share them.
+ * Nothing checks that the second guardian is somebody else. Every version of
+ * that check tried on 15 October 2026 refused a real family — a father and
+ * the grandfather he names share a name, couples share a mobile and an
+ * email — and a family refused here cannot finish registering at all. A
+ * parent set on getting past it can type any name. The office sees both
+ * guardians on the registration page.
  */
-function sameGuardian(a: z.infer<typeof requiredGuardian>, b: z.infer<typeof requiredGuardian>): boolean {
-  const sameName = foldName(a.firstName) === foldName(b.firstName) && foldName(a.lastName) === foldName(b.lastName);
-  return sameName && (a.mobile === b.mobile || a.email.trim().toLowerCase() === b.email.trim().toLowerCase());
-}
-
-export const familySchema = z.object({ primary: requiredGuardian, secondary: requiredGuardian }).superRefine((v, ctx) => {
-  if (sameGuardian(v.primary, v.secondary)) {
-    ctx.addIssue({ code: "custom", path: ["secondary", "firstName"], message: "Give a different person from the primary parent or guardian." });
-  }
-});
+export const familySchema = z.object({ primary: requiredGuardian, secondary: requiredGuardian });
 
 export const emergencySchema = z.object({
   contacts: z

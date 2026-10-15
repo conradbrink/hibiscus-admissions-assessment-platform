@@ -353,9 +353,12 @@ registration is complete — enrolment would refuse it a step later anyway.
 From 15 October 2026 the Family step asks for **two** parents or guardians,
 and an email and a mobile number for each. There is no exception for a family
 with one parent: they give another person who looks after the child, such as
-a grandparent. The step refuses a second guardian with the same name and the
-same mobile as the primary one, which is the parent entered twice. The
-school's other system, Ed-admin, gets this person on its G2 tabs.
+a grandparent. The school's other system, Ed-admin, gets this person on its
+G2 tabs. Nothing checks that the second guardian is somebody else: a father
+and the grandfather he names can share a name, and couples share a mobile and
+an email, so any such check would stop real families registering. The
+registration page shows both guardians, so the office can spot a parent
+entered twice and ask for another person.
 
 The rule is checked when the parent saves the Family step. A family that
 saved it before then with one guardian is not sent back: their registration

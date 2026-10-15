@@ -124,7 +124,7 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
   // A page opened before the second guardian was required posts the old
   // field names, and the only error would sit on no field at all: the save
   // would look as if it did nothing.
-  if (!nested.secondary) return { error: "This page has changed since you opened it. Reload it, then fill in the second parent or guardian.", values };
+  if (typeof nested.secondary !== "object") return { error: "This page has changed since you opened it. Reload it, then fill in the second parent or guardian.", values };
   const parsed = familySchema.safeParse(nested);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {

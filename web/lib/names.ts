@@ -1,19 +1,17 @@
 /**
- * A person's name folded for comparison: case, accents, punctuation and
- * spacing aside, so "Kágo  Moeti-Smith" and "kago moeti smith" match.
+ * A name folded for comparison: case, accents, punctuation and spacing
+ * aside, so "Kágo  Moeti-Smith" and "kago moeti smith" match.
  *
- * A name in a script with no Latin letters folds to nothing under that rule,
- * and two such names would then match each other, so it is compared as typed
- * instead, with only case and spacing aside.
+ * Letters of every script are kept. Folding to a-z only, as the document
+ * comparison does, turns any name with no Latin letters into nothing, and two
+ * such names then match each other. NFKD makes a precomposed and a decomposed
+ * spelling of the same letter equal before the accents come off.
  */
 export function foldName(value: string | null | undefined): string {
-  const raw = (value ?? "").trim();
-  const latin = raw
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-  return latin || raw.toLowerCase().replace(/\s+/g, " ");
 }

@@ -22,14 +22,18 @@ describe("grouping posted form fields", () => {
     expect(out).toEqual({ primary: { firstName: "Kago" } });
   });
 
-  it("does not crash when a plain field shares a group's name", () => {
+  it("keeps a group when a plain field shares its name, in either order", () => {
     expect(nest({ secondary: "x", "secondary.title": "Mr" })).toEqual({ secondary: { title: "Mr" } });
+    expect(nest({ "secondary.title": "Mr", secondary: "x" })).toEqual({ secondary: { title: "Mr" } });
   });
 });
 
 describe("the family form's field names", () => {
   const source = readFileSync(path.resolve(__dirname, "..", "..", "components", "parent", "register", "family-form.tsx"), "utf8");
-  const names = [...new Set([...source.matchAll(/"((?:primary|secondary)\.\w+)"/g)].map((m) => m[1]))];
+  // Only what is posted: `name="…"` attributes and the `input("…")` helper,
+  // which uses its first argument as the name. An error lookup such as
+  // f["secondary.title"] posts nothing and must not count.
+  const names = [...new Set([...source.matchAll(/(?:name=|input\()"((?:primary|secondary)\.\w+)"/g)].map((m) => m[1]))];
   const GUARDIAN_FIELDS = ["address", "email", "firstName", "gender", "lastName", "mobile", "nationality", "phone", "relationship", "title"];
 
   it("posts every guardian field, for both guardians, under the names the schema reads", () => {

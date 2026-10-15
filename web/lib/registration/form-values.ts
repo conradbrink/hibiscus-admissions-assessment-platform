@@ -17,7 +17,8 @@ export function nest(values: Record<string, string>): Record<string, unknown> {
     const [head, tail] = k.split(".");
     if (UNSAFE.has(head) || (tail !== undefined && UNSAFE.has(tail))) continue;
     if (tail === undefined) {
-      out[head] = v;
+      // A plain field never replaces a group of the same name.
+      if (!(Object.hasOwn(out, head) && typeof out[head] === "object")) out[head] = v;
       continue;
     }
     const existing = Object.hasOwn(out, head) ? out[head] : undefined;

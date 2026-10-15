@@ -294,6 +294,22 @@ describe("the second guardian, required since 15 October 2026", () => {
     expect(salutationOf(withSecond({ last_name: "Coétzer" }))).toBe("Mr and Mrs Coetzer family");
   });
 
+  it("does not fail the download over a frozen record with no surnames", () => {
+    // Snapshots are JSON from the day of enrolment, whatever the type says now.
+    const noSurnames: FamilyExport = {
+      ...family,
+      record: {
+        ...record,
+        guardians: [
+          { ...record.guardians[0], last_name: null as unknown as string },
+          { ...record.guardians[1], last_name: null as unknown as string },
+        ],
+      },
+    };
+    expect(() => basicRow(noSurnames)).not.toThrow();
+    expect(salutationOf(noSurnames)).toBe("Mrs Sanet");
+  });
+
   it("gives the second guardian the first one's address when the form's 'if different' was left blank", () => {
     const g2Address = parentSheets([family]).find((s) => s.name === "G2 Address")!;
     const row = g2Address.rows[0];

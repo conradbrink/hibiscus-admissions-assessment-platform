@@ -318,9 +318,11 @@ const isParent = (g: Guardian) => PARENTS.has((g.relationship ?? "").trim().toLo
 function salutation(g1: Guardian | undefined, g2: Guardian | undefined): string {
   if (!g1) return "";
   const a = fromGuardian(g1);
-  if (g2 && foldName(g2.last_name) === foldName(g1.last_name)) {
+  // Snapshots are frozen JSON, so a surname can be missing whatever the type says.
+  const surname = (g1.last_name ?? "").trim();
+  if (g2 && surname && foldName(g2.last_name) === foldName(surname)) {
     const titles = isParent(g1) && isParent(g2) ? [fromGuardian(g2).title, a.title].filter(Boolean).join(" and ") : "";
-    return `${titles || "The"} ${g1.last_name.trim()} family`;
+    return `${titles || "The"} ${surname} family`;
   }
   return [a.title, g1.first_name, g1.last_name].filter(Boolean).join(" ");
 }
