@@ -173,10 +173,10 @@ export const emergencySchema = z.object({
 });
 
 export const agreementsSchema = z.object({
-  // NFKC turns full-width letters from a CJK keyboard into ordinary ones. The
-  // signature is stored as typed and printed on the signed-agreements PDF,
-  // whose font has no full-width glyphs.
-  signatureName: required(120, "Type your full name as your signature.").transform((v) => v.normalize("NFKC")),
+  // NFKC turns full-width letters from a CJK keyboard into ordinary ones,
+  // which the signed-agreements PDF's font can print. It runs first, so the
+  // trim and the cap apply to what is stored.
+  signatureName: z.preprocess((v) => (typeof v === "string" ? v.normalize("NFKC") : v), required(120, "Type your full name as your signature.")),
   acceptedKeys: z.array(z.string().regex(/^[a-z0-9_]+$/)).default([]),
   /**
    * The agreements the parent answered *no* to. Only an agreement the school
@@ -197,26 +197,33 @@ export function issuesToFields(error: z.ZodError): Record<string, string> {
   return out;
 }
 
-/** Latin letters NFKD cannot split, spelled as a keyboard without them would. */
-const LATIN_LETTERS: Record<string, string> = { "ı": "i", "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ß": "ss", "æ": "ae", "œ": "oe", "þ": "th" };
-const UMLAUTS: Record<string, string> = { "ä": "ae", "ö": "oe", "ü": "ue" };
+/** Letters NFKD cannot split, spelled as a keyboard without them would; ς is Greek's final σ. */
+const LATIN_LETTERS: Record<string, string> = { "ı": "i", "ł": "l", "ø": "o", "đ": "d", "ð": "d", "ß": "ss", "æ": "ae", "œ": "oe", "þ": "th", "ς": "σ" };
+/** The other way to type them: "Mueller" for Müller, "Soeren" for Søren, "Aase" for Åse. */
+const SPELLED_OUT: Record<string, string> = { "ä": "ae", "ö": "oe", "ü": "ue", "ø": "oe", "å": "aa" };
 
 /**
- * A name folded for the signature check: accents off (NFKD, which also turns
- * full-width letters from a CJK keyboard into ordinary ones), the letters
- * above spelled out, letters of every script kept, everything else gone.
- * `umlautAsE` spells ü as "ue", the way a German speaker without the key
- * types it; without it ü is plain "u".
+ * A name folded for the signature check: NFKC first (so a decomposed ü is
+ * one letter and full-width or styled letters are ordinary ones), then lower
+ * case, accents off, the letters above spelled out, letters of every script
+ * kept and everything else gone. `spelledOut` takes ü as "ue" and ø as "oe";
+ * without it they are plain "u" and "o".
  */
-function signatureFold(value: string, umlautAsE: boolean): string {
-  let s = value.toLowerCase();
-  if (umlautAsE) s = s.replace(/[äöü]/g, (c) => UMLAUTS[c]);
+function signatureFold(value: string, spelledOut: boolean): string {
+  let s = value.normalize("NFKC").toLowerCase();
+  if (spelledOut) s = s.replace(/[äöüøå]/g, (c) => SPELLED_OUT[c]);
   return s
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
-    .replace(/[ıłøđðßæœþ]/g, (c) => LATIN_LETTERS[c])
+    .replace(/[ıłøđðßæœþς]/g, (c) => LATIN_LETTERS[c])
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
+
+const SIGNATURE_FOLDS: Array<(s: string) => string> = [
+  (s) => s.toLowerCase().replace(/[^a-z]/g, ""),
+  (s) => signatureFold(s, false),
+  (s) => signatureFold(s, true),
+];
 
 /**
  * The typed signature must be the primary guardian's name, loosely: case,
@@ -237,16 +244,8 @@ function signatureFold(value: string, umlautAsE: boolean): string {
  * Latin signature, which is how "Mohammed Ali" signs for محمد علي.
  */
 export function signatureMatches(signature: string, firstName: string, lastName: string): boolean {
-  const folds = [
-    (s: string) => s.toLowerCase().replace(/[^a-z]/g, ""),
-    (s: string) => signatureFold(s, false),
-    (s: string) => signatureFold(s, true),
-  ];
-  if (!folds.some((fold) => fold(signature).length > 0)) return false;
+  const signed = SIGNATURE_FOLDS.map((fold) => fold(signature));
   return [firstName, lastName].every((part) =>
-    folds.some((fold) => {
-      const sig = fold(signature);
-      return sig.length > 0 && sig.includes(fold(part));
-    })
+    SIGNATURE_FOLDS.some((fold, i) => signed[i].length > 0 && signed[i].includes(fold(part)))
   );
 }

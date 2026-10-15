@@ -322,6 +322,12 @@ describe("schemas", () => {
     expect(signatureMatches("Anne Mueller", "Anne", "Müller")).toBe(true);
     expect(signatureMatches("Anne Muller", "Anne", "Müller")).toBe(true);
     expect(signatureMatches("Hans Strauss", "Hans", "Strauß")).toBe(true);
+    expect(signatureMatches("Soeren Berg", "Søren", "Berg")).toBe(true);
+    expect(signatureMatches("Aase Berg", "Åse", "Berg")).toBe(true);
+    // A name saved with a decomposed ü (u followed by a combining mark).
+    expect(signatureMatches("Anne Mueller", "Anne", "Müller")).toBe(true);
+    // Capitals with no space: Greek lowercases a final Σ to ς only at a word's end.
+    expect(signatureMatches("ΝΙΚΟΣΠΑΠΑΣ", "Νίκος", "Παπάς")).toBe(true);
   });
   it("matches each part of the name on its own terms", () => {
     // The first part matches only under the old fold, the second only with
@@ -339,9 +345,12 @@ describe("schemas", () => {
     expect(signatureMatches("Lukasz Nowak", "Łukasz", "Nowak")).toBe(true);
     expect(signatureMatches("Mohammed Ali", "محمد", "Ali")).toBe(true);
   });
-  it("stores a full-width signature in ordinary letters", () => {
+  it("stores a full-width signature in ordinary letters, trimmed and capped", () => {
     const parsed = agreementsSchema.safeParse({ signatureName: "Ｋａｇｏ Ｍｏｅｔｉ" });
     expect(parsed.success && parsed.data.signatureName).toBe("Kago Moeti");
+    // The cap applies to what is stored, after NFKC has expanded it.
+    expect(agreementsSchema.safeParse({ signatureName: "ﷺ".repeat(10) }).success).toBe(false);
+    expect(signatureMatches("𝐊𝐚𝐠𝐨 𝐌𝐨𝐞𝐭𝐢", "Kago", "Moeti")).toBe(true);
   });
 });
 
