@@ -157,30 +157,28 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
         address: d.primary.address,
         nationality: d.primary.nationality,
       },
-    ];
-    const hasSecondary = !!(d.secondaryFirstName && d.secondaryLastName && d.secondaryRelationship);
-    if (hasSecondary) {
-      rows.push({
+      // Required since 15 October 2026, so it is always written; the schema
+      // has already refused a form without it.
+      {
         application_id: appId,
         kind: "secondary_guardian",
         position: 1,
         contact_id: null,
-        title: d.secondaryTitle ?? null,
-        first_name: d.secondaryFirstName!,
-        last_name: d.secondaryLastName!,
-        relationship: d.secondaryRelationship!,
-        gender: d.secondaryGender ?? null,
+        title: d.secondaryTitle,
+        first_name: d.secondaryFirstName,
+        last_name: d.secondaryLastName,
+        relationship: d.secondaryRelationship,
+        gender: d.secondaryGender,
         email: d.secondaryEmail,
         mobile: d.secondaryMobile,
         mobile_normalised: normaliseMobile(d.secondaryMobile),
         phone: d.secondaryPhone,
         address: d.secondaryAddress,
         nationality: d.secondaryNationality,
-      });
-    }
+      },
+    ];
     const { error } = await admin.from("registration_contacts").upsert(rows, { onConflict: "application_id,kind,position" });
     if (error) throw new WorkflowError(error.message, "database");
-    if (!hasSecondary) await admin.from("registration_contacts").delete().eq("application_id", appId).eq("kind", "secondary_guardian");
     // The Phase 1 guardians table finally gets its row: the enquiring contact, as the primary guardian.
     await admin.from("application_guardians").upsert({ application_id: appId, contact_id: graph.contact.id, relationship: d.primary.relationship, is_primary: true }, { onConflict: "application_id,contact_id" });
     // The WhatsApp choice, restated on this step, is the contact's to change either way.

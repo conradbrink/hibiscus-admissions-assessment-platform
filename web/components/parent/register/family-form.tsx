@@ -109,15 +109,18 @@ export function FamilyForm({
       </fieldset>
       <fieldset className="space-y-4">
         <legend className="mb-1 text-sm font-semibold">Second parent or guardian</legend>
-        <p className="text-xs text-muted-foreground">Optional. Leave the whole section blank if there is nobody else — but if you name someone, we need their mobile number too.</p>
+        <p className="text-xs text-muted-foreground">
+          The school needs a second adult it can contact. This can be the child&rsquo;s other parent. If there is no other
+          parent, give another adult who looks after the child, such as a grandparent. We need their email and mobile number.
+        </p>
         <TitleSelect name="secondaryTitle" value={s("title")} error={f.secondaryTitle} readOnly={readOnly} />
-        {input("secondaryFirstName", "First name", s("firstName"))}
-        {input("secondaryLastName", "Surname", s("lastName"))}
+        {input("secondaryFirstName", "First name", s("firstName"), { required: true })}
+        {input("secondaryLastName", "Surname", s("lastName"), { required: true })}
         <RelationshipSelect name="secondaryRelationship" value={s("relationship")} error={f.secondaryRelationship} readOnly={readOnly} />
         <GenderSelect name="secondaryGender" value={s("gender")} error={f.secondaryGender} readOnly={readOnly} />
-        {input("secondaryEmail", "Email", s("email"), { type: "email" })}
+        {input("secondaryEmail", "Email", s("email"), { required: true, type: "email" })}
         <Field id="secondaryMobile" label="Mobile" error={f.secondaryMobile}>
-          <MobileInput name="secondaryMobile" defaultValue={s("mobile")} readOnly={readOnly} invalid={Boolean(f.secondaryMobile)} />
+          <MobileInput name="secondaryMobile" defaultValue={s("mobile")} required readOnly={readOnly} invalid={Boolean(f.secondaryMobile)} />
         </Field>
         {input("secondaryPhone", "Other phone", s("phone"), { type: "tel" })}
         {input("secondaryAddress", "Home address, if different", s("address"))}

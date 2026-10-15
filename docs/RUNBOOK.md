@@ -348,6 +348,20 @@ been received, and a **Confirm enrolment** task opens. It is refused, with
 what is missing, unless the same rule the parent's Submit uses says the
 registration is complete — enrolment would refuse it a step later anyway.
 
+## The Family section says incomplete
+
+From 15 October 2026 the Family step asks for **two** parents or guardians,
+and an email and a mobile number for each. There is no exception for a family
+with one parent: they give another adult who looks after the child, such as a
+grandparent. The school's other system, Ed-admin, gets this person on its G2
+tabs.
+
+A family that saved the Family step before then with only one guardian is
+sent back to it: the Family section shows as not done, and **Confirm
+registration** and enrolment are both refused until the parent adds the
+second guardian. The office cannot enter a guardian for the family; ask the
+parent to open their link and finish the Family step.
+
 ## A document will not upload
 
 1. Choosing the file is the upload: there is no second button. The phone
@@ -780,9 +794,12 @@ creates each family; the other tabs add details to a family code that must
 already exist. Basic has no phone numbers, emails or addresses. If every
 family arrives in Ed-admin with names but none of those, the other five tabs
 were not imported. One family with a gap may simply not have given that
-detail: phone, email and address are optional at registration. The G2 tabs
-list only the families that have a second guardian, so in a batch with none
-they hold only the header row and there is nothing to import from them.
+detail: an address and a home phone are optional at registration. An email
+and a mobile are not, for either guardian, on any registration saved from
+15 October 2026. Every registration from that date also has a second
+guardian. A family registered before then may not, and the G2 tabs list only
+the families that have one; in a batch with none they hold only the header
+row and there is nothing to import from them.
 
 They are separate files on purpose — that system will not take parent and
 student details together. The **only** thing in both is the **family code**,

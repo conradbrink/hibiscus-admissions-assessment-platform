@@ -5,24 +5,13 @@ import { mobileNumber, optionalMobileNumber } from "@/lib/validation";
 
 /**
  * What each registration step accepts. Shared by the server actions (the
- * only validators) and the tests. Every free-text field is capped; the
- * secondary guardian is all-or-nothing; dates are sane.
+ * only validators) and the tests. Every free-text field is capped; both
+ * guardians are required, each with an email and a mobile; dates are sane.
  */
 
 const text = (max: number) => z.string().trim().max(max);
 const required = (max: number, message: string) => z.string().trim().min(1, message).max(max);
 const optional = (max: number) => text(max).optional().transform((v) => (v ? v : null));
-/**
- * A pick-list that may be left on "Choose…".
- *
- * A native select always posts its value, and an untouched one posts "".
- * `z.enum(...).optional()` accepts a missing key and refuses an empty string,
- * so every family with a single guardian was refused at the family step with
- * three "Invalid option" errors on fields they had never touched — found on
- * the 14 September 2026 walkthrough. Blank means not answered.
- */
-const optionalEnum = <const T extends readonly [string, ...string[]]>(values: T) =>
-  z.preprocess((v) => (v === "" ? undefined : v), z.enum(values).optional());
 
 export const GENDERS = ["female", "male", "other", "undisclosed"] as const;
 /** The "current grade" answer for a child who has not started school. */
@@ -137,34 +126,29 @@ const guardian = z.object({
   nationality: optionalNationality,
 });
 
-const emptyGuardian = (g: Record<string, unknown>) => Object.values(g).every((v) => v === null || v === undefined || v === "");
-
-export const familySchema = z
-  .object({
-    primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
-    secondaryTitle: optionalEnum(TITLES),
-    secondaryFirstName: optional(80),
-    secondaryLastName: optional(80),
-    secondaryRelationship: optionalEnum(RELATIONSHIPS),
-    secondaryGender: optionalEnum(GUARDIAN_GENDERS),
-    secondaryEmail: optional(160),
-    secondaryMobile: optionalMobileNumber,
-    secondaryPhone: optional(40),
-    secondaryAddress: optional(300),
-    secondaryNationality: optional(80),
-  })
-  .superRefine((v, ctx) => {
-    const partial = { f: v.secondaryFirstName, l: v.secondaryLastName, e: v.secondaryEmail, m: v.secondaryMobile, p: v.secondaryPhone, a: v.secondaryAddress, n: v.secondaryNationality };
-    if (emptyGuardian(partial) && !v.secondaryRelationship) return;
-    if (!v.secondaryFirstName) ctx.addIssue({ code: "custom", path: ["secondaryFirstName"], message: "Enter the second guardian's first name, or leave the whole section blank." });
-    if (!v.secondaryLastName) ctx.addIssue({ code: "custom", path: ["secondaryLastName"], message: "Enter the second guardian's surname." });
-    if (!v.secondaryRelationship) ctx.addIssue({ code: "custom", path: ["secondaryRelationship"], message: "Choose the relationship." });
-    if (!v.secondaryTitle) ctx.addIssue({ code: "custom", path: ["secondaryTitle"], message: "Choose a title." });
-    if (!v.secondaryGender) ctx.addIssue({ code: "custom", path: ["secondaryGender"], message: "Choose female or male." });
-    // Ed-admin wants a number on every guardian it is given, so an email on
-    // its own no longer stands in for one.
-    if (!v.secondaryMobile) ctx.addIssue({ code: "custom", path: ["secondaryMobile"], message: "Enter a mobile number." });
-  });
+/**
+ * Both guardians, and an email and a mobile for each.
+ *
+ * The second guardian used to be optional, and a family who left it out
+ * reached Ed-admin with nothing on its G2 sheets. From 15 October 2026 every
+ * registration needs a second guardian, with no exception: a parent who is
+ * the only one names another adult who cares for the child, such as a
+ * grandparent. The field names stay flat (`secondaryFirstName`) because the
+ * form and the saved values already use them.
+ */
+export const familySchema = z.object({
+  primary: guardian.extend({ email: z.email("Enter a valid email address.").max(160), mobile: mobileNumber }),
+  secondaryTitle: z.enum(TITLES, { error: "Choose a title." }),
+  secondaryFirstName: required(80, "Enter the second parent or guardian's first name."),
+  secondaryLastName: required(80, "Enter the second parent or guardian's surname."),
+  secondaryRelationship: z.enum(RELATIONSHIPS, { error: "Choose the relationship." }),
+  secondaryGender: z.enum(GUARDIAN_GENDERS, { error: "Choose female or male." }),
+  secondaryEmail: z.email("Enter a valid email address.").max(160),
+  secondaryMobile: z.string().trim().min(1, "Enter the second parent or guardian's mobile number.").pipe(mobileNumber),
+  secondaryPhone: optional(40),
+  secondaryAddress: optional(300),
+  secondaryNationality: optional(80),
+});
 
 export const emergencySchema = z.object({
   contacts: z
