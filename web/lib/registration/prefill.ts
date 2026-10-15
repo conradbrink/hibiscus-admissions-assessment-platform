@@ -100,6 +100,9 @@ export function prefillRegistration(
     firstName: primary?.first_name ?? c.first_name,
     lastName: primary?.last_name ?? c.last_name,
     relationship: primary?.relationship ?? "",
+    // Required on the form; without it the select came back on "Choose…"
+    // and every re-save of the family step failed until it was picked again.
+    gender: primary?.gender ?? "",
     email: primary?.email ?? c.email,
     mobile: primary?.mobile ?? c.mobile ?? "",
     phone: primary?.phone ?? "",

@@ -6,6 +6,7 @@ import { normaliseMobile } from "@/lib/contacts";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { drainSoon } from "@/lib/parent/actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { nest } from "@/lib/registration/form-values";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
 import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
@@ -117,22 +118,14 @@ export async function saveMedical(_prev: RegisterFormState, formData: FormData):
   redirect("/register/family");
 }
 
-/** Nested form names ("primary.firstName") into the object the schema expects. */
-function nest(values: Record<string, string>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(values)) {
-    const [head, tail] = k.split(".");
-    if (tail) {
-      const group = (out[head] ??= {}) as Record<string, string>;
-      group[tail] = v;
-    } else out[head] = v;
-  }
-  return out;
-}
-
 export async function saveFamily(_prev: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
   const values = valuesOf(formData);
-  const parsed = familySchema.safeParse(nest(values));
+  const nested = nest(values);
+  // A page opened before the second guardian was required posts the old
+  // field names, and the only error would sit on no field at all: the save
+  // would look as if it did nothing.
+  if (typeof nested.secondary !== "object") return { error: "This page has changed since you opened it. Reload it, then fill in the second parent or guardian.", values };
+  const parsed = familySchema.safeParse(nested);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
     const { admin, graph } = await openSession();
@@ -157,30 +150,28 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
         address: d.primary.address,
         nationality: d.primary.nationality,
       },
-    ];
-    const hasSecondary = !!(d.secondaryFirstName && d.secondaryLastName && d.secondaryRelationship);
-    if (hasSecondary) {
-      rows.push({
+      // Required since 15 October 2026, so it is always written; the schema
+      // has already refused a form without it.
+      {
         application_id: appId,
         kind: "secondary_guardian",
         position: 1,
         contact_id: null,
-        title: d.secondaryTitle ?? null,
-        first_name: d.secondaryFirstName!,
-        last_name: d.secondaryLastName!,
-        relationship: d.secondaryRelationship!,
-        gender: d.secondaryGender ?? null,
-        email: d.secondaryEmail,
-        mobile: d.secondaryMobile,
-        mobile_normalised: normaliseMobile(d.secondaryMobile),
-        phone: d.secondaryPhone,
-        address: d.secondaryAddress,
-        nationality: d.secondaryNationality,
-      });
-    }
+        title: d.secondary.title,
+        first_name: d.secondary.firstName,
+        last_name: d.secondary.lastName,
+        relationship: d.secondary.relationship,
+        gender: d.secondary.gender,
+        email: d.secondary.email,
+        mobile: d.secondary.mobile,
+        mobile_normalised: normaliseMobile(d.secondary.mobile),
+        phone: d.secondary.phone,
+        address: d.secondary.address,
+        nationality: d.secondary.nationality,
+      },
+    ];
     const { error } = await admin.from("registration_contacts").upsert(rows, { onConflict: "application_id,kind,position" });
     if (error) throw new WorkflowError(error.message, "database");
-    if (!hasSecondary) await admin.from("registration_contacts").delete().eq("application_id", appId).eq("kind", "secondary_guardian");
     // The Phase 1 guardians table finally gets its row: the enquiring contact, as the primary guardian.
     await admin.from("application_guardians").upsert({ application_id: appId, contact_id: graph.contact.id, relationship: d.primary.relationship, is_primary: true }, { onConflict: "application_id,contact_id" });
     // The WhatsApp choice, restated on this step, is the contact's to change either way.

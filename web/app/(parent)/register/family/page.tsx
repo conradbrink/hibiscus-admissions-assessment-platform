@@ -17,6 +17,9 @@ export default async function FamilyStep() {
     firstName: secondary?.first_name ?? "",
     lastName: secondary?.last_name ?? "",
     relationship: secondary?.relationship ?? "",
+    // Gender is required, so a select that came back on "Choose…" would make
+    // every re-save of this step fail until the parent picked it again.
+    gender: secondary?.gender ?? "",
     email: secondary?.email ?? "",
     mobile: secondary?.mobile ?? "",
     phone: secondary?.phone ?? "",

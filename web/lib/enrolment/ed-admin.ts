@@ -1,6 +1,7 @@
 import accepted from "@/content/enrolment/accepted-values.json";
 import edAdminCodes from "@/content/enrolment/ed-admin-codes.json";
 import type { StudentRecordSnapshot } from "@/lib/enrolment/student-record";
+import { foldName } from "@/lib/names";
 import { buildWorkbook, type Sheet } from "@/lib/enrolment/xlsx";
 
 /**
@@ -299,13 +300,29 @@ export const ACCOUNTS_COLUMNS: readonly string[] = [
   "Inv. Phone", "Inv. Cell", "Inv. Email", "Inv. Fax", "Email Statement",
 ];
 
+/**
+ * The relationships that make two guardians with one surname the child's
+ * parents, addressed together by their titles.
+ *
+ * Since the second guardian became required, a parent on their own names
+ * another adult, often their own mother or sister, who shares the surname
+ * and may be entered as "Guardian". Addressing that pair by their titles,
+ * "Mrs and Mr Moeti family", reads as a married couple. So only a pair who
+ * are both the child's parents get the titles; any other pair with one
+ * surname, grandparents raising a grandchild included, is "The Moeti family",
+ * which is right whoever they are.
+ */
+const PARENTS = new Set(["mother", "father", "parent"]);
+const isParent = (g: Guardian) => PARENTS.has((g.relationship ?? "").trim().toLowerCase());
+
 function salutation(g1: Guardian | undefined, g2: Guardian | undefined): string {
   if (!g1) return "";
   const a = fromGuardian(g1);
-  if (g2 && g2.last_name === g1.last_name) {
-    const b = fromGuardian(g2);
-    const titles = [b.title, a.title].filter(Boolean).join(" and ");
-    return `${titles || "The"} ${g1.last_name} family`.replace(/^The /, "The ").trim();
+  // Snapshots are frozen JSON, so a surname can be missing whatever the type says.
+  const surname = (g1.last_name ?? "").trim();
+  if (g2 && surname && foldName(g2.last_name) === foldName(surname)) {
+    const titles = isParent(g1) && isParent(g2) ? [fromGuardian(g2).title, a.title].filter(Boolean).join(" and ") : "";
+    return `${titles || "The"} ${surname} family`;
   }
   return [a.title, g1.first_name, g1.last_name].filter(Boolean).join(" ");
 }
@@ -396,12 +413,18 @@ function byFamily(families: FamilyExport[]): FamilyExport[] {
 /** The parent workbook's sheets before they are zipped, so their names can be checked. */
 export function parentSheets(all: FamilyExport[]): Sheet[] {
   const families = byFamily(all);
+  // The form asks for the second guardian's "Home address, if different", so
+  // a blank one is the first guardian's address, not no address.
+  const second = (f: FamilyExport): Guardian => {
+    const [g1, g2] = f.record.guardians;
+    return { ...g2, address: g2.address || g1?.address || null };
+  };
   return [
     { name: "Basic", headers: BASIC_COLUMNS, rows: families.map(basicRow) },
     { name: "G1 Contact", headers: G1_CONTACT_COLUMNS, rows: families.map((f) => contactRow(f, f.record.guardians[0])) },
     { name: "G1 Address", headers: G1_ADDRESS_COLUMNS, rows: families.map((f) => addressRow(f, f.record.guardians[0], f.record.emergency_contacts)) },
     { name: "G2 Contact", headers: G2_CONTACT_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => contactRow(f, f.record.guardians[1])) },
-    { name: "G2 Address", headers: G2_ADDRESS_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => addressRow(f, f.record.guardians[1], [])) },
+    { name: "G2 Address", headers: G2_ADDRESS_COLUMNS, rows: families.filter((f) => f.record.guardians[1]).map((f) => addressRow(f, second(f), [])) },
     { name: "Accounts (By Family Code)", headers: ACCOUNTS_COLUMNS, rows: families.map(accountsRow) },
   ];
 }

@@ -348,6 +348,25 @@ been received, and a **Confirm enrolment** task opens. It is refused, with
 what is missing, unless the same rule the parent's Submit uses says the
 registration is complete — enrolment would refuse it a step later anyway.
 
+## Two parents or guardians on every registration
+
+From 15 October 2026 the Family step asks for **two** parents or guardians,
+and an email and a mobile number for each. There is no exception for a family
+with one parent: they give another person who looks after the child, such as
+a grandparent. The school's other system, Ed-admin, gets this person on its
+G2 tabs. Nothing checks that the second guardian is somebody else: a father
+and the grandfather he names can share a name, and couples share a mobile and
+an email, so any such check would stop real families registering. The
+registration page shows both guardians, so the office can spot a parent
+entered twice and ask for another person.
+
+The rule is checked when the parent saves the Family step. A family that
+saved it before then with one guardian is not sent back: their registration
+stays complete, and their G2 tabs are empty in the Ed-admin file. The office
+cannot enter a guardian for a family. While the registration is still open,
+the parent can add one by opening their link and saving the Family step
+again.
+
 ## A document will not upload
 
 1. Choosing the file is the upload: there is no second button. The phone
@@ -780,9 +799,12 @@ creates each family; the other tabs add details to a family code that must
 already exist. Basic has no phone numbers, emails or addresses. If every
 family arrives in Ed-admin with names but none of those, the other five tabs
 were not imported. One family with a gap may simply not have given that
-detail: phone, email and address are optional at registration. The G2 tabs
-list only the families that have a second guardian, so in a batch with none
-they hold only the header row and there is nothing to import from them.
+detail: an address and a home phone are optional at registration. An email
+and a mobile are not, for either guardian, on a Family step saved from
+15 October 2026, and a Family step saved from that date always has a second
+guardian. A family that saved it before then may not, and the G2 tabs list
+only the families that have one; in a batch with none they hold only the header
+row and there is nothing to import from them.
 
 They are separate files on purpose — that system will not take parent and
 student details together. The **only** thing in both is the **family code**,
