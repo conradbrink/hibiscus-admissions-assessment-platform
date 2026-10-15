@@ -57,28 +57,42 @@ function str(v: Json | undefined): string | null {
   return oneLineOrNull(v);
 }
 
+/** Letters of any script left once the Latin ones are taken out (NFKD first, so full-width Latin counts as Latin). */
+const otherScript = (s: string) => /\p{L}/u.test(s.normalize("NFKD").replace(/\p{Script=Latin}/gu, ""));
+const hasLetters = (s: string) => /\p{L}/u.test(s);
+
 /**
- * Both sides gave a name, but one of them has no Latin letters to compare.
+ * Whether two values can be compared by machine at all.
  *
- * Names are compared in the Latin alphabet, and a name in another script
- * folds to nothing. Two such names used to compare as "same", so a
+ * Text is compared in the Latin alphabet, and other letters fold to
+ * nothing. Two names in another script used to compare as "same", so a
  * certificate for 李娜 against a registration for 王伟 opened nothing; a
- * Latin name against a certificate in another script compared as "differs"
- * and flagged the parent's form over a translation they cannot correct.
- * Neither is a machine's call: since 15 October 2026 a person checks the
- * document by eye, and the parent is not told.
+ * Latin name against a certificate in another script compared as
+ * "differs" and flagged the parent's form over a translation they cannot
+ * correct. A name with letters of another script anywhere in it, on either
+ * side, is now "unreadable": since 15 October 2026 a person checks the
+ * document by eye, and the parent is not told. That includes a name
+ * printed in two scripts, where the Latin half alone could pass for
+ * somebody else ("李娜 Neo" against "Neo").
+ *
+ * A value with no letters at all (an extractor's "—" for an empty field)
+ * is "unverified": there is no name there to check.
+ *
+ * Null means the two can be compared.
  */
-function unreadable(registrationValue: string, documentValue: string): boolean {
-  const hasLetters = (s: string) => /[a-z]/.test(normaliseText(s));
-  return !hasLetters(registrationValue) || !hasLetters(documentValue);
+function comparability(registrationValue: string, documentValue: string): "unverified" | "unreadable" | null {
+  if (!hasLetters(registrationValue) || !hasLetters(documentValue)) return "unverified";
+  if (otherScript(registrationValue) || otherScript(documentValue)) return "unreadable";
+  return null;
 }
 
 function nameMatch(registrationFirst: string | null, registrationMiddle: string | null, documentFirstNames: string | null): Match {
   if (!registrationFirst || !documentFirstNames) return "unverified";
-  // The first name alone: a Latin middle name must not stand in for it.
-  if (unreadable(registrationFirst, documentFirstNames)) return "unreadable";
+  const registered = `${registrationFirst} ${registrationMiddle ?? ""}`;
+  const verdict = comparability(registered, documentFirstNames);
+  if (verdict) return verdict;
   const doc = tokens(documentFirstNames);
-  const reg = tokens(`${registrationFirst} ${registrationMiddle ?? ""}`);
+  const reg = tokens(registered);
   if (doc.join(" ") === reg.join(" ")) return "same";
   // The first name is what matters; middle names are often left off one side.
   if (doc[0] === reg[0]) return "same";
@@ -87,7 +101,8 @@ function nameMatch(registrationFirst: string | null, registrationMiddle: string 
 
 function fullNameMatch(registrationFirst: string | null, registrationLast: string | null, documentName: string | null): Match {
   if (!registrationFirst || !registrationLast || !documentName) return "unverified";
-  if (unreadable(registrationFirst, documentName) || unreadable(registrationLast, documentName)) return "unreadable";
+  const verdict = comparability(`${registrationFirst} ${registrationLast}`, documentName);
+  if (verdict) return verdict;
   const doc = new Set(tokens(documentName));
   const first = tokens(registrationFirst)[0];
   const last = tokens(registrationLast);
@@ -101,7 +116,16 @@ function exactMatch(a: string | null, b: string | null): Match {
 }
 
 function surnameMatch(registration: string | null, document: string | null): Match {
-  if (registration && document && unreadable(registration, document)) return "unreadable";
+  return (registration && document && comparability(registration, document)) || exactMatch(registration, document);
+}
+
+/**
+ * A grade in another script is not a name, so it opens no by-eye task; it
+ * is simply not compared, instead of folding to nothing and comparing as
+ * "same" (五年级 against 二年级) or as "differs" against "Standard 3".
+ */
+function gradeMatch(registration: string | null, document: string | null): Match {
+  if (registration && document && (otherScript(registration) || otherScript(document))) return "unverified";
   return exactMatch(registration, document);
 }
 
@@ -145,7 +169,7 @@ export function compareExtraction(registration: RegistrationFacts, fields: Recor
     const name = str(fields.student_name);
     push("full_name", "Student's name", [registration.legal_first_name, registration.legal_last_name].filter(Boolean).join(" ") || null, name, fullNameMatch(registration.legal_first_name, registration.legal_last_name, name));
     const grade = str(fields.grade_or_year);
-    push("current_grade", "Current grade", registration.current_grade, grade, exactMatch(registration.current_grade, grade));
+    push("current_grade", "Current grade", registration.current_grade, grade, gradeMatch(registration.current_grade, grade));
     return out;
   }
   if (requirementCode === "vaccination_card") {
@@ -166,13 +190,21 @@ export type MismatchFlag = {
 };
 
 /**
- * What a reading means for the record: the event's summary and the tasks it
- * opens. Pure, so the rule is tested without a database.
+ * What a reading means for the record: the event's summary, the tasks it
+ * opens and the task types it closes. Pure, so the rules are tested without
+ * a database.
  *
  * A disagreement opens a review task and, through the flags, shows on the
- * parent's form. A name that cannot be compared (see `unreadable`) opens a
- * task of its own for a person to check the document by eye: it is never a
- * flag, so the parent sees nothing and is emailed nothing.
+ * parent's form. A name that cannot be compared (see `comparability`) opens
+ * a task of its own for a person to check the document by eye: it is never
+ * a flag, so the parent sees nothing and is emailed nothing.
+ *
+ * Closing: a reading with no disagreement closes open mismatch tasks, as it
+ * always has. A by-eye task is closed by staff accepting or rejecting the
+ * document, or replaced by a new reading that again cannot compare the
+ * name; a reading that merely fails to read the name leaves it open, since
+ * nobody has looked. A document staff have already accepted opens no by-eye
+ * task: they have checked it, and Accept is no longer offered to close one.
  */
 export function documentReadingOutcome(input: {
   childFirstName: string;
@@ -180,9 +212,11 @@ export function documentReadingOutcome(input: {
   confidence: number;
   flags: MismatchFlag[];
   comparisons: Comparison[];
-}): { summary: string; tasks: ReadingTask[]; unreadableFields: Comparison["field"][] } {
+  documentAccepted: boolean;
+}): { summary: string; tasks: ReadingTask[]; resolveTaskTypes: string[]; unreadableFields: Comparison["field"][] } {
   const label = input.requirementCode.replace(/_/g, " ");
   const unreadableNames = input.comparisons.filter((c) => c.match === "unreadable");
+  const askAPerson = unreadableNames.length > 0 && !input.documentAccepted;
   const tasks: ReadingTask[] = [];
   if (input.flags.length) {
     tasks.push({
@@ -192,22 +226,27 @@ export function documentReadingOutcome(input: {
       priority: "normal",
     });
   }
-  if (unreadableNames.length) {
-    const lines = mismatchText(unreadableNames.map((c) => ({ ...c, requirement_code: input.requirementCode, document_id: "" })));
+  if (askAPerson) {
+    const lines = unreadableNames.map((c) => comparisonLine(c.label, input.requirementCode, c.document_value, c.registration_value)).join("\n");
     tasks.push({
       type: unreadableTaskType(input.requirementCode),
       title: `${input.childFirstName}: check the name on the ${label} by eye`,
-      details: `${lines}\n\nThese names could not be compared by machine: one of them has no letters of the Latin alphabet. Check the document against the registration yourself. The parent has not been told, and nothing has been changed.`,
+      details: `${lines}\n\nThese names could not be compared by machine: one of them is written in letters other than the Latin alphabet. Check the document against the registration yourself, then accept or reject it. The parent has not been told, and nothing has been changed.`,
       priority: "normal",
     });
   }
-  const unreadableNote = unreadableNames.length ? "; the name could not be compared, and a person will check it" : "";
+  const unreadableNote = askAPerson ? "; the name could not be compared, and a person will check it" : "";
   const summary = input.flags.length
     ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})${unreadableNote}`
     : unreadableNames.length
-      ? `Document read: the name on the ${label} could not be compared; a person will check it`
+      ? `Document read: the name on the ${label} could not be compared${askAPerson ? "; a person will check it" : ""}`
       : `Document read: ${label} agrees with the registration`;
-  return { summary, tasks, unreadableFields: unreadableNames.map((c) => c.field) };
+  return {
+    summary,
+    tasks,
+    resolveTaskTypes: [...(input.flags.length ? [] : ["review_document_mismatch"]), ...(askAPerson ? [unreadableTaskType(input.requirementCode)] : [])],
+    unreadableFields: unreadableNames.map((c) => c.field),
+  };
 }
 
 type ReadingTask = { type: string; title: string; details: string; priority: "normal" };
@@ -230,9 +269,11 @@ export function mismatchFlags(comparisons: Comparison[], requirementCode: string
 
 /** The flags, worded for an email or a task: "Date of birth: the birth certificate shows 2017-04-15; the form says 2017-04-16". */
 export function mismatchText(flags: MismatchFlag[]): string {
-  return flags
-    .map((f) => `${f.label}: the ${f.requirement_code.replace(/_/g, " ")} shows ${f.document_value ?? "—"}; the form says ${f.registration_value ?? "—"}`)
-    .join("\n");
+  return flags.map((f) => comparisonLine(f.label, f.requirement_code, f.document_value, f.registration_value)).join("\n");
+}
+
+function comparisonLine(label: string, requirementCode: string, documentValue: string | null, registrationValue: string | null): string {
+  return `${label}: the ${requirementCode.replace(/_/g, " ")} shows ${documentValue ?? "—"}; the form says ${registrationValue ?? "—"}`;
 }
 
 /**

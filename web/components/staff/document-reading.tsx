@@ -8,7 +8,7 @@ import type { DocumentRow, Json } from "@/lib/supabase/types";
  * A reading is a proposal: the badges say "same" or "differs", and nothing
  * on this panel changes a registration field.
  */
-export function DocumentReading({ document }: { document: Pick<DocumentRow, "extraction_status" | "extracted_fields" | "extraction_error" | "extraction_model" | "extracted_at"> }) {
+export function DocumentReading({ document }: { document: Pick<DocumentRow, "extraction_status" | "extracted_fields" | "extraction_error" | "extraction_model" | "extracted_at" | "review_status"> }) {
   if (document.extraction_status === "not_run") return null;
   if (document.extraction_status === "pending") return <p className="mt-1 text-xs text-muted-foreground">Reading the document…</p>;
   if (document.extraction_status === "failed") return <p className="mt-1 text-xs text-muted-foreground">Could not read the document{document.extraction_error ? `: ${document.extraction_error}` : ""}.</p>;
@@ -16,6 +16,7 @@ export function DocumentReading({ document }: { document: Pick<DocumentRow, "ext
   const fields = (document.extracted_fields && typeof document.extracted_fields === "object" && !Array.isArray(document.extracted_fields) ? document.extracted_fields : {}) as Record<string, Json>;
   const comparisons = (Array.isArray(fields.comparisons) ? fields.comparisons : []) as unknown as Comparison[];
   const confidence = typeof fields.confidence === "number" ? Math.round(fields.confidence * 100) : null;
+  const checked = document.review_status === "accepted";
 
   return (
     <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
@@ -31,8 +32,10 @@ export function DocumentReading({ document }: { document: Pick<DocumentRow, "ext
                 <td className="py-0.5 pr-2">{c.document_value ?? "—"}</td>
                 <td className="py-0.5 pr-2 text-muted-foreground">form: {c.registration_value ?? "—"}</td>
                 <td className="py-0.5 text-right">
-                  <Badge variant={c.match === "same" ? "success" : c.match === "differs" || c.match === "unreadable" ? "warning" : "muted"}>
-                    {c.match === "same" ? "same" : c.match === "differs" ? "differs" : c.match === "unreadable" ? "check by eye" : "not compared"}
+                  {/* A name the machine could not compare is checked by a person; once
+                      the document is accepted, that check is done. */}
+                  <Badge variant={c.match === "same" || (c.match === "unreadable" && checked) ? "success" : c.match === "differs" || c.match === "unreadable" ? "warning" : "muted"}>
+                    {c.match === "same" ? "same" : c.match === "differs" ? "differs" : c.match === "unreadable" ? (checked ? "checked by eye" : "check by eye") : "not compared"}
                   </Badge>
                 </td>
               </tr>

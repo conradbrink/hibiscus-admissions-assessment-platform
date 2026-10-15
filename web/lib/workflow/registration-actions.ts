@@ -123,7 +123,7 @@ export async function onDocumentUploaded(
 export async function onDocumentExtracted(
   admin: AdminClient,
   app: Pick<ApplicationRow, "id" | "child_first_name">,
-  document: Pick<DocumentRow, "id" | "requirement_code">,
+  document: Pick<DocumentRow, "id" | "requirement_code" | "review_status">,
   reading: { confidence: number; flags: MismatchFlag[]; comparisons: Comparison[]; existingFlags: Json | null }
 ): Promise<void> {
   const outcome = documentReadingOutcome({
@@ -132,6 +132,7 @@ export async function onDocumentExtracted(
     confidence: reading.confidence,
     flags: reading.flags,
     comparisons: reading.comparisons,
+    documentAccepted: document.review_status === "accepted",
   });
   // Replace this document's flags; keep the others'.
   const kept = parseMismatchFlags(reading.existingFlags).filter((f) => f.requirement_code !== document.requirement_code);
@@ -155,13 +156,7 @@ export async function onDocumentExtracted(
       },
     },
     tasks: outcome.tasks,
-    // A fresh reading of this document replaces its own by-eye task rather
-    // than adding a second. Mismatch tasks close only when the reading
-    // agreed: a name that could not be compared is not agreement.
-    resolveTaskTypes: [
-      unreadableTaskType(document.requirement_code),
-      ...(reading.flags.length || outcome.unreadableFields.length ? [] : ["review_document_mismatch"]),
-    ],
+    resolveTaskTypes: outcome.resolveTaskTypes,
     actor: SYSTEM_ACTOR,
   });
 }
