@@ -835,7 +835,7 @@ manager does not hold (`can_grant_role`).
 Asked for after the list downloads: "a pdf export on the pages, and have it
 as a permission". One button for every staff page rather than a document per
 page: `PagePdfButton` in the shared top strip (`StaffTopbar`, both shells),
-shown for `pages.export_pdf` (migration `20261014130000_page_pdf_export.sql`,
+shown for `pages.export_pdf` (migration `20261014135402_page_pdf_export.sql`,
 granted to Management and the admissions manager). It records the press
 first (`recordPagePdf` in `app/staff/page-pdf-actions.ts`: `audit_log`
 `page.pdf_downloaded` with the path and query string; filed on the applicant
