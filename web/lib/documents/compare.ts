@@ -5,10 +5,11 @@ import type { Json } from "@/lib/supabase/types";
  * Does what a document says agree with what the family typed? Pure and
  * tested. A comparison is a proposal for a person or the parent, never a
  * correction: "differs" opens a flag, "same" closes nothing, "unverified"
- * means one side was blank or the field is not comparable.
+ * means one side was blank or the field is not comparable, and "unreadable"
+ * means both sides gave a name that cannot be compared by machine.
  */
 
-export type Match = "same" | "differs" | "unverified";
+export type Match = "same" | "differs" | "unverified" | "unreadable";
 
 export type Comparison = {
   /** The registration field the document speaks to. */
@@ -54,8 +55,26 @@ function str(v: Json | undefined): string | null {
   return oneLineOrNull(v);
 }
 
+/**
+ * Both sides gave a name, but one of them has no Latin letters to compare.
+ *
+ * Names are compared in the Latin alphabet, and a name in another script
+ * folds to nothing. Two such names used to compare as "same", so a
+ * certificate for 李娜 against a registration for 王伟 opened nothing; a
+ * Latin name against a certificate in another script compared as "differs"
+ * and flagged the parent's form over a translation they cannot correct.
+ * Neither is a machine's call: since 15 October 2026 a person checks the
+ * document by eye, and the parent is not told.
+ */
+function unreadable(registrationValue: string, documentValue: string): boolean {
+  const hasLetters = (s: string) => tokens(s).some((t) => /[a-z]/.test(t));
+  return !hasLetters(registrationValue) || !hasLetters(documentValue);
+}
+
 function nameMatch(registrationFirst: string | null, registrationMiddle: string | null, documentFirstNames: string | null): Match {
   if (!registrationFirst || !documentFirstNames) return "unverified";
+  // The first name alone: a Latin middle name must not stand in for it.
+  if (unreadable(registrationFirst, documentFirstNames)) return "unreadable";
   const doc = tokens(documentFirstNames);
   const reg = tokens(`${registrationFirst} ${registrationMiddle ?? ""}`);
   if (doc.join(" ") === reg.join(" ")) return "same";
@@ -66,6 +85,7 @@ function nameMatch(registrationFirst: string | null, registrationMiddle: string 
 
 function fullNameMatch(registrationFirst: string | null, registrationLast: string | null, documentName: string | null): Match {
   if (!registrationFirst || !registrationLast || !documentName) return "unverified";
+  if (unreadable(registrationFirst, documentName) || unreadable(registrationLast, documentName)) return "unreadable";
   const doc = new Set(tokens(documentName));
   const first = tokens(registrationFirst)[0];
   const last = tokens(registrationLast);
@@ -76,6 +96,11 @@ function fullNameMatch(registrationFirst: string | null, registrationLast: strin
 function exactMatch(a: string | null, b: string | null): Match {
   if (!a || !b) return "unverified";
   return normaliseText(a) === normaliseText(b) ? "same" : "differs";
+}
+
+function surnameMatch(registration: string | null, document: string | null): Match {
+  if (registration && document && unreadable(registration, document)) return "unreadable";
+  return exactMatch(registration, document);
 }
 
 function overlapMatch(a: string | null, b: string | null): Match {
@@ -103,7 +128,7 @@ export function compareExtraction(registration: RegistrationFacts, fields: Recor
     const first = str(fields.first_names);
     push("legal_first_name", "First names", [registration.legal_first_name, registration.legal_middle_names].filter(Boolean).join(" ") || null, first, nameMatch(registration.legal_first_name, registration.legal_middle_names, first));
     const last = str(fields.last_name);
-    push("legal_last_name", "Surname", registration.legal_last_name, last, exactMatch(registration.legal_last_name, last));
+    push("legal_last_name", "Surname", registration.legal_last_name, last, surnameMatch(registration.legal_last_name, last));
     const dob = str(fields.date_of_birth);
     push("date_of_birth", "Date of birth", registration.date_of_birth, dob, exactMatch(registration.date_of_birth, dob));
     const place = str(fields.place_of_birth);
@@ -137,6 +162,50 @@ export type MismatchFlag = {
   requirement_code: string;
   document_id: string;
 };
+
+/**
+ * What a reading means for the record: the event's summary and the tasks it
+ * opens. Pure, so the rule is tested without a database.
+ *
+ * A disagreement opens a review task and, through the flags, shows on the
+ * parent's form. A name that cannot be compared (see `unreadable`) opens a
+ * task of its own for a person to check the document by eye: it is never a
+ * flag, so the parent sees nothing and is emailed nothing.
+ */
+export function documentReadingOutcome(input: {
+  childFirstName: string;
+  requirementCode: string;
+  confidence: number;
+  flags: MismatchFlag[];
+  comparisons: Comparison[];
+}): { summary: string; tasks: Array<{ type: string; title: string; details: string; priority: "normal" }> } {
+  const label = input.requirementCode.replace(/_/g, " ");
+  const unreadableNames = input.comparisons.filter((c) => c.match === "unreadable");
+  const tasks: Array<{ type: string; title: string; details: string; priority: "normal" }> = [];
+  if (input.flags.length) {
+    tasks.push({
+      type: "review_document_mismatch",
+      title: `${input.childFirstName}: ${label} differs from the registration`,
+      details: `${mismatchText(input.flags)}\n\nThe reading is a proposal (confidence ${Math.round(input.confidence * 100)}%). Open the registration to compare, then ask the parent to confirm or correct the form. Nothing has been changed.`,
+      priority: "normal",
+    });
+  }
+  if (unreadableNames.length) {
+    const lines = unreadableNames.map((c) => `${c.label}: the ${label} shows ${c.document_value ?? "—"}; the form says ${c.registration_value ?? "—"}`).join("\n");
+    tasks.push({
+      type: "review_document_unreadable",
+      title: `${input.childFirstName}: check the name on the ${label} by eye`,
+      details: `${lines}\n\nThese names could not be compared by machine: one is written without Latin letters, or the reading has no name in it. Check the document against the registration yourself. The parent has not been told, and nothing has been changed.`,
+      priority: "normal",
+    });
+  }
+  const summary = input.flags.length
+    ? `Document read: ${label} differs from the registration (${input.flags.map((f) => f.label.toLowerCase()).join(", ")})`
+    : unreadableNames.length
+      ? `Document read: the name on the ${label} could not be compared; a person will check it`
+      : `Document read: ${label} agrees with the registration`;
+  return { summary, tasks };
+}
 
 export function mismatchFlags(comparisons: Comparison[], requirementCode: string, documentId: string): MismatchFlag[] {
   return comparisons

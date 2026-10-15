@@ -31,7 +31,9 @@ export function DocumentReading({ document }: { document: Pick<DocumentRow, "ext
                 <td className="py-0.5 pr-2">{c.document_value ?? "—"}</td>
                 <td className="py-0.5 pr-2 text-muted-foreground">form: {c.registration_value ?? "—"}</td>
                 <td className="py-0.5 text-right">
-                  <Badge variant={c.match === "same" ? "success" : c.match === "differs" ? "warning" : "muted"}>{c.match === "same" ? "same" : c.match === "differs" ? "differs" : "not compared"}</Badge>
+                  <Badge variant={c.match === "same" ? "success" : c.match === "differs" || c.match === "unreadable" ? "warning" : "muted"}>
+                    {c.match === "same" ? "same" : c.match === "differs" ? "differs" : c.match === "unreadable" ? "check by eye" : "not compared"}
+                  </Badge>
                 </td>
               </tr>
             ))}

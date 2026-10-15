@@ -586,6 +586,16 @@ design.
 3. A reading that looks nothing like the document (a blurry photo, a
    different document uploaded under the wrong heading) is normal: reject
    the document with a reason and the parent uploads again.
+4. **Check the name on the … by eye.** Names are compared in the Latin
+   alphabet. When one side has no Latin letters (a certificate in Chinese,
+   Arabic or Cyrillic, a name typed that way on the form, or a reading with
+   no name in it), the machine cannot tell whether they match. The name
+   shows **check by eye** on the registration page and this task opens.
+   Nothing shows on the parent's form and the parent is not emailed. Look
+   at the document: if it is the right child, close the task; if not,
+   reject the document with a reason and the parent is asked to upload it
+   again. (**Ask the parent to check** is for a flagged detail, and there
+   is none here.)
 
 ## A waitlisted family, and a place has opened
 
