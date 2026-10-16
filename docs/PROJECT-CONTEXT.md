@@ -676,6 +676,16 @@ recording a transfer against one is a later change), and an order is **never
 chased** — no reminder, no dunning, and it never makes a family look behind on
 the checklist.
 
+**Paying online through PayGate did not work for extras until 16 October
+2026.** Both gateways' hand-off pages (`/pay/gateway`, `/pay/dev`) asked for
+the admissions cookie, and the family cookie is only sent under `/family`,
+so a family pressing Pay arrived with no session and was told their link had
+expired, while the payment sat processing until it timed out. Nothing was
+charged, because the parent never reached PayGate. `startCheckout` now takes
+a `bridgeBase` and a family is sent to `/family/pay/gateway` and
+`/family/pay/dev`, which find the payment through the family loaders
+(`lib/payments/bridge.ts`, `bridge.test.ts`).
+
 ### The CRM (19 September 2026) — a second product on the same rows
 
 `/staff/crm` is the CRM the school asked for, built as a section of this
@@ -953,6 +963,79 @@ surfaces offers the card button again — no migration, no campus flag.
 A currency listed there is a claim that money will actually arrive in the
 school's account. Do not add one before the account exists.
 
+### School transport (16 October 2026) — the database
+
+Hibiscus is starting a school shuttle run by **Watermark Tours**. A parent
+books on a public page (no login, like `/join`): their details, one to six
+children with each child's school, grade, service (full, morning only or
+afternoon only) and weekdays, the home area, and a term or one month of it.
+They pay online; staff get a rider list for Watermark, a financial report and
+the payout owed to Watermark. Decided with the school:
+
+- **Weekdays are pro-rata**: term price × days ÷ 5. Watermark's share is cut
+  by the same fraction. *Watermark still has to agree to this.*
+- **A term or a month**, the parent's choice. A month is the term ÷ 3 (the
+  sheet's months per term) and is its own booking and payment: the gateway
+  cannot charge a card again by itself.
+- **The sibling rate is per child**, counting the children on one booking:
+  one child is "only one child"; a child who shares a school with another on
+  the booking is "same school"; a child alone at their school is "different
+  schools".
+
+The prices are the school's sheet (`Hibiscus_Watermark_Shuttle_Fees.xlsx`),
+seeded as twelve tariffs. Each holds the parent's term price including VAT
+and **Watermark's own price excluding VAT**; Watermark's nett is derived as
+list × 0.9 × 1.14, which reproduces every nett on the sheet exactly (4368 →
+4481.568) and keeps every stored amount in whole thebe. Rounding is half up,
+once per child line, and totals are sums of lines. 3 × a month can be one
+thebe over the term.
+
+**Pricing lives in the database.** `create_transport_booking()` (service role
+only) checks everything the parent typed — the period is published and open,
+the area is served, the terms are the current version, each school is an
+active Botswana campus that offers the grade — and prices each child, writing
+the tariff's figures onto the child's row as a snapshot. Check constraints on
+`transport_booking_riders` hold the rounding rule against the row's own
+snapshot, so a line can never claim a figure its tariff does not give, and a
+trigger freezes what was priced. The app's live estimate is to mirror the
+same rule, pinned to the same figures.
+
+**Staff read at the children's schools.** A child is visible with
+`transport.read` at their own campus; a booking at any of its children's, so
+a Broadhurst coordinator sees the parent on a booking with a Broadhurst
+child, and that child only. Nobody writes bookings through the API: the
+parent's side is the booking function, staff use `transport_cancel_riders()`
+(`transport.manage`) and `transport_record_refund()` (`transport.finance` +
+`finance.write`). Payouts to Watermark are `transport_record_payout()`
+(the same two permissions): each child charged once, a child cancelled after
+being paid out credited at most once, the total computed in SQL, and the rows
+never edited.
+
+**The money uses the existing tables**, with a third subject:
+`payment_requests`/`payments.transport_booking_id`, one payment per booking
+(every campus the shuttle serves charges in pula), filed under the first
+child's campus. A booking is marked paid only once its request is
+(`transport_bookings_guard_status`). Transport emails are read through the
+booking's own policy (`email_messages.transport_booking_id`) instead of the
+staff digest's "nobody's" branch, which every `applications.read` holder sees.
+
+**Retention** is `anonymise_transport_booking()`; see §3.
+
+Security suite cases 83 to 87. Booking ships **off**
+(`transport_booking_enabled`), and nothing is open until a period and the
+terms are published. Not built yet: the parent pages, the staff pages, the
+TypeScript settlement (`lib/payments/subject.ts` still knows two subjects
+and fails closed on a transport row), the emails, the expiry and retention
+sweeps.
+
+To confirm with the school and Watermark: the full list of suburbs and their
+zones; Watermark's twelve prices excluding VAT; that Watermark accepts the
+pro-rata days; cancellation and refund rules; VAT on Hibiscus's share and
+whether parents need tax invoices; who absorbs the card fee (it comes out of
+Hibiscus's share as built); seats, youngest age and afternoon times; a
+data-processing agreement for what Watermark receives; who the coordinator
+is.
+
 ### Three things the code deliberately does not invent
 
 - **Admission thresholds.** No ruleset is seeded or active. Every assessed
@@ -1091,12 +1174,14 @@ school's account. Do not add one before the account exists.
 - **`server-only` modules cannot be imported by vitest.** Pure rules live in
   files without that import (`lib/workflow/automation/rules.ts`,
   `lib/documents/compare.ts`) and the server modules import them.
-- **Retention deletes through one function.** `anonymise_application()` is
+- **Retention deletes through one function per subject.** `anonymise_application()` is
   `security definer`, revoked from every role but the service role, and the
   application row survives with its status, dates, campus and grade so the
   analytics still count it. Storage objects are removed by code *before* the
   function runs. `child_date_of_birth` is `not null`, so it becomes
-  1900-01-01 rather than null.
+  1900-01-01 rather than null. A school transport booking names no
+  application, so it has its own, `anonymise_transport_booking()`, in the
+  same shape (16 October 2026).
 - **Daily jobs gate themselves** on `maintenance_runs`, because the cron is
   every five minutes; the digest is keyed `digest:<campus>:<date>` in
   Gaborone time, and `jobs.application_id` is nullable so a job can belong to

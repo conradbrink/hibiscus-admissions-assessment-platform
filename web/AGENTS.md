@@ -131,6 +131,20 @@ which payment to verify first. The dev adapter cannot report "paid" unless
 the non-production simulate screen wrote the outcome. Do not add a path
 that sets a payment status from a request.
 
+A payment names one of three subjects: an admission, a child's extras, or a
+school transport booking (`payment_requests_has_one_subject`). Until the code
+that settles a transport payment exists, `lib/payments/subject.ts` knows two,
+and a transport row fails closed there as naming no subject it can settle.
+A transport booking has no engine to own its status, so the database does:
+`transport_bookings_guard_status` refuses `paid` unless the booking's payment
+request is already paid.
+
+The hand-off pages a gateway sends the parent through (PayGate's bridge and
+the dev simulate screen) must live under the path the payer's cookie is
+sent to, so `startCheckout` takes a `bridgeBase` (`lib/payments/bridge.ts`):
+`/pay` for an admission, `/family/pay` for a family. A new kind of payer gets
+its own base and its own pages under its own cookie path.
+
 ## Documents go through one door
 
 Bytes are stored only by `storeDocument` (sniffed, capped, hashed, path
@@ -168,13 +182,19 @@ summary on the applicant page follows the same rule: `lib/summary/facts.ts`
 computes the facts and flags, the model may only write prose over them, and
 `validateSummary` decides whether that prose is kept.
 
-## Retention deletes through one function
+## Retention deletes through one function per subject
 
-`anonymise_application()` in the database is the only thing that removes
-personal data, and `lib/workflow/automation/retention.ts` is the only thing
-that calls it, after deleting the stored files. Do not add a delete of an
-applicant row anywhere else; if a new table holds personal data, add it to
-the function and to the security suite's check 37.
+`anonymise_application()` in the database is the only thing that removes an
+applicant's personal data, and `lib/workflow/automation/retention.ts` is the
+only thing that calls it, after deleting the stored files. Do not add a
+delete of an applicant row anywhere else; if a new table holds personal
+data, add it to the function and to the security suite's check 37.
+
+The one other is `anonymise_transport_booking()` (16 October 2026). A school
+transport booking is typed in on a public page and names no application,
+contact or family, so the first function cannot reach it. Same shape and the
+same rule: `retention.ts` is to be its only caller, and a new table that
+holds a booking's personal data joins that function and case 87.
 
 ## A student outlives their application
 
