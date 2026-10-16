@@ -64,6 +64,9 @@ export async function startExtrasPayment(studentId: string): Promise<PayState> {
       customer: await payerForFamily(admin, session),
       returnUrl: `${siteUrl()}/family/extras/pay/${order.student.id}/return`,
       backUrl: `${siteUrl()}/family/extras/pay/${order.student.id}?cancelled=1`,
+      // Under /family, because that is the only path the family cookie is
+      // sent to. The admissions bridge at /pay never sees it.
+      bridgeBase: "/family/pay",
       // No status to move and no application timeline to write to, so the only
       // consequence is the verify the reconciler will do anyway. The sweep
       // (`reconcileProcessingPayments`) picks this up within

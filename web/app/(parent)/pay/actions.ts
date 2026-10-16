@@ -53,6 +53,7 @@ export async function startOnlinePayment(): Promise<PayState> {
       customer: { email: graph.contact.email, firstName: graph.contact.first_name, lastName: graph.contact.last_name },
       returnUrl: `${siteUrl()}/pay/return`,
       backUrl: `${siteUrl()}/pay?cancelled=1`,
+      bridgeBase: "/pay",
       // The admissions consequence: the application moves to
       // payment_processing and the verify job is scheduled.
       onStarted: (payment) => onPaymentStarted(admin, graph.application, request, payment),

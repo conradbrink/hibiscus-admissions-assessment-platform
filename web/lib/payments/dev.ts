@@ -1,13 +1,15 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { devShortcutsAllowed } from "@/lib/deployment";
+import { bridgeUrl } from "@/lib/payments/bridge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CheckoutRequest, CheckoutResult, PaymentProvider, VerifyResult } from "@/lib/payments/provider";
 
 /**
  * The development gateway. Charges nothing, and cannot report a payment as
- * made unless the "simulate" screen at /pay/dev wrote the outcome onto the
- * payment row first. On any deployment it refuses to exist.
+ * made unless a "simulate" screen (`/pay/dev`, or the family's own under
+ * `/family/pay/dev`) wrote the outcome onto the payment row first. On any
+ * deployment it refuses to exist.
  */
 
 // Not production, and not any other deployment either unless somebody has
@@ -31,7 +33,7 @@ export const devProvider: PaymentProvider = {
       providerRef: `dev_${randomUUID()}`,
       // A relative URL: the parent stays on this site, on a page that says
       // in large letters that nothing is being charged.
-      redirectUrl: `/pay/dev?ref=${encodeURIComponent(request.reference)}`,
+      redirectUrl: bridgeUrl(request.bridgeBase, "dev", request.reference),
       expiresAt: new Date(Date.now() + 3_600_000),
     };
   },
