@@ -86,6 +86,7 @@ change.
 | `…20261016120300_transport_payouts` (16 Oct) | `transport_payouts` and `transport_payout_items` (immutable; each child charged once, credited at most once) and `transport_record_payout()` (`transport.finance` and `finance.write`, campus-checked per child, total computed from the lines) |
 | `…20261016120400_transport_retention` (16 Oct) | `anonymise_transport_booking()`: the second retention function, service role only. Removes names, contacts, address, notes, the gateway's copy of the payer's name, the booking's emails and task details; keeps every amount, status and date; refuses a paid booking whose period has not ended |
 | `…20261017100000_transport_open_booking` (17 Oct) | What opening booking needs: the `transport_office_contact` setting; `settings_update_transport`, so `transport.manage` can change exactly three keys (the booking switch, the office contact, the unpaid window) without `settings.write`; the `transport_paid` email (audience `transport`, email only: a booker is not a contact). Security suite case 88. `supabase/seed/dev_transport.sql` opens a sample term for local walkthroughs |
+| `…20261018100000_transport_staff` (18 Oct) | The `transport_cancelled` email (audience `transport`, email only), sent when staff cancel children's transport and tick "Tell the parent". The staff screens (bookings, riders and the provider's list, earnings, payouts) need nothing else from the schema. Security suite case 89: the refusals those screens rely on |
 
 ## Rules for new migrations
 

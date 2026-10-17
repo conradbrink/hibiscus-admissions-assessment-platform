@@ -1061,9 +1061,53 @@ terms are published.
 - **The finance queue** lists transport requests read-only, under their own
   heading.
 
-Still to come (part 3): the bookings list and cancellations, the Watermark
-rider list in Excel, the financial report and the payouts screen. The database
-for all of them is in place.
+### School transport (18 October 2026) — staff run it
+
+- **Transport is an area of the console**, like Students and Insights:
+  Bookings and Riders (`transport.read`), Earnings and Payouts
+  (`transport.finance`), and the settings page as its last tab
+  (`transport.manage`). A coordinator, who holds no admissions permission,
+  lands on Bookings.
+- **Every read is the staff member's own client.** A booking shows the
+  children at schools the person covers; a campus-scoped bursar sees every
+  payout's total but only their own schools' lines, and the page says when
+  those do not add up. The loaders are `lib/transport/staff.ts`; they page by
+  id rather than offset, past PostgREST's thousand rows.
+- **Every write is one of the three functions** from part 1:
+  `transport_cancel_riders` (the booking page; an unpaid booking goes whole),
+  `transport_record_refund` (a cancelled child, after the money was sent) and
+  `transport_record_payout` (after the bank payment; each child once, each
+  credit capped). Their codes become sentences in
+  `lib/transport/staff-errors.ts`, and a test reads the migrations so a new
+  code cannot ship without one. Cancelling a paid child opens a
+  `transport_refund_review` task for finance and, if ticked, sends the parent
+  `transport_cancelled` (the reason stays internal).
+- **The money is one rule**, `lib/transport/ledger.ts`, behind the earnings
+  page, its workbook and the payouts screen: paid by parents, refunded, the
+  provider's share, paid to it, still owed, credits still to decide (a
+  ceiling, not a debt) and what Hibiscus keeps. A child cancelled before the
+  provider was paid for them costs the provider nothing; one cancelled after
+  is a credit finance and the provider agree.
+- **Who rides in a period** is its own bookings plus its term's or its
+  months' (`lib/transport/periods.ts`): a child booked for the term rides in
+  January, and so does one booked for January.
+- **The downloads** are Excel, built by `lib/enrolment/xlsx.ts`, which now
+  writes real numbers, widths, a money format and a frozen header when a
+  sheet asks (an importer's workbook is byte for byte as before). Each is
+  audited before it is made, and refused if the audit row or the read fails
+  (`lib/transport/download.ts`):
+  - the provider's rider list (`transport.export`): riders in route order, the
+    seats on each morning and afternoon run, children cancelled after payment,
+    and what the list leaves out. Names, the pick-up address and phone numbers;
+    never the parent's email or a price;
+  - earnings (`transport.finance`): totals, by school, by booking, and one row
+    per child's line named by reference and place, never by name;
+  - the statement of what is owed before paying, and the remittance for a
+    recorded payout, which names the children because that is how the
+    provider knows them.
+- **Checked against a real PostgREST** on the replayed schema (18 October):
+  every page query, the three functions as a coordinator and as finance, and
+  the workbooks opened in a second reader. Not clicked through in a browser.
 
 To confirm with the school and Watermark: the full list of suburbs and their
 zones; Watermark's twelve prices excluding VAT; that Watermark accepts the

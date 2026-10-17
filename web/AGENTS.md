@@ -171,6 +171,26 @@ one-minute signed URL. The bucket is private and has no policies; nothing
 but the service role touches it. Never hand a storage path or URL to a
 parent page.
 
+## Staff change transport through three functions
+
+There are no write policies on `transport_bookings`, `transport_booking_riders`
+or the payout tables. A cancel is `transport_cancel_riders`, a refund
+`transport_record_refund` and a payment to the provider
+`transport_record_payout`, each called under the staff member's own client so
+the function checks the permission and every child's campus. Their refusal
+codes get a sentence in `lib/transport/staff-errors.ts`; `staff-errors.test.ts`
+reads the migrations and fails on a code with no sentence. The money on the
+screens and in the files is `lib/transport/ledger.ts`, and nothing else adds
+it up.
+
+A transport download (the provider's rider list, earnings, the payout
+statement and remittance) reads through the downloader's own client, writes
+its `audit_log` row first, and is refused rather than made if the row or the
+read fails (`lib/transport/download.ts`). The rider list carries what a
+driver needs and never the parent's email or a price (`staff-lines.test.ts`);
+the earnings file names a line by booking reference and place, never by the
+child.
+
 ## A message is an approved template
 
 `lib/messaging/provider.ts` is the only seam; nothing else imports a vendor

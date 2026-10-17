@@ -317,8 +317,9 @@ The withdrawn offer stays in the applicant's history with the reason given.
 ## Opening school transport booking for a term
 
 Parents book the shuttle at `/transport`. Three things must all be true before
-they can, and **Settings → School transport** (`/staff/admin/transport`,
-needs `transport.manage`) shows which are missing:
+they can, and **Transport → Settings** (`/staff/admin/transport`, needs
+`transport.manage`; also under Settings → School transport) shows which are
+missing:
 
 1. **The term is published.** Add the term: its name as parents will read it
    ("Term 1, 2027"), its first and last day, when booking opens and when it
@@ -346,6 +347,70 @@ and the parent can press *Check again*. Transport payments are listed under
 **School transport** on `/staff/payments`. A payment that does not match, a
 part payment, a payment for a cancelled booking and a second payment each
 open a task naming the booking's reference.
+
+## Sending Watermark the rider list
+
+**Transport → Riders**, choose the term or month, then *Download for the
+provider (Excel)* (needs `transport.export`). A term's list includes the
+children booked for each of its months; a month's includes the children booked
+for the whole term. The file has four sheets:
+
+- **Riders**: every child still booked on a paid booking, by zone, area and
+  school, with the pick-up address, the days, and the parent's name and
+  phone numbers. No email addresses and no prices.
+- **Counts**: the seats each morning and afternoon run needs, by area and school.
+- **Cancelled**: children taken off since their parent paid. Send this too, so
+  they come off the routes.
+- **About this list**: when it was taken and by whom, and how many bookings are
+  not paid yet (those children are not in the list until their parent pays).
+
+Every download is written to the audit log; if that cannot be written, no file
+is made. Send a new list whenever bookings change, and ask Watermark to delete
+old ones. The list is personal data about children: send it only to the
+people at Watermark who plan the routes, and only once the school has the
+data-processing agreement with them.
+
+## Cancelling a child's transport, and refunding
+
+The coordinator cancels; finance refunds.
+
+1. **Transport → Bookings** → the booking. Under *Cancel transport*, tick the
+   children (a booking that is not paid yet is cancelled whole), give the
+   reason (kept on the booking, not sent) and leave *Tell the parent by email*
+   ticked unless you have already told them. A cancel is final; the parent
+   books again if plans change back.
+2. If the booking was paid, a `transport_refund_review` task appears for
+   finance, naming the booking's reference.
+3. **Finance** makes the refund first: in the PayGate portal for a card
+   payment, or at the bank. Then, on the same booking page, *Record a refund*
+   for the child, with the amount and the portal's or bank's reference. This
+   records the refund; it moves no money. The total refunded can never pass
+   what was paid for that child.
+4. If Watermark was already paid for that child, agree a credit with them and
+   take it on the next payout (below).
+
+## Paying Watermark
+
+Finance, with permission to record payments.
+
+1. **Transport → Payouts → Record a payment** shows every child booked and
+   paid for by a parent whom Watermark has not been paid for yet, all ticked.
+   Narrow it to a term if the payment covers one term only. *Download what is
+   owed (Excel)* gives the statement to check against Watermark's invoice.
+2. Pay Watermark at the bank.
+3. Back on the same page, untick any child the payment did not cover, enter
+   any credits agreed for children cancelled after Watermark was paid for
+   them, the date the money left, and the bank's reference. *Record the
+   payment*. The amounts per child are the ones fixed when each booking was
+   made; the page's total is a guide, and the database works out the real one.
+4. On the payout's page, *Download the remittance (Excel)* and send it to
+   Watermark: it lists the children the payment covers.
+
+A recorded payout cannot be changed. If one was wrong, record the next one to
+put it right, and say so in its note. **Transport → Earnings** shows, for a
+term, what parents paid, what was refunded, Watermark's share, what has been
+paid and is still owed, and what the school keeps; *Download (Excel)* gives
+the same figures with one line per child, named by booking reference.
 
 ## A bank transfer has arrived
 
