@@ -2,7 +2,7 @@ import type { Sheet } from "@/lib/enrolment/xlsx";
 import { toSchoolDateString } from "@/lib/format-date";
 import { prettyMobile } from "@/lib/phone";
 import { SERVICE_LABELS, WEEKDAYS, type Weekday } from "@/lib/transport/days";
-import type { PeriodLike } from "@/lib/transport/periods";
+import type { PeriodLike, SeatWindow } from "@/lib/transport/periods";
 import { byRoute, isRiding, type StaffRider } from "@/lib/transport/staff-rider";
 
 /**
@@ -12,12 +12,14 @@ import { byRoute, isRiding, type StaffRider } from "@/lib/transport/staff-rider"
  * What it carries is chosen, not everything we hold. The provider gets the
  * child's and the parent's names, the pick-up address and the phone numbers,
  * because a driver needs them. It does not get the parent's email address or
- * any price: those are the school's business, not the route's. `rider-list.test.ts`
+ * any price: those are the school's business, not the route's. `staff-lines.test.ts`
  * fails if a header ever names either.
  *
  * Only children who are still booked on a paid booking are riders. Children
  * cancelled after payment go on their own sheet, so the provider can take
- * them off a route it has already planned.
+ * them off a route it has already planned. Seats are counted per month
+ * (`seatWindows`): a child booked for January and one booked for February
+ * never share a seat, and a child booked month by month is one seat a month.
  */
 
 export type RiderListMeta = {
@@ -29,6 +31,8 @@ export type RiderListMeta = {
   schools: readonly string[];
   /** Bookings not yet paid for the same period, not in the list. */
   unpaidBookings: number;
+  /** The months (or the one period) the seats are counted over. */
+  windows: readonly SeatWindow[];
 };
 
 export const RIDER_HEADERS = [
@@ -123,16 +127,38 @@ export function riderRow(r: StaffRider, period: PeriodLike | undefined): string[
   ];
 }
 
+/** The seats for each window: its riders are the children booked for any of its periods. */
+export function windowCounts(riders: readonly StaffRider[], windows: readonly SeatWindow[]): Array<{ window: SeatWindow; riding: number } & ReturnType<typeof dayCounts>> {
+  return windows.map((w) => {
+    const inWindow = riders.filter((r) => w.periodIds.includes(r.booking.periodId));
+    const counts = dayCounts(inWindow);
+    return { window: w, riding: counts.total.children, ...counts };
+  });
+}
+
+/**
+ * Cancelled after the parent paid, so possibly already on a route. A booking
+ * cancelled before the money arrived (it can still arrive, late) was never
+ * on one.
+ */
+export function cancelledAfterPayment(r: StaffRider): boolean {
+  if (r.status !== "cancelled" || r.booking.paidAt === null || r.booking.anonymised) return false;
+  return r.cancelledAt === null || new Date(r.cancelledAt).getTime() >= new Date(r.booking.paidAt).getTime();
+}
+
 export function riderListSheets(riders: readonly StaffRider[], periods: ReadonlyMap<string, PeriodLike>, meta: RiderListMeta): Sheet[] {
   const riding = riders.filter(isRiding).sort(byRoute);
-  const cancelled = riders.filter((r) => r.status === "cancelled" && r.booking.paidAt !== null && !r.booking.anonymised).sort(byRoute);
-  const counts = dayCounts(riding);
+  const cancelled = riders.filter(cancelledAfterPayment).sort(byRoute);
+  const windows = windowCounts(riding, meta.windows);
 
-  const countRow = (c: DayCountRow) => [c.area, c.school, c.children, ...DAY_SLOTS.map((s) => c.slots[s])];
+  const countRow = (label: string, c: DayCountRow) => [label, c.area, c.school, c.children, ...DAY_SLOTS.map((s) => c.slots[s])];
   const about: string[][] = [
     ["Provider", meta.providerName],
     ["Period", meta.periodLabel],
-    ["Children riding", String(riding.length)],
+    [
+      "Children riding",
+      windows.length === 1 ? String(windows[0].riding) : windows.map((w) => `${w.window.label}: ${w.riding}`).join("; "),
+    ],
     ["Schools in this list", meta.schools.join(", ")],
     [
       "Not in this list",
@@ -140,6 +166,7 @@ export function riderListSheets(riders: readonly StaffRider[], periods: Readonly
         ? `${meta.unpaidBookings} booking${meta.unpaidBookings === 1 ? " is" : "s are"} not paid yet. A child joins the list when the parent pays.`
         : "Every booking for this period is paid or closed.",
     ],
+    ["Months", "A child booked month by month has one row for each month booked. The seats are counted month by month."],
     ["Taken", meta.takenAt],
     ["Taken by", meta.takenBy],
     ["Use", "For planning school transport only. Keep this file safe, share it only with the drivers who need it, and delete it when the period ends."],
@@ -155,10 +182,10 @@ export function riderListSheets(riders: readonly StaffRider[], periods: Readonly
     },
     {
       name: "Counts",
-      headers: ["Area", "School", "Children", ...DAY_SLOTS.map(SLOT_LABEL)],
-      rows: [...counts.rows.map(countRow), ...(counts.rows.length ? [countRow(counts.total)] : [])],
+      headers: ["Seats in", "Area", "School", "Children", ...DAY_SLOTS.map(SLOT_LABEL)],
+      rows: windows.flatMap((w) => (w.rows.length ? [...w.rows.map((c) => countRow(w.window.label, c)), countRow(w.window.label, w.total)] : [])),
       freezeHeader: true,
-      columns: [{ width: 18 }, { width: 18 }, { format: "count" }, ...DAY_SLOTS.map(() => ({ format: "count" as const }))],
+      columns: [{ width: 20 }, { width: 18 }, { width: 18 }, { format: "count" }, ...DAY_SLOTS.map(() => ({ format: "count" as const }))],
     },
     {
       name: "Cancelled",

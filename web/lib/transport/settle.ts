@@ -102,20 +102,46 @@ export async function onTransportPaid(
     return;
   }
 
-  const { data: booking, error: bErr } = await admin.from("transport_bookings").select("status").eq("id", bookingId).single();
+  const { data: booking, error: bErr } = await admin.from("transport_bookings").select("status, email_normalised, period_id").eq("id", bookingId).single();
   if (bErr || !booking) throw new WorkflowError(bErr?.message ?? "transport booking missing", "database");
 
   if (booking.status === "cancelled") {
     // Money for a booking the school had already cancelled: the parent
     // finished paying after the office gave up on it. The money is real, so
-    // the request says paid; the place is a person's decision.
+    // the request says paid, and so does the booking's `paid_at` (its status
+    // stays cancelled): that is what lets finance record the refund on the
+    // booking page and what puts the money in the earnings until they do.
+    // The place is a person's decision.
+    const { error: pErr } = await admin.from("transport_bookings").update({ paid_at: new Date().toISOString() }).eq("id", bookingId).is("paid_at", null);
+    if (pErr) throw new WorkflowError(pErr.message, "database");
     await taskForBooking(admin, request, bookingId, {
       type: "transport_late_payment",
       title: `${reference}: paid after it was cancelled`,
-      details: `${formatMoney(Number(payment.amount_minor), payment.currency)} was confirmed for a cancelled booking. Contact the parent: book the children again, or refund.`,
+      details: `${formatMoney(Number(payment.amount_minor), payment.currency)} was confirmed for a cancelled booking. Contact the parent: book the children again, or refund and record the refund on the booking page.`,
       priority: "high",
     });
     return;
+  }
+  if (booking.status === "expired" || booking.status === "abandoned") {
+    // The parent was told this booking had lapsed and to book again. If they
+    // did, the money arriving now may be a second payment for the same
+    // children: both bookings would ride, and the parent would have paid twice.
+    const { data: others, error: oErr } = await admin
+      .from("transport_bookings")
+      .select("reference")
+      .eq("email_normalised", booking.email_normalised)
+      .eq("period_id", booking.period_id)
+      .in("status", ["awaiting_payment", "paid"])
+      .neq("id", bookingId);
+    if (oErr) throw new WorkflowError(oErr.message, "database");
+    if (others?.length) {
+      await taskForBooking(admin, request, bookingId, {
+        type: "transport_possible_duplicate",
+        title: `${reference}: paid after it expired, and booked again`,
+        details: `${formatMoney(Number(payment.amount_minor), payment.currency)} was confirmed after this booking expired. The same email also has ${others.map((o) => o.reference).join(", ")} for the same period. Check with the parent whether the children are booked twice; cancel the one they do not need and refund it.`,
+        priority: "high",
+      });
+    }
   }
   if (booking.status !== "paid") {
     // From awaiting payment, and from expired or abandoned too: a parent who

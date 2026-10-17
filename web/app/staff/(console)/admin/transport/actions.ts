@@ -78,8 +78,10 @@ export async function saveTransportPeriod(_: StaffActionState, formData: FormDat
     const ctx = await requireStaffAction("transport.manage");
     const raw = Object.fromEntries([...formData.entries()].filter(([, v]) => v !== ""));
     const p = periodSchema.parse(raw);
-    if (p.kind === "month" && (!p.termPeriodId || !p.monthIndex)) throw new Error("A month needs its term and its number.");
-    if (p.kind === "term" && !p.id && !p.priceListId) throw new Error("Choose the price list.");
+    // Only a new month needs its term and its number: a saved one keeps both,
+    // and its edit form sends neither.
+    if (!p.id && p.kind === "month" && (!p.termPeriodId || !p.monthIndex)) throw new Error("A month needs its term and its number.");
+    if (!p.id && p.kind === "term" && !p.priceListId) throw new Error("Choose the price list.");
 
     const row = {
       label: p.label,

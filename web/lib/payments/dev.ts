@@ -33,7 +33,7 @@ export const devProvider: PaymentProvider = {
       providerRef: `dev_${randomUUID()}`,
       // A relative URL: the parent stays on this site, on a page that says
       // in large letters that nothing is being charged.
-      redirectUrl: bridgeUrl(request.bridgeBase, "dev", request.reference),
+      redirectUrl: bridgeUrl(request.bridgeBase, "dev"),
       expiresAt: new Date(Date.now() + 3_600_000),
     };
   },

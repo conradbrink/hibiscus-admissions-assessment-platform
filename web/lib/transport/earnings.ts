@@ -91,7 +91,7 @@ export function earningsSheets(riders: readonly StaffRider[], periods: ReadonlyM
       columns: [{ width: 20 }, COUNT, COUNT, COUNT, MONEY, MONEY, MONEY, MONEY, MONEY, MONEY],
     },
     {
-      name: "By period",
+      name: "By term or month",
       headers: ["Booked for", ...GROUP_HEADERS],
       rows: byPeriod.map((g) => groupRow(periods.get(g.key)?.label ?? "", g.totals)),
       freezeHeader: true,

@@ -54,6 +54,12 @@ export default async function TransportBookingsPage({ searchParams }: { searchPa
   if (error) throw new Error(error.message);
 
   const label = new Map(periods.map((p) => [p.id, p.label]));
+  // Bookings somebody has been asked to look at: a late or double payment, a
+  // refund to decide. Marked on the row so they are not missed.
+  const { data: openTasks } = (bookings ?? []).length
+    ? await supabase.from("tasks").select("transport_booking_id").in("transport_booking_id", (bookings ?? []).map((b) => b.id)).eq("status", "open")
+    : { data: [] as Array<{ transport_booking_id: string | null }> };
+  const needsLook = new Set((openTasks ?? []).map((t) => t.transport_booking_id));
   const qs = queryBuilder({ status: sp.status, period: sp.period, campus: sp.campus, q: sp.q });
   const rows = bookings ?? [];
 
@@ -162,6 +168,11 @@ export default async function TransportBookingsPage({ searchParams }: { searchPa
                     <td className="px-3 py-2 text-right text-xs tabular-nums">{formatMoney(riders.reduce((s, r) => s + Number(r.amount_minor), 0), "BWP")}</td>
                     <td className="px-3 py-2">
                       <Badge variant={BOOKING_STATUS_TONE[b.status]}>{BOOKING_STATUS_LABELS[b.status]}</Badge>
+                      {needsLook.has(b.id) ? (
+                        <Badge variant="destructive" className="ml-1">
+                          Task
+                        </Badge>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-xs">{formatDate(b.created_at)}</td>
                   </tr>

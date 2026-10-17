@@ -3,7 +3,7 @@ import { formatDateTime, toSchoolDateString } from "@/lib/format-date";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { auditedWorkbook, refused } from "@/lib/transport/download";
-import { ridingPeriodIds } from "@/lib/transport/periods";
+import { ridingPeriodIds, seatWindows } from "@/lib/transport/periods";
 import { riderListFilename, riderListSheets } from "@/lib/transport/rider-list";
 import { loadAwaitingPayment, loadPeriods, loadProviders, loadStaffRiders, loadTransportSchools } from "@/lib/transport/staff";
 import { isRiding } from "@/lib/transport/staff-rider";
@@ -57,6 +57,7 @@ export async function GET(request: Request) {
       takenBy: ctx.profile.full_name || ctx.profile.email,
       schools: schools.map((s) => s.name),
       unpaidBookings: awaiting.bookings,
+      windows: seatWindows(periods, chosen.id),
     };
     const sheets = riderListSheets(own, new Map(periods.map((p) => [p.id, p])), meta);
     return await auditedWorkbook(

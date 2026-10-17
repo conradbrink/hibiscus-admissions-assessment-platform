@@ -11,7 +11,7 @@ import { onTransportPaid, onTransportPaymentFailed } from "@/lib/transport/settl
  */
 type Call = { table: string; op: string; values?: unknown; filters: unknown[][] };
 
-function stub(answers: { settled?: boolean; bookingStatus?: string } = {}) {
+function stub(answers: { settled?: boolean; bookingStatus?: string; others?: Array<{ reference: string }> } = {}) {
   const calls: Call[] = [];
   const from = (table: string) => {
     const call: Call = { table, op: "select", filters: [] };
@@ -20,8 +20,11 @@ function stub(answers: { settled?: boolean; bookingStatus?: string } = {}) {
       if (table === "payments" && call.op === "update") {
         return { data: answers.settled === false ? [] : [{ id: "p1" }], error: null };
       }
+      if (table === "transport_bookings" && call.op === "select" && call.filters.some((f) => f[0] === "neq")) {
+        return { data: answers.others ?? [], error: null };
+      }
       if (table === "transport_bookings" && call.op === "select") {
-        return { data: { reference: "HTR-2027-00042", status: answers.bookingStatus ?? "awaiting_payment" }, error: null };
+        return { data: { reference: "HTR-2027-00042", status: answers.bookingStatus ?? "awaiting_payment", email_normalised: "mpho@test.invalid", period_id: "t1" }, error: null };
       }
       if (table === "tasks" && call.op === "select") return { data: null, count: 0, error: null };
       if (table === "jobs") return { data: [{ id: "j1" }], error: null };
@@ -37,7 +40,7 @@ function stub(answers: { settled?: boolean; bookingStatus?: string } = {}) {
       }
       return q;
     };
-    for (const name of ["select", "update", "insert", "upsert", "eq", "neq", "in"]) q[name] = chain(name);
+    for (const name of ["select", "update", "insert", "upsert", "eq", "neq", "in", "is"]) q[name] = chain(name);
     q.single = async () => result();
     q.maybeSingle = async () => result();
     q.then = (resolve: (v: unknown) => void) => resolve(result());
@@ -98,6 +101,16 @@ describe("onTransportPaid", () => {
     const { admin, calls } = stub({ bookingStatus: "expired" });
     await onTransportPaid(admin, request(), payment(), { approvalCode: "A1" });
     expect(writes(calls, "transport_bookings")[0].values).toEqual({ status: "paid" });
+    expect(writes(calls, "tasks")).toHaveLength(0);
+  });
+
+  it("asks a person when an expired booking is paid after the parent booked again", async () => {
+    const { admin, calls } = stub({ bookingStatus: "expired", others: [{ reference: "HTR-2027-00050" }] });
+    await onTransportPaid(admin, request(), payment(), { approvalCode: "A1" });
+    expect(writes(calls, "transport_bookings")[0].values).toEqual({ status: "paid" });
+    const task = writes(calls, "tasks")[0].values as Record<string, unknown>;
+    expect(task).toMatchObject({ type: "transport_possible_duplicate", priority: "high" });
+    expect(String(task.details)).toContain("HTR-2027-00050");
   });
 
   it("leaves a part payment unpaid, with a task naming the reference and not a child", async () => {
@@ -110,10 +123,14 @@ describe("onTransportPaid", () => {
     expect(String(task.title)).toContain("HTR-2027-00042");
   });
 
-  it("asks a person about money for a cancelled booking, and does not revive it", async () => {
+  it("asks a person about money for a cancelled booking, records that it arrived, and does not revive it", async () => {
     const { admin, calls } = stub({ bookingStatus: "cancelled" });
     await onTransportPaid(admin, request(), payment(), { approvalCode: "A1" });
-    expect(writes(calls, "transport_bookings")).toHaveLength(0);
+    // `paid_at` only: the booking stays cancelled, and the refund form and the
+    // earnings see the money.
+    const bookingWrites = writes(calls, "transport_bookings");
+    expect(bookingWrites).toHaveLength(1);
+    expect(Object.keys(bookingWrites[0].values as object)).toEqual(["paid_at"]);
     expect(writes(calls, "tasks")[0].values).toMatchObject({ type: "transport_late_payment", priority: "high" });
     expect(writes(calls, "jobs")).toHaveLength(0);
   });

@@ -32,7 +32,7 @@ export default async function TransportBookingPage({ params }: { params: Promise
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { supabase, permissions } = await requireStaff("transport.read");
 
-  const [{ data: booking, error }, ridersRes, requestsRes, paymentsRes, emailsRes] = await Promise.all([
+  const [{ data: booking, error }, ridersRes, requestsRes, paymentsRes, emailsRes, tasksRes] = await Promise.all([
     supabase
       .from("transport_bookings")
       .select(
@@ -49,6 +49,9 @@ export default async function TransportBookingPage({ params }: { params: Promise
     supabase.from("payment_requests").select("id, status, amount_minor, paid_minor, currency, due_at, paid_at, created_at").eq("transport_booking_id", id).order("created_at"),
     supabase.from("payments").select("id, status, amount_minor, currency, provider, method, created_at, failure_reason").eq("transport_booking_id", id).order("created_at"),
     supabase.from("email_messages").select("id, template_key, status, to_email, subject, created_at").eq("transport_booking_id", id).order("created_at"),
+    // The tasks the settlement and the cancel form raise about this booking.
+    // A coordinator cannot open the Tasks page, so this is where they see them.
+    supabase.from("tasks").select("id, title, details, priority, created_at").eq("transport_booking_id", id).eq("status", "open").order("created_at"),
   ]);
   if (error) throw new Error(error.message);
   if (!booking) notFound();
@@ -76,6 +79,20 @@ export default async function TransportBookingPage({ params }: { params: Promise
         <p className="surface mb-4 p-3 text-sm text-muted-foreground">
           This booking&rsquo;s personal details were removed on {formatDate(booking.anonymised_at)}, as the retention rules require. The amounts are kept.
         </p>
+      ) : null}
+
+      {(tasksRes.data ?? []).length ? (
+        <section className="mb-4 space-y-2">
+          {(tasksRes.data ?? []).map((t) => (
+            <div key={t.id} className={`surface p-3 text-sm ${t.priority === "high" ? "border-destructive/40" : ""}`}>
+              <p className="font-medium">{t.title}</p>
+              {t.details ? <p className="mt-1 text-xs text-muted-foreground">{t.details}</p> : null}
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Open task, raised {formatDateTime(t.created_at)}. Finance and admissions close it on the Tasks page.
+              </p>
+            </div>
+          ))}
+        </section>
       ) : null}
 
       <section className="surface grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">

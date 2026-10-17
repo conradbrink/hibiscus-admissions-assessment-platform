@@ -339,7 +339,11 @@ begin
 
   select id, body_hash into v_terms from public.transport_terms
    where id = public.current_transport_terms_id();
-  if not found or v_terms.id <> (p_booking->>'terms_id')::uuid or v_terms.body_hash <> (p_booking->>'terms_hash') then
+  -- `is distinct from`, not `<>`: a missing terms id or hash compares as
+  -- null, and `<>` would let a booking through as if its parent had agreed.
+  if not found
+     or v_terms.id is distinct from (p_booking->>'terms_id')::uuid
+     or v_terms.body_hash is distinct from (p_booking->>'terms_hash') then
     raise exception 'transport_terms_changed';
   end if;
 

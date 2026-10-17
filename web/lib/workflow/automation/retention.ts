@@ -104,19 +104,38 @@ export async function anonymiseExpiredTransport(
     if (last && Date.now() - new Date(last.last_run_at).getTime() < DAILY_MS) return { anonymised: 0, failed: 0, skipped: "already ran today" };
   }
   const now = opts.now ?? new Date();
-  const { data, error } = await admin
-    .from("transport_bookings")
-    .select("id, status, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey(ends_on)")
-    .is("anonymised_at", null)
-    .in("status", ["paid", "cancelled", "expired", "abandoned"])
-    .order("updated_at", { ascending: true })
-    .limit(500);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []).map((b) => {
+  const today = toSchoolDateString(now);
+  // Each kind is narrowed to what is due in the query itself. Reading the
+  // oldest few hundred and filtering here let bookings not yet due fill the
+  // page every day, so a due one behind them was never reached.
+  const periodCutoff = new Date(`${today}T00:00:00Z`);
+  periodCutoff.setUTCDate(periodCutoff.getUTCDate() - settings.transportRetentionDays);
+  const unpaidCutoff = new Date(now.getTime() - settings.transportUnpaidRetentionDays * 86_400_000).toISOString();
+  const [finished, unpaid] = await Promise.all([
+    admin
+      .from("transport_bookings")
+      .select("id, status, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .is("anonymised_at", null)
+      .in("status", ["paid", "cancelled"])
+      .lt("transport_periods.ends_on", periodCutoff.toISOString().slice(0, 10))
+      .order("updated_at", { ascending: true })
+      .limit(200),
+    admin
+      .from("transport_bookings")
+      .select("id, status, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .is("anonymised_at", null)
+      .in("status", ["expired", "abandoned"])
+      .lt("updated_at", unpaidCutoff)
+      .order("updated_at", { ascending: true })
+      .limit(200),
+  ]);
+  for (const r of [finished, unpaid]) if (r.error) throw new Error(r.error.message);
+  const rows = [...(finished.data ?? []), ...(unpaid.data ?? [])].map((b) => {
     const period = Array.isArray(b.transport_periods) ? b.transport_periods[0] : b.transport_periods;
     return { id: b.id, status: b.status, updated_at: b.updated_at, anonymised_at: b.anonymised_at, period_ends_on: period?.ends_on ?? "9999-12-31" };
   });
-  const due = transportRetentionDue(rows, settings, toSchoolDateString(now), now);
+  // The same rule again, so the query and the tested rule cannot drift apart.
+  const due = transportRetentionDue(rows, settings, today, now);
 
   let anonymised = 0;
   let failed = 0;

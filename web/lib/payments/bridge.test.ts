@@ -34,10 +34,10 @@ const request = (bridgeBase: CheckoutRequest["bridgeBase"]): CheckoutRequest => 
 describe("bridgeUrl", () => {
   it("puts each page under the base it is given", () => {
     expect(bridgeUrl("/pay", "gateway", "abc")).toBe("/pay/gateway?ref=abc");
-    expect(bridgeUrl("/family/pay", "dev", "abc")).toBe("/family/pay/dev?ref=abc");
+    expect(bridgeUrl("/family/pay", "dev")).toBe("/family/pay/dev");
   });
 
-  it("encodes the reference", () => {
+  it("encodes the gateway's reference", () => {
     expect(bridgeUrl("/pay", "gateway", "a b&c")).toBe("/pay/gateway?ref=a%20b%26c");
   });
 });
@@ -45,12 +45,13 @@ describe("bridgeUrl", () => {
 describe("the development adapter", () => {
   it("sends a family to the family's simulate page", async () => {
     const out = await devProvider.createCheckout(request("/family/pay"));
-    expect(out.redirectUrl).toBe("/family/pay/dev?ref=HBS-2026-00008-ABCD1234");
+    // No reference in the address: the page finds the payment from the session.
+    expect(out.redirectUrl).toBe("/family/pay/dev");
   });
 
   it("still sends an admission to /pay/dev", async () => {
     const out = await devProvider.createCheckout(request("/pay"));
-    expect(out.redirectUrl.startsWith("/pay/dev?")).toBe(true);
+    expect(out.redirectUrl).toBe("/pay/dev");
   });
 });
 

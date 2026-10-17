@@ -1090,7 +1090,17 @@ terms are published.
   is a credit finance and the provider agree.
 - **Who rides in a period** is its own bookings plus its term's or its
   months' (`lib/transport/periods.ts`): a child booked for the term rides in
-  January, and so does one booked for January.
+  January, and so does one booked for January. Seats are counted month by
+  month (`seatWindows`), so children booked for different months never add up
+  on one run.
+- **Late money** (from Claude's review, 18 October): a payment that lands on
+  a booking the office already cancelled sets its `paid_at`, so the refund
+  form and the earnings see it; one that lands on an expired booking after
+  the parent booked again raises `transport_possible_duplicate`. A `pending`
+  payment that never reached the gateway is closed after 30 minutes by the
+  expiry sweep, so it cannot hold a booking open for ever. Transport tasks
+  show on the booking page and link from the Tasks page; a coordinator cannot
+  open the Tasks page.
 - **The downloads** are Excel, built by `lib/enrolment/xlsx.ts`, which now
   writes real numbers, widths, a money format and a frozen header when a
   sheet asks (an importer's workbook is byte for byte as before). Each is
@@ -1100,7 +1110,7 @@ terms are published.
     seats on each morning and afternoon run, children cancelled after payment,
     and what the list leaves out. Names, the pick-up address and phone numbers;
     never the parent's email or a price;
-  - earnings (`transport.finance`): totals, by school, by booking, and one row
+  - earnings (`transport.finance`): totals, by school, by term or month, and one row
     per child's line named by reference and place, never by name;
   - the statement of what is owed before paying, and the remittance for a
     recorded payout, which names the children because that is how the

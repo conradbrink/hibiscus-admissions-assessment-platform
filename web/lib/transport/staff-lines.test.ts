@@ -3,8 +3,8 @@ import { buildWorkbook } from "@/lib/enrolment/xlsx";
 import { readWorkbook } from "@/lib/xlsx-read";
 import { earningsSheets } from "@/lib/transport/earnings";
 import { chargeableRiders, creditableRiders, parsePayoutForm, payoutFilename, payoutSheets, statementLines } from "@/lib/transport/payout";
-import type { PeriodLike } from "@/lib/transport/periods";
-import { CANCELLED_HEADERS, dayCounts, RIDER_HEADERS, riderListFilename, riderListSheets } from "@/lib/transport/rider-list";
+import { seatWindows, type PeriodLike } from "@/lib/transport/periods";
+import { CANCELLED_HEADERS, cancelledAfterPayment, dayCounts, RIDER_HEADERS, riderListFilename, riderListSheets, windowCounts } from "@/lib/transport/rider-list";
 import { byRoute, isRiding, toStaffRider, type RiderSelectRow, type StaffRider } from "@/lib/transport/staff-rider";
 
 const ID = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -127,7 +127,15 @@ describe("the rider list for the provider", () => {
     rider({ lastName: "Gone", status: "cancelled", cancelledAt: "2027-01-20T23:30:00Z", booking: { status: "paid" } }),
     rider({ lastName: "Removed", firstName: "Removed", booking: { anonymised: true } }),
   ];
-  const meta = { providerName: "Watermark Tours", periodLabel: "Term 1, 2027", takenAt: "18 Oct 2026, 09:00", takenBy: "Coordinator", schools: ["Broadhurst", "Block 7"], unpaidBookings: 1 };
+  const meta = {
+    providerName: "Watermark Tours",
+    periodLabel: "Term 1, 2027",
+    takenAt: "18 Oct 2026, 09:00",
+    takenBy: "Coordinator",
+    schools: ["Broadhurst", "Block 7"],
+    unpaidBookings: 1,
+    windows: seatWindows([term, jan], "t1"),
+  };
 
   it("names no email address and no price", () => {
     for (const h of [...RIDER_HEADERS, ...CANCELLED_HEADERS]) expect(h).not.toMatch(/email|price|amount|paid|fee|P\b/i);
@@ -165,10 +173,40 @@ describe("the rider list for the provider", () => {
   it("opens in Excel's reader with the counts as numbers and an about sheet saying what is missing", () => {
     const sheets = readWorkbook(buildWorkbook(riderListSheets(riders, periods, meta)));
     expect(sheets.map((s) => s.name)).toEqual(["Riders", "Counts", "Cancelled", "About this list"]);
-    expect(sheets[1].rows.at(-1)?.slice(0, 4)).toEqual(["All", "All", "3", "3"]);
+    expect(sheets[1].rows.at(-1)?.slice(0, 5)).toEqual(["January 2027", "All", "All", "3", "3"]);
     const about = Object.fromEntries(sheets[3].rows.slice(1).map(([k, v]) => [k, v]));
     expect(about["Children riding"]).toBe("3");
     expect(about["Not in this list"]).toMatch(/1 booking is not paid yet/);
+  });
+
+  it("counts a term's seats month by month, so children booked for different months never share a seat", () => {
+    const feb: PeriodLike = { id: "t1m2", kind: "month", term_period_id: "t1", month_index: 2, label: "February 2027", starts_on: "2027-02-01", ends_on: "2027-02-28" };
+    const all = [term, jan, feb];
+    // One child on the term, and one booked month by month (two bookings).
+    const monthly = [
+      rider({ lastName: "Term" }),
+      rider({ lastName: "Monthly", reference: "HTR-2027-00002", booking: { periodId: "t1m1" } }),
+      rider({ lastName: "Monthly", reference: "HTR-2027-00003", booking: { periodId: "t1m2" } }),
+    ];
+    const windows = windowCounts(monthly, seatWindows(all, "t1"));
+    expect(windows.map((w) => [w.window.label, w.riding, w.total.slots.mon_am])).toEqual([
+      ["January 2027", 2, 2],
+      ["February 2027", 2, 2],
+    ]);
+    const sheets = riderListSheets(monthly, new Map(all.map((p) => [p.id, p])), { ...meta, windows: seatWindows(all, "t1") });
+    // The list has a row per booking; the seats never reach three.
+    expect(sheets[0].rows).toHaveLength(3);
+    expect(Math.max(...sheets[1].rows.map((r) => Number(r[4])))).toBe(2);
+    const about = Object.fromEntries(sheets[3].rows.map(([k, v]) => [k, v]));
+    expect(about["Children riding"]).toBe("January 2027: 2; February 2027: 2");
+    // A single month is its own window, with the term's children in it.
+    expect(seatWindows(all, "t1m2")).toEqual([{ id: "t1m2", label: "February 2027", periodIds: ["t1m2", "t1"] }]);
+  });
+
+  it("leaves off the cancelled sheet a booking cancelled before its money arrived", () => {
+    const late = rider({ lastName: "Late", status: "cancelled", cancelledAt: "2027-01-05T08:00:00Z", booking: { status: "cancelled", paidAt: "2027-01-06T08:00:00Z" } });
+    const after = rider({ lastName: "After", status: "cancelled", cancelledAt: "2027-01-07T08:00:00Z", booking: { status: "cancelled", paidAt: "2027-01-06T08:00:00Z" } });
+    expect([late, after].filter(cancelledAfterPayment).map((r) => r.lastName)).toEqual(["After"]);
   });
 
   it("is named for the provider, the period and the day", () => {

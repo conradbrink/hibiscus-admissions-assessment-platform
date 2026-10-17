@@ -358,7 +358,9 @@ for the whole term. The file has four sheets:
 - **Riders**: every child still booked on a paid booking, by zone, area and
   school, with the pick-up address, the days, and the parent's name and
   phone numbers. No email addresses and no prices.
-- **Counts**: the seats each morning and afternoon run needs, by area and school.
+- **Counts**: the seats each morning and afternoon run needs, by area and
+  school, month by month. A child booked month by month has a row in Riders
+  for each month, and one seat in each month's counts.
 - **Cancelled**: children taken off since their parent paid. Send this too, so
   they come off the routes.
 - **About this list**: when it was taken and by whom, and how many bookings are
@@ -380,7 +382,8 @@ The coordinator cancels; finance refunds.
    ticked unless you have already told them. A cancel is final; the parent
    books again if plans change back.
 2. If the booking was paid, a `transport_refund_review` task appears for
-   finance, naming the booking's reference.
+   finance, naming the booking's reference. Open tasks also show at the top
+   of the booking's page, and as *Task* on the bookings list.
 3. **Finance** makes the refund first: in the PayGate portal for a card
    payment, or at the bank. Then, on the same booking page, *Record a refund*
    for the child, with the amount and the portal's or bank's reference. This

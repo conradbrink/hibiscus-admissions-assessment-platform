@@ -45,7 +45,15 @@ export async function startTransportBooking(
     p_riders: args.p_riders as unknown as Json,
   });
   if (error || !bookingId) throw new TransportBookingError(error?.message ?? "transport_booking_failed");
-  await openTransportRequest(admin, { bookingId });
+  try {
+    await openTransportRequest(admin, { bookingId });
+  } catch (e) {
+    // The parent is told it did not work and books again, so this one must
+    // not sit on the staff list looking live: nobody holds its session and
+    // there is nothing to pay it against.
+    await admin.from("transport_bookings").update({ status: "abandoned" }).eq("id", bookingId).eq("status", "awaiting_payment");
+    throw e;
+  }
   return bookingId;
 }
 

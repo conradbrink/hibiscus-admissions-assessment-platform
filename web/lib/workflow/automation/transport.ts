@@ -16,7 +16,28 @@ import { unpaidExpiryDue } from "@/lib/transport/lifecycle";
  *
  * Runs from the drain every few minutes; each step is idempotent.
  */
+/**
+ * A payment row is `pending` only for the moment between its insert and the
+ * gateway's answer (`startCheckout`). One older than this never reached the
+ * gateway: the request died in between. Left alone it counts as a payment in
+ * flight for ever, and the booking could then never expire, be cancelled or
+ * have its people removed. Nobody can have paid against it, so it is closed.
+ */
+const STALE_PENDING_MINUTES = 30;
+
+async function closeStalePendingPayments(admin: AdminClient, now: Date): Promise<void> {
+  const cutoff = new Date(now.getTime() - STALE_PENDING_MINUTES * 60_000).toISOString();
+  const { error } = await admin
+    .from("payments")
+    .update({ status: "failed", failure_reason: "never reached the payment gateway" })
+    .not("transport_booking_id", "is", null)
+    .eq("status", "pending")
+    .lt("created_at", cutoff);
+  if (error) console.error("[transport] could not close stale pending payments", error.message);
+}
+
 export async function expireUnpaidTransportBookings(admin: AdminClient, now: Date = new Date()): Promise<number> {
+  await closeStalePendingPayments(admin, now);
   const settings = await getSettings(admin);
   const cutoff = new Date(now.getTime() - settings.transportUnpaidHours * 3_600_000).toISOString();
   const { data, error } = await admin

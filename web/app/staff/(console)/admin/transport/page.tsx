@@ -132,7 +132,7 @@ export default async function TransportSettingsPage() {
         </p>
         {termsOf.map((term) => {
           const months = monthsOf(term.id);
-          const nextMonth = [1, 2, 3].slice(0, term.billing_months).find((i) => !months.some((m) => m.month_index === i));
+          const nextMonth = Array.from({ length: term.billing_months }, (_, i) => i + 1).find((i) => !months.some((m) => m.month_index === i));
           return (
             <div key={term.id} className="space-y-2">
               <p className="text-xs text-muted-foreground">

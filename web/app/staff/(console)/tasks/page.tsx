@@ -26,12 +26,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   let query = supabase
     .from("tasks")
-    // All three subjects: a task names an applicant, a child, or — for the
-    // first-day list and anything staff write themselves — only its campus.
+    // Every subject: a task names an applicant, a child, a school transport
+    // booking, or — for the first-day list and anything staff write
+    // themselves — only its campus.
     // Rendering whichever is there is what stops a student task appearing as
     // a title with nothing to click.
     .select(
-      "*, applications(id, reference, child_first_name, child_last_name), students(id, legal_first_name, legal_last_name, preferred_name, student_code), campuses(name), staff_profiles!tasks_assignee_staff_id_fkey(full_name)"
+      "*, applications(id, reference, child_first_name, child_last_name), students(id, legal_first_name, legal_last_name, preferred_name, student_code), transport_bookings(id, reference), campuses(name), staff_profiles!tasks_assignee_staff_id_fkey(full_name)"
     )
     .order("status", { ascending: true })
     .order("due_at", { ascending: true, nullsFirst: false })
@@ -125,6 +126,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           {tasks.map((t) => {
             const app = one(t.applications);
             const student = one(t.students);
+            const booking = one(t.transport_bookings);
             const campus = one(t.campuses);
             const assignee = one(t.staff_profiles);
             const isDone = t.status === "done";
@@ -152,10 +154,14 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
                       <Link href={`/staff/students/${student.id}`} className="underline">
                         {student.preferred_name || student.legal_first_name} {student.legal_last_name} · {student.student_code}
                       </Link>
+                    ) : booking ? (
+                      <Link href={`/staff/transport/bookings/${booking.id}`} className="underline">
+                        School transport · {booking.reference}
+                      </Link>
                     ) : null}
                     {/* Which school. With nine campuses a task list without it
                         is a list nobody can triage. */}
-                    {campus ? <span className={app || student ? "ml-2" : undefined}>{campus.name}</span> : null}
+                    {campus ? <span className={app || student || booking ? "ml-2" : undefined}>{campus.name}</span> : null}
                     {isDone ? (
                       <span className="ml-2">Done{t.resolved_at ? ` ${formatDateTime(t.resolved_at)}` : ""}</span>
                     ) : t.due_at ? (

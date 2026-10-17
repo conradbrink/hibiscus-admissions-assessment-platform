@@ -39,8 +39,25 @@ export type RiderFilter = {
  * Pages follow the id rather than an offset, so a booking made while the
  * download runs cannot push a row from one page to the next and take it twice.
  */
+/**
+ * Ids go in the query string, and a payout for a whole term names hundreds of
+ * children: past a few kilobytes the gateway in front of the API refuses the
+ * URL. A long list is read in slices and the slices put together.
+ */
+const IDS_PER_READ = 100;
+
 export async function loadStaffRiders(supabase: StaffClient, filter: RiderFilter): Promise<StaffRider[]> {
   if (filter.periodIds?.length === 0 || filter.bookingIds?.length === 0 || filter.riderIds?.length === 0) return [];
+  for (const key of ["riderIds", "bookingIds"] as const) {
+    const ids = filter[key];
+    if (ids && ids.length > IDS_PER_READ) {
+      const parts: StaffRider[][] = [];
+      for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+        parts.push(await loadStaffRiders(supabase, { ...filter, [key]: ids.slice(i, i + IDS_PER_READ) }));
+      }
+      return parts.flat();
+    }
+  }
   const out: StaffRider[] = [];
   let after: string | null = null;
   for (;;) {

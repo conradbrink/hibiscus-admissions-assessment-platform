@@ -7,8 +7,8 @@ import { can } from "@/lib/permissions";
 import { prettyMobile } from "@/lib/phone";
 import { requireStaff } from "@/lib/staff/session";
 import { SERVICE_LABELS, weekdaysLabel } from "@/lib/transport/days";
-import { defaultTerm, periodOptions, ridingPeriodIds } from "@/lib/transport/periods";
-import { DAY_SLOTS, dayCounts } from "@/lib/transport/rider-list";
+import { defaultTerm, periodOptions, ridingPeriodIds, seatWindows } from "@/lib/transport/periods";
+import { DAY_SLOTS, windowCounts } from "@/lib/transport/rider-list";
 import { loadAwaitingPayment, loadPeriods, loadStaffRiders } from "@/lib/transport/staff";
 import { byRoute, isRiding } from "@/lib/transport/staff-rider";
 
@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Who is riding in a term or month: every child still booked on a paid
- * booking, in the order a route is planned, and the seats each run needs.
+ * booking, in the order a route is planned, and the seats each run needs,
+ * month by month.
  * The same list, the same order and the same counts as the file the provider
  * is sent, because both are built by `lib/transport/rider-list.ts`.
  */
@@ -29,7 +30,7 @@ export default async function TransportRidersPage({ searchParams }: { searchPara
   const ids = chosen ? ridingPeriodIds(periods, chosen.id) : [];
   const [riders, awaiting] = await Promise.all([loadStaffRiders(supabase, { periodIds: ids, paidOnly: true }), loadAwaitingPayment(supabase, ids)]);
   const riding = riders.filter(isRiding).sort(byRoute);
-  const counts = dayCounts(riding);
+  const windows = chosen ? windowCounts(riding, seatWindows(periods, chosen.id)) : [];
   const label = new Map(periods.map((p) => [p.id, p.label]));
   const canExport = can(permissions, "transport.export");
 
@@ -72,46 +73,56 @@ export default async function TransportRidersPage({ searchParams }: { searchPara
           <p className="mb-4 text-sm text-muted-foreground">
             {chosen.label}, {formatDateRange(chosen.starts_on, chosen.ends_on)}
             {chosen.kind === "term" ? ", with the bookings for each of its months" : ", with the bookings for the whole term"}.{" "}
-            <span className="font-medium text-foreground">{riding.length}</span> {riding.length === 1 ? "child is" : "children are"} riding.
+            {windows.length === 1 ? (
+              <>
+                <span className="font-medium text-foreground">{windows[0].riding}</span> {windows[0].riding === 1 ? "child is" : "children are"} riding.
+              </>
+            ) : (
+              <>Riding: {windows.map((w) => `${w.window.label} ${w.riding}`).join(", ")}.</>
+            )}
             {awaiting.bookings ? ` ${awaiting.bookings} more booking${awaiting.bookings === 1 ? " is" : "s are"} awaiting payment.` : ""}
           </p>
 
           {riding.length ? (
             <>
-              <section className="mb-6 space-y-2">
-                <h2 className="text-sm font-semibold">Seats on each run</h2>
-                <div className="overflow-x-auto surface">
-                  <table className="data-table">
-                    <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Area</th>
-                        <th className="px-3 py-2 font-medium">School</th>
-                        <th className="px-3 py-2 text-right font-medium">Children</th>
-                        {DAY_SLOTS.map((s) => (
-                          <th key={s} className="px-2 py-2 text-right font-medium">
-                            {s.slice(0, 1).toUpperCase()}
-                            {s.slice(1, 3)} {s.endsWith("am") ? "AM" : "PM"}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border text-xs tabular-nums">
-                      {[...counts.rows, counts.total].map((c) => (
-                        <tr key={`${c.area}-${c.school}`} className={c === counts.total ? "font-semibold" : undefined}>
-                          <td className="px-3 py-2">{c.area}</td>
-                          <td className="px-3 py-2">{c.school}</td>
-                          <td className="px-3 py-2 text-right">{c.children}</td>
-                          {DAY_SLOTS.map((s) => (
-                            <td key={s} className="px-2 py-2 text-right">
-                              {c.slots[s] || ""}
-                            </td>
+              {windows
+                .filter((w) => w.rows.length)
+                .map((w) => (
+                  <section key={w.window.id} className="mb-6 space-y-2">
+                    <h2 className="text-sm font-semibold">Seats on each run{windows.length > 1 ? `: ${w.window.label}` : ""}</h2>
+                    <div className="overflow-x-auto surface">
+                      <table className="data-table">
+                        <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Area</th>
+                            <th className="px-3 py-2 font-medium">School</th>
+                            <th className="px-3 py-2 text-right font-medium">Children</th>
+                            {DAY_SLOTS.map((s) => (
+                              <th key={s} className="px-2 py-2 text-right font-medium">
+                                {s.slice(0, 1).toUpperCase()}
+                                {s.slice(1, 3)} {s.endsWith("am") ? "AM" : "PM"}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border text-xs tabular-nums">
+                          {[...w.rows, w.total].map((c) => (
+                            <tr key={`${c.area}-${c.school}`} className={c === w.total ? "font-semibold" : undefined}>
+                              <td className="px-3 py-2">{c.area}</td>
+                              <td className="px-3 py-2">{c.school}</td>
+                              <td className="px-3 py-2 text-right">{c.children}</td>
+                              {DAY_SLOTS.map((s) => (
+                                <td key={s} className="px-2 py-2 text-right">
+                                  {c.slots[s] || ""}
+                                </td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ))}
 
               <section className="space-y-2">
                 <h2 className="text-sm font-semibold">Children</h2>

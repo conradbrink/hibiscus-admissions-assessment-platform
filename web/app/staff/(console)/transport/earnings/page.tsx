@@ -123,7 +123,7 @@ export default async function TransportEarningsPage({ searchParams }: { searchPa
           {lines.length ? (
             <>
               <Breakdown title="By school" rows={bySchool.map((g) => [g.key, g.totals])} />
-              <Breakdown title="By booking" rows={byPeriod.map((g) => [label.get(g.key) ?? "", g.totals])} />
+              <Breakdown title="By term or month" rows={byPeriod.map((g) => [label.get(g.key) ?? "", g.totals])} />
             </>
           ) : (
             <EmptyState>Nothing has been paid for {term.label} yet.</EmptyState>

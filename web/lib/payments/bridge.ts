@@ -20,6 +20,13 @@
 export const BRIDGE_BASES = ["/pay", "/family/pay", "/transport/pay"] as const;
 export type BridgeBase = (typeof BRIDGE_BASES)[number];
 
-export function bridgeUrl(base: BridgeBase, page: "gateway" | "dev", ref: string): string {
-  return `${base}/${page}?ref=${encodeURIComponent(ref)}`;
+/**
+ * The PayGate bridge is handed the gateway's own request id, which it looks
+ * the payment up by. The simulate page is handed nothing: it finds the
+ * payment from the session, and our reference does not belong in a URL.
+ */
+export function bridgeUrl(base: BridgeBase, page: "gateway", gatewayRef: string): string;
+export function bridgeUrl(base: BridgeBase, page: "dev"): string;
+export function bridgeUrl(base: BridgeBase, page: "gateway" | "dev", gatewayRef?: string): string {
+  return page === "gateway" ? `${base}/gateway?ref=${encodeURIComponent(gatewayRef ?? "")}` : `${base}/dev`;
 }

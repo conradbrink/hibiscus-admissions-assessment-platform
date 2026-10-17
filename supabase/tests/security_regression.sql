@@ -5047,6 +5047,15 @@ begin
         v_fail := v_fail || E'\n  - ' || ('84: stale terms failed with "' || sqlerrm || '"');
       end if;
     end;
+    -- No terms at all is not agreement either.
+    begin
+      perform public.create_transport_booking(t_parent - 'terms_id' - 'terms_hash', jsonb_build_array(t_child_bh));
+      v_fail := v_fail || E'\n  - ' || '84: a booking was taken with no terms named, as if the parent had agreed';
+    exception when others then
+      if sqlerrm <> 'transport_terms_changed' then
+        v_fail := v_fail || E'\n  - ' || ('84: missing terms failed with "' || sqlerrm || '"');
+      end if;
+    end;
     begin
       perform public.create_transport_booking(t_parent, jsonb_build_array(t_child_bh || jsonb_build_object('grade_id', g_form1)));
       v_fail := v_fail || E'\n  - ' || '84: a booking was taken for a grade the school does not offer';

@@ -51,3 +51,23 @@ export function periodOptions<P extends PeriodLike>(periods: readonly P[]): Arra
       .map((m) => ({ ...m, indent: true })),
   ]);
 }
+
+/** A stretch of time whose riders share the same seats: a month, or a period with no months. */
+export type SeatWindow = { id: string; label: string; periodIds: string[] };
+
+/**
+ * What the seat counts are taken over. Children booked for different months
+ * of a term never ride on the same day, so a term's seats are counted month
+ * by month, each month with the children booked for the whole term. A term
+ * with no months, or a single month, is one window.
+ */
+export function seatWindows(periods: readonly PeriodLike[], chosenId: string): SeatWindow[] {
+  const chosen = periods.find((p) => p.id === chosenId);
+  if (!chosen) return [];
+  if (chosen.kind === "month") {
+    return [{ id: chosen.id, label: chosen.label, periodIds: chosen.term_period_id ? [chosen.id, chosen.term_period_id] : [chosen.id] }];
+  }
+  const months = periods.filter((p) => p.term_period_id === chosen.id).sort((a, b) => (a.month_index ?? 0) - (b.month_index ?? 0));
+  if (!months.length) return [{ id: chosen.id, label: chosen.label, periodIds: [chosen.id] }];
+  return months.map((m) => ({ id: m.id, label: m.label, periodIds: [chosen.id, m.id] }));
+}
