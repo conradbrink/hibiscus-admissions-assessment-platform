@@ -1021,12 +1021,49 @@ staff digest's "nobody's" branch, which every `applications.read` holder sees.
 
 **Retention** is `anonymise_transport_booking()`; see §3.
 
-Security suite cases 83 to 87. Booking ships **off**
+Security suite cases 83 to 88. Booking ships **off**
 (`transport_booking_enabled`), and nothing is open until a period and the
-terms are published. Not built yet: the parent pages, the staff pages, the
-TypeScript settlement (`lib/payments/subject.ts` still knows two subjects
-and fails closed on a transport row), the emails, the expiry and retention
-sweeps.
+terms are published.
+
+### School transport (17 October 2026) — parents book and pay
+
+- **The parent pages** are their own route group, `app/(transport)`, with
+  their own header and footer: `/transport` (what it costs and what is open),
+  `/transport/book` (the form), `/transport/booking` (the priced booking and
+  Pay), its receipt, and the PayGate bridge, dev simulator and return under
+  `/transport/pay`. The landing page and the form are indexable, like `/join`;
+  the booking and payment pages are not.
+- **A third parent cookie**, `hbs_transport`: one booking, path `/transport`,
+  its own HMAC domain, set by the form rather than by a magic link. A parent
+  who loses it before paying books again (the unpaid one expires); one who has
+  paid has the receipt in their email. Every read goes through
+  `lib/transport/scope.ts`, and `scope.test.ts` greps the pages.
+- **The browser never sees the provider's prices.** The form's estimate runs
+  on the parent's prices only (`customerTariffs`, `estimateCustomerTotal`),
+  agreeing with the full rule on every shape (a test); what is charged is what
+  the database wrote.
+- **Settlement** is the extras branch of `reconcilePayment`, shared
+  (`settleOutsideFunnel`), into `lib/transport/settle.ts`: the request is marked
+  paid, then the booking; a failed attempt leaves the request open so the
+  parent can try again; a part payment, money for a cancelled booking, a
+  second payment and a mismatched amount each open a task naming the
+  reference only. The paid email (`transport_paid`, audience `transport`,
+  email only) carries the receipt.
+- **Sweeps**, from the drain: unpaid bookings expire after
+  `transport_unpaid_hours` (`lib/workflow/automation/transport.ts`); retention
+  (`anonymiseExpiredTransport`, behind `retention_enabled`) clears paid and
+  cancelled bookings `transport_retention_days` after their period and unpaid
+  ones `transport_unpaid_retention_days` after they stopped.
+- **Opening booking** is Settings → School transport (`transport.manage`): the
+  switch, the office contact, the terms and months, and the terms wording. A
+  coordinator may change exactly three settings keys
+  (`settings_update_transport`, case 88). See the runbook.
+- **The finance queue** lists transport requests read-only, under their own
+  heading.
+
+Still to come (part 3): the bookings list and cancellations, the Watermark
+rider list in Excel, the financial report and the payouts screen. The database
+for all of them is in place.
 
 To confirm with the school and Watermark: the full list of suburbs and their
 zones; Watermark's twelve prices excluding VAT; that Watermark accepts the

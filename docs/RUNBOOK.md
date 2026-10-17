@@ -314,6 +314,39 @@ The withdrawn offer stays in the applicant's history with the reason given.
 3. If the cron is not running, nothing confirms until somebody presses the
    button. Check `/staff/admin/jobs`.
 
+## Opening school transport booking for a term
+
+Parents book the shuttle at `/transport`. Three things must all be true before
+they can, and **Settings → School transport** (`/staff/admin/transport`,
+needs `transport.manage`) shows which are missing:
+
+1. **The term is published.** Add the term: its name as parents will read it
+   ("Term 1, 2027"), its first and last day, when booking opens and when it
+   closes (on or before the last day). Tick *published*. Then add its three
+   months the same way, if parents may book month by month; a month must sit
+   inside the term's dates. Prices come from the price list; a month costs a
+   third of the term.
+2. **The terms are published.** Paste the wording the school and Watermark
+   agreed and press *Publish as a new version*. A published version never
+   changes; publishing again makes a new version, and bookings already made
+   keep the one their parent agreed to.
+3. **Booking is switched on.**
+
+Set *Who parents contact* as well: it appears on every page and in the email.
+Then open `/transport` in a private window and check the dates and prices.
+
+An unpaid booking expires after `transport_unpaid_hours` (72); the parent is
+told to book again. A parent who paid after it expired still gets their place:
+the payment settles and the booking becomes paid.
+
+## A parent says they paid for transport but the page says "confirming"
+
+The same as the admissions case above: the gateway is asked every few minutes,
+and the parent can press *Check again*. Transport payments are listed under
+**School transport** on `/staff/payments`. A payment that does not match, a
+part payment, a payment for a cancelled booking and a second payment each
+open a task naming the booking's reference.
+
 ## A bank transfer has arrived
 
 `/staff/payments` → the family's row → **Record bank transfer** with the
