@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/staff/action-form";
-import { PageTitle } from "@/components/staff/page-title";
+import { AreaHeader } from "@/components/staff/area-header";
+import { TRANSPORT_TABS, visibleAreaTabs } from "@/components/staff/nav-items";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateLong, formatDateRange, toSchoolDateString } from "@/lib/format-date";
-import { canAccessPath } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import type { TransportPeriodRow } from "@/lib/supabase/types";
 import { bookablePeriods } from "@/lib/transport/catalogue";
@@ -89,11 +89,10 @@ export default async function TransportSettingsPage() {
 
   return (
     <>
-      <PageTitle
-        // A transport coordinator holds no admissions permission, so the
-        // Settings hub is not theirs to go back to.
-        back={canAccessPath(permissions, "/staff/admin") ? { href: "/staff/admin", label: "Settings" } : undefined}
-        title="School transport"
+      <AreaHeader
+        title="Transport"
+        tabsLabel="Pages"
+        tabs={visibleAreaTabs(permissions, TRANSPORT_TABS, "/staff/admin/transport")}
         description="What parents can book on the public page at /transport. Prices come from the price list; children are priced when the booking is made and never re-priced."
       />
 

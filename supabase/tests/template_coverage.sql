@@ -71,7 +71,8 @@ begin
     ('visit_cancelled_offer_expired', 'the offer lapsed — not news to deliver by notification'),
     -- The person who booked school transport is not a contact and never
     -- opted in to WhatsApp: the booking form is anonymous. Email only.
-    ('transport_paid',     'a transport booker has not opted in to WhatsApp');
+    ('transport_paid',     'a transport booker has not opted in to WhatsApp'),
+    ('transport_cancelled', 'a transport booker has not opted in to WhatsApp');
 
   -- Eight of the nine were filled the same day this check was written: the
   -- school submitted them to Zavu and the rows followed. `offer_expired` is

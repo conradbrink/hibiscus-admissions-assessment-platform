@@ -198,6 +198,12 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/reenrolment", "reenrolment.write"],
   ["/staff/onboarding", "students.read"],
   ["/staff/payments", "finance.read"],
+  // School transport. Reading bookings and riders is the floor; the rider
+  // list leaving for the provider, and the money, have their own.
+  ["/staff/transport/riders/export", "transport.export"],
+  ["/staff/transport/earnings", "transport.finance"],
+  ["/staff/transport/payouts", "transport.finance"],
+  ["/staff/transport", "transport.read"],
   ["/staff/registrations", "applications.read"],
   ["/staff/offers", "offers.read"],
   // The attempt page is for anyone who may see the applicant, not only for
@@ -249,6 +255,7 @@ export function homeFor(permissions: PermissionSet): string {
     "/staff/analytics",
     "/staff/admin/question-banks",
     // A transport coordinator holds nothing else, so this is where they land.
+    "/staff/transport",
     "/staff/admin/transport",
   ];
   for (const path of candidates) {

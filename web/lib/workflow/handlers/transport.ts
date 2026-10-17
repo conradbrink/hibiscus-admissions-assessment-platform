@@ -12,12 +12,13 @@ import type { HandlerResult } from "@/lib/workflow/handlers";
 
 /**
  * `send_transport_email`: an email to the person who made a booking, queued
- * by the settlement (`lib/transport/settle.ts`). The paid email carries the
+ * by the settlement (`lib/transport/settle.ts`) when it is paid, and by the
+ * staff booking page when children are cancelled. The paid email carries the
  * receipt; every variable is built here from the booking's own rows, so the
  * email says what the database says.
  */
 export async function sendTransportEmailHandler(admin: AdminClient, job: JobRow): Promise<HandlerResult> {
-  const payload = (job.payload ?? {}) as { transport_booking_id?: string; template_key?: string };
+  const payload = (job.payload ?? {}) as { transport_booking_id?: string; template_key?: string; rider_ids?: string[] };
   if (!payload.transport_booking_id || !payload.template_key) {
     return { outcome: "failed", error: "send_transport_email needs a booking and a template", retryable: false };
   }
@@ -27,8 +28,10 @@ export async function sendTransportEmailHandler(admin: AdminClient, job: JobRow)
   const settings = await getSettings(admin);
   const { booking, period, riders, request } = loaded;
 
-  const children = riders
-    .filter((r) => r.status === "booked")
+  // A cancellation names the children it cancelled; every other email, the
+  // children still booked.
+  const named = payload.rider_ids?.length ? riders.filter((r) => payload.rider_ids!.includes(r.id)) : riders.filter((r) => r.status === "booked");
+  const children = named
     .map((r) => `${r.first_name} ${r.last_name} (${r.campus?.name ?? "school"}): ${SERVICE_LABELS[r.service].toLowerCase()}, ${weekdaysLabel(r)}`)
     .join("; ");
 

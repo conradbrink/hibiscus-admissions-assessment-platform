@@ -6,6 +6,7 @@ import type { StaffActionState } from "@/components/staff/action-form";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import type { Json } from "@/lib/supabase/types";
+import { staffTransportError } from "@/lib/transport/staff-errors";
 
 /**
  * Opening transport booking: the switch, the office contact, the terms and
@@ -15,20 +16,6 @@ import type { Json } from "@/lib/supabase/types";
  */
 
 const PATH = "/staff/admin/transport";
-
-/** The database's refusals, in words for the person at the screen. */
-const REFUSALS: Record<string, string> = {
-  transport_month_needs_a_term: "A month must belong to a term.",
-  transport_month_index_out_of_range: "A term has only so many months. Check the month number.",
-  transport_month_outside_term: "A month's dates must fall inside its term's dates.",
-  transport_terms_published: "Published terms cannot be changed. Publish a new version instead.",
-  transport_periods_check: "Check the dates: the end comes after the start, and booking closes after it opens and before the period ends.",
-};
-
-function explain(message: string): string {
-  const code = Object.keys(REFUSALS).find((c) => message.includes(c));
-  return code ? REFUSALS[code] : message;
-}
 
 async function setSetting(key: "transport_booking_enabled" | "transport_office_contact", value: Json): Promise<void> {
   const ctx = await requireStaffAction("transport.manage");
@@ -66,7 +53,7 @@ export async function publishTransportTerms(_: StaffActionState, formData: FormD
       published_at: new Date().toISOString(),
       published_by: ctx.userId,
     });
-    if (error) throw new Error(explain(error.message));
+    if (error) throw new Error(staffTransportError(error.message));
     revalidatePath(PATH);
   });
 }
@@ -104,7 +91,7 @@ export async function saveTransportPeriod(_: StaffActionState, formData: FormDat
     };
     if (p.id) {
       const { error } = await ctx.supabase.from("transport_periods").update(row).eq("id", p.id);
-      if (error) throw new Error(explain(error.message));
+      if (error) throw new Error(staffTransportError(error.message));
       revalidatePath(PATH);
       return;
     }
@@ -124,7 +111,7 @@ export async function saveTransportPeriod(_: StaffActionState, formData: FormDat
       month_index: p.kind === "month" ? p.monthIndex! : null,
       price_list_id: priceListId!,
     });
-    if (error) throw new Error(explain(error.message));
+    if (error) throw new Error(staffTransportError(error.message));
     revalidatePath(PATH);
   });
 }

@@ -97,7 +97,15 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       // `transport.read` sees the row and not who it is for.
       return (
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">{t ? `${t.parent_first_name} ${t.parent_last_name}` : "School transport booking"}</p>
+          <p className="font-semibold">
+            {t ? (
+              <Link href={`/staff/transport/bookings/${t.id}`} className="hover:underline">
+                {t.parent_first_name} {t.parent_last_name}
+              </Link>
+            ) : (
+              "School transport booking"
+            )}
+          </p>
           <p className="text-xs text-muted-foreground">
             School transport · {t ? `${t.reference} · ${t.status.replace("_", " ")}` : "you cannot see this booking"} · requested {formatDateTime(r.created_at)}
           </p>
