@@ -16,6 +16,7 @@ import { draftOfferHandler, offerExpireHandler } from "@/lib/workflow/handlers/o
 import { paymentOverdueHandler, paymentVerifyHandler } from "@/lib/workflow/handlers/payments";
 import { autoEnrolHandler } from "@/lib/workflow/handlers/registration";
 import { sendEmailHandler } from "@/lib/workflow/handlers/send-email";
+import { sendTransportEmailHandler } from "@/lib/workflow/handlers/transport";
 import { sendCampaignHandler } from "@/lib/crm/campaigns/send";
 
 /**
@@ -50,4 +51,5 @@ export const HANDLERS: Record<string, Handler> = {
   document_extract: documentExtractHandler,
   staff_digest: staffDigestHandler,
   send_campaign: sendCampaignHandler,
+  send_transport_email: sendTransportEmailHandler,
 };

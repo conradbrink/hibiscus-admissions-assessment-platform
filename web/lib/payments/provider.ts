@@ -1,4 +1,5 @@
 import "server-only";
+import type { BridgeBase } from "@/lib/payments/bridge";
 import type { Json } from "@/lib/supabase/types";
 
 /**
@@ -20,6 +21,12 @@ export type CheckoutRequest = {
   description: string;
   returnUrl: string;
   backUrl: string;
+  /**
+   * Which of our hand-off pages the parent passes through, for a gateway that
+   * needs one (PayGate) and for the development gateway. It has to sit under
+   * the path the payer's session cookie is sent to: see `lib/payments/bridge.ts`.
+   */
+  bridgeBase: BridgeBase;
   customer: { email: string; firstName: string; lastName: string };
 };
 

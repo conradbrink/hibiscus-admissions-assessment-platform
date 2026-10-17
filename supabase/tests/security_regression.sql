@@ -4652,6 +4652,879 @@ begin
     end;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 83–89. School transport
+  --
+  -- A booking is typed in by a stranger, priced here, paid through the same
+  -- money tables as an admission, read by staff at the children's schools,
+  -- and paid out to the provider. Each of those is attacked below, with a
+  -- control beside it so a refusal is the rule and not a broken fixture.
+  --
+  -- Three bookings, all for a published term (and one for a month of it):
+  --   tb_mixed    a Block 7 child (position 1) and a Broadhurst child
+  --   tb_bh       one Broadhurst child, afternoons, Mon/Wed/Fri
+  --   tb_b7       one Block 7 child, Phakalane, one month
+  -- -------------------------------------------------------------------------
+  declare
+    u_tc uuid := gen_random_uuid();
+    u_tc_bh uuid := gen_random_uuid();
+    t_today date := (now() at time zone 'Africa/Gaborone')::date;
+    t_list uuid;
+    t_provider uuid;
+    t_term uuid;
+    t_month uuid;
+    t_terms uuid;
+    t_hash text;
+    t_area_gab uuid;
+    t_area_phak uuid;
+    g_form1 uuid;
+    tb_mixed uuid;
+    tb_bh uuid;
+    tb_b7 uuid;
+    tr_mixed_b7 uuid;
+    tr_mixed_bh uuid;
+    tr_bh uuid;
+    tr_b7 uuid;
+    t_req uuid;
+    t_pay uuid;
+    t_payout uuid;
+    t_email uuid;
+    t_task uuid;
+    t_parent jsonb;
+    t_child_bh jsonb;
+    t_child_b7 jsonb;
+    t_app uuid;
+    t_offer uuid;
+    t_acceptance uuid;
+  begin
+    perform pg_temp.service();
+
+    insert into auth.users (id, email) values
+      (u_tc, 'sec-transport@test.invalid'), (u_tc_bh, 'sec-transport-bh@test.invalid');
+    insert into public.staff_profiles (id, full_name, email, is_active) values
+      (u_tc, 'Sec Transport', 'sec-transport@test.invalid', true),
+      (u_tc_bh, 'Sec Transport Broadhurst', 'sec-transport-bh@test.invalid', true);
+    insert into public.staff_roles (staff_id, role_id)
+    select u, r.id from (values (u_tc, 'transport_coordinator'), (u_tc_bh, 'transport_coordinator')) as x(u, code)
+      join public.roles r on r.code = x.code;
+    insert into public.staff_campuses (staff_id, campus_id) values (u_tc_bh, c_broadhurst);
+
+    select id, provider_id into t_list, t_provider from public.transport_price_lists order by created_at limit 1;
+    select id into t_area_gab from public.transport_areas where name = 'Gaborone';
+    select id into t_area_phak from public.transport_areas where name = 'Phakalane';
+    select id into g_form1 from public.grades where code = 'form_1';
+    if t_list is null or t_area_gab is null or t_area_phak is null or g_form1 is null then
+      raise exception 'SUITE BROKEN: transport seed data missing';
+    end if;
+
+    insert into public.transport_terms (version, body_text, published_at)
+    values (9001, 'Sec transport terms', now()) returning id, body_hash into t_terms, t_hash;
+    insert into public.transport_periods (kind, label, starts_on, ends_on, booking_opens_on, booking_closes_on, price_list_id, is_published)
+    values ('term', 'Sec term', t_today + 10, t_today + 100, t_today - 1, t_today + 20, t_list, true)
+    returning id into t_term;
+    insert into public.transport_periods (kind, term_period_id, month_index, label, starts_on, ends_on, booking_opens_on, booking_closes_on, price_list_id, is_published)
+    values ('month', t_term, 1, 'Sec month', t_today + 10, t_today + 40, t_today - 1, t_today + 20, t_list, true)
+    returning id into t_month;
+
+    t_parent := jsonb_build_object(
+      'period_id', t_term, 'area_id', t_area_gab, 'terms_id', t_terms, 'terms_hash', t_hash,
+      'parent_first_name', 'Sec', 'parent_last_name', 'Transport', 'email', 'sec-transport-parent@test.invalid',
+      'email_normalised', 'sec-transport-parent@test.invalid', 'mobile', '+26771000001', 'address_line', 'Plot 1');
+    t_child_bh := jsonb_build_object('first_name', 'Sec', 'last_name', 'Rider', 'grade_id', g_stage4, 'campus_id', c_broadhurst,
+      'service', 'full', 'mon', true, 'tue', true, 'wed', true, 'thu', true, 'fri', true);
+    t_child_b7 := t_child_bh || jsonb_build_object('campus_id', c_block7);
+
+    -- Booking ships shut. The setting is the last word, whatever is published.
+    begin
+      perform public.create_transport_booking(t_parent, jsonb_build_array(t_child_bh));
+      v_fail := v_fail || E'\n  - ' || '84: a transport booking was taken while booking is switched off';
+    exception when others then
+      if sqlerrm <> 'transport_booking_closed' then
+        v_fail := v_fail || E'\n  - ' || ('84: booking while switched off failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    update public.settings set value = 'true' where key = 'transport_booking_enabled';
+
+    tb_mixed := public.create_transport_booking(t_parent, jsonb_build_array(t_child_b7, t_child_bh));
+    tb_bh := public.create_transport_booking(t_parent,
+      jsonb_build_array(t_child_bh || jsonb_build_object('service', 'pm', 'tue', false, 'thu', false)));
+    tb_b7 := public.create_transport_booking(t_parent || jsonb_build_object('period_id', t_month, 'area_id', t_area_phak),
+      jsonb_build_array(t_child_b7));
+    select id into tr_mixed_b7 from public.transport_booking_riders where booking_id = tb_mixed and position = 1;
+    select id into tr_mixed_bh from public.transport_booking_riders where booking_id = tb_mixed and position = 2;
+    select id into tr_bh from public.transport_booking_riders where booking_id = tb_bh;
+    select id into tr_b7 from public.transport_booking_riders where booking_id = tb_b7;
+
+    -- -----------------------------------------------------------------------
+    -- 83. The price is the sheet's, and the payment's subject is the booking
+    -- -----------------------------------------------------------------------
+    begin
+      -- Two schools on one booking: each child is "different schools",
+      -- Gaborone, full, five days, a term: P 4,400.00, Watermark P 3,824.93.
+      select count(*) into v_count from public.transport_booking_riders
+       where booking_id = tb_mixed and household = 'different_schools' and amount_minor = 440000 and provider_amount_minor = 382493;
+      if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '83: two children at two schools were not priced at the different-schools rate'; end if;
+      -- One child, afternoons, three days: 3/5 of P 3,500.00, and of P 3,012.336.
+      select count(*) into v_count from public.transport_booking_riders
+       where id = tr_bh and household = 'single' and days_count = 3 and amount_minor = 210000 and provider_amount_minor = 180740;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: three afternoons were not priced pro rata'; end if;
+      -- One month in Phakalane: a third of P 5,150.00 and of P 4,481.568.
+      select count(*) into v_count from public.transport_booking_riders
+       where id = tr_b7 and period_divisor = 3 and amount_minor = 171667 and provider_amount_minor = 149386;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: a month was not priced as a third of the term'; end if;
+      -- The zone was copied from the area, so moving the area later re-prices nothing.
+      select count(*) into v_count from public.transport_bookings b join public.transport_zones z on z.id = b.zone_id
+       where b.id = tb_b7 and z.code = 'north';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: a booking did not keep its area''s zone'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83: unexpected error checking prices: ' || sqlerrm);
+    end;
+
+    -- A line cannot claim a figure its own snapshot does not produce.
+    begin
+      insert into public.transport_booking_riders (
+        booking_id, position, first_name, last_name, grade_id, campus_id, service, mon,
+        household, tariff_id, customer_term_minor, provider_list_term_minor, rebate_bp, vat_bp, period_divisor,
+        amount_minor, provider_amount_minor)
+      select tb_bh, 2, 'Sec', 'Cheap', g_stage4, c_broadhurst, 'full', true,
+             'single', r.tariff_id, r.customer_term_minor, r.provider_list_term_minor, r.rebate_bp, r.vat_bp, 1,
+             1, 1
+        from public.transport_booking_riders r where r.id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '83: a child''s line was written at a price its tariff does not give';
+    exception
+      when check_violation then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('83: the underpriced line failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- Exactly one subject: a booking and an admission together is refused.
+    -- A fresh admission with no request of its own, so the subject check is
+    -- what refuses this rather than a one-open-request index.
+    select application_id into t_app from public.create_application(
+      'Sec','Both','sec-transport-both@test.invalid','sec-transport-both@test.invalid',null,null,
+      'Child','Both','2017-04-15', c_block7, g_stage4, g_stage4, i_intake, 'assessment');
+    insert into public.offers (application_id, template_id, template_version, currency, rendered_html, terms_html, status)
+    values (t_app, p2_offer_template, 1, 'BWP', '<p>offer</p>', '<p>terms</p>', 'accepted') returning id into t_offer;
+    insert into public.offer_acceptances (application_id, offer_id, template_id, template_version, decision, terms_accepted, terms_hash, fees)
+    values (t_app, t_offer, p2_offer_template, 1, 'accepted', true, 'sec-hash-t', '{}'::jsonb) returning id into t_acceptance;
+    begin
+      insert into public.payment_requests (transport_booking_id, application_id, offer_id, acceptance_id, currency, amount_minor, due_at)
+      values (tb_mixed, t_app, t_offer, t_acceptance, 'BWP', 880000, now() + interval '2 days');
+      v_fail := v_fail || E'\n  - ' || '83: a payment request named both a transport booking and an admission';
+    exception
+      when check_violation then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('83: the two-subject request failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- The kind and campus are the trigger's: the first child's campus, not
+    -- the one the insert claimed.
+    begin
+      insert into public.payment_requests (transport_booking_id, campus_id, kind, currency, amount_minor, due_at)
+      values (tb_mixed, c_broadhurst, 'extras', 'BWP', 880000, now() + interval '2 days')
+      returning id into t_req;
+      select count(*) into v_count from public.payment_requests where id = t_req and kind = 'transport' and campus_id = c_block7;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: a transport request kept a campus or kind it was handed'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83: the transport request insert failed: ' || sqlerrm);
+    end;
+
+    -- One open request per booking.
+    begin
+      insert into public.payment_requests (transport_booking_id, currency, amount_minor, due_at)
+      values (tb_mixed, 'BWP', 880000, now() + interval '2 days');
+      v_fail := v_fail || E'\n  - ' || '83: a transport booking got a second open payment request';
+    exception
+      when unique_violation then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('83: the second open request failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- A payment's subject is its request's, overwritten rather than trusted.
+    begin
+      insert into public.payments (payment_request_id, application_id, campus_id, method, provider, company_ref, status, amount_minor, currency, raw_response)
+      values (t_req, app_broadhurst, c_broadhurst, 'online', 'dev', 'HTR-SEC', 'pending', 880000, 'BWP', '{"CustomerName": "Sec Transport", "Result": "000"}')
+      returning id into t_pay;
+      select count(*) into v_count from public.payments
+       where id = t_pay and transport_booking_id = tb_mixed and application_id is null and student_id is null and campus_id = c_block7;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: a transport payment kept a subject or campus that was not its request''s'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83: the transport payment insert failed: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Paid means verified: the booking cannot say paid before its request does.
+    begin
+      update public.transport_bookings set status = 'paid' where id = tb_mixed;
+      v_fail := v_fail || E'\n  - ' || '83: a transport booking was marked paid with nothing paid behind it';
+    exception when others then
+      if sqlerrm <> 'transport_booking_not_paid' then
+        v_fail := v_fail || E'\n  - ' || ('83: marking an unpaid booking paid failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    -- Nor be born paid.
+    begin
+      insert into public.transport_bookings (reference, period_id, provider_id, status, parent_first_name, parent_last_name,
+        email, email_normalised, area_id, zone_id, address_line, terms_id, terms_hash, terms_accepted_at)
+      select 'HTR-SEC-PAID', t_term, t_provider, 'paid', 'Sec', 'Paid', 'p@test.invalid', 'p@test.invalid',
+             t_area_gab, a.zone_id, 'Plot 2', t_terms, t_hash, now()
+        from public.transport_areas a where a.id = t_area_gab;
+      v_fail := v_fail || E'\n  - ' || '83: a transport booking was created already paid';
+    exception when others then
+      if sqlerrm <> 'transport_booking_born_paid' then
+        v_fail := v_fail || E'\n  - ' || ('83: a booking born paid failed with "' || sqlerrm || '"');
+      end if;
+    end;
+
+    -- Control: once the reconciler's side says paid, the booking may.
+    begin
+      update public.payments set status = 'succeeded' where id = t_pay;
+      update public.payment_requests set status = 'paid', paid_minor = 880000, paid_at = now() where id = t_req;
+      update public.transport_bookings set status = 'paid' where id = tb_mixed;
+      select count(*) into v_count from public.transport_bookings where id = tb_mixed and status = 'paid' and paid_at is not null;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83 control: a paid booking did not record when'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83 control: a booking with a paid request could not be marked paid: ' || sqlerrm);
+    end;
+    -- And it does not go back.
+    begin
+      update public.transport_bookings set status = 'awaiting_payment' where id = tb_mixed;
+      v_fail := v_fail || E'\n  - ' || '83: a paid booking moved back to awaiting payment';
+    exception when others then
+      if sqlerrm <> 'transport_booking_status_illegal' then
+        v_fail := v_fail || E'\n  - ' || ('83: moving a paid booking back failed with "' || sqlerrm || '"');
+      end if;
+    end;
+
+    -- A Broadhurst bursar does not see money filed under Block 7; a
+    -- head-office bursar does.
+    begin
+      perform pg_temp.impersonate(u_finance_bh);
+      select count(*) into v_count from public.payment_requests where id = t_req;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: a Broadhurst bursar saw a transport request filed under Block 7'; end if;
+      perform pg_temp.service();
+      perform pg_temp.impersonate(u_finance);
+      select count(*) into v_count from public.payments where id = t_pay;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83 control: a head-office bursar could not see a transport payment'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83: unexpected error reading transport payments: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 84. Bookings are read at the children's schools, and written by nobody
+    -- -----------------------------------------------------------------------
+    begin
+      perform pg_temp.impersonate(u_tc_bh);
+      -- The mixed booking, for its Broadhurst child; the Block 7 one not at all.
+      select count(*) into v_count from public.transport_bookings where id in (tb_mixed, tb_bh, tb_b7);
+      if v_count <> 2 then v_fail := v_fail || E'\n  - ' || ('84: a Broadhurst coordinator saw ' || v_count || ' of the 2 bookings with a Broadhurst child'); end if;
+      select count(*) into v_count from public.transport_booking_riders where booking_id = tb_mixed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '84: a Broadhurst coordinator saw a Block 7 child on a shared booking'; end if;
+      select count(*) into v_count from public.transport_booking_riders where id = tr_b7;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '84: a Broadhurst coordinator saw a Block 7 child'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_tc);
+      select count(*) into v_count from public.transport_booking_riders where booking_id in (tb_mixed, tb_bh, tb_b7);
+      if v_count <> 4 then v_fail := v_fail || E'\n  - ' || '84 control: a group coordinator could not see every child'; end if;
+      perform pg_temp.service();
+
+      -- Admissions staff hold no transport permission and see none of it.
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.transport_bookings where id in (tb_mixed, tb_bh, tb_b7);
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '84: admissions staff saw transport bookings'; end if;
+      select count(*) into v_count from public.transport_booking_riders where booking_id in (tb_mixed, tb_bh, tb_b7);
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '84: admissions staff saw transport riders'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('84: unexpected error reading bookings: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Nobody writes a booking or a child through the API, the super
+    -- administrator included: the parent's side is the booking function.
+    begin
+      perform pg_temp.impersonate(u_admin);
+      insert into public.transport_booking_riders (
+        booking_id, position, first_name, last_name, grade_id, campus_id, service, mon,
+        household, tariff_id, customer_term_minor, provider_list_term_minor, rebate_bp, vat_bp, period_divisor,
+        amount_minor, provider_amount_minor)
+      select tb_bh, 3, 'Sec', 'Free', g_stage4, c_broadhurst, 'full', true,
+             r.household, r.tariff_id, r.customer_term_minor, r.provider_list_term_minor, r.rebate_bp, r.vat_bp, 1,
+             (2 * r.customer_term_minor + 5) / 10, (2 * r.provider_list_term_minor * (10000 - r.rebate_bp) * (10000 + r.vat_bp) + 500000000::bigint) / 1000000000::bigint
+        from public.transport_booking_riders r where r.id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '84: a member of staff added a child to a booking directly';
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('84: a direct rider insert failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_tc);
+      with changed as (
+        update public.transport_bookings set address_line = 'Elsewhere' where id = tb_bh returning id
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '84: a coordinator edited a booking directly'; end if;
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('84: a direct booking update failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+
+    -- The catalogue is `transport.manage`'s.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      insert into public.transport_areas (zone_id, name) select zone_id, 'Sec Area' from public.transport_areas where id = t_area_gab;
+      v_fail := v_fail || E'\n  - ' || '84: finance added a transport area';
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('84: an area insert by finance failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_tc);
+      insert into public.transport_areas (zone_id, name) select zone_id, 'Sec Area' from public.transport_areas where id = t_area_gab;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('84 control: a coordinator could not add a transport area: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A price that would pay the provider more than the parent paid.
+    begin
+      perform pg_temp.impersonate(u_tc);
+      update public.transport_tariffs set provider_list_term_minor = customer_term_minor where price_list_id = t_list;
+      v_fail := v_fail || E'\n  - ' || '84: a tariff was saved paying the provider more than the parent pays';
+    exception when others then
+      if sqlerrm <> 'transport_nett_exceeds_price' then
+        v_fail := v_fail || E'\n  - ' || ('84: an over-the-price tariff failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    perform pg_temp.service();
+
+    -- A child's line is frozen, even to the service role; only retention may
+    -- blank the names.
+    begin
+      update public.transport_booking_riders set amount_minor = 1, provider_amount_minor = 1 where id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '84: a child''s price was changed after booking';
+    exception when others then
+      if sqlerrm not in ('transport_rider_frozen') and sqlstate <> '23514' then
+        v_fail := v_fail || E'\n  - ' || ('84: changing a child''s price failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    begin
+      update public.transport_booking_riders set first_name = 'Changed' where id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '84: a child''s name on a booking was changed outside retention';
+    exception when others then
+      if sqlerrm <> 'transport_rider_frozen' then
+        v_fail := v_fail || E'\n  - ' || ('84: renaming a child failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    begin
+      update public.transport_bookings set zone_id = (select id from public.transport_zones where code = 'gaborone') where id = tb_b7;
+      v_fail := v_fail || E'\n  - ' || '84: a booking was moved to a cheaper zone after it was priced';
+    exception when others then
+      if sqlerrm <> 'transport_booking_frozen' then
+        v_fail := v_fail || E'\n  - ' || ('84: moving a booking''s zone failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    -- Published terms are what parents agreed to.
+    begin
+      update public.transport_terms set body_text = 'Different words' where id = t_terms;
+      v_fail := v_fail || E'\n  - ' || '84: published transport terms were rewritten';
+    exception when others then
+      if sqlerrm <> 'transport_terms_published' then
+        v_fail := v_fail || E'\n  - ' || ('84: rewriting published terms failed with "' || sqlerrm || '"');
+      end if;
+    end;
+
+    -- What the booking function refuses: stale terms, and a grade the
+    -- school does not teach.
+    begin
+      perform public.create_transport_booking(t_parent || jsonb_build_object('terms_hash', 'stale'), jsonb_build_array(t_child_bh));
+      v_fail := v_fail || E'\n  - ' || '84: a booking was taken against terms the parent was not shown';
+    exception when others then
+      if sqlerrm <> 'transport_terms_changed' then
+        v_fail := v_fail || E'\n  - ' || ('84: stale terms failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    begin
+      perform public.create_transport_booking(t_parent, jsonb_build_array(t_child_bh || jsonb_build_object('grade_id', g_form1)));
+      v_fail := v_fail || E'\n  - ' || '84: a booking was taken for a grade the school does not offer';
+    exception when others then
+      if sqlerrm <> 'transport_grade_not_at_campus' then
+        v_fail := v_fail || E'\n  - ' || ('84: a grade not at the campus failed with "' || sqlerrm || '"');
+      end if;
+    end;
+
+    -- -----------------------------------------------------------------------
+    -- 85. The emails and tasks about a booking follow the booking
+    -- -----------------------------------------------------------------------
+    begin
+      insert into public.email_messages (transport_booking_id, to_email, subject, body_html, body_text, provider)
+      values (tb_b7, 'sec-transport-parent@test.invalid', 'Your booking for Sec Rider', '<p>Plot 1</p>', 'Plot 1', 'dev')
+      returning id into t_email;
+      insert into public.tasks (transport_booking_id, campus_id, type, title, status)
+      values (tb_b7, c_block7, 'transport_payment_review', 'Sec transport task', 'open')
+      returning id into t_task;
+
+      -- The leak this column closes: an email with no application and no
+      -- family used to show to every `applications.read` holder.
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.email_messages where id = t_email;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '85: admissions staff read an email about a transport booking'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_tc_bh);
+      select count(*) into v_count from public.email_messages where id = t_email;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '85: a Broadhurst coordinator read an email about a Block 7 booking'; end if;
+      select count(*) into v_count from public.tasks where id = t_task;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '85: a Broadhurst coordinator saw a Block 7 transport task'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_tc);
+      select count(*) into v_count from public.email_messages where id = t_email;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '85 control: a group coordinator could not read a booking''s email'; end if;
+      select count(*) into v_count from public.tasks where id = t_task;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '85 control: a coordinator with no admissions access could not see a transport task'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_noroles);
+      select count(*) into v_count from public.tasks where id = t_task;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '85: an account with no role saw a transport task'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('85: unexpected error: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 86. Cancelling, refunding and paying the provider
+    -- -----------------------------------------------------------------------
+
+    -- Paying the provider is finance's, with `finance.write`: the
+    -- coordinator cannot, and Management can read the report but not pay.
+    begin
+      perform pg_temp.impersonate(u_tc);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-1', null, array[tr_mixed_bh], null);
+      v_fail := v_fail || E'\n  - ' || '86: a transport coordinator recorded a payout';
+    exception when others then
+      if sqlerrm <> 'permission_denied' then v_fail := v_fail || E'\n  - ' || ('86: a coordinator''s payout failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_management);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-1', null, array[tr_mixed_bh], null);
+      v_fail := v_fail || E'\n  - ' || '86: Management recorded a payout';
+    exception when others then
+      if sqlerrm <> 'permission_denied' then v_fail := v_fail || E'\n  - ' || ('86: Management''s payout failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+
+    -- A Broadhurst bursar pays for a Broadhurst child, not a Block 7 one.
+    begin
+      perform pg_temp.impersonate(u_finance_bh);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-1', null, array[tr_mixed_b7], null);
+      v_fail := v_fail || E'\n  - ' || '86: a Broadhurst bursar paid the provider for a Block 7 child';
+    exception when others then
+      if sqlerrm <> 'transport_booking_not_allowed' then v_fail := v_fail || E'\n  - ' || ('86: an other-campus charge failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance_bh);
+      t_payout := public.transport_record_payout(t_provider, t_today, 'SEC-EFT-1', null, array[tr_mixed_bh], null);
+      select count(*) into v_count from public.transport_payouts where id = t_payout and total_minor = 382493;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '86 control: a payout did not total the child''s nett'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('86 control: a Broadhurst bursar could not pay for a Broadhurst child: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Once per child; never for a booking nobody paid.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-2', null, array[tr_mixed_bh], null);
+      v_fail := v_fail || E'\n  - ' || '86: the provider was paid twice for one child';
+    exception when others then
+      if sqlerrm <> 'transport_payout_already_paid' then v_fail := v_fail || E'\n  - ' || ('86: a second charge failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-2', null, array[tr_bh], null);
+      v_fail := v_fail || E'\n  - ' || '86: the provider was paid for a booking nobody has paid for';
+    exception when others then
+      if sqlerrm <> 'transport_payout_line_not_payable' then v_fail := v_fail || E'\n  - ' || ('86: an unpaid charge failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+
+    -- Cancelling is the coordinator's; an unpaid booking goes whole.
+    begin
+      perform pg_temp.impersonate(u_tc_bh);
+      perform public.transport_cancel_riders(tb_mixed, array[tr_mixed_bh], 'Sec moved');
+      v_fail := v_fail || E'\n  - ' || '86: a Broadhurst coordinator cancelled on a booking with a Block 7 child';
+    exception when others then
+      if sqlerrm <> 'transport_booking_not_allowed' then v_fail := v_fail || E'\n  - ' || ('86: an other-campus cancel failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_cancel_riders(tb_bh, null, 'Sec moved');
+      v_fail := v_fail || E'\n  - ' || '86: finance cancelled a transport booking';
+    exception when others then
+      if sqlerrm <> 'permission_denied' then v_fail := v_fail || E'\n  - ' || ('86: a cancel by finance failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_tc);
+      perform public.transport_cancel_riders(tb_mixed, array[tr_mixed_bh], 'Sec moved');
+      select count(*) into v_count from public.transport_bookings where id = tb_mixed and status = 'paid';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '86 control: cancelling one child of two cancelled the booking'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('86 control: a coordinator could not cancel a child: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- A refund is finance's, for a cancelled child, never more than the line.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_refund(tr_mixed_bh, 440001, 'Sec refund');
+      v_fail := v_fail || E'\n  - ' || '86: a refund larger than the child''s line was recorded';
+    exception when others then
+      if sqlerrm <> 'transport_refund_too_much' then v_fail := v_fail || E'\n  - ' || ('86: an over-refund failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_refund(tr_mixed_b7, 1000, 'Sec refund');
+      v_fail := v_fail || E'\n  - ' || '86: a refund was recorded for a child still booked';
+    exception when others then
+      if sqlerrm <> 'transport_refund_needs_cancel' then v_fail := v_fail || E'\n  - ' || ('86: refunding a booked child failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_refund(tr_mixed_bh, 200000, 'Sec refund');
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('86 control: finance could not record a refund: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- The cancelled child was paid out already, so the provider owes it back:
+    -- once, and no more than its nett.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-3', null, array[tr_mixed_b7],
+        jsonb_build_array(jsonb_build_object('rider_id', tr_mixed_bh, 'amount_minor', 382494)));
+      v_fail := v_fail || E'\n  - ' || '86: a credit larger than the child''s nett was taken';
+    exception when others then
+      if sqlerrm <> 'transport_payout_credit_amount' then v_fail := v_fail || E'\n  - ' || ('86: an over-credit failed with "' || sqlerrm || '"'); end if;
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      t_payout := public.transport_record_payout(t_provider, t_today, 'SEC-EFT-3', null, array[tr_mixed_b7],
+        jsonb_build_array(jsonb_build_object('rider_id', tr_mixed_bh, 'amount_minor', 100000)));
+      select count(*) into v_count from public.transport_payouts where id = t_payout and total_minor = 382493 - 100000;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '86 control: a payout with a credit did not net them'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('86 control: finance could not record a payout with a credit: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-4', null, null,
+        jsonb_build_array(jsonb_build_object('rider_id', tr_mixed_bh, 'amount_minor', 1)));
+      v_fail := v_fail || E'\n  - ' || '86: a child was credited twice, or a payout of nothing was recorded';
+    exception when others then
+      if sqlerrm not in ('transport_payout_already_credited', 'transport_payout_nothing_owed') then
+        v_fail := v_fail || E'\n  - ' || ('86: a second credit failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    perform pg_temp.service();
+
+    -- Payouts are read by finance only, and changed by nobody.
+    begin
+      perform pg_temp.impersonate(u_tc);
+      select count(*) into v_count from public.transport_payouts;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '86: a transport coordinator read the payouts'; end if;
+      perform pg_temp.service();
+      perform pg_temp.impersonate(u_management);
+      select count(*) into v_count from public.transport_payouts where id = t_payout;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '86 control: Management could not read a payout'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('86: unexpected error reading payouts: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      update public.transport_payouts set total_minor = 1 where id = t_payout;
+      v_fail := v_fail || E'\n  - ' || '86: a recorded payout was changed';
+    exception when others then
+      if sqlerrm <> 'transport_payout_immutable' then v_fail := v_fail || E'\n  - ' || ('86: changing a payout failed with "' || sqlerrm || '"'); end if;
+    end;
+
+    -- -----------------------------------------------------------------------
+    -- 87. The service-role-only transport functions, and retention
+    -- -----------------------------------------------------------------------
+    begin
+      perform pg_temp.impersonate(u_admin);
+      perform public.create_transport_booking(t_parent, jsonb_build_array(t_child_bh));
+      v_fail := v_fail || E'\n  - ' || '87: a signed-in account called create_transport_booking';
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('87: create_transport_booking refused by "' || sqlerrm || '" rather than the execute grant');
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_admin);
+      perform public.anonymise_transport_booking(tb_bh);
+      v_fail := v_fail || E'\n  - ' || '87: a signed-in account called anonymise_transport_booking';
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('87: anonymise_transport_booking refused by "' || sqlerrm || '" rather than the execute grant');
+    end;
+    perform pg_temp.service();
+
+    -- A child still being driven is not cleared.
+    begin
+      perform public.anonymise_transport_booking(tb_mixed);
+      v_fail := v_fail || E'\n  - ' || '87: a paid booking was anonymised before its term ended';
+    exception when others then
+      if sqlerrm <> 'transport_booking_active' then v_fail := v_fail || E'\n  - ' || ('87: anonymising an active booking failed with "' || sqlerrm || '"'); end if;
+    end;
+
+    -- After the term: the people go, the figures stay.
+    begin
+      update public.transport_periods set starts_on = t_today - 100, ends_on = t_today - 1,
+             booking_opens_on = t_today - 100, booking_closes_on = t_today - 50
+       where id = t_term;
+      perform public.anonymise_transport_booking(tb_mixed);
+      select count(*) into v_count from public.transport_bookings
+       where id = tb_mixed and parent_first_name = 'Removed' and mobile is null and address_line = 'Removed'
+         and email like 'removed+%@invalid' and anonymised_at is not null and status = 'paid';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '87: a booking''s parent survived anonymisation'; end if;
+      select count(*) into v_count from public.transport_booking_riders
+       where booking_id = tb_mixed and (first_name <> 'Removed' or last_name <> 'Removed' or cancel_reason is not null or refund_note is not null);
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '87: a child''s name or a reason survived anonymisation'; end if;
+      select coalesce(sum(amount_minor), 0) into v_count from public.transport_booking_riders where booking_id = tb_mixed;
+      if v_count <> 880000 then v_fail := v_fail || E'\n  - ' || '87: anonymisation lost the amounts'; end if;
+      select count(*) into v_count from public.payments where id = t_pay and raw_response ? 'CustomerName';
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '87: the payer''s name survived in the gateway''s reply'; end if;
+      select count(*) into v_count from public.payments where id = t_pay and raw_response ? 'Result';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '87: anonymisation removed the gateway''s answer as well as the name'; end if;
+      select count(*) into v_count from public.transport_payout_items where rider_id = tr_mixed_bh;
+      if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '87: anonymisation touched the payouts'; end if;
+      -- Another booking is untouched.
+      select count(*) into v_count from public.transport_bookings where id = tb_b7 and parent_first_name = 'Sec';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '87: anonymisation touched another booking'; end if;
+      perform public.anonymise_transport_booking(tb_b7);
+      select count(*) into v_count from public.email_messages where id = t_email and body_text = '' and to_email = 'removed';
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '87: an email about a booking survived anonymisation'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('87: unexpected error: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 88. The coordinator opens booking, and touches no other setting
+    -- -----------------------------------------------------------------------
+    begin
+      perform pg_temp.impersonate(u_tc);
+      with changed as (
+        update public.settings set value = 'false' where key = 'transport_booking_enabled' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '88 control: a transport coordinator could not switch booking'; end if;
+      with changed as (
+        update public.settings set value = '"the transport desk"' where key = 'transport_office_contact' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '88 control: a transport coordinator could not set the office contact'; end if;
+      -- Not the retention periods, and not anything outside transport.
+      with changed as (
+        update public.settings set value = '1' where key in ('transport_retention_days', 'retention_enabled', 'auto_enrol') returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('88: a transport coordinator changed ' || v_count || ' setting(s) outside their three'); end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('88: unexpected error as the coordinator: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      with changed as (
+        update public.settings set value = 'true' where key = 'transport_booking_enabled' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '88: finance switched transport booking'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('88: unexpected error as finance: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 89. What the staff screens rely on
+    --
+    -- The bookings, refund and payout screens offer only what the three
+    -- functions would accept and turn each refusal into a sentence. These are
+    -- the refusals they lean on that 86 does not reach. The term above has
+    -- ended (87), so these bookings are for a term of their own.
+    -- -----------------------------------------------------------------------
+    declare
+      t89_term uuid;
+      t89_unpaid uuid;
+      t89_paid uuid;
+      t89_u1 uuid;
+      t89_p1 uuid;
+      t89_p2 uuid;
+      t89_req uuid;
+      t89_other uuid;
+    begin
+      begin
+        update public.settings set value = 'true' where key = 'transport_booking_enabled';
+        insert into public.transport_periods (kind, label, starts_on, ends_on, booking_opens_on, booking_closes_on, price_list_id, is_published)
+        values ('term', 'Sec term 89', t_today + 10, t_today + 100, t_today - 1, t_today + 20, t_list, true)
+        returning id into t89_term;
+        t89_unpaid := public.create_transport_booking(t_parent || jsonb_build_object('period_id', t89_term), jsonb_build_array(t_child_bh, t_child_bh));
+        t89_paid := public.create_transport_booking(t_parent || jsonb_build_object('period_id', t89_term), jsonb_build_array(t_child_bh, t_child_bh));
+        select id into t89_u1 from public.transport_booking_riders where booking_id = t89_unpaid and position = 1;
+        select id into t89_p1 from public.transport_booking_riders where booking_id = t89_paid and position = 1;
+        select id into t89_p2 from public.transport_booking_riders where booking_id = t89_paid and position = 2;
+        insert into public.payment_requests (transport_booking_id, currency, amount_minor, due_at)
+        values (t89_unpaid, 'BWP', 850000, now() + interval '2 days') returning id into t89_req;
+        -- The paid one is paid, the way the settlement leaves it.
+        insert into public.payment_requests (transport_booking_id, currency, amount_minor, due_at, status, paid_minor, paid_at)
+        values (t89_paid, 'BWP', 850000, now() + interval '2 days', 'paid', 850000, now());
+        update public.transport_bookings set status = 'paid' where id = t89_paid;
+        insert into public.transport_providers (code, name) values ('sec_other', 'Sec Other Provider') returning id into t89_other;
+      exception when others then
+        raise exception 'SUITE BROKEN: case 89 fixtures: %', sqlerrm;
+      end;
+
+      -- An unpaid booking is cancelled whole, never child by child.
+      begin
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_unpaid, array[t89_u1], 'Sec moved');
+        v_fail := v_fail || E'\n  - ' || '89: one child of an unpaid booking was cancelled on its own';
+      exception when others then
+        if sqlerrm <> 'transport_unpaid_cancel_whole' then v_fail := v_fail || E'\n  - ' || ('89: a part-cancel of an unpaid booking failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- Not while the gateway may still be taking the money.
+      insert into public.payments (payment_request_id, campus_id, method, provider, company_ref, status, amount_minor, currency)
+      values (t89_req, c_broadhurst, 'online', 'dev', 'HTR-SEC-89', 'processing', 850000, 'BWP');
+      begin
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_unpaid, null, 'Sec moved');
+        v_fail := v_fail || E'\n  - ' || '89: a booking was cancelled while its payment was still being confirmed';
+      exception when others then
+        if sqlerrm <> 'transport_payment_in_progress' then v_fail := v_fail || E'\n  - ' || ('89: a cancel during a payment failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- Control: once the payment failed, the whole booking goes, and its
+      -- open request with it, so nothing is left to pay for.
+      begin
+        update public.payments set status = 'failed' where transport_booking_id = t89_unpaid;
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_unpaid, null, 'Sec moved');
+        perform pg_temp.service();
+        select count(*) into v_count from public.transport_bookings where id = t89_unpaid and status = 'cancelled';
+        if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '89 control: cancelling every child did not cancel the booking'; end if;
+        select count(*) into v_count from public.payment_requests where transport_booking_id = t89_unpaid and status <> 'cancelled';
+        if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '89: a cancelled booking kept a payment request open'; end if;
+      exception when others then
+        v_fail := v_fail || E'\n  - ' || ('89 control: a coordinator could not cancel an unpaid booking: ' || sqlerrm);
+      end;
+      perform pg_temp.service();
+
+      -- Nothing is left to cancel, and nothing was paid to refund.
+      begin
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_unpaid, null, 'Sec again');
+        v_fail := v_fail || E'\n  - ' || '89: a cancelled booking was cancelled again';
+      exception when others then
+        if sqlerrm <> 'transport_nothing_to_cancel' then v_fail := v_fail || E'\n  - ' || ('89: cancelling a cancelled booking failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+      begin
+        perform pg_temp.impersonate(u_finance);
+        perform public.transport_record_refund(t89_u1, 1000, 'Sec refund');
+        v_fail := v_fail || E'\n  - ' || '89: a refund was recorded on a booking nobody paid for';
+      exception when others then
+        if sqlerrm <> 'transport_refund_nothing_paid' then v_fail := v_fail || E'\n  - ' || ('89: refunding an unpaid booking failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- A child already cancelled is not cancelled twice: the screen is stale.
+      begin
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_paid, array[t89_p1], 'Sec moved');
+      exception when others then
+        v_fail := v_fail || E'\n  - ' || ('89 control: a coordinator could not cancel a paid child: ' || sqlerrm);
+      end;
+      perform pg_temp.service();
+      begin
+        perform pg_temp.impersonate(u_tc);
+        perform public.transport_cancel_riders(t89_paid, array[t89_p1], 'Sec moved');
+        v_fail := v_fail || E'\n  - ' || '89: a child was cancelled twice';
+      exception when others then
+        if sqlerrm <> 'transport_rider_not_on_booking' then v_fail := v_fail || E'\n  - ' || ('89: cancelling a cancelled child failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- No credit for a child the provider was never paid for.
+      begin
+        perform pg_temp.impersonate(u_finance);
+        perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-89', null, array[t89_p2],
+          jsonb_build_array(jsonb_build_object('rider_id', t89_p1, 'amount_minor', 1000)));
+        v_fail := v_fail || E'\n  - ' || '89: a credit was taken for a child the provider was never paid for';
+      exception when others then
+        if sqlerrm <> 'transport_payout_credit_not_due' then v_fail := v_fail || E'\n  - ' || ('89: an undue credit failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- Not dated in the future, not a child twice, not another provider's child.
+      begin
+        perform pg_temp.impersonate(u_finance);
+        perform public.transport_record_payout(t_provider, t_today + 1, 'SEC-EFT-89', null, array[t89_p2], null);
+        v_fail := v_fail || E'\n  - ' || '89: a payout was dated tomorrow';
+      exception when others then
+        if sqlerrm <> 'transport_payout_date' then v_fail := v_fail || E'\n  - ' || ('89: a future payout failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+      begin
+        perform pg_temp.impersonate(u_finance);
+        perform public.transport_record_payout(t_provider, t_today, 'SEC-EFT-89', null, array[t89_p2, t89_p2], null);
+        v_fail := v_fail || E'\n  - ' || '89: a payout charged one child twice';
+      exception when others then
+        if sqlerrm <> 'transport_payout_duplicate_line' then v_fail := v_fail || E'\n  - ' || ('89: a duplicate charge failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+      begin
+        perform pg_temp.impersonate(u_finance);
+        perform public.transport_record_payout(t89_other, t_today, 'SEC-EFT-89', null, array[t89_p2], null);
+        v_fail := v_fail || E'\n  - ' || '89: a provider was paid for another provider''s child';
+      exception when others then
+        if sqlerrm <> 'transport_payout_wrong_provider' then v_fail := v_fail || E'\n  - ' || ('89: a wrong-provider charge failed with "' || sqlerrm || '"'); end if;
+      end;
+      perform pg_temp.service();
+
+      -- A Broadhurst bursar reads every payout's total but only Broadhurst's
+      -- lines of it; the head-office bursar reads them all. SEC-EFT-3 charged
+      -- a Block 7 child and credited a Broadhurst one.
+      begin
+        perform pg_temp.impersonate(u_finance_bh);
+        select count(*) into v_count from public.transport_payouts where bank_reference = 'SEC-EFT-3';
+        if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '89 control: a Broadhurst bursar could not read a payout''s total'; end if;
+        select count(*) into v_count from public.transport_payout_items i join public.transport_payouts p on p.id = i.payout_id where p.bank_reference = 'SEC-EFT-3';
+        if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('89: a Broadhurst bursar read ' || v_count || ' lines of a payout, not only Broadhurst''s one'); end if;
+        perform pg_temp.service();
+        perform pg_temp.impersonate(u_finance);
+        select count(*) into v_count from public.transport_payout_items i join public.transport_payouts p on p.id = i.payout_id where p.bank_reference = 'SEC-EFT-3';
+        if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '89 control: a head-office bursar could not read every line of a payout'; end if;
+      exception when others then
+        v_fail := v_fail || E'\n  - ' || ('89: unexpected error reading payout lines: ' || sqlerrm);
+      end;
+      perform pg_temp.service();
+    end;
+  end;
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

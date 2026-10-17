@@ -336,7 +336,7 @@ type TemplateLookup =
   | { ok: true; template: EmailTemplateRow }
   | { ok: false; result: SendTemplatedResult };
 
-async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff" | "family"): Promise<TemplateLookup> {
+async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff" | "family" | "transport"): Promise<TemplateLookup> {
   const { data: template, error } = await admin
     .from("email_templates")
     .select("*")
@@ -355,8 +355,12 @@ async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "p
 /** Where the email goes, and which row of ours the address belongs to. */
 type EmailRecipient = { email: string; contactId?: string | null; staffId?: string | null };
 
-/** What the email is about, for the record. Exactly one, in practice. */
-type EmailSubject = { applicationId?: string | null; familyId?: string | null; studentId?: string | null };
+/**
+ * What the email is about, for the record. Exactly one, in practice. A
+ * transport email must name its booking: the read policy shows an email that
+ * names nothing to every admissions reader at every campus.
+ */
+type EmailSubject = { applicationId?: string | null; familyId?: string | null; studentId?: string | null; transportBookingId?: string | null };
 
 type EmailAttachment = { filename: string; content: string | Uint8Array; contentType: string };
 
@@ -396,6 +400,7 @@ async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Pr
       application_id: opts.subject?.applicationId ?? null,
       family_id: opts.subject?.familyId ?? null,
       student_id: opts.subject?.studentId ?? null,
+      transport_booking_id: opts.subject?.transportBookingId ?? null,
       contact_id: opts.recipient.contactId ?? null,
       recipient_staff_id: opts.recipient.staffId ?? null,
       template_key: template.key,
@@ -676,6 +681,49 @@ export async function sendFamilyEmail(admin: AdminClient, opts: SendFamilyOption
     recipient: { email: contact.email, contactId: contact.id },
     subject: { familyId: opts.familyId, studentId: opts.studentId ?? null },
     idempotencyKey: opts.idempotencyKey,
+  });
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Transport email: a template with audience 'transport', about a booking
+// ---------------------------------------------------------------------------
+
+export type SendTransportOptions = {
+  bookingId: string;
+  templateKey: string;
+  idempotencyKey: string;
+  variables: Record<string, string | null>;
+  attachments?: EmailAttachment[];
+};
+
+/**
+ * Sends one templated email to the person who made a transport booking, and
+ * records it against the booking.
+ *
+ * The booker is not a contact: the form is anonymous, and nothing here joins
+ * them to a family. So the address is the booking's own, there is no magic
+ * link to mint, and there is no WhatsApp companion — nobody opted in.
+ */
+export async function sendTransportEmail(admin: AdminClient, opts: SendTransportOptions): Promise<SendTemplatedResult> {
+  const lookup = await loadActiveTemplate(admin, opts.templateKey, "transport");
+  if (!lookup.ok) return lookup.result;
+
+  const { data: booking, error } = await admin
+    .from("transport_bookings")
+    .select("id, email, parent_first_name, anonymised_at")
+    .eq("id", opts.bookingId)
+    .maybeSingle();
+  if (error) return { status: "failed", error: error.message, retryable: true };
+  if (!booking || booking.anonymised_at) return { status: "skipped", reason: "the booking is gone or anonymised" };
+
+  const { result } = await renderAndSend(admin, {
+    template: lookup.template,
+    variables: { ...opts.variables, parent_first_name: booking.parent_first_name },
+    recipient: { email: booking.email },
+    subject: { transportBookingId: booking.id },
+    idempotencyKey: opts.idempotencyKey,
+    attachments: opts.attachments,
   });
   return result;
 }

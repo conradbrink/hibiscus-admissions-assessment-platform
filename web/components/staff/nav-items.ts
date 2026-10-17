@@ -9,18 +9,18 @@ import { ADMISSIONS_ENTRIES, ADMISSIONS_PATHS, canOpen } from "@/lib/workflow/st
  * imported, because the sidebar (a client component) resolves them and the
  * layout (a server component) hands the groups across.
  *
- * Five places and one Settings hub. Admissions, Students and Insights are
- * areas: one menu item each for several pages, which their own tabs move
- * between (the stage bar in `lib/workflow/stages.ts`, and `STUDENT_TABS` and
- * `INSIGHT_TABS` below). An area opens on the first of its pages the person
- * may see, and stays lit on all of them.
+ * Six places and one Settings hub. Admissions, Students, Insights and
+ * Transport are areas: one menu item each for several pages, which their own
+ * tabs move between (the stage bar in `lib/workflow/stages.ts`, and
+ * `STUDENT_TABS`, `INSIGHT_TABS` and `TRANSPORT_TABS` below). An area opens
+ * on the first of its pages the person may see, and stays lit on all of them.
  */
 export type NavIcon =
   | "dashboard" | "applicants" | "assessment" | "tasks" | "decisions" | "offers"
   | "payments" | "registrations" | "export" | "students" | "onboarding" | "reenrolment" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
-  | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
+  | "fees" | "promotions" | "transport" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
   // The CRM's rail and settings hub.
   | "families" | "contacts" | "opportunities" | "events" | "inbox" | "campaigns" | "segments" | "automations"
   | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm";
@@ -65,6 +65,20 @@ export const INSIGHT_TABS: readonly AreaTab[] = [
   { href: "/staff/analytics/forecast", label: "Forecast", permission: "analytics.read" },
 ];
 
+/**
+ * School transport (18 October 2026). Its settings page lives under
+ * /staff/admin with the rest of Settings, and is a tab here too: a transport
+ * coordinator holds no admissions permission, so the Settings hub is not
+ * theirs, and this area is the only way they find it.
+ */
+export const TRANSPORT_TABS: readonly AreaTab[] = [
+  { href: "/staff/transport", label: "Bookings", permission: "transport.read" },
+  { href: "/staff/transport/riders", label: "Riders", permission: "transport.read" },
+  { href: "/staff/transport/earnings", label: "Earnings", permission: "transport.finance" },
+  { href: "/staff/transport/payouts", label: "Payouts", permission: "transport.finance" },
+  { href: "/staff/admin/transport", label: "Settings", permission: "transport.manage" },
+];
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
@@ -74,6 +88,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/staff/students", label: "Students", icon: "students", entries: STUDENT_TABS, match: STUDENT_TABS.map((t) => t.href) },
       { href: "/staff/tasks", label: "Tasks", icon: "tasks", permission: "applications.read" },
       { href: "/staff/analytics", label: "Insights", icon: "analytics", entries: INSIGHT_TABS, match: ["/staff/analytics"] },
+      // The longer "/staff/admin/transport" wins `activeHref` over Settings'
+      // "/staff/admin", so the transport settings page lights this item.
+      { href: "/staff/transport", label: "Transport", icon: "transport", entries: TRANSPORT_TABS, match: ["/staff/transport", "/staff/admin/transport"] },
       // Back on the menu on 14 October 2026, after a day folded into the
       // Enrolment stage, where the school could not find it. It needs its own
       // permission, held by the chief financial officer alone, so nobody else
@@ -125,6 +142,12 @@ export const SETTINGS_SECTIONS: NavGroup[] = [
     items: [
       { href: "/staff/admin/fees", label: "Fees and bank details", icon: "fees", permission: "finance.write", blurb: "What an offer shows and what secures a place" },
       { href: "/staff/admin/promotions", label: "Promotions", icon: "promotions", permission: "settings.write", blurb: "Waived fees, discounts and gifts on an offer" },
+    ],
+  },
+  {
+    label: "School transport",
+    items: [
+      { href: "/staff/admin/transport", label: "School transport", icon: "transport", permission: "transport.manage", blurb: "Open booking, set the term and month dates, publish the terms" },
     ],
   },
   {

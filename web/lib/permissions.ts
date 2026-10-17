@@ -65,6 +65,14 @@ export const PERMISSION_CODES = [
   "crm.campaigns.approve_sensitive",
   "crm.export",
   "crm.import",
+  /** School transport: the bookings and riders, at the campuses one may see. */
+  "transport.read",
+  /** The rider list handed to the transport provider. */
+  "transport.export",
+  /** Transport earnings and payouts. Recording a payout or refund also needs finance.write. */
+  "transport.finance",
+  /** Transport prices, areas, dates and terms, and cancelling a booking. */
+  "transport.manage",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -106,6 +114,10 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "crm.campaigns.approve_sensitive": "Approve fee, policy and group-wide campaigns",
   "crm.export": "Export CRM lists and reports",
   "crm.import": "Import families and contacts from a file",
+  "transport.read": "View school transport bookings and riders",
+  "transport.export": "Download the transport rider list for the provider",
+  "transport.finance": "View transport earnings and payouts to the provider",
+  "transport.manage": "Set transport prices, areas, dates and terms; cancel bookings",
 };
 
 export type PermissionSet = ReadonlySet<string>;
@@ -148,6 +160,10 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/document-requirements", "settings.write"],
   ["/staff/admin/onboarding-steps", "settings.write"],
   ["/staff/admin/fees", "finance.write"],
+  // School transport's settings. Not under the admissions floor that
+  // `/staff/admin` sets: a transport coordinator holds no admissions
+  // permission and still runs this page.
+  ["/staff/admin/transport", "transport.manage"],
   ["/staff/admin/promotions", "settings.write"],
   ["/staff/admin/staff", "staff.write"],
   ["/staff/admin/sessions", "applications.write"],
@@ -182,6 +198,12 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/reenrolment", "reenrolment.write"],
   ["/staff/onboarding", "students.read"],
   ["/staff/payments", "finance.read"],
+  // School transport. Reading bookings and riders is the floor; the rider
+  // list leaving for the provider, and the money, have their own.
+  ["/staff/transport/riders/export", "transport.export"],
+  ["/staff/transport/earnings", "transport.finance"],
+  ["/staff/transport/payouts", "transport.finance"],
+  ["/staff/transport", "transport.read"],
   ["/staff/registrations", "applications.read"],
   ["/staff/offers", "offers.read"],
   // The attempt page is for anyone who may see the applicant, not only for
@@ -232,6 +254,9 @@ export function homeFor(permissions: PermissionSet): string {
     "/staff/students",
     "/staff/analytics",
     "/staff/admin/question-banks",
+    // A transport coordinator holds nothing else, so this is where they land.
+    "/staff/transport",
+    "/staff/admin/transport",
   ];
   for (const path of candidates) {
     if (canAccessPath(permissions, path)) return path;

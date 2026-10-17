@@ -14,6 +14,9 @@ import type { TokenPurpose } from "@/lib/supabase/types";
  *               offer, payment, registration.
  *   hbs_family  one family, path `/family`. The CRM: every child at once, for
  *               as long as the family is with the school.
+ *   hbs_transport  one school transport booking, path `/transport`. Minted
+ *               when a stranger submits the public booking form, not from a
+ *               magic link, so it carries no token purpose.
  *
  * A family cookie is strictly more powerful than an application cookie — it
  * reaches every child — so it is signed under its own HMAC domain. A bug in
@@ -33,6 +36,7 @@ import type { TokenPurpose } from "@/lib/supabase/types";
 
 export const PARENT_COOKIE = "hbs_parent";
 export const FAMILY_COOKIE = "hbs_family";
+export const TRANSPORT_COOKIE = "hbs_transport";
 
 export type ApplicationSession = {
   applicationId: string;
@@ -44,6 +48,16 @@ export type ApplicationSession = {
 export type FamilySession = {
   familyId: string;
   purpose: TokenPurpose;
+  issuedAt: number;
+  expiresAt: number;
+};
+
+/**
+ * One transport booking, for the person who just typed it in. It names a
+ * booking and nothing else: no family, no application, no child.
+ */
+export type TransportSession = {
+  bookingId: string;
   issuedAt: number;
   expiresAt: number;
 };
@@ -83,6 +97,7 @@ export function splitSigned(value: string): { payload: string; signature: string
 
 const PARENT_DOMAIN = "parent";
 const FAMILY_DOMAIN = "family";
+const TRANSPORT_DOMAIN = "transport";
 
 export function encodeParentSession(session: ParentSession, secret: string): string {
   // The keys stay exactly as they were, so every cookie already in a parent's
@@ -182,4 +197,35 @@ export function decodeFamilySession(
     issuedAt: parsed.i,
     expiresAt: parsed.e,
   };
+}
+
+/**
+ * The transport booking cookie. Its own domain, like the family one: the
+ * booking form is anonymous, so this cookie is the easiest of the three to
+ * come by, and it must never be readable as either of the others.
+ */
+export function encodeTransportSession(session: TransportSession, secret: string): string {
+  const payload = b64url(JSON.stringify({ b: session.bookingId, i: session.issuedAt, e: session.expiresAt }));
+  return `${payload}.${signPayload(payload, secret, TRANSPORT_DOMAIN)}`;
+}
+
+export function decodeTransportSession(
+  value: string | undefined | null,
+  secret: string,
+  now: number = Date.now()
+): TransportSession | null {
+  if (!value) return null;
+  const parts = splitSigned(value);
+  if (!parts) return null;
+  if (!verifyPayload(parts.payload, parts.signature, secret, TRANSPORT_DOMAIN)) return null;
+
+  let parsed: { b?: unknown; i?: unknown; e?: unknown };
+  try {
+    parsed = JSON.parse(Buffer.from(parts.payload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+  if (typeof parsed.b !== "string" || typeof parsed.i !== "number" || typeof parsed.e !== "number") return null;
+  if (parsed.e <= now) return null;
+  return { bookingId: parsed.b, issuedAt: parsed.i, expiresAt: parsed.e };
 }

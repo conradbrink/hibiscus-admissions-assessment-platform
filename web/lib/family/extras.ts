@@ -320,3 +320,56 @@ export async function loadStudentReceipt(
     payment,
   };
 }
+
+/**
+ * A processing online payment for one of this family's children, found by the
+ * gateway's request id. For the PayGate bridge under `/family/pay/gateway`:
+ * the id arrives in the query string and is only trusted once it matches a
+ * payment of a child on this session.
+ */
+export async function processingAttemptForFamily(
+  admin: AdminClient,
+  session: FamilySession,
+  providerRef: string
+): Promise<PaymentRow | null> {
+  if (!providerRef) return null;
+  const students = await loadFamilyStudents(admin, session);
+  if (students.length === 0) return null;
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .eq("provider_ref", providerRef)
+    .in(
+      "student_id",
+      students.map((s) => s.id)
+    )
+    .eq("method", "online")
+    .eq("status", "processing")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * This family's most recent processing payment on the development gateway,
+ * for its simulate screen. The admissions screen picks its payment the same
+ * way, by the session rather than by anything in the URL.
+ */
+export async function latestDevAttemptForFamily(admin: AdminClient, session: FamilySession): Promise<PaymentRow | null> {
+  const students = await loadFamilyStudents(admin, session);
+  if (students.length === 0) return null;
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .in(
+      "student_id",
+      students.map((s) => s.id)
+    )
+    .eq("provider", "dev")
+    .eq("status", "processing")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}

@@ -6,7 +6,8 @@ import { queueDigests } from "@/lib/workflow/automation/digest";
 import { sweepFirstDay } from "@/lib/workflow/automation/first-day";
 import { sweepOnboarding } from "@/lib/workflow/automation/onboarding";
 import { sweepReenrolment } from "@/lib/workflow/automation/reenrolment";
-import { anonymiseExpired } from "@/lib/workflow/automation/retention";
+import { anonymiseExpired, anonymiseExpiredTransport } from "@/lib/workflow/automation/retention";
+import { expireUnpaidTransportBookings } from "@/lib/workflow/automation/transport";
 import { ensureWeekdaySessions } from "@/lib/workflow/automation/sessions";
 import { promoteWaitlist } from "@/lib/workflow/automation/waitlist";
 import { pruneDrainRuns, pruneRateLimits, sweepUnroutedEnquiries } from "@/lib/workflow/maintenance";
@@ -67,6 +68,16 @@ export async function GET(request: Request) {
     console.error("[retention] run failed", e);
     return { anonymised: -1, failed: -1, skipped: "error" };
   });
+  const transportRetention = await anonymiseExpiredTransport(admin).catch((e) => {
+    console.error("[retention] transport run failed", e);
+    return { anonymised: -1, failed: -1, skipped: "error" };
+  });
+  // After the payment sweep, so a payment that just landed settles before its
+  // booking is considered unpaid.
+  const transportExpired = await expireUnpaidTransportBookings(admin).catch((e) => {
+    console.error("[transport] expiry sweep failed", e);
+    return -1;
+  });
   const digests = await queueDigests(admin).catch((e) => {
     console.error("[digest] queue failed", e);
     return -1;
@@ -102,6 +113,8 @@ export async function GET(request: Request) {
     waitlist_promoted: waitlist.promoted,
     waitlist_tasks: waitlist.tasks,
     retention_anonymised: retention.anonymised,
+    transport_retention_anonymised: transportRetention.anonymised,
+    transport_bookings_expired: transportExpired,
     digests_queued: digests,
     sessions_created: sessionsCreated,
   };

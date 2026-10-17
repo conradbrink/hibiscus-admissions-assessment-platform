@@ -57,6 +57,7 @@ export const SECTIONS = [
   "Scholarships",
   "Automation",
   "CRM",
+  "School transport",
   "Keeping and deleting data",
   "Everything else",
 ] as const;
@@ -132,10 +133,19 @@ export const SETTING_FIELDS: Record<string, SettingField> = {
   crm_follow_up_days: F("int", "CRM", "A new enquiry should be contacted within", { unit: "days" }),
   crm_stale_contact_days: F("int", "CRM", "Count a family as “no response” after", { unit: "days" }),
 
+  // School transport. The coordinator also sets the first three at
+  // Settings → School transport, without `settings.write`.
+  transport_booking_enabled: F("bool", "School transport", "Parents can book school transport", { help: "A published term or month and published terms are needed as well." }),
+  transport_office_contact: F("text", "School transport", "Who parents contact about transport"),
+  transport_unpaid_hours: F("int", "School transport", "An unpaid booking expires after", { unit: "hours" }),
+  transport_session_minutes: F("int", "School transport", "The booking page stays signed in for", { unit: "minutes" }),
+
   // Keeping and deleting data
   retention_enabled: F("bool", "Keeping and deleting data", "Anonymise old applications automatically"),
   retention_days_abandoned: F("int", "Keeping and deleting data", "Anonymise an enquiry that never progressed after", { unit: "days" }),
   retention_days_closed: F("int", "Keeping and deleting data", "Anonymise a closed application after", { unit: "days" }),
+  transport_retention_days: F("int", "Keeping and deleting data", "Remove a transport booking's names after its term ends, after", { unit: "days" }),
+  transport_unpaid_retention_days: F("int", "Keeping and deleting data", "Remove an unpaid transport booking's names after", { unit: "days" }),
 };
 
 /** The field for a key, or null when nothing has labelled it yet. */

@@ -516,6 +516,8 @@ export type TaskRow = {
   application_id: string | null;
   student_id: string | null;
   campus_id: string | null;
+  /** A school transport booking the task is about; its campus is the first child's. */
+  transport_booking_id: string | null;
   type: string;
   title: string;
   details: string | null;
@@ -659,7 +661,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
-  audience: "parent" | "staff" | "family";
+  audience: "parent" | "staff" | "family" | "transport";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -670,6 +672,8 @@ export type EmailMessageRow = {
   application_id: string | null;
   family_id: string | null;
   student_id: string | null;
+  /** An email about a school transport booking, read through the booking's own policy. */
+  transport_booking_id: string | null;
   contact_id: string | null;
   template_key: string | null;
   template_version: number | null;
@@ -1159,11 +1163,12 @@ export type OfferAcceptanceRow = {
 };
 
 /**
- * What is owed, for one of two subjects: the admissions triple (an
+ * What is owed, for one of three subjects: the admissions triple (an
  * application, the offer that priced it and the acceptance that agreed to it),
- * or a child, for the optional extras their family ordered. Exactly one is
- * named — `payment_requests_has_one_subject` — and `kind` and `campus_id` are
- * both derived by trigger from whichever it is, never written by a caller.
+ * a child, for the optional extras their family ordered, or a school transport
+ * booking. Exactly one is named — `payment_requests_has_one_subject` — and
+ * `kind` and `campus_id` are both derived by trigger from whichever it is,
+ * never written by a caller.
  */
 export type PaymentRequestRow = {
   id: string;
@@ -1171,7 +1176,8 @@ export type PaymentRequestRow = {
   offer_id: string | null;
   acceptance_id: string | null;
   student_id: string | null;
-  kind: "admission" | "extras";
+  transport_booking_id: string | null;
+  kind: "admission" | "extras" | "transport";
   campus_id: string;
   currency: "BWP" | "ZAR";
   amount_minor: number;
@@ -1190,6 +1196,7 @@ export type PaymentRow = {
   payment_request_id: string;
   application_id: string | null;
   student_id: string | null;
+  transport_booking_id: string | null;
   campus_id: string;
   method: PaymentMethod;
   provider: PaymentProviderName;
@@ -2168,6 +2175,194 @@ export type CrmFamilyFactsRow = {
 };
 
 // ---------------------------------------------------------------------------
+// School transport (20261016120000 onward)
+// ---------------------------------------------------------------------------
+
+export type TransportService = "full" | "one_way";
+export type TransportRiderService = "full" | "am" | "pm";
+export type TransportHousehold = "single" | "different_schools" | "same_school";
+export type TransportBookingStatus = "awaiting_payment" | "paid" | "expired" | "abandoned" | "cancelled";
+
+export type TransportProviderRow = {
+  id: string;
+  code: string;
+  name: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TransportZoneRow = {
+  id: string;
+  code: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TransportAreaRow = {
+  id: string;
+  zone_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Pula only. `rebate_bp` and `vat_bp` are basis points: 1000 is 10%. */
+export type TransportPriceListRow = {
+  id: string;
+  provider_id: string;
+  label: string;
+  currency: "BWP";
+  rebate_bp: number;
+  vat_bp: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Per term, five days: what the parent pays (incl. VAT) and the provider's own price (excl. VAT). */
+export type TransportTariffRow = {
+  id: string;
+  price_list_id: string;
+  zone_id: string;
+  service: TransportService;
+  household: TransportHousehold;
+  customer_term_minor: number;
+  provider_list_term_minor: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A term, or one month of it (`term_period_id`, `month_index`). A month's list and months follow its term. */
+export type TransportPeriodRow = {
+  id: string;
+  kind: "term" | "month";
+  term_period_id: string | null;
+  month_index: number | null;
+  label: string;
+  starts_on: string;
+  ends_on: string;
+  booking_opens_on: string;
+  booking_closes_on: string;
+  billing_months: number;
+  price_list_id: string;
+  is_published: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Frozen once published; `body_hash` is set by trigger. */
+export type TransportTermsRow = {
+  id: string;
+  version: number;
+  body_text: string;
+  body_hash: string;
+  published_at: string | null;
+  published_by: string | null;
+  created_at: string;
+};
+
+/** Written only by `create_transport_booking`; the priced facts are frozen by trigger. */
+export type TransportBookingRow = {
+  id: string;
+  reference: string;
+  period_id: string;
+  provider_id: string;
+  status: TransportBookingStatus;
+  parent_first_name: string;
+  parent_last_name: string;
+  email: string;
+  email_normalised: string;
+  mobile: string | null;
+  second_contact_name: string | null;
+  second_contact_mobile: string | null;
+  area_id: string;
+  zone_id: string;
+  address_line: string;
+  landmark: string | null;
+  notes: string | null;
+  terms_id: string;
+  terms_hash: string;
+  terms_accepted_at: string;
+  ip_hash: string | null;
+  user_agent: string | null;
+  paid_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
+  anonymised_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A child on a booking, with the tariff snapshot and the amounts it produced. */
+export type TransportBookingRiderRow = {
+  id: string;
+  booking_id: string;
+  position: number;
+  first_name: string;
+  last_name: string;
+  grade_id: string;
+  campus_id: string;
+  service: TransportRiderService;
+  mon: boolean;
+  tue: boolean;
+  wed: boolean;
+  thu: boolean;
+  fri: boolean;
+  days_count: number;
+  household: TransportHousehold;
+  tariff_id: string;
+  customer_term_minor: number;
+  provider_list_term_minor: number;
+  rebate_bp: number;
+  vat_bp: number;
+  period_divisor: number;
+  amount_minor: number;
+  provider_amount_minor: number;
+  notes: string | null;
+  status: "booked" | "cancelled";
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancel_reason: string | null;
+  refund_minor: number;
+  refunded_at: string | null;
+  refunded_by: string | null;
+  refund_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Recorded by `transport_record_payout`; never edited. */
+export type TransportPayoutRow = {
+  id: string;
+  provider_id: string;
+  paid_on: string;
+  bank_reference: string;
+  note: string | null;
+  currency: "BWP";
+  total_minor: number;
+  recorded_by: string;
+  created_at: string;
+};
+
+export type TransportPayoutItemRow = {
+  id: string;
+  payout_id: string;
+  rider_id: string;
+  kind: "charge" | "credit";
+  amount_minor: number;
+  created_at: string;
+};
+
+// ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
 
@@ -2315,6 +2510,7 @@ export type Database = {
         | "application_id"
         | "student_id"
         | "campus_id"
+        | "transport_booking_id"
         | "details"
         | "assignee_staff_id"
         | "due_at"
@@ -2329,6 +2525,7 @@ export type Database = {
           Rel<"tasks_application_id_fkey", "application_id", "applications">,
           Rel<"tasks_student_id_fkey", "student_id", "students">,
           Rel<"tasks_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"tasks_transport_booking_id_fkey", "transport_booking_id", "transport_bookings">,
           Rel<"tasks_assignee_staff_id_fkey", "assignee_staff_id", "staff_profiles">,
           Rel<"tasks_created_by_fkey", "created_by", "staff_profiles">,
           Rel<"tasks_resolved_by_fkey", "resolved_by", "staff_profiles">,
@@ -2438,6 +2635,7 @@ export type Database = {
         | "application_id"
         | "family_id"
         | "student_id"
+        | "transport_booking_id"
         | "contact_id"
         | "template_key"
         | "template_version"
@@ -2452,6 +2650,7 @@ export type Database = {
         | "recipient_staff_id",
         [
           Rel<"email_messages_application_id_fkey", "application_id", "applications">,
+          Rel<"email_messages_transport_booking_id_fkey", "transport_booking_id", "transport_bookings">,
           Rel<"email_messages_contact_id_fkey", "contact_id", "contacts">,
           Rel<"email_messages_recipient_staff_id_fkey", "recipient_staff_id", "staff_profiles">,
         ]
@@ -2732,13 +2931,14 @@ export type Database = {
         PaymentRequestRow,
         // The subject columns are all optional because only one set of them is
         // ever given; `kind` and `campus_id` are trigger-derived from it.
-        | "application_id" | "offer_id" | "acceptance_id" | "student_id" | "kind" | "campus_id"
+        | "application_id" | "offer_id" | "acceptance_id" | "student_id" | "transport_booking_id" | "kind" | "campus_id"
         | "lines" | "paid_minor" | "status" | "paid_at",
         [
           Rel<"payment_requests_application_id_fkey", "application_id", "applications">,
           Rel<"payment_requests_offer_id_fkey", "offer_id", "offers">,
           Rel<"payment_requests_acceptance_id_fkey", "acceptance_id", "offer_acceptances">,
           Rel<"payment_requests_student_id_fkey", "student_id", "students">,
+          Rel<"payment_requests_transport_booking_id_fkey", "transport_booking_id", "transport_bookings">,
           Rel<"payment_requests_campus_id_fkey", "campus_id", "campuses">,
         ]
       >;
@@ -2748,6 +2948,7 @@ export type Database = {
         // not send any of it.
         | "application_id"
         | "student_id"
+        | "transport_booking_id"
         | "campus_id"
         | "provider_ref"
         | "status"
@@ -2768,9 +2969,83 @@ export type Database = {
           Rel<"payments_payment_request_id_fkey", "payment_request_id", "payment_requests">,
           Rel<"payments_application_id_fkey", "application_id", "applications">,
           Rel<"payments_student_id_fkey", "student_id", "students">,
+          Rel<"payments_transport_booking_id_fkey", "transport_booking_id", "transport_bookings">,
           Rel<"payments_campus_id_fkey", "campus_id", "campuses">,
           Rel<"payments_recorded_by_fkey", "recorded_by", "staff_profiles">,
           Rel<"payments_refunded_by_fkey", "refunded_by", "staff_profiles">,
+        ]
+      >;
+      transport_providers: TableOf<TransportProviderRow, "contact_name" | "contact_email" | "contact_phone" | "is_active">;
+      transport_zones: TableOf<TransportZoneRow, "sort_order" | "is_active">;
+      transport_areas: TableOf<
+        TransportAreaRow,
+        "sort_order" | "is_active",
+        [Rel<"transport_areas_zone_id_fkey", "zone_id", "transport_zones">]
+      >;
+      transport_price_lists: TableOf<
+        TransportPriceListRow,
+        "currency",
+        [Rel<"transport_price_lists_provider_id_fkey", "provider_id", "transport_providers">]
+      >;
+      transport_tariffs: TableOf<
+        TransportTariffRow,
+        never,
+        [
+          Rel<"transport_tariffs_price_list_id_fkey", "price_list_id", "transport_price_lists">,
+          Rel<"transport_tariffs_zone_id_fkey", "zone_id", "transport_zones">,
+        ]
+      >;
+      transport_periods: TableOf<
+        TransportPeriodRow,
+        // A month's list and month count are copied from its term by trigger.
+        "term_period_id" | "month_index" | "billing_months" | "is_published",
+        [
+          Rel<"transport_periods_term_period_id_fkey", "term_period_id", "transport_periods">,
+          Rel<"transport_periods_price_list_id_fkey", "price_list_id", "transport_price_lists">,
+        ]
+      >;
+      transport_terms: TableOf<
+        TransportTermsRow,
+        "body_hash" | "published_at" | "published_by",
+        [Rel<"transport_terms_published_by_fkey", "published_by", "staff_profiles">]
+      >;
+      transport_bookings: TableOf<
+        TransportBookingRow,
+        | "status" | "mobile" | "second_contact_name" | "second_contact_mobile" | "landmark" | "notes"
+        | "ip_hash" | "user_agent" | "paid_at" | "cancelled_at" | "cancelled_by" | "cancel_reason" | "anonymised_at",
+        [
+          Rel<"transport_bookings_period_id_fkey", "period_id", "transport_periods">,
+          Rel<"transport_bookings_provider_id_fkey", "provider_id", "transport_providers">,
+          Rel<"transport_bookings_area_id_fkey", "area_id", "transport_areas">,
+          Rel<"transport_bookings_zone_id_fkey", "zone_id", "transport_zones">,
+          Rel<"transport_bookings_terms_id_fkey", "terms_id", "transport_terms">,
+        ]
+      >;
+      transport_booking_riders: TableOf<
+        TransportBookingRiderRow,
+        | "mon" | "tue" | "wed" | "thu" | "fri" | "days_count" | "notes" | "status"
+        | "cancelled_at" | "cancelled_by" | "cancel_reason" | "refund_minor" | "refunded_at" | "refunded_by" | "refund_note",
+        [
+          Rel<"transport_booking_riders_booking_id_fkey", "booking_id", "transport_bookings">,
+          Rel<"transport_booking_riders_grade_id_fkey", "grade_id", "grades">,
+          Rel<"transport_booking_riders_campus_id_fkey", "campus_id", "campuses">,
+          Rel<"transport_booking_riders_tariff_id_fkey", "tariff_id", "transport_tariffs">,
+        ]
+      >;
+      transport_payouts: TableOf<
+        TransportPayoutRow,
+        "note" | "currency",
+        [
+          Rel<"transport_payouts_provider_id_fkey", "provider_id", "transport_providers">,
+          Rel<"transport_payouts_recorded_by_fkey", "recorded_by", "staff_profiles">,
+        ]
+      >;
+      transport_payout_items: TableOf<
+        TransportPayoutItemRow,
+        never,
+        [
+          Rel<"transport_payout_items_payout_id_fkey", "payout_id", "transport_payouts">,
+          Rel<"transport_payout_items_rider_id_fkey", "rider_id", "transport_booking_riders">,
         ]
       >;
       bank_instructions: TableOf<
@@ -3306,6 +3581,23 @@ export type Database = {
         Returns: string[];
       };
       anonymise_application: { Args: { p_application_id: string }; Returns: undefined };
+      // School transport. The booking is made under the service role from the
+      // public page; the three staff functions check their own permissions.
+      create_transport_booking: { Args: { p_booking: Json; p_riders: Json }; Returns: string };
+      transport_cancel_riders: { Args: { p_booking_id: string; p_rider_ids: string[] | null; p_reason: string }; Returns: undefined };
+      transport_record_refund: { Args: { p_rider_id: string; p_amount_minor: number; p_note: string }; Returns: undefined };
+      transport_record_payout: {
+        Args: {
+          p_provider_id: string;
+          p_paid_on: string;
+          p_bank_reference: string;
+          p_note: string | null;
+          p_charge_rider_ids: string[];
+          p_credits: Json;
+        };
+        Returns: string;
+      };
+      anonymise_transport_booking: { Args: { p_booking_id: string }; Returns: undefined };
       delete_application: {
         Args: { p_application_id: string; p_reason: string; p_actor_id: string | null; p_actor_label: string | null };
         Returns: { reference: string; documents: number; contact_deleted: boolean };
