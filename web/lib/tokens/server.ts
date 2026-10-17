@@ -5,12 +5,16 @@ import type { TokenPurpose } from "@/lib/supabase/types";
 import {
   decodeFamilySession,
   decodeParentSession,
+  decodeTransportSession,
   encodeFamilySession,
   encodeParentSession,
+  encodeTransportSession,
   FAMILY_COOKIE,
   PARENT_COOKIE,
+  TRANSPORT_COOKIE,
   type FamilySession,
   type ParentSession,
+  type TransportSession,
 } from "@/lib/tokens/session";
 
 function secret(): string {
@@ -109,5 +113,44 @@ export async function readFamilySession(): Promise<FamilySession | null> {
 export async function requireFamilySession(): Promise<FamilySession> {
   const session = await readFamilySession();
   if (!session) redirect("/link?expired=1");
+  return session;
+}
+
+// ---------------------------------------------------------------------------
+// The transport booking session: the person who just filled in the form
+// ---------------------------------------------------------------------------
+
+const TRANSPORT_PATH = "/transport";
+
+/**
+ * Set when the public booking form creates a booking, so the same browser can
+ * pay for it and fetch its receipt. Scoped to `/transport`, under its own HMAC
+ * domain, naming one booking. There is no magic link behind it: a parent who
+ * loses it before paying books again, and one who has paid has the receipt
+ * in their email.
+ */
+export async function startTransportSession(bookingId: string, ttlMinutes: number): Promise<void> {
+  const now = Date.now();
+  const session: TransportSession = { bookingId, issuedAt: now, expiresAt: now + ttlMinutes * 60_000 };
+  const store = await cookies();
+  store.set(TRANSPORT_COOKIE, encodeTransportSession(session, secret()), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: TRANSPORT_PATH,
+    maxAge: ttlMinutes * 60,
+  });
+}
+
+/** The current transport session, or null. Never throws. */
+export async function readTransportSession(): Promise<TransportSession | null> {
+  const store = await cookies();
+  return decodeTransportSession(store.get(TRANSPORT_COOKIE)?.value, secret());
+}
+
+/** Back to the start of booking, not to the magic-link page: nobody here was sent a link. */
+export async function requireTransportSession(): Promise<TransportSession> {
+  const session = await readTransportSession();
+  if (!session) redirect("/transport?expired=1");
   return session;
 }

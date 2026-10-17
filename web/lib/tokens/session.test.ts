@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   decodeFamilySession,
   decodeParentSession,
+  decodeTransportSession,
   encodeFamilySession,
   encodeParentSession,
+  encodeTransportSession,
   type FamilySession,
   type ParentSession,
+  type TransportSession,
 } from "@/lib/tokens/session";
 
 const SECRET = "test-secret-please-do-not-use";
@@ -109,5 +112,52 @@ describe("the two cookies cannot be swapped", () => {
     const [familyPayload] = encodeFamilySession(familySession, SECRET).split(".");
     const [, parentSig] = encodeParentSession(session, SECRET).split(".");
     expect(decodeParentSession(`${familyPayload}.${parentSig}`, SECRET, 1_500_000)).toBeNull();
+  });
+});
+
+describe("transport booking cookie", () => {
+  const booking: TransportSession = {
+    bookingId: "7a1e5b7a-1c1a-4b0e-9c1e-1a2b3c4d5e6f",
+    issuedAt: 1_000_000,
+    expiresAt: 2_000_000,
+  };
+
+  it("round-trips", () => {
+    expect(decodeTransportSession(encodeTransportSession(booking, SECRET), SECRET, 1_500_000)).toEqual(booking);
+  });
+
+  it("rejects an expired session", () => {
+    expect(decodeTransportSession(encodeTransportSession(booking, SECRET), SECRET, 2_000_000)).toBeNull();
+  });
+
+  it("rejects a tampered payload and a previous secret", () => {
+    const [payload, sig] = encodeTransportSession(booking, SECRET).split(".");
+    const other = Buffer.from(JSON.stringify({ b: "another-booking", i: 1, e: 9_999_999 })).toString("base64url");
+    expect(decodeTransportSession(`${other}.${sig}`, SECRET, 1_500_000)).toBeNull();
+    expect(decodeTransportSession(`${payload}.${sig}x`, SECRET, 1_500_000)).toBeNull();
+    expect(decodeTransportSession(encodeTransportSession(booking, "old-secret"), SECRET, 1_500_000)).toBeNull();
+  });
+
+  it("rejects garbage without throwing", () => {
+    expect(decodeTransportSession("", SECRET)).toBeNull();
+    expect(decodeTransportSession("a.b", SECRET)).toBeNull();
+    expect(decodeTransportSession(undefined, SECRET)).toBeNull();
+  });
+
+  // Anybody can get one of these by filling in the public form, so it is the
+  // cookie most worth lifting onto another decoder. None of them may take it,
+  // and it may take neither of theirs.
+  it("is never read as a parent or family cookie, nor they as it", () => {
+    const transportCookie = encodeTransportSession(booking, SECRET);
+    expect(decodeParentSession(transportCookie, SECRET, 1_500_000)).toBeNull();
+    expect(decodeFamilySession(transportCookie, SECRET, 1_500_000)).toBeNull();
+    expect(decodeTransportSession(encodeParentSession(session, SECRET), SECRET, 1_500_000)).toBeNull();
+    expect(decodeTransportSession(encodeFamilySession(familySession, SECRET), SECRET, 1_500_000)).toBeNull();
+  });
+
+  it("refuses a transport payload re-signed under another domain", () => {
+    const [transportPayload] = encodeTransportSession(booking, SECRET).split(".");
+    const [, familySig] = encodeFamilySession(familySession, SECRET).split(".");
+    expect(decodeFamilySession(`${transportPayload}.${familySig}`, SECRET, 1_500_000)).toBeNull();
   });
 });

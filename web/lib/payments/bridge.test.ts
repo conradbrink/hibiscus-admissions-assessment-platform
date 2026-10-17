@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { BRIDGE_BASES, bridgeUrl } from "@/lib/payments/bridge";
@@ -14,7 +14,10 @@ import type { CheckoutRequest } from "@/lib/payments/provider";
  */
 
 const root = path.resolve(__dirname, "..", "..");
-const parentApp = path.join(root, "app", "(parent)");
+// A bridge may sit in any route group: the admissions and family pages are
+// under `(parent)`, the transport pages under `(transport)`.
+const groups = readdirSync(path.join(root, "app")).filter((d) => d.startsWith("("));
+const pageExists = (base: string, ...rest: string[]) => groups.some((g) => existsSync(path.join(root, "app", g, base, ...rest)));
 
 const request = (bridgeBase: CheckoutRequest["bridgeBase"]): CheckoutRequest => ({
   paymentId: "p1",
@@ -54,17 +57,19 @@ describe("the development adapter", () => {
 describe("every bridge base has its pages", () => {
   for (const base of BRIDGE_BASES) {
     it(`${base} has a PayGate bridge and a simulate page`, () => {
-      expect(existsSync(path.join(parentApp, base, "gateway", "route.ts")), `${base}/gateway/route.ts`).toBe(true);
-      expect(existsSync(path.join(parentApp, base, "dev", "page.tsx")), `${base}/dev/page.tsx`).toBe(true);
+      expect(pageExists(base, "gateway", "route.ts"), `${base}/gateway/route.ts`).toBe(true);
+      expect(pageExists(base, "dev", "page.tsx"), `${base}/dev/page.tsx`).toBe(true);
     });
   }
 
-  it("the family bridge sits under the family cookie's path", () => {
-    // If the cookie path ever moves, the bridge has to move with it, or the
-    // family is back to arriving with no session.
+  it("each payer's bridge sits under its own cookie's path", () => {
+    // If a cookie path ever moves, its bridge has to move with it, or the
+    // payer is back to arriving with no session.
     const server = readFileSync(path.join(root, "lib", "tokens", "server.ts"), "utf8");
     expect(server).toContain('path: "/family"');
+    expect(server).toContain('const TRANSPORT_PATH = "/transport";');
     expect("/family/pay".startsWith("/family/")).toBe(true);
+    expect("/transport/pay".startsWith("/transport/")).toBe(true);
   });
 
   it("the paygate adapter builds its redirect from the caller's base", () => {

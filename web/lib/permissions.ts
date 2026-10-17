@@ -160,6 +160,10 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/admin/document-requirements", "settings.write"],
   ["/staff/admin/onboarding-steps", "settings.write"],
   ["/staff/admin/fees", "finance.write"],
+  // School transport's settings. Not under the admissions floor that
+  // `/staff/admin` sets: a transport coordinator holds no admissions
+  // permission and still runs this page.
+  ["/staff/admin/transport", "transport.manage"],
   ["/staff/admin/promotions", "settings.write"],
   ["/staff/admin/staff", "staff.write"],
   ["/staff/admin/sessions", "applications.write"],
@@ -244,6 +248,8 @@ export function homeFor(permissions: PermissionSet): string {
     "/staff/students",
     "/staff/analytics",
     "/staff/admin/question-banks",
+    // A transport coordinator holds nothing else, so this is where they land.
+    "/staff/admin/transport",
   ];
   for (const path of candidates) {
     if (canAccessPath(permissions, path)) return path;

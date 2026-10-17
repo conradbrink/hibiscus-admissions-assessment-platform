@@ -111,6 +111,22 @@ export type Settings = {
   crmFollowUpDays: number;
   /** Days without contact after which a family counts as "no response". */
   crmStaleContactDays: number;
+  /**
+   * Parents can book school transport on the public page. Ships off; a
+   * published period and published terms are needed as well, and the
+   * database refuses a booking without all three (`create_transport_booking`).
+   */
+  transportBookingEnabled: boolean;
+  /** How long the browser that made a booking stays signed in to pay for it. */
+  transportSessionMinutes: number;
+  /** An unpaid booking expires after this long, and the parent books again. */
+  transportUnpaidHours: number;
+  /** Days after a transport period ends before a booking's people are removed. */
+  transportRetentionDays: number;
+  /** Days after an unpaid booking expired before its people are removed. */
+  transportUnpaidRetentionDays: number;
+  /** Who a parent calls about transport: shown on the booking pages and in the emails. */
+  transportOfficeContact: string;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -177,6 +193,12 @@ export const DEFAULT_SETTINGS: Settings = {
   crmOpportunityEngineEnabled: false,
   crmFollowUpDays: 3,
   crmStaleContactDays: 30,
+  transportBookingEnabled: false,
+  transportSessionMinutes: 120,
+  transportUnpaidHours: 72,
+  transportRetentionDays: 730,
+  transportUnpaidRetentionDays: 30,
+  transportOfficeContact: "",
 };
 
 /**
@@ -240,6 +262,12 @@ export const KEYS: Record<keyof Settings, string> = {
   crmOpportunityEngineEnabled: "crm_opportunity_engine_enabled",
   crmFollowUpDays: "crm_follow_up_days",
   crmStaleContactDays: "crm_stale_contact_days",
+  transportBookingEnabled: "transport_booking_enabled",
+  transportSessionMinutes: "transport_session_minutes",
+  transportUnpaidHours: "transport_unpaid_hours",
+  transportRetentionDays: "transport_retention_days",
+  transportUnpaidRetentionDays: "transport_unpaid_retention_days",
+  transportOfficeContact: "transport_office_contact",
 };
 
 function asPositiveInt(v: Json | undefined, fallback: number): number {
@@ -384,5 +412,11 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     crmOpportunityEngineEnabled: asBoolean(map.get(KEYS.crmOpportunityEngineEnabled), d.crmOpportunityEngineEnabled),
     crmFollowUpDays: asPositiveInt(map.get(KEYS.crmFollowUpDays), d.crmFollowUpDays),
     crmStaleContactDays: asPositiveInt(map.get(KEYS.crmStaleContactDays), d.crmStaleContactDays),
+    transportBookingEnabled: asBoolean(map.get(KEYS.transportBookingEnabled), d.transportBookingEnabled),
+    transportSessionMinutes: asPositiveInt(map.get(KEYS.transportSessionMinutes), d.transportSessionMinutes),
+    transportUnpaidHours: asPositiveInt(map.get(KEYS.transportUnpaidHours), d.transportUnpaidHours),
+    transportRetentionDays: asPositiveInt(map.get(KEYS.transportRetentionDays), d.transportRetentionDays),
+    transportUnpaidRetentionDays: asPositiveInt(map.get(KEYS.transportUnpaidRetentionDays), d.transportUnpaidRetentionDays),
+    transportOfficeContact: asString(map.get(KEYS.transportOfficeContact), d.transportOfficeContact),
   };
 }

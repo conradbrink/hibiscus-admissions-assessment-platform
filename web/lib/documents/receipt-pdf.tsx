@@ -36,6 +36,15 @@ export type ReceiptDocumentProps = {
   paymentReference: string;
   approvalCode: string | null;
   paidOn: string;
+  /**
+   * For a receipt that is not for one child's place: a transport booking
+   * covers several children under a booking reference. Each defaults to what
+   * the admissions and extras receipts have always said.
+   */
+  referenceLabel?: string;
+  forLine?: string;
+  linesHeading?: string;
+  footText?: string;
 };
 
 export function ReceiptDocument(p: ReceiptDocumentProps) {
@@ -47,19 +56,19 @@ export function ReceiptDocument(p: ReceiptDocumentProps) {
         <View style={{ marginBottom: 10 }}>
           <View style={s.meta}><Text style={s.small}>Receipt number</Text><Text>{p.receiptNumber}</Text></View>
           <View style={s.meta}><Text style={s.small}>Date</Text><Text>{p.paidOn}</Text></View>
-          <View style={s.meta}><Text style={s.small}>Application reference</Text><Text>{p.reference}</Text></View>
+          <View style={s.meta}><Text style={s.small}>{p.referenceLabel ?? "Application reference"}</Text><Text>{p.reference}</Text></View>
           <View style={s.meta}><Text style={s.small}>Received from</Text><Text>{p.payerName}</Text></View>
-          <View style={s.meta}><Text style={s.small}>For</Text><Text>{p.studentName} — {p.grade}, {p.campus}</Text></View>
+          <View style={s.meta}><Text style={s.small}>For</Text><Text>{p.forLine ?? `${p.studentName} — ${p.grade}, ${p.campus}`}</Text></View>
           <View style={s.meta}><Text style={s.small}>Paid by</Text><Text>{p.method === "eft" ? "Bank transfer" : p.method === "waived" ? "Waived by the school" : p.method === "none" ? "No fee was payable" : `Online (${p.providerLabel})`}</Text></View>
           <View style={s.meta}><Text style={s.small}>Payment reference</Text><Text>{p.paymentReference}</Text></View>
           {p.approvalCode ? <View style={s.meta}><Text style={s.small}>Approval code</Text><Text>{p.approvalCode}</Text></View> : null}
         </View>
-        <Text style={s.h2}>Fees ({p.currency})</Text>
+        <Text style={s.h2}>{p.linesHeading ?? "Fees"} ({p.currency})</Text>
         {p.lines.map((l, i) => (
           <View key={i} style={s.row}><Text>{l.label}</Text><Text>{formatMoney(l.amount_minor, p.currency)}</Text></View>
         ))}
         <View style={s.row}><Text style={s.bold}>Amount received</Text><Text style={s.bold}>{formatMoney(p.amountMinor, p.currency)}</Text></View>
-        <LetterFoot text="Admissions · Generated from the payment record on the date shown." />
+        <LetterFoot text={p.footText ?? "Admissions · Generated from the payment record on the date shown."} />
       </Page>
     </Document>
   );

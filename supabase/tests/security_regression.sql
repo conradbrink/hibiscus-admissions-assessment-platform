@@ -5322,6 +5322,39 @@ begin
       v_fail := v_fail || E'\n  - ' || ('87: unexpected error: ' || sqlerrm);
     end;
     perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 88. The coordinator opens booking, and touches no other setting
+    -- -----------------------------------------------------------------------
+    begin
+      perform pg_temp.impersonate(u_tc);
+      with changed as (
+        update public.settings set value = 'false' where key = 'transport_booking_enabled' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '88 control: a transport coordinator could not switch booking'; end if;
+      with changed as (
+        update public.settings set value = '"the transport desk"' where key = 'transport_office_contact' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '88 control: a transport coordinator could not set the office contact'; end if;
+      -- Not the retention periods, and not anything outside transport.
+      with changed as (
+        update public.settings set value = '1' where key in ('transport_retention_days', 'retention_enabled', 'auto_enrol') returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('88: a transport coordinator changed ' || v_count || ' setting(s) outside their three'); end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('88: unexpected error as the coordinator: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_finance);
+      with changed as (
+        update public.settings set value = 'true' where key = 'transport_booking_enabled' returning key
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '88: finance switched transport booking'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('88: unexpected error as finance: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
   end;
 
   if v_fail <> '' then

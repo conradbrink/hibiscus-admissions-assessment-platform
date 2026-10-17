@@ -1,5 +1,5 @@
 import {
-  ChartColumn, Blocks, BookOpen, Building2, CalendarDays, CalendarOff, SquareCheck, ClipboardCheck, Columns3, CreditCard,
+  ChartColumn, Blocks, BookOpen, Building2, Bus, CalendarDays, CalendarOff, SquareCheck, ClipboardCheck, Columns3, CreditCard,
   Download, FilePenLine, FileText, FolderCheck, GraduationCap, Inbox, LayoutDashboard, ListChecks, Mail, MessageCircle,
   ListTodo, PenLine, RefreshCw, Scale, BadgePercent, ScrollText, School, Send, Settings, ShieldCheck, SlidersHorizontal, Target, TrendingUp, Trash, Users, UserCog,
   HeartHandshake, Contact, Sparkles, CalendarHeart, MessagesSquare, Megaphone, Filter, Workflow, FileBarChart, Milestone, Tag, Signpost, BadgeCheck, Upload, type LucideIcon,
@@ -37,6 +37,7 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   agreements: FilePenLine,
   documents: FolderCheck,
   fees: CreditCard,
+  transport: Bus,
   promotions: BadgePercent,
   campuses: Building2,
   grades: GraduationCap,

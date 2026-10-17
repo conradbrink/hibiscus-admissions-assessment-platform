@@ -20,7 +20,7 @@ export type NavIcon =
   | "payments" | "registrations" | "export" | "students" | "onboarding" | "reenrolment" | "analytics" | "forecast" | "settings"
   | "questions" | "templates" | "rubrics" | "benchmarks" | "competencies" | "rules"
   | "sessions" | "holidays" | "email" | "whatsapp" | "offerTemplates" | "agreements" | "documents"
-  | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
+  | "fees" | "promotions" | "transport" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
   // The CRM's rail and settings hub.
   | "families" | "contacts" | "opportunities" | "events" | "inbox" | "campaigns" | "segments" | "automations"
   | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm";
@@ -125,6 +125,12 @@ export const SETTINGS_SECTIONS: NavGroup[] = [
     items: [
       { href: "/staff/admin/fees", label: "Fees and bank details", icon: "fees", permission: "finance.write", blurb: "What an offer shows and what secures a place" },
       { href: "/staff/admin/promotions", label: "Promotions", icon: "promotions", permission: "settings.write", blurb: "Waived fees, discounts and gifts on an offer" },
+    ],
+  },
+  {
+    label: "School transport",
+    items: [
+      { href: "/staff/admin/transport", label: "School transport", icon: "transport", permission: "transport.manage", blurb: "Open booking, set the term and month dates, publish the terms" },
     ],
   },
   {

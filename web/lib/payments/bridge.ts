@@ -10,13 +10,14 @@
  * admissions cookie reaches (path `/`). The family cookie is scoped to
  * `/family`, so a family paying for extras was sent to a page their browser
  * sent no session to, and landed on "this link has expired" with the payment
- * left processing. The caller now says which bridge belongs to its payer.
+ * left processing. The caller now says which bridge belongs to its payer: an
+ * admission, a family, or a school transport booking (cookie path `/transport`).
  *
  * Pure, and deliberately not `server-only`, so the routes and the tests can
  * share it.
  */
 
-export const BRIDGE_BASES = ["/pay", "/family/pay"] as const;
+export const BRIDGE_BASES = ["/pay", "/family/pay", "/transport/pay"] as const;
 export type BridgeBase = (typeof BRIDGE_BASES)[number];
 
 export function bridgeUrl(base: BridgeBase, page: "gateway" | "dev", ref: string): string {
