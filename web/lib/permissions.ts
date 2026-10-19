@@ -132,6 +132,15 @@ export function can(permissions: PermissionSet, code: PermissionCode): boolean {
 }
 
 /**
+ * Whoever runs school transport or its money may close a task about a
+ * booking, as `tasks_update` lets them: finance decides the refunds, the
+ * coordinator the bookings, and neither may close any other task.
+ */
+export function closesTransportTasks(permissions: PermissionSet): boolean {
+  return can(permissions, "transport.finance") || can(permissions, "transport.manage");
+}
+
+/**
  * True when `pathname` is `prefix` or lives under it.
  *
  * Segment-aware on purpose: a bare `startsWith("/staff/admin")` would also

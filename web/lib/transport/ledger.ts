@@ -59,16 +59,26 @@ export type LedgerTotals = LedgerFigures & {
 
 const ZERO: LedgerFigures = { paidByParent: 0, refunded: 0, providerShare: 0, paidToProvider: 0, owedToProvider: 0, creditToDecide: 0, hibiscusKeeps: 0 };
 
+const sumOf = (items: readonly LedgerItem[], kind: LedgerItem["kind"]) => items.filter((i) => i.kind === kind).reduce((s, i) => s + i.amountMinor, 0);
+
+/**
+ * The provider's share of one line, paid for or not: the booking page shows
+ * it on every line, and `ledgerLine` counts it on a paid booking's.
+ */
+export function providerShareOf(r: Pick<LedgerRider, "status" | "providerAmountMinor" | "items">): number {
+  return r.status === "booked" ? r.providerAmountMinor : sumOf(r.items, "charge") - sumOf(r.items, "credit");
+}
+
 export function ledgerLine(r: LedgerRider): LedgerFigures {
   // Money that never arrived is not earnings: an unpaid booking's lines are
   // shown as awaiting payment, not counted here.
   if (!r.bookingPaid) return { ...ZERO };
-  const charged = r.items.filter((i) => i.kind === "charge").reduce((s, i) => s + i.amountMinor, 0);
-  const credited = r.items.filter((i) => i.kind === "credit").reduce((s, i) => s + i.amountMinor, 0);
+  const charged = sumOf(r.items, "charge");
+  const credited = sumOf(r.items, "credit");
   const hasCredit = r.items.some((i) => i.kind === "credit");
 
   const booked = r.status === "booked";
-  const providerShare = booked ? r.providerAmountMinor : charged - credited;
+  const providerShare = providerShareOf(r);
   const owedToProvider = booked && charged === 0 ? r.providerAmountMinor : 0;
   const creditToDecide = !booked && charged > 0 && !hasCredit ? charged : 0;
   return {

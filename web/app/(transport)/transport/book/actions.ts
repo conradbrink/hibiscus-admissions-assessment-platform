@@ -28,11 +28,14 @@ export async function submitTransportBooking(_state: TransportFormState, formDat
   const admin = transportClient();
   const ctx = await requestContext();
 
-  const byIp = await enforceRateLimit(admin, LIMITS.transportBooking, ctx.ipHash ?? "unknown");
-  if (!byIp.ok) return { error: "Too many bookings from this connection. Please wait a little and try again.", values };
-
+  // Checked before either limit is spent, as /join does: a parent correcting
+  // a long form, or a household of them behind one school Wi-Fi, is not a
+  // flood.
   const parsed = parseTransportBooking(values);
   if (!parsed.ok) return { fields: parsed.fields, error: "Please check the highlighted answers.", values };
+
+  const byIp = await enforceRateLimit(admin, LIMITS.transportBooking, ctx.ipHash ?? "unknown");
+  if (!byIp.ok) return { error: "Too many bookings from this connection. Please wait a little and try again.", values };
 
   const byEmail = await enforceRateLimit(admin, LIMITS.transportBookingEmail, parsed.value.emailNormalised);
   if (!byEmail.ok) return { error: "Too many bookings for this email address. Please wait a little and try again.", values };

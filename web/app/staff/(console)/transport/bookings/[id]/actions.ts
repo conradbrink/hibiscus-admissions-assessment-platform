@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { parseMoneyToMinor } from "@/lib/money";
-import { can } from "@/lib/permissions";
+import { can, closesTransportTasks } from "@/lib/permissions";
 import { guarded } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -127,5 +127,32 @@ export async function recordTransportRefund(_: StaffActionState, formData: FormD
     const { error } = await ctx.supabase.rpc("transport_record_refund", { p_rider_id: p.riderId, p_amount_minor: amount, p_note: p.note });
     if (error) throw new Error(staffTransportError(error.message));
     revalidatePath(`/staff/transport/bookings/${p.bookingId}`);
+  });
+}
+
+/**
+ * Close a task about this booking: the refund decided, the double payment
+ * sent back. Here because a coordinator cannot open the Tasks page. The
+ * staff member's own client writes it, so `tasks_update` decides as it does
+ * there, campus included.
+ */
+export async function closeTransportTask(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  return guarded(async () => {
+    const ctx = await requireStaffAction("transport.read");
+    if (!closesTransportTasks(ctx.permissions)) throw new Error("You do not have permission to do that.");
+    const { bookingId, taskId } = z.object({ bookingId: z.guid(), taskId: z.guid() }).parse(Object.fromEntries(formData));
+
+    const { data, error } = await ctx.supabase
+      .from("tasks")
+      .update({ status: "done", resolved_at: new Date().toISOString(), resolved_by: ctx.userId })
+      .eq("id", taskId)
+      .eq("transport_booking_id", bookingId)
+      .eq("status", "open")
+      .select("id");
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("That task is already closed. Reload the page.");
+    revalidatePath(`/staff/transport/bookings/${bookingId}`);
+    revalidatePath("/staff/transport");
+    revalidatePath("/staff/tasks");
   });
 }

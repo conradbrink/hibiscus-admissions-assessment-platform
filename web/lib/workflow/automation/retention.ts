@@ -89,9 +89,11 @@ const TRANSPORT_RUN_KEY = "retention_transport";
  *
  * A booking names no application, so `anonymise_application()` cannot reach
  * it; `anonymise_transport_booking()` is its twin, and this is its only
- * caller. Paid and cancelled bookings go `transport_retention_days` after
- * their period ends; expired and abandoned ones `transport_unpaid_retention_days`
- * after they stopped. The amounts stay for the reports and the payouts.
+ * caller. Bookings that were paid, cancelled since or not, go
+ * `transport_retention_days` after their period ends; expired and abandoned
+ * ones, and ones cancelled before they were paid,
+ * `transport_unpaid_retention_days` after they stopped. The amounts stay for
+ * the reports and the payouts.
  */
 export async function anonymiseExpiredTransport(
   admin: AdminClient,
@@ -114,17 +116,17 @@ export async function anonymiseExpiredTransport(
   const [finished, unpaid] = await Promise.all([
     admin
       .from("transport_bookings")
-      .select("id, status, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .select("id, status, paid_at, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
       .is("anonymised_at", null)
-      .in("status", ["paid", "cancelled"])
+      .or("status.eq.paid,and(status.eq.cancelled,paid_at.not.is.null)")
       .lt("transport_periods.ends_on", periodCutoff.toISOString().slice(0, 10))
       .order("updated_at", { ascending: true })
       .limit(200),
     admin
       .from("transport_bookings")
-      .select("id, status, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .select("id, status, paid_at, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
       .is("anonymised_at", null)
-      .in("status", ["expired", "abandoned"])
+      .or("status.in.(expired,abandoned),and(status.eq.cancelled,paid_at.is.null)")
       .lt("updated_at", unpaidCutoff)
       .order("updated_at", { ascending: true })
       .limit(200),
@@ -132,7 +134,7 @@ export async function anonymiseExpiredTransport(
   for (const r of [finished, unpaid]) if (r.error) throw new Error(r.error.message);
   const rows = [...(finished.data ?? []), ...(unpaid.data ?? [])].map((b) => {
     const period = Array.isArray(b.transport_periods) ? b.transport_periods[0] : b.transport_periods;
-    return { id: b.id, status: b.status, updated_at: b.updated_at, anonymised_at: b.anonymised_at, period_ends_on: period?.ends_on ?? "9999-12-31" };
+    return { id: b.id, status: b.status, paid_at: b.paid_at, updated_at: b.updated_at, anonymised_at: b.anonymised_at, period_ends_on: period?.ends_on ?? "9999-12-31" };
   });
   // The same rule again, so the query and the tested rule cannot drift apart.
   const due = transportRetentionDue(rows, settings, today, now);

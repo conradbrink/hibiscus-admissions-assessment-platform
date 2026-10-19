@@ -15,8 +15,7 @@ import type { SessionBooking } from "@/lib/transport/scope";
  * download are one document.
  */
 export async function renderTransportReceipt(loaded: SessionBooking): Promise<{ filename: string; bytes: Uint8Array<ArrayBuffer> } | null> {
-  const { booking, period, riders, request, payments } = loaded;
-  const payment = payments.find((p) => p.status === "succeeded");
+  const { booking, period, riders, request, paid: payment } = loaded;
   if (!request || !payment) return null;
 
   const children = riders.filter((r) => r.status === "booked").map((r) => `${r.first_name} ${r.last_name}`).join(", ");

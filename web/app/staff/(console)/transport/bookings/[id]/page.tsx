@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatDateRange, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
-import { can } from "@/lib/permissions";
+import { can, closesTransportTasks } from "@/lib/permissions";
 import { prettyMobile } from "@/lib/phone";
 import { requireStaff } from "@/lib/staff/session";
 import { HOUSEHOLD_LABELS, SERVICE_LABELS, weekdaysLabel } from "@/lib/transport/days";
 import { BOOKING_STATUS_LABELS, BOOKING_STATUS_TONE } from "@/lib/transport/labels";
-import { cancelTransportChildren, recordTransportRefund } from "./actions";
+import { providerShareOf } from "@/lib/transport/ledger";
+import { cancelTransportChildren, closeTransportTask, recordTransportRefund } from "./actions";
 
 export const metadata = { title: "Transport booking" };
 
@@ -64,7 +65,15 @@ export default async function TransportBookingPage({ params }: { params: Promise
   const canCancel = can(permissions, "transport.manage") && (booking.status === "awaiting_payment" || booking.status === "paid");
   const canRefund = can(permissions, "transport.finance") && can(permissions, "finance.write") && booking.paid_at !== null;
   const seesProvider = can(permissions, "transport.finance");
-  const shareOf = (r: (typeof riders)[number]) => Number(one(r.transport_rider_provider_shares)?.provider_amount_minor ?? 0);
+  const closesTasks = closesTransportTasks(permissions);
+  // The ledger's rule, so a child cancelled before the provider was paid for
+  // them counts nothing here, as on the earnings page.
+  const shareOf = (r: (typeof riders)[number]) =>
+    providerShareOf({
+      status: r.status,
+      providerAmountMinor: Number(one(r.transport_rider_provider_shares)?.provider_amount_minor ?? 0),
+      items: (r.transport_payout_items ?? []).map((i) => ({ kind: i.kind, amountMinor: Number(i.amount_minor) })),
+    });
   const booked = riders.filter((r) => r.status === "booked");
   const total = riders.reduce((s, r) => s + Number(r.amount_minor), 0);
   const anonymised = booking.anonymised_at !== null;
@@ -91,9 +100,17 @@ export default async function TransportBookingPage({ params }: { params: Promise
             <div key={t.id} className={`surface p-3 text-sm ${t.priority === "high" ? "border-destructive/40" : ""}`}>
               <p className="font-medium">{t.title}</p>
               {t.details ? <p className="mt-1 text-xs text-muted-foreground">{t.details}</p> : null}
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Open task, raised {formatDateTime(t.created_at)}. Finance and admissions close it on the Tasks page.
-              </p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Open task, raised {formatDateTime(t.created_at)}. {closesTasks ? "Mark it done once it is dealt with." : "Finance or the transport coordinator closes it."}
+                </p>
+                {closesTasks ? (
+                  <ActionForm action={closeTransportTask} label="Done" size="xs" variant="success">
+                    <input type="hidden" name="bookingId" value={booking.id} />
+                    <input type="hidden" name="taskId" value={t.id} />
+                  </ActionForm>
+                ) : null}
+              </div>
             </div>
           ))}
         </section>
@@ -167,7 +184,7 @@ export default async function TransportBookingPage({ params }: { params: Promise
                         {formatMoney(shareOf(r), "BWP")}
                         <br />
                         <span className="text-muted-foreground">
-                          {charged ? "paid" : "not paid yet"}
+                          {charged ? "paid" : r.status === "booked" ? "not paid yet" : "not owed: cancelled before the provider was paid"}
                           {credited ? `, credited ${formatMoney(Number(credited.amount_minor), "BWP")}` : ""}
                         </span>
                       </td>

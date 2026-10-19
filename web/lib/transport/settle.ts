@@ -161,6 +161,66 @@ export async function onTransportPaid(
 }
 
 /**
+ * A settlement that stopped part way. `onTransportPaid` marks the payment
+ * succeeded first, which is what stops a second verify settling it twice, and
+ * then writes the request, the booking and the email one statement at a time.
+ * If one of those fails, nothing asks about that payment again
+ * (`reconcilePayment` returns early for a succeeded one), and the booking
+ * would wait as unpaid until the sweep expired it: a parent who paid, with no
+ * place and no receipt.
+ *
+ * So the sweep hands each such booking here first. Only the plain case is
+ * finished, a booking still awaiting payment whose request its succeeded
+ * payments cover; a part payment has its own task for a person. Every write is
+ * conditional or keyed, so this changes nothing a settlement still running
+ * would not have changed itself. True when the booking is now paid.
+ */
+export async function finishInterruptedTransportSettlement(admin: AdminClient, bookingId: string): Promise<boolean> {
+  const { data: succeeded, error } = await admin
+    .from("payments")
+    .select("id, payment_request_id, amount_minor")
+    .eq("transport_booking_id", bookingId)
+    .eq("status", "succeeded")
+    .order("created_at", { ascending: true });
+  if (error) throw new WorkflowError(error.message, "database");
+  const last = succeeded?.at(-1);
+  if (!last) return false;
+
+  const { data: request, error: rErr } = await admin.from("payment_requests").select("*").eq("id", last.payment_request_id).single();
+  if (rErr || !request) throw new WorkflowError(rErr?.message ?? "payment's request missing", "database");
+  const paidMinor = (succeeded ?? []).filter((p) => p.payment_request_id === request.id).reduce((sum, p) => sum + Number(p.amount_minor), 0);
+  if (paidMinor < Number(request.amount_minor)) return false;
+
+  if (request.status !== "paid") {
+    const { error: uErr } = await admin
+      .from("payment_requests")
+      .update({ paid_minor: paidMinor, status: "paid", paid_at: request.paid_at ?? new Date().toISOString() })
+      .eq("id", request.id)
+      .neq("status", "paid");
+    if (uErr) throw new WorkflowError(uErr.message, "database");
+  }
+  const { data: changed, error: bErr } = await admin
+    .from("transport_bookings")
+    .update({ status: "paid" })
+    .eq("id", bookingId)
+    .eq("status", "awaiting_payment")
+    .select("id");
+  if (bErr) throw new WorkflowError(bErr.message, "database");
+  if (!changed?.length) return false;
+
+  // The key `onTransportPaid` uses, so a settlement that did queue it sends one.
+  await enqueueJobs(admin, [
+    {
+      type: "send_transport_email",
+      payload: { transport_booking_id: bookingId, template_key: "transport_paid", payment_id: last.id },
+      idempotencyKey: `transport_paid:${last.id}`,
+      applicationId: null,
+    },
+  ]);
+  return true;
+}
+
+/**
  * The gateway said no, or never said yes in time. The request stays open as
  * `failed`, so the payment page offers Pay again over the same children.
  */

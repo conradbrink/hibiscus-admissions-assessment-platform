@@ -5,7 +5,7 @@ import { PriorityBadge } from "@/components/staff/status-badge";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDateTime, hasStarted } from "@/lib/format-date";
-import { can } from "@/lib/permissions";
+import { can, closesTransportTasks } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { assignTask } from "../applications/[id]/actions";
 import { createTask, markTaskDone, reopenTask } from "./actions";
@@ -133,8 +133,9 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
             const overdue = !isDone && t.due_at ? hasStarted(t.due_at) : false;
             const mine = t.assignee_staff_id === userId;
             // The assignee always may; anybody who writes tasks or edits
-            // applicants may cover for somebody who is away.
-            const canTick = mine || canCreate || canWrite;
+            // applicants may cover for somebody who is away; a transport
+            // booking's tasks are also transport's and its finance's.
+            const canTick = mine || canCreate || canWrite || (t.transport_booking_id !== null && closesTransportTasks(permissions));
             return (
               <li
                 key={t.id}

@@ -66,7 +66,10 @@ export type SessionBooking = {
   riders: SessionRider[];
   /** The open request, else the latest, so a paid booking still shows what was paid. */
   request: PaymentRequestRow | null;
+  /** The latest attempts, newest first: what the payment page lists. */
   payments: PaymentRow[];
+  /** The latest payment that succeeded, however many attempts came after it: what the receipt is for. */
+  paid: PaymentRow | null;
 };
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -89,7 +92,7 @@ export async function loadTransportBooking(admin: AdminClient, bookingId: string
   if (!booking) return null;
   const { transport_periods, transport_areas, ...row } = booking;
 
-  const [ridersRes, requestsRes, paymentsRes] = await Promise.all([
+  const [ridersRes, requestsRes, paymentsRes, paidRes] = await Promise.all([
     admin
       .from("transport_booking_riders")
       .select("*, campuses!transport_booking_riders_campus_id_fkey(name), grades!transport_booking_riders_grade_id_fkey(name)")
@@ -107,8 +110,16 @@ export async function loadTransportBooking(admin: AdminClient, bookingId: string
       .eq("transport_booking_id", bookingId)
       .order("created_at", { ascending: false })
       .limit(10),
+    admin
+      .from("payments")
+      .select("*")
+      .eq("transport_booking_id", bookingId)
+      .eq("status", "succeeded")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
-  for (const r of [ridersRes, requestsRes, paymentsRes]) if (r.error) throw new Error(r.error.message);
+  for (const r of [ridersRes, requestsRes, paymentsRes, paidRes]) if (r.error) throw new Error(r.error.message);
 
   const requests = requestsRes.data ?? [];
   const open = requests.find((r) => ["required", "processing", "failed", "partially_paid"].includes(r.status));
@@ -122,6 +133,7 @@ export async function loadTransportBooking(admin: AdminClient, bookingId: string
     }),
     request: open ?? requests[0] ?? null,
     payments: paymentsRes.data ?? [],
+    paid: paidRes.data ?? null,
   };
 }
 

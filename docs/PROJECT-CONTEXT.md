@@ -1050,10 +1050,13 @@ terms are published.
   reference only. The paid email (`transport_paid`, audience `transport`,
   email only) carries the receipt.
 - **Sweeps**, from the drain: unpaid bookings expire after
-  `transport_unpaid_hours` (`lib/workflow/automation/transport.ts`); retention
-  (`anonymiseExpiredTransport`, behind `retention_enabled`) clears paid and
-  cancelled bookings `transport_retention_days` after their period and unpaid
-  ones `transport_unpaid_retention_days` after they stopped.
+  `transport_unpaid_hours`, or sooner at the pay-by date they were given
+  (`lib/workflow/automation/transport.ts`), and a payment whose settlement
+  stopped part way is finished there rather than expired; retention
+  (`anonymiseExpiredTransport`, behind `retention_enabled`) clears bookings
+  that were paid `transport_retention_days` after their period, and unpaid
+  ones (expired, abandoned, or cancelled before payment)
+  `transport_unpaid_retention_days` after they stopped.
 - **Opening booking** is Settings → School transport (`transport.manage`): the
   switch, the office contact, the terms and months, and the terms wording. A
   coordinator may change exactly three settings keys
@@ -1102,6 +1105,14 @@ terms are published.
   admissions staff see neither, through the screens or the API. The margin
   check runs as its owner so it still sees the price when a coordinator
   edits a parent's. The rebate and VAT stayed where they were.
+- **Claude's second review** (19 October): finance and the coordinator can
+  close the tasks transport raises (`tasks_update`, case 91), with a *Done*
+  button on the booking page; a payout's audit row no longer carries its
+  money; a booking expires at the pay-by date it was given; a payment whose
+  settlement stopped part way is finished by the sweep rather than expired;
+  a booking cancelled before it was paid is cleared on the unpaid window; the
+  booking page's provider total follows the ledger; and the form is checked
+  before its rate limits are spent.
 - **Late money** (from Claude's review, 18 October): a payment that lands on
   a booking the office already cancelled sets its `paid_at`, so the refund
   form and the earnings see it; one that lands on an expired booking after

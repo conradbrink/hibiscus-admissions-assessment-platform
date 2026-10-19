@@ -12,6 +12,10 @@ import type { StaffContext } from "@/lib/staff/session";
  * for the provider is exactly what the audit log is for, so a download it
  * could not record is not made. The same rules as the applicant list's
  * export (`app/staff/(console)/applications/export/route.ts`).
+ *
+ * The audit row says what was taken (counts, the period, the file), never a
+ * name or an amount: it is read by every `audit.read` holder, and a statement
+ * for one child would otherwise tell them what the provider is owed for it.
  */
 
 const TEXT = { "content-type": "text/plain; charset=utf-8", "cache-control": "private, no-store" };

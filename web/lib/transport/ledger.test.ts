@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ledgerBy, ledgerLine, ledgerTotals, type LedgerRider } from "@/lib/transport/ledger";
+import { ledgerBy, ledgerLine, ledgerTotals, providerShareOf, type LedgerRider } from "@/lib/transport/ledger";
 
 // The worked example's Broadhurst child: P 4,250.00 to the parent, P 3,726.43
 // owed to the provider (the "same school" Gaborone full shuttle, a term).
@@ -78,6 +78,22 @@ describe("ledgerLine", () => {
       expect(f.providerShare - f.paidToProvider).toBe(f.owedToProvider);
       expect(f.paidByParent - f.refunded - f.providerShare).toBe(f.hibiscusKeeps);
     }
+  });
+});
+
+describe("providerShareOf", () => {
+  it("is the line's own share, booking paid or not, and what the ledger counts once it is", () => {
+    const shapes = [
+      line(),
+      line({ items: [charge] }),
+      line({ status: "cancelled" }),
+      line({ status: "cancelled", items: [charge] }),
+      line({ status: "cancelled", items: [charge, { kind: "credit", amountMinor: 100000 }] }),
+    ];
+    expect(shapes.map(providerShareOf)).toEqual([372643, 372643, 0, 372643, 272643]);
+    for (const r of shapes) expect(providerShareOf(r)).toBe(ledgerLine(r).providerShare);
+    // The booking page shows it on an unpaid booking too, where the ledger counts nothing.
+    expect(providerShareOf(line({ bookingPaid: false }))).toBe(372643);
   });
 });
 

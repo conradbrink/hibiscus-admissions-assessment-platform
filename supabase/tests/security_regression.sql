@@ -4653,7 +4653,7 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
-  -- 83–90. School transport
+  -- 83–91. School transport
   --
   -- A booking is typed in by a stranger, priced here, paid through the same
   -- money tables as an admission, read by staff at the children's schools,
@@ -5628,6 +5628,63 @@ begin
       when others then v_fail := v_fail || E'\n  - ' || ('90: a provider share insert by a coordinator failed with "' || sqlerrm || '"');
     end;
     perform pg_temp.service();
+
+    -- -----------------------------------------------------------------------
+    -- 91. Transport's tasks are closed by the people they are for
+    --
+    -- Finance decides a refund and the coordinator a booking; neither holds
+    -- `applications.write` or `tasks.write`. A task about a booking is theirs
+    -- to close at a campus they cover (19 October 2026). Every other task is
+    -- not, and the campus rule still holds. Each task is given to admissions
+    -- staff, so nobody below closes one by being its assignee.
+    -- -----------------------------------------------------------------------
+    declare
+      v_t_bh uuid;
+      v_t_b7 uuid;
+      v_t_adm uuid;
+    begin
+      insert into public.tasks (campus_id, transport_booking_id, type, title, assignee_staff_id)
+      values (c_broadhurst, tb_bh, 'transport_refund_review', 'Sec transport task, Broadhurst', u_staff) returning id into v_t_bh;
+      insert into public.tasks (campus_id, transport_booking_id, type, title, assignee_staff_id)
+      values (c_block7, tb_b7, 'transport_refund_review', 'Sec transport task, Block 7', u_staff) returning id into v_t_b7;
+      insert into public.tasks (campus_id, type, title, assignee_staff_id)
+      values (c_broadhurst, 'staff_task', 'Sec admissions task', u_staff) returning id into v_t_adm;
+
+      perform pg_temp.impersonate(u_finance);
+      with changed as (update public.tasks set status = 'done' where id = v_t_bh and status = 'open' returning id)
+      select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '91: finance could not close a transport task'; end if;
+      with changed as (update public.tasks set status = 'done' where id = v_t_adm returning id)
+      select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '91: finance closed an admissions task'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_tc_bh);
+      with changed as (update public.tasks set status = 'done' where id = v_t_b7 returning id)
+      select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '91: a Broadhurst coordinator closed a Block 7 transport task'; end if;
+      perform pg_temp.service();
+
+      perform pg_temp.impersonate(u_tc);
+      with changed as (update public.tasks set status = 'done' where id = v_t_b7 and status = 'open' returning id)
+      select count(*) into v_count from changed;
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '91: a coordinator could not close a transport task'; end if;
+      with changed as (update public.tasks set status = 'done' where id = v_t_adm returning id)
+      select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '91: a coordinator closed an admissions task'; end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('91: unexpected error closing transport tasks: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- And a payout's audit row carries no money: audit.read is not finance.
+    begin
+      select count(*) into v_count from public.audit_log
+       where action = 'transport.payout_recorded' and (after ? 'charge_minor' or after ? 'credit_minor' or after ? 'total_minor');
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('91: ' || v_count || ' payout audit rows carry the provider''s money'); end if;
+      select count(*) into v_count from public.audit_log where action = 'transport.payout_recorded';
+      if v_count = 0 then v_fail := v_fail || E'\n  - ' || '91 control: no payout was audited'; end if;
+    end;
   end;
 
   if v_fail <> '' then

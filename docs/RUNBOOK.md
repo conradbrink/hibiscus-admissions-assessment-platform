@@ -383,7 +383,9 @@ The coordinator cancels; finance refunds.
    books again if plans change back.
 2. If the booking was paid, a `transport_refund_review` task appears for
    finance, naming the booking's reference. Open tasks also show at the top
-   of the booking's page, and as *Task* on the bookings list.
+   of the booking's page, and as *Task* on the bookings list. Finance or the
+   coordinator presses *Done* on the task there (or on the Tasks page) once
+   it is dealt with.
 3. **Finance** makes the refund first: in the PayGate portal for a card
    payment, or at the bank. Then, on the same booking page, *Record a refund*
    for the child, with the amount and the portal's or bank's reference. This

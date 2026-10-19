@@ -1,6 +1,6 @@
 /**
- * The school transport price rule, for the estimate a parent sees while they
- * type and for the staff reports.
+ * The parent's side of the school transport price rule, for the estimate a
+ * parent sees while they type.
  *
  * What a parent is charged is worked out by `create_transport_booking()` in
  * the database and written onto each child's row; this is the same rule, so
@@ -13,9 +13,11 @@
  *
  *   d = weekdays chosen (1 to 5); m = 1 for a term, the term's months for a month
  *   parent pays    = term price × d / (5 × m)
- *   provider gets  = list × (1 − rebate) × (1 + VAT) × d / (5 × m)
  *
- * Totals are sums of the lines and are never rounded again.
+ * Totals are sums of the lines and are never rounded again. The provider's
+ * side of the rule is the database's alone (`create_transport_booking()` and
+ * `transport_rider_share_guard()`), as its prices are finance's: nothing here
+ * knows them.
  *
  * Pure and free of `server-only`, so the booking form (a client component)
  * and the tests can both import it.
@@ -42,9 +44,8 @@ export function householdsFor(campusIds: readonly string[]): Household[] {
   return campusIds.map((id) => (campusIds.filter((other) => other === id).length > 1 ? "same_school" : "different_schools"));
 }
 
-// BigInt through a constructor, not literals: the build targets ES2017. The
-// intermediate products reach 10^15 for an ordinary tariff, close enough to
-// Number's exact range that a dearer one would round wrongly in silence.
+// BigInt through a constructor, not literals: the build targets ES2017.
+// Whole-number arithmetic, as the database's, so the two round alike.
 const B = (n: number) => BigInt(n);
 
 /** rhu(p, q) = (2p + q) div 2q, for p ≥ 0 and q > 0. */
@@ -52,100 +53,14 @@ function roundHalfUp(p: bigint, q: bigint): bigint {
   return (B(2) * p + q) / (B(2) * q);
 }
 
-export type LineInputs = {
-  customerTermMinor: number;
-  providerListTermMinor: number;
-  rebateBp: number;
-  vatBp: number;
-  /** Weekdays chosen, 1 to 5. */
-  days: number;
-  /** 1 for a term; the term's months (3) for one month. */
-  divisor: number;
-};
-
-export type PricedLine = {
-  amountMinor: number;
-  providerAmountMinor: number;
-  /** What Hibiscus keeps: the parent's amount less the provider's. */
-  retainedMinor: number;
-};
-
-export function priceLine(input: LineInputs): PricedLine {
-  const { customerTermMinor, providerListTermMinor, rebateBp, vatBp, days, divisor } = input;
+/** One child's line: the term price for `days` weekdays, divided over `divisor` months. */
+export function customerLineMinor(customerTermMinor: number, days: number, divisor: number): number {
   if (!Number.isInteger(days) || days < 1 || days > 5) throw new Error("A child rides on one to five weekdays.");
   if (!Number.isInteger(divisor) || divisor < 1) throw new Error("A period divides the term by a whole number of months.");
-  const amount = roundHalfUp(B(customerTermMinor) * B(days), B(5) * B(divisor));
-  const provider = roundHalfUp(
-    B(providerListTermMinor) * B(10000 - rebateBp) * B(10000 + vatBp) * B(days),
-    B(100000000) * B(5) * B(divisor)
-  );
-  return { amountMinor: Number(amount), providerAmountMinor: Number(provider), retainedMinor: Number(amount - provider) };
+  return Number(roundHalfUp(B(customerTermMinor) * B(days), B(5) * B(divisor)));
 }
-
-/** The provider's nett for a whole term, five days: what the sheet calls "Watermark Nett". */
-export function providerTermNettMinor(providerListTermMinor: number, rebateBp: number, vatBp: number): number {
-  return priceLine({ customerTermMinor: 1, providerListTermMinor, rebateBp, vatBp, days: 5, divisor: 1 }).providerAmountMinor;
-}
-
-/** The VAT inside an amount that includes it: amount × vat / (1 + vat), rounded half up. */
-export function vatWithinMinor(amountMinor: number, vatBp: number): number {
-  return Number(roundHalfUp(B(amountMinor) * B(vatBp), B(10000 + vatBp)));
-}
-
-export type TariffLike = {
-  id: string;
-  zone_id: string;
-  service: TariffService;
-  household: Household;
-  customer_term_minor: number;
-  provider_list_term_minor: number;
-};
 
 export type EstimateRider = { campusId: string; service: RiderService; days: number };
-
-export type Estimate = {
-  lines: Array<PricedLine & { household: Household }>;
-  totalMinor: number;
-  providerTotalMinor: number;
-};
-
-/**
- * Every child on a booking, priced. Null when a tariff is missing, which the
- * booking function would refuse too (`transport_no_tariff`).
- */
-export function estimateBooking(opts: {
-  zoneId: string;
-  divisor: number;
-  rebateBp: number;
-  vatBp: number;
-  tariffs: readonly TariffLike[];
-  riders: readonly EstimateRider[];
-}): Estimate | null {
-  if (opts.riders.length === 0) return null;
-  const households = householdsFor(opts.riders.map((r) => r.campusId));
-  const lines: Estimate["lines"] = [];
-  for (const [i, rider] of opts.riders.entries()) {
-    const household = households[i];
-    const tariff = opts.tariffs.find(
-      (t) => t.zone_id === opts.zoneId && t.service === tariffService(rider.service) && t.household === household
-    );
-    if (!tariff || rider.days < 1) return null;
-    const line = priceLine({
-      customerTermMinor: tariff.customer_term_minor,
-      providerListTermMinor: tariff.provider_list_term_minor,
-      rebateBp: opts.rebateBp,
-      vatBp: opts.vatBp,
-      days: rider.days,
-      divisor: opts.divisor,
-    });
-    lines.push({ ...line, household });
-  }
-  return {
-    lines,
-    totalMinor: lines.reduce((sum, l) => sum + l.amountMinor, 0),
-    providerTotalMinor: lines.reduce((sum, l) => sum + l.providerAmountMinor, 0),
-  };
-}
 
 /**
  * What the parent's browser is given to work the estimate out: the parent's
@@ -155,13 +70,17 @@ export function estimateBooking(opts: {
  * in `transport_tariff_provider_prices`); this still copies only the four
  * fields, so nothing added to a tariff later reaches the browser by default.
  */
-export type CustomerTariff = Pick<TariffLike, "zone_id" | "service" | "household" | "customer_term_minor">;
+export type CustomerTariff = { zone_id: string; service: TariffService; household: Household; customer_term_minor: number };
 
 export function customerTariffs(tariffs: readonly CustomerTariff[]): CustomerTariff[] {
   return tariffs.map(({ zone_id, service, household, customer_term_minor }) => ({ zone_id, service, household, customer_term_minor }));
 }
 
-/** The parent's side of `estimateBooking`, from customer tariffs only. Same rounding, same rule. */
+/**
+ * Every child on a booking, priced from customer tariffs only. Null when a
+ * tariff is missing or a day count is out of range, which the booking
+ * function would refuse too (`transport_no_tariff`).
+ */
 export function estimateCustomerTotal(opts: {
   zoneId: string;
   divisor: number;
@@ -176,8 +95,7 @@ export function estimateCustomerTotal(opts: {
       (t) => t.zone_id === opts.zoneId && t.service === tariffService(rider.service) && t.household === households[i]
     );
     if (!tariff || rider.days < 1 || rider.days > 5) return null;
-    const amount = roundHalfUp(B(tariff.customer_term_minor) * B(rider.days), B(5) * B(opts.divisor));
-    lines.push({ amountMinor: Number(amount), household: households[i] });
+    lines.push({ amountMinor: customerLineMinor(tariff.customer_term_minor, rider.days, opts.divisor), household: households[i] });
   }
   return { lines, totalMinor: lines.reduce((sum, l) => sum + l.amountMinor, 0) };
 }

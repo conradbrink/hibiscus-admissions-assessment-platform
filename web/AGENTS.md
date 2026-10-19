@@ -151,8 +151,9 @@ settlement marks the request first.
 
 A transport booking is priced by `create_transport_booking()` in the
 database, and each child's row holds a frozen snapshot of the tariff and the
-amounts. `lib/transport/pricing.ts` is the same rule for the estimate on the
-form, pinned to the same figures from the school's sheet. The browser is
+amounts. `lib/transport/pricing.ts` is the parent's side of the same rule,
+for the estimate on the form, pinned to the same figures from the school's
+sheet; the provider's side exists only in the database. The browser is
 given the parent's prices only (`customerTariffs`), never the provider's.
 The provider's own figures are not in the tariffs or the riders at all
 (19 October 2026): its list price is in `transport_tariff_provider_prices`
@@ -188,10 +189,17 @@ reads the migrations and fails on a code with no sentence. The money on the
 screens and in the files is `lib/transport/ledger.ts`, and nothing else adds
 it up.
 
+The tasks transport raises (a refund to decide, a payment twice, money after a
+cancellation) are closed by whoever holds `transport.finance` or
+`transport.manage` (`tasks_update`, case 91; `closesTransportTasks`), on the
+booking page or the Tasks page, as well as by those who close any task.
+
 A transport download (the provider's rider list, earnings, the payout
 statement and remittance) reads through the downloader's own client, writes
 its `audit_log` row first, and is refused rather than made if the row or the
-read fails (`lib/transport/download.ts`). The rider list carries what a
+read fails (`lib/transport/download.ts`). An audit row about transport holds
+counts, ids and references, never a name or an amount: every `audit.read`
+holder reads it, and they are not all finance (case 91). The rider list carries what a
 driver needs and never the parent's email or a price (`staff-lines.test.ts`);
 the earnings file names a line by booking reference and place, never by the
 child.

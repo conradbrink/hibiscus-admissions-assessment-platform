@@ -53,7 +53,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     ];
     return await auditedWorkbook(
       ctx,
-      { action: "transport.payout_exported", entityType: "transport_payout", entityId: payout.id, after: { lines: lines.length, total_minor: payout.total_minor } },
+      { action: "transport.payout_exported", entityType: "transport_payout", entityId: payout.id, after: { lines: lines.length } },
       payoutFilename(provider?.code ?? "provider", "remittance", payout.paid_on, payout.bank_reference),
       new Uint8Array(buildWorkbook(payoutSheets(lines, new Map(periods.map((p) => [p.id, p])), about)))
     );
