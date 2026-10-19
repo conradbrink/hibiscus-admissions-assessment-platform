@@ -2235,9 +2235,24 @@ export type TransportTariffRow = {
   service: TransportService;
   household: TransportHousehold;
   customer_term_minor: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** The provider's own price for a tariff, excl. VAT, before the rebate. Readable only with `transport.finance`. */
+export type TransportTariffProviderPriceRow = {
+  tariff_id: string;
   provider_list_term_minor: number;
   created_at: string;
   updated_at: string;
+};
+
+/** What the provider is owed for one child's line, frozen when booked. Readable only with `transport.finance`. */
+export type TransportRiderProviderShareRow = {
+  rider_id: string;
+  provider_list_term_minor: number;
+  provider_amount_minor: number;
+  created_at: string;
 };
 
 /** A term, or one month of it (`term_period_id`, `month_index`). A month's list and months follow its term. */
@@ -2321,12 +2336,10 @@ export type TransportBookingRiderRow = {
   household: TransportHousehold;
   tariff_id: string;
   customer_term_minor: number;
-  provider_list_term_minor: number;
   rebate_bp: number;
   vat_bp: number;
   period_divisor: number;
   amount_minor: number;
-  provider_amount_minor: number;
   notes: string | null;
   status: "booked" | "cancelled";
   cancelled_at: string | null;
@@ -2994,6 +3007,16 @@ export type Database = {
           Rel<"transport_tariffs_price_list_id_fkey", "price_list_id", "transport_price_lists">,
           Rel<"transport_tariffs_zone_id_fkey", "zone_id", "transport_zones">,
         ]
+      >;
+      transport_tariff_provider_prices: TableOf<
+        TransportTariffProviderPriceRow,
+        never,
+        [Rel<"transport_tariff_provider_prices_tariff_id_fkey", "tariff_id", "transport_tariffs", true>]
+      >;
+      transport_rider_provider_shares: TableOf<
+        TransportRiderProviderShareRow,
+        never,
+        [Rel<"transport_rider_provider_shares_rider_id_fkey", "rider_id", "transport_booking_riders", true>]
       >;
       transport_periods: TableOf<
         TransportPeriodRow,

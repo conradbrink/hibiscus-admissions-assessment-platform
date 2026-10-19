@@ -42,7 +42,10 @@ export default async function TransportBookingPage({ params }: { params: Promise
       .maybeSingle(),
     supabase
       .from("transport_booking_riders")
-      .select("*, campuses!transport_booking_riders_campus_id_fkey(name), grades!transport_booking_riders_grade_id_fkey(name), transport_payout_items(kind, amount_minor, payout_id)")
+      // The provider's share is finance's table: empty for everybody else.
+      .select(
+        "*, campuses!transport_booking_riders_campus_id_fkey(name), grades!transport_booking_riders_grade_id_fkey(name), transport_payout_items(kind, amount_minor, payout_id), transport_rider_provider_shares(provider_amount_minor)"
+      )
       .eq("booking_id", id)
       .order("position"),
     // Finance's rows: empty for anybody the payment policies do not let in.
@@ -61,6 +64,7 @@ export default async function TransportBookingPage({ params }: { params: Promise
   const canCancel = can(permissions, "transport.manage") && (booking.status === "awaiting_payment" || booking.status === "paid");
   const canRefund = can(permissions, "transport.finance") && can(permissions, "finance.write") && booking.paid_at !== null;
   const seesProvider = can(permissions, "transport.finance");
+  const shareOf = (r: (typeof riders)[number]) => Number(one(r.transport_rider_provider_shares)?.provider_amount_minor ?? 0);
   const booked = riders.filter((r) => r.status === "booked");
   const total = riders.reduce((s, r) => s + Number(r.amount_minor), 0);
   const anonymised = booking.anonymised_at !== null;
@@ -160,7 +164,7 @@ export default async function TransportBookingPage({ params }: { params: Promise
                     <td className="px-3 py-2 text-right text-xs tabular-nums">{formatMoney(Number(r.amount_minor), "BWP")}</td>
                     {seesProvider ? (
                       <td className="px-3 py-2 text-right text-xs tabular-nums">
-                        {formatMoney(Number(r.provider_amount_minor), "BWP")}
+                        {formatMoney(shareOf(r), "BWP")}
                         <br />
                         <span className="text-muted-foreground">
                           {charged ? "paid" : "not paid yet"}
@@ -197,7 +201,7 @@ export default async function TransportBookingPage({ params }: { params: Promise
                   Total
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums">{formatMoney(total, "BWP")}</td>
-                {seesProvider ? <td className="px-3 py-2 text-right tabular-nums">{formatMoney(riders.reduce((s, r) => s + Number(r.provider_amount_minor), 0), "BWP")}</td> : null}
+                {seesProvider ? <td className="px-3 py-2 text-right tabular-nums">{formatMoney(riders.reduce((s, r) => s + shareOf(r), 0), "BWP")}</td> : null}
                 <td />
               </tr>
             </tfoot>

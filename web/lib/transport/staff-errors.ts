@@ -59,6 +59,7 @@ export const STAFF_REFUSALS: Record<string, string> = {
   // Rules the screens should never reach, worded in case one does.
   transport_booking_frozen: "A booking's period, area and terms cannot be changed after it is made.",
   transport_rider_frozen: "A child's priced line cannot be changed after the booking is made.",
+  transport_provider_share_mismatch: "The provider's amount for a child must follow from its price and the child's line.",
   transport_booking_status_illegal: `That change of status is not allowed. ${RELOAD}`,
   transport_booking_not_paid: "The booking can be marked paid only once its payment is confirmed.",
   transport_booking_has_riders: "A booking is cancelled only once every child on it is cancelled.",

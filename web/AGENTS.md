@@ -154,6 +154,11 @@ database, and each child's row holds a frozen snapshot of the tariff and the
 amounts. `lib/transport/pricing.ts` is the same rule for the estimate on the
 form, pinned to the same figures from the school's sheet. The browser is
 given the parent's prices only (`customerTariffs`), never the provider's.
+The provider's own figures are not in the tariffs or the riders at all
+(19 October 2026): its list price is in `transport_tariff_provider_prices`
+and each child's share in `transport_rider_provider_shares`, both readable
+only with `transport.finance` (case 90). Do not copy either back into a
+table other staff read.
 
 The hand-off pages a gateway sends the parent through (PayGate's bridge and
 the dev simulate screen) must live under the path the payer's cookie is

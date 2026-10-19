@@ -1,9 +1,9 @@
 /**
  * The money on one child's transport line, and the totals finance reads.
  *
- * Every figure comes from the line's frozen snapshot (`amount_minor`,
- * `provider_amount_minor`), the refunds recorded on it and the payout items
- * that name it. Nothing is re-priced here.
+ * Every figure comes from the line's frozen snapshot (`amount_minor`, and the
+ * provider's share in `transport_rider_provider_shares`), the refunds
+ * recorded on it and the payout items that name it. Nothing is re-priced here.
  *
  * The rules, per child on a booking the parent paid:
  *

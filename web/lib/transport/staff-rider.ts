@@ -30,7 +30,12 @@ export type StaffRider = {
   daysCount: number;
   household: TransportHousehold;
   amountMinor: number;
-  providerAmountMinor: number;
+  /**
+   * What the provider is owed for this line. Null for a reader without
+   * `transport.finance`: the share is finance's table, and the policy returns
+   * nothing to anybody else.
+   */
+  providerAmountMinor: number | null;
   refundMinor: number;
   status: "booked" | "cancelled";
   cancelledAt: string | null;
@@ -78,7 +83,6 @@ export type RiderSelectRow = {
   days_count: number;
   household: TransportHousehold;
   amount_minor: number;
-  provider_amount_minor: number;
   refund_minor: number;
   status: "booked" | "cancelled";
   cancelled_at: string | null;
@@ -89,6 +93,7 @@ export type RiderSelectRow = {
     | (BookingSelect | BookingSelect[])
     | null;
   transport_payout_items: Array<{ kind: "charge" | "credit"; amount_minor: number; payout_id: string }> | null;
+  transport_rider_provider_shares: { provider_amount_minor: number } | Array<{ provider_amount_minor: number }> | null;
 };
 
 type BookingSelect = {
@@ -117,6 +122,7 @@ export function toStaffRider(row: RiderSelectRow): StaffRider | null {
   const campus = one(row.campuses);
   const grade = one(row.grades);
   const area = one(b.transport_areas);
+  const share = one(row.transport_rider_provider_shares);
   const zone = one(b.transport_zones);
   return {
     id: row.id,
@@ -135,7 +141,7 @@ export function toStaffRider(row: RiderSelectRow): StaffRider | null {
     daysCount: row.days_count,
     household: row.household,
     amountMinor: Number(row.amount_minor),
-    providerAmountMinor: Number(row.provider_amount_minor),
+    providerAmountMinor: share ? Number(share.provider_amount_minor) : null,
     refundMinor: Number(row.refund_minor),
     status: row.status,
     cancelledAt: row.cancelled_at,
@@ -170,7 +176,8 @@ export function toLedgerRider(r: StaffRider): LedgerRider {
     bookingPaid: r.booking.paidAt !== null,
     status: r.status,
     amountMinor: r.amountMinor,
-    providerAmountMinor: r.providerAmountMinor,
+    // Only finance's pages total the provider's side, and finance reads it.
+    providerAmountMinor: r.providerAmountMinor ?? 0,
     refundMinor: r.refundMinor,
     items: r.items,
   };

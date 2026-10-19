@@ -105,7 +105,7 @@ export default async function NewTransportPayoutPage({ searchParams }: { searchP
               id: r.id,
               label: `${r.firstName} ${r.lastName}, ${r.school}`,
               detail: `${r.reference} · ${label.get(r.booking.periodId) ?? ""} · ${SERVICE_LABELS[r.service]}, ${weekdaysLabel(r.days)}`,
-              amountMinor: r.providerAmountMinor,
+              amountMinor: r.providerAmountMinor ?? 0,
             }))}
             credits={credits.map((r) => ({
               id: r.id,

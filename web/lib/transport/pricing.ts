@@ -151,10 +151,13 @@ export function estimateBooking(opts: {
  * What the parent's browser is given to work the estimate out: the parent's
  * price and nothing of the provider's. The provider's own price is the
  * school's business with Watermark, and a public page is not the place for it.
+ * Since 19 October 2026 it is not in the tariffs at all (it is finance's,
+ * in `transport_tariff_provider_prices`); this still copies only the four
+ * fields, so nothing added to a tariff later reaches the browser by default.
  */
 export type CustomerTariff = Pick<TariffLike, "zone_id" | "service" | "household" | "customer_term_minor">;
 
-export function customerTariffs(tariffs: readonly TariffLike[]): CustomerTariff[] {
+export function customerTariffs(tariffs: readonly CustomerTariff[]): CustomerTariff[] {
   return tariffs.map(({ zone_id, service, household, customer_term_minor }) => ({ zone_id, service, household, customer_term_minor }));
 }
 

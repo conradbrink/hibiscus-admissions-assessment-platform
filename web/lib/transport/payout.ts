@@ -121,7 +121,7 @@ export function payoutSheets(
 
 /** The charges and credits a statement of what is owed holds: every chargeable child, no credits yet. */
 export function statementLines(riders: readonly StaffRider[], providerId: string): PayoutLine[] {
-  return chargeableRiders(riders, providerId).map((r) => ({ kind: "charge" as const, rider: r, amountMinor: r.providerAmountMinor }));
+  return chargeableRiders(riders, providerId).map((r) => ({ kind: "charge" as const, rider: r, amountMinor: r.providerAmountMinor ?? 0 }));
 }
 
 /** "watermark-payout-2026-10-18-FNB123.xlsx" */

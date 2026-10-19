@@ -1093,6 +1093,15 @@ terms are published.
   January, and so does one booked for January. Seats are counted month by
   month (`seatWindows`), so children booked for different months never add up
   on one run.
+- **The provider's prices are finance's alone** (19 October, the school's
+  call after Claude's review): Watermark's list price per tariff and its
+  share of each child's line moved out of `transport_tariffs` and
+  `transport_booking_riders`, which other staff read, into
+  `transport_tariff_provider_prices` and `transport_rider_provider_shares`,
+  readable only with `transport.finance` (case 90). A coordinator and
+  admissions staff see neither, through the screens or the API. The margin
+  check runs as its owner so it still sees the price when a coordinator
+  edits a parent's. The rebate and VAT stayed where they were.
 - **Late money** (from Claude's review, 18 October): a payment that lands on
   a booking the office already cancelled sets its `paid_at`, so the refund
   form and the earnings see it; one that lands on an expired booking after

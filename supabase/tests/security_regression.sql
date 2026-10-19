@@ -4653,7 +4653,7 @@ begin
   end;
 
   -- -------------------------------------------------------------------------
-  -- 83–89. School transport
+  -- 83–90. School transport
   --
   -- A booking is typed in by a stranger, priced here, paid through the same
   -- money tables as an admission, read by staff at the children's schools,
@@ -4761,16 +4761,16 @@ begin
     begin
       -- Two schools on one booking: each child is "different schools",
       -- Gaborone, full, five days, a term: P 4,400.00, Watermark P 3,824.93.
-      select count(*) into v_count from public.transport_booking_riders
-       where booking_id = tb_mixed and household = 'different_schools' and amount_minor = 440000 and provider_amount_minor = 382493;
+      select count(*) into v_count from public.transport_booking_riders r join public.transport_rider_provider_shares s on s.rider_id = r.id
+       where r.booking_id = tb_mixed and r.household = 'different_schools' and r.amount_minor = 440000 and s.provider_amount_minor = 382493;
       if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '83: two children at two schools were not priced at the different-schools rate'; end if;
       -- One child, afternoons, three days: 3/5 of P 3,500.00, and of P 3,012.336.
-      select count(*) into v_count from public.transport_booking_riders
-       where id = tr_bh and household = 'single' and days_count = 3 and amount_minor = 210000 and provider_amount_minor = 180740;
+      select count(*) into v_count from public.transport_booking_riders r join public.transport_rider_provider_shares s on s.rider_id = r.id
+       where r.id = tr_bh and r.household = 'single' and r.days_count = 3 and r.amount_minor = 210000 and s.provider_amount_minor = 180740;
       if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: three afternoons were not priced pro rata'; end if;
       -- One month in Phakalane: a third of P 5,150.00 and of P 4,481.568.
-      select count(*) into v_count from public.transport_booking_riders
-       where id = tr_b7 and period_divisor = 3 and amount_minor = 171667 and provider_amount_minor = 149386;
+      select count(*) into v_count from public.transport_booking_riders r join public.transport_rider_provider_shares s on s.rider_id = r.id
+       where r.id = tr_b7 and r.period_divisor = 3 and r.amount_minor = 171667 and s.provider_amount_minor = 149386;
       if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83: a month was not priced as a third of the term'; end if;
       -- The zone was copied from the area, so moving the area later re-prices nothing.
       select count(*) into v_count from public.transport_bookings b join public.transport_zones z on z.id = b.zone_id
@@ -4784,16 +4784,27 @@ begin
     begin
       insert into public.transport_booking_riders (
         booking_id, position, first_name, last_name, grade_id, campus_id, service, mon,
-        household, tariff_id, customer_term_minor, provider_list_term_minor, rebate_bp, vat_bp, period_divisor,
-        amount_minor, provider_amount_minor)
+        household, tariff_id, customer_term_minor, rebate_bp, vat_bp, period_divisor,
+        amount_minor)
       select tb_bh, 2, 'Sec', 'Cheap', g_stage4, c_broadhurst, 'full', true,
-             'single', r.tariff_id, r.customer_term_minor, r.provider_list_term_minor, r.rebate_bp, r.vat_bp, 1,
-             1, 1
+             'single', r.tariff_id, r.customer_term_minor, r.rebate_bp, r.vat_bp, 1,
+             1
         from public.transport_booking_riders r where r.id = tr_bh;
       v_fail := v_fail || E'\n  - ' || '83: a child''s line was written at a price its tariff does not give';
     exception
       when check_violation then null;
       when others then v_fail := v_fail || E'\n  - ' || ('83: the underpriced line failed with "' || sqlerrm || '"');
+    end;
+    -- Nor can what the provider is owed for it: the share is held to the
+    -- child's own snapshot, in its own table.
+    begin
+      insert into public.transport_rider_provider_shares (rider_id, provider_list_term_minor, provider_amount_minor)
+      select rider_id, provider_list_term_minor, 1 from public.transport_rider_provider_shares where rider_id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '83: a provider''s amount was written that its list price does not give';
+    exception when others then
+      if sqlerrm <> 'transport_provider_share_mismatch' then
+        v_fail := v_fail || E'\n  - ' || ('83: the wrong provider amount failed with "' || sqlerrm || '"');
+      end if;
     end;
     perform pg_temp.service();
 
@@ -4947,11 +4958,11 @@ begin
       perform pg_temp.impersonate(u_admin);
       insert into public.transport_booking_riders (
         booking_id, position, first_name, last_name, grade_id, campus_id, service, mon,
-        household, tariff_id, customer_term_minor, provider_list_term_minor, rebate_bp, vat_bp, period_divisor,
-        amount_minor, provider_amount_minor)
+        household, tariff_id, customer_term_minor, rebate_bp, vat_bp, period_divisor,
+        amount_minor)
       select tb_bh, 3, 'Sec', 'Free', g_stage4, c_broadhurst, 'full', true,
-             r.household, r.tariff_id, r.customer_term_minor, r.provider_list_term_minor, r.rebate_bp, r.vat_bp, 1,
-             (2 * r.customer_term_minor + 5) / 10, (2 * r.provider_list_term_minor * (10000 - r.rebate_bp) * (10000 + r.vat_bp) + 500000000::bigint) / 1000000000::bigint
+             r.household, r.tariff_id, r.customer_term_minor, r.rebate_bp, r.vat_bp, 1,
+             (2 * r.customer_term_minor + 5) / 10
         from public.transport_booking_riders r where r.id = tr_bh;
       v_fail := v_fail || E'\n  - ' || '84: a member of staff added a child to a booking directly';
     exception
@@ -4989,26 +5000,46 @@ begin
     end;
     perform pg_temp.service();
 
-    -- A price that would pay the provider more than the parent paid.
+    -- A price that would pay the provider more than the parent paid: a
+    -- coordinator lowering the parent's price below it, though they cannot
+    -- read the provider's (the check runs as its owner), and the provider's
+    -- price raised above it.
     begin
       perform pg_temp.impersonate(u_tc);
-      update public.transport_tariffs set provider_list_term_minor = customer_term_minor where price_list_id = t_list;
+      update public.transport_tariffs set customer_term_minor = 100 where price_list_id = t_list;
       v_fail := v_fail || E'\n  - ' || '84: a tariff was saved paying the provider more than the parent pays';
     exception when others then
       if sqlerrm <> 'transport_nett_exceeds_price' then
-        v_fail := v_fail || E'\n  - ' || ('84: an over-the-price tariff failed with "' || sqlerrm || '"');
+        v_fail := v_fail || E'\n  - ' || ('84: an under-the-provider parent price failed with "' || sqlerrm || '"');
       end if;
     end;
     perform pg_temp.service();
+    begin
+      update public.transport_tariff_provider_prices pp set provider_list_term_minor = t.customer_term_minor
+        from public.transport_tariffs t where t.id = pp.tariff_id and t.price_list_id = t_list;
+      v_fail := v_fail || E'\n  - ' || '84: a provider price was saved above what the parent pays';
+    exception when others then
+      if sqlerrm <> 'transport_nett_exceeds_price' then
+        v_fail := v_fail || E'\n  - ' || ('84: an over-the-price provider price failed with "' || sqlerrm || '"');
+      end if;
+    end;
 
     -- A child's line is frozen, even to the service role; only retention may
     -- blank the names.
     begin
-      update public.transport_booking_riders set amount_minor = 1, provider_amount_minor = 1 where id = tr_bh;
+      update public.transport_booking_riders set amount_minor = 1 where id = tr_bh;
       v_fail := v_fail || E'\n  - ' || '84: a child''s price was changed after booking';
     exception when others then
       if sqlerrm not in ('transport_rider_frozen') and sqlstate <> '23514' then
         v_fail := v_fail || E'\n  - ' || ('84: changing a child''s price failed with "' || sqlerrm || '"');
+      end if;
+    end;
+    begin
+      update public.transport_rider_provider_shares set provider_amount_minor = 1 where rider_id = tr_bh;
+      v_fail := v_fail || E'\n  - ' || '84: what the provider is owed for a child was changed after booking';
+    exception when others then
+      if sqlerrm <> 'transport_rider_frozen' then
+        v_fail := v_fail || E'\n  - ' || ('84: changing a provider share failed with "' || sqlerrm || '"');
       end if;
     end;
     begin
@@ -5532,6 +5563,71 @@ begin
       end;
       perform pg_temp.service();
     end;
+
+    -- -----------------------------------------------------------------------
+    -- 90. Only finance reads the provider's prices
+    --
+    -- The provider's list price and what it is owed for each child are the
+    -- school's commercial terms. They live in two tables of their own whose
+    -- read policy asks for `transport.finance` (19 October 2026); every other
+    -- column of a booking stays readable by those who read bookings.
+    -- -----------------------------------------------------------------------
+    begin
+      -- The coordinator reads the children, and none of the provider's figures.
+      perform pg_temp.impersonate(u_tc);
+      select count(*) into v_count from public.transport_booking_riders where id in (tr_mixed_b7, tr_mixed_bh);
+      if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '90 control: a coordinator could not read the children'; end if;
+      select count(*) into v_count from public.transport_tariff_provider_prices;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('90: a transport coordinator read ' || v_count || ' provider prices'); end if;
+      select count(*) into v_count from public.transport_rider_provider_shares;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('90: a transport coordinator read ' || v_count || ' provider shares'); end if;
+      perform pg_temp.service();
+      -- Admissions staff, who read the catalogue, neither.
+      perform pg_temp.impersonate(u_staff);
+      select count(*) into v_count from public.transport_tariffs;
+      if v_count = 0 then v_fail := v_fail || E'\n  - ' || '90 control: admissions staff could not read the tariffs'; end if;
+      select count(*) into v_count from public.transport_tariff_provider_prices;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || ('90: admissions staff read ' || v_count || ' provider prices'); end if;
+      perform pg_temp.service();
+      -- Head-office finance reads them all; a Broadhurst bursar, Broadhurst's.
+      perform pg_temp.impersonate(u_finance);
+      select count(*) into v_count from public.transport_tariff_provider_prices;
+      if v_count < 12 then v_fail := v_fail || E'\n  - ' || '90 control: finance could not read the provider prices'; end if;
+      select count(*) into v_count from public.transport_rider_provider_shares where rider_id in (tr_mixed_b7, tr_mixed_bh);
+      if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '90 control: head-office finance could not read both children''s shares'; end if;
+      perform pg_temp.service();
+      perform pg_temp.impersonate(u_finance_bh);
+      select count(*) into v_count from public.transport_rider_provider_shares where rider_id in (tr_mixed_b7, tr_mixed_bh);
+      if v_count <> 1 then v_fail := v_fail || E'\n  - ' || ('90: a Broadhurst bursar read ' || v_count || ' shares of a two-school booking, not only Broadhurst''s one'); end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('90: unexpected error reading provider prices: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+
+    -- Nobody signed in writes them: not finance, not the coordinator.
+    begin
+      perform pg_temp.impersonate(u_finance);
+      with changed as (
+        update public.transport_tariff_provider_prices set provider_list_term_minor = provider_list_term_minor + 1 returning tariff_id
+      ) select count(*) into v_count from changed;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '90: finance changed a provider price through the API'; end if;
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('90: a provider price update by finance failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
+    begin
+      perform pg_temp.impersonate(u_tc);
+      -- The right figures for the child (83's three afternoons), so it is the
+      -- policy that refuses, not the share's own rule.
+      insert into public.transport_rider_provider_shares (rider_id, provider_list_term_minor, provider_amount_minor)
+      values (tr_bh, 293600, 180740);
+      v_fail := v_fail || E'\n  - ' || '90: a coordinator wrote a provider share';
+    exception
+      when insufficient_privilege then null;
+      when others then v_fail := v_fail || E'\n  - ' || ('90: a provider share insert by a coordinator failed with "' || sqlerrm || '"');
+    end;
+    perform pg_temp.service();
   end;
 
   if v_fail <> '' then

@@ -7,8 +7,8 @@ import { toStaffRider, type RiderSelectRow, type StaffRider } from "@/lib/transp
  * The staff side's reads of school transport. Every one takes the staff
  * member's own client, never the service role: the policies decide what a
  * person sees — `transport.read` at the children's own schools, and payout
- * items only with `transport.finance` — so a list, a report and a download
- * hold exactly what the screen does.
+ * items and the provider's share only with `transport.finance` — so a list,
+ * a report and a download hold exactly what the screen does.
  */
 
 type StaffClient = SupabaseClient<Database>;
@@ -23,7 +23,7 @@ const PAGE = 1000;
 const CAP = 20000;
 
 const RIDER_SELECT =
-  "id, booking_id, position, first_name, last_name, campus_id, service, mon, tue, wed, thu, fri, days_count, household, amount_minor, provider_amount_minor, refund_minor, status, cancelled_at, notes, campuses!transport_booking_riders_campus_id_fkey(name, sort_order), grades!transport_booking_riders_grade_id_fkey(name, sort_order), transport_bookings!transport_booking_riders_booking_id_fkey!inner(reference, status, paid_at, anonymised_at, period_id, provider_id, parent_first_name, parent_last_name, mobile, second_contact_name, second_contact_mobile, address_line, landmark, notes, transport_areas!transport_bookings_area_id_fkey(name, sort_order), transport_zones!transport_bookings_zone_id_fkey(label, sort_order)), transport_payout_items(kind, amount_minor, payout_id)";
+  "id, booking_id, position, first_name, last_name, campus_id, service, mon, tue, wed, thu, fri, days_count, household, amount_minor, refund_minor, status, cancelled_at, notes, campuses!transport_booking_riders_campus_id_fkey(name, sort_order), grades!transport_booking_riders_grade_id_fkey(name, sort_order), transport_bookings!transport_booking_riders_booking_id_fkey!inner(reference, status, paid_at, anonymised_at, period_id, provider_id, parent_first_name, parent_last_name, mobile, second_contact_name, second_contact_mobile, address_line, landmark, notes, transport_areas!transport_bookings_area_id_fkey(name, sort_order), transport_zones!transport_bookings_zone_id_fkey(label, sort_order)), transport_payout_items(kind, amount_minor, payout_id), transport_rider_provider_shares(provider_amount_minor)";
 
 export type RiderFilter = {
   periodIds?: readonly string[];

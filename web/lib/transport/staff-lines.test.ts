@@ -83,7 +83,6 @@ describe("toStaffRider", () => {
       days_count: 2,
       household: "single",
       amount_minor: 154000,
-      provider_amount_minor: 120494,
       refund_minor: 0,
       status: "booked",
       cancelled_at: null,
@@ -109,8 +108,13 @@ describe("toStaffRider", () => {
         transport_zones: [{ label: "Gaborone", sort_order: 2 }],
       },
       transport_payout_items: [{ kind: "charge", amount_minor: 120494, payout_id: ID(77) }],
+      transport_rider_provider_shares: { provider_amount_minor: 120494 },
     };
     const r = toStaffRider(row)!;
+    expect(r.providerAmountMinor).toBe(120494);
+    // Without `transport.finance` the policy returns no share: null, not 0.
+    expect(toStaffRider({ ...row, transport_rider_provider_shares: null })!.providerAmountMinor).toBeNull();
+    expect(toStaffRider({ ...row, transport_rider_provider_shares: [] })!.providerAmountMinor).toBeNull();
     expect(r).toMatchObject({ school: "Block 7", grade: "Grade 1", reference: "HTR-2027-00002", days: { mon: true, wed: true, tue: false } });
     expect(r.booking).toMatchObject({ area: "Gaborone", zone: "Gaborone", zoneSort: 2 });
     expect(r.items).toEqual([{ kind: "charge", amountMinor: 120494, payoutId: ID(77) }]);
