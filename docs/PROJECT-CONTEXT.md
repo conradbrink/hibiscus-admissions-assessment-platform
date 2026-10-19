@@ -1106,6 +1106,31 @@ school's account. Do not add one before the account exists.
   cancellation email, one `rebook_nudge` with a `booking_none` precondition,
   the online cutoff, and the missed session named on the page.
 
+### Bana Tlokweng's application fee came back by hand (19 October 2026)
+
+Bana charges no application fee, and `20260910160000_bana_tlokweng.sql` built
+every schedule that way. By October each of the five 2027 schedules carried a
+`registration` line of P300, payable at acceptance, that no migration wrote.
+The letter prints that code as "Application fee (non-refundable)", so a 2027
+Pre-Kindergarten family was asked for P1,890 instead of P1,590. Eight letters
+waiting for approval carried it. None had reached a family.
+
+`20261019082459_bana_charges_no_application_fee.sql` removes the line from
+every Bana schedule, in any year. It also gives Nursery 2027 the price the school
+confirmed: P1,590 a month, with the first month paid to accept, as in 2026.
+The P300 had been that schedule's only line. The eight letters were redrafted
+with `web/scripts/redraft-offers-run.test.ts` (`REDRAFT_CAMPUSES=tlokweng
+REDRAFT_YEAR=2027`) and still wait for approval.
+
+The Supabase connector timed out on every write that day, so the two row
+changes went in through the REST API under the service role. The migration is
+idempotent and not yet recorded in production's history: the next `supabase db
+push` records it under its own version and changes nothing.
+
+Worth knowing: a fee schedule edited in the admin changes no letter already
+drafted. When someone says a letter "still shows" a fee, look at the
+schedule and the open offers' `fees` snapshots, not only the schedule.
+
 ### Learned on the end-to-end QA run (14 September 2026)
 
 Every parent door, every active campus, every stage and every staff role was
