@@ -3,6 +3,7 @@ import type { ApplicationStatus } from "@/lib/supabase/types";
 import { toPermissionSet } from "@/lib/permissions";
 import { backPosition, canMoveTo, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveDirection, moveTargetLabel, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
 import { canBeDecided, canOverrideTransition, canTransition, OVERRIDE_TRANSITIONS, TERMINAL_STATUSES, TRANSITIONS } from "@/lib/workflow/states";
+import { DEFERRABLE_AFTER_DECISION } from "@/lib/workflow/deferral";
 
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
 
@@ -29,11 +30,16 @@ describe("move to stage: where a child may go", () => {
   });
 
   it("lets a deferred child go on to any stage from Decision, wherever they paused", () => {
-    // A family pauses at most while waiting for a decision, so Decision is
-    // never behind them: for one who paused there, it is coming back.
-    for (const from of ALL.filter((s) => canTransition(s, "deferred"))) {
+    // A family pauses before a decision, or after one that the deferral sets
+    // aside (its letter withdrawn), so Decision is never behind them: for one
+    // who paused there or later, it is coming back.
+    for (const from of ALL.filter((s) => canTransition(s, "deferred") && !DEFERRABLE_AFTER_DECISION.has(s))) {
       expect(movePosition(from), from).not.toBeNull();
       expect(movePosition(from)!, from).toBeLessThanOrEqual(movePosition("awaiting_decision")!);
+    }
+    // Never past the offer: from Payment on, money is finance's to settle first.
+    for (const from of DEFERRABLE_AFTER_DECISION) {
+      expect(movePosition(from)!, from).toBeLessThanOrEqual(movePosition("offer_sent")!);
     }
     expect(moveTargetsFrom("deferred")).toEqual(["decision", "offer", "payment", "registration"]);
     expect(canTransition("deferred", "awaiting_decision")).toBe(true);

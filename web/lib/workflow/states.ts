@@ -56,15 +56,18 @@ export const TRANSITIONS: Record<ApplicationStatus, readonly ApplicationStatus[]
   // book one, and everybody else to the decision they were waiting on. Which,
   // is `statusAfterDeferral` (lib/workflow/deferral.ts).
   deferred: ["awaiting_decision", "new_enquiry"],
-  approved: ["offer_draft", "waitlisted"],
-  waitlisted: ["approved", "declined"],
+  // `deferred` from here to the end of the offer stage sets the decision
+  // aside and withdraws any letter in play; the family resumes at Decision.
+  // See `DEFERRABLE_AFTER_DECISION` (lib/workflow/deferral.ts).
+  approved: ["offer_draft", "waitlisted", "deferred"],
+  waitlisted: ["approved", "declined", "deferred"],
   declined: [],
-  offer_draft: ["offer_pending_approval", "offer_sent"],
-  offer_pending_approval: ["offer_sent", "offer_draft"],
+  offer_draft: ["offer_pending_approval", "offer_sent", "deferred"],
+  offer_pending_approval: ["offer_sent", "offer_draft", "deferred"],
   // Back to draft: staff withdraw a sent offer to correct it and re-issue.
-  offer_sent: ["offer_accepted", "offer_declined", "offer_expired", "offer_draft"],
-  offer_expired: ["offer_sent", "offer_draft"],
-  offer_declined: ["offer_draft"],
+  offer_sent: ["offer_accepted", "offer_declined", "offer_expired", "offer_draft", "deferred"],
+  offer_expired: ["offer_sent", "offer_draft", "deferred"],
+  offer_declined: ["offer_draft", "deferred"],
   offer_accepted: ["payment_required"],
   payment_required: ["payment_processing", "paid"],
   payment_processing: ["paid", "payment_required"],

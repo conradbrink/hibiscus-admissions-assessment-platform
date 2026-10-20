@@ -283,6 +283,16 @@ describe("journey milestones, after review", () => {
     expect(toOffer.decision?.label).toBe("Accepted");
     expect(toOffer.payment).toBeUndefined();
   });
+  it("forgets the decision and the letter when a family is deferred after a decision, and not before one", () => {
+    const decided = ev("decision.made", "2026-10-10T10:00:00Z", "", { outcome: "approved" });
+    const declinedLetter = ev("offer.sent", "2026-10-11T10:00:00Z");
+    const after = journeyMilestones([ev("application.deferred", "2026-10-12T10:00:00Z", "", { decision_set_aside: true }), declinedLetter, decided], () => "Fiona");
+    expect(after.decision).toBeUndefined();
+    expect(after.offer).toBeUndefined();
+    // Deferred while waiting for a decision: nothing decided to set aside.
+    const before = journeyMilestones([ev("application.deferred", "2026-10-12T10:00:00Z", "", { decision_set_aside: false }), decided], () => "Fiona");
+    expect(before.decision?.label).toBe("Accepted");
+  });
   it("reads a new letter sent after a move back as sent, not as the old letter's acceptance", () => {
     const m = journeyMilestones(
       [

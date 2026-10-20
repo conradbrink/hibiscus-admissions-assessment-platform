@@ -45,6 +45,8 @@ export function DecisionFields({
   canOfferTrial = false,
   hasHadTrial = false,
   bookingWillBeCancelled,
+  decisionWillBeSetAside = false,
+  offerWillBeWithdrawn = false,
   autoSendOutcomes = false,
   upcomingBooking = false,
 }: {
@@ -60,6 +62,10 @@ export function DecisionFields({
   hasHadTrial?: boolean;
   /** Said out loud when they pick Defer, because the seat going back is not theirs to undo. */
   bookingWillBeCancelled?: boolean;
+  /** Deferring after a decision sets it aside: they come back to Decision (`DEFERRABLE_AFTER_DECISION`). */
+  decisionWillBeSetAside?: boolean;
+  /** A letter drafted, waiting for approval or out, which deferring withdraws. */
+  offerWillBeWithdrawn?: boolean;
   /** The `auto_send_outcomes` switch: a waitlist or decline letter goes the moment it is recorded. */
   autoSendOutcomes?: boolean;
   /** A visit or sitting still ahead of them, which sending a decline letter cancels (`onOutcomeSent`). */
@@ -132,6 +138,8 @@ export function DecisionFields({
             For a family who wants a place later in the year. We message them around the date and put a call on the
             owner&rsquo;s list for the day itself, and one click brings them back.
             {bookingWillBeCancelled ? " Their booking is cancelled, so the seat goes back and the reminders stop." : ""}
+            {offerWillBeWithdrawn ? " Their offer is withdrawn, so it cannot be accepted while they are paused." : ""}
+            {decisionWillBeSetAside ? " When they come back, they return to Decision to be decided again." : ""}
           </p>
           <Input type="date" name="until" required aria-label="Come back to them on" />
           <Input name="reason" placeholder="What they said (optional)" maxLength={500} />

@@ -617,6 +617,9 @@ const movedBackTo = (...stages: string[]): UndoRule => ({
   type: "application.moved_to_stage",
   when: (p) => p.direction === "back" && stages.includes(String(p.to)),
 });
+// Deferred after a decision: it was set aside, and they are decided again
+// when they come back (`DEFERRABLE_AFTER_DECISION`).
+const deferredAfterDecision: UndoRule = { type: "application.deferred", when: (p) => p.decision_set_aside === true };
 const payloadOf = (e: EventLike): Record<string, unknown> => (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
 const undoes = (u: UndoRule, e: EventLike): boolean => (typeof u === "string" ? u === e.type : u.type === e.type && u.when(payloadOf(e)));
 
@@ -636,16 +639,16 @@ const STAGE_EVENTS: Record<JourneyStage, { rules: StageRule[]; undoneBy?: UndoRu
         label: (p) => (p.outcome === "approved" ? "Accepted" : p.outcome === "waitlisted" ? "Waitlisted" : p.outcome === "declined" ? "Declined" : "Decided"),
       },
     ],
-    undoneBy: [movedBackTo("decision")],
+    undoneBy: [movedBackTo("decision"), deferredAfterDecision],
   },
   offer: {
     rules: [
       { type: "offer.accepted", label: "Offer accepted" },
       { type: "offer.sent", label: "Offer sent" },
     ],
-    // A declined letter is not withdrawn by a move back, so the move itself
-    // clears it too.
-    undoneBy: ["offer.withdrawn", movedBackTo("decision", "offer")],
+    // A declined letter is not withdrawn by a move back or a deferral, so the
+    // move or the deferral itself clears it too.
+    undoneBy: ["offer.withdrawn", movedBackTo("decision", "offer"), deferredAfterDecision],
   },
   // Only a settlement of nothing can be behind a move back (money held
   // refuses it), and it belonged to the letter that was withdrawn.

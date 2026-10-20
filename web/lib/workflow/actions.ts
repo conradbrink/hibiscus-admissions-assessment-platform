@@ -1,6 +1,6 @@
 import "server-only";
 import { bookingConfirmedTemplateKey, bookingMovedTemplateKey, bookingNoun } from "@/lib/booking/noun";
-import { DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfterDeferral } from "@/lib/workflow/deferral";
+import { DEFERRABLE_AFTER_DECISION, DEFERRAL_TEMPLATE_KEY, deferralFollowUps, deferralTaskDueAt, statusAfterDeferral } from "@/lib/workflow/deferral";
 import type { WithdrawnReasonCode } from "@/lib/workflow/withdrawal";
 import type { PostgrestError } from "@supabase/supabase-js";
 import type { AdminClient } from "@/lib/supabase/admin";
@@ -741,6 +741,12 @@ export async function onManualDecision(
  * days — and a seat nobody is coming to would stay held. Cancelling silently
  * stops both. No cancellation email: the family asked for this on the phone,
  * and the follow-ups around their date are the message that matters.
+ *
+ * After a decision (`DEFERRABLE_AFTER_DECISION`) the decision is set aside
+ * and any letter in play is withdrawn, the same way, for the same reasons: a
+ * family who has paused must not be able to accept a place from the link
+ * they already hold, and the letter's reminders and expiry must stop. They
+ * resume at Decision. Nothing is emailed about the letter either.
  */
 export async function onDeferred(
   admin: AdminClient,
@@ -749,6 +755,8 @@ export async function onDeferred(
   actor: Actor
 ): Promise<void> {
   const settings = await getSettings(admin);
+  const now = new Date().toISOString();
+  const decisionSetAside = DEFERRABLE_AFTER_DECISION.has(app.status);
 
   // Raising rather than reporting, and before the application is touched: a
   // failed cancellation must not leave a `deferred_until` on an application
@@ -760,10 +768,53 @@ export async function onDeferred(
     "cancel its bookings",
     admin
       .from("bookings")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" })
+      .update({ status: "cancelled", cancelled_at: now, cancel_reason: "Deferred at the family's request" })
       .eq("application_id", app.id)
       .in("status", ["booked", "checked_in", "in_progress"])
   );
+
+  // Before the status too, and for the same reason. A parent pressing Accept
+  // in the same second is refused either way: by the letter's status once
+  // this is in, or — if theirs landed first — this deferral is refused by the
+  // status check below, and an accepted letter is not in this list to touch.
+  // Run whatever the status: no letter of any kind outlives a deferral.
+  const { data: withdrawn, error: offerErr } = await admin
+    .from("offers")
+    .update({ status: "withdrawn", withdrawn_reason: "Deferred at the family's request" })
+    .eq("application_id", app.id)
+    .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
+    .select("id");
+  if (offerErr) {
+    throw new WorkflowError(`${app.reference} was not deferred: we could not withdraw its offer (${offerErr.message}). Its status is unchanged — please try again.`, "database");
+  }
+  for (const offer of withdrawn ?? []) {
+    // The letter's own email has no precondition (it goes the moment it is
+    // approved), so one still in the queue would reach a family who has just
+    // paused. Its reminders and expiry skip themselves on the letter's status.
+    await mustSucceed(
+      app.reference,
+      "deferred",
+      "stop its offer emails",
+      admin
+        .from("jobs")
+        .update({ status: "skipped", last_error: "Deferred at the family's request", completed_at: now })
+        .eq("application_id", app.id)
+        .eq("status", "pending")
+        .contains("payload", { offer_id: offer.id })
+    );
+    // One line per letter, as every withdrawal writes: it is what tells the
+    // journey bar the offer is no longer out.
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: null,
+      event: { type: "offer.withdrawn", summary: "Offer withdrawn: deferred at the family's request", payload: { offer_id: offer.id, reason: "deferred" } },
+      audit: { action: "offer.withdrawn", entityType: "offer", entityId: offer.id, after: { reason: "deferred" } },
+      actor,
+    });
+  }
+  const offersWithdrawn = (withdrawn ?? []).map((o) => o.id);
 
   const { error } = await admin
     .from("applications")
@@ -787,8 +838,10 @@ export async function onDeferred(
     nextActionDueAt: deferralTaskDueAt(spec.until),
     event: {
       type: "application.deferred",
-      summary: `Deferred until ${formatDateLong(spec.until)}`,
-      payload: { deferred_until: spec.until, reason: spec.reason },
+      summary: `Deferred until ${formatDateLong(spec.until)}${offersWithdrawn.length ? "; their offer was withdrawn" : ""}`,
+      // `decision_set_aside` is what the journey bar reads to stop showing a
+      // decision the family will be asked again when they come back.
+      payload: { deferred_until: spec.until, reason: spec.reason, from: app.status, decision_set_aside: decisionSetAside, offers_withdrawn: offersWithdrawn },
     },
     // The messages are a courtesy; this is the promise. A family who does not
     // answer either message is rung by a person on the day.
@@ -805,9 +858,20 @@ export async function onDeferred(
     jobs,
     // The chase stops: a family who has paused is not late for anything, and
     // the no-show follow-up on a sitting they will not now attend is a call
-    // somebody would otherwise make for no reason.
-    resolveTaskTypes: ["follow_up_no_show"],
-    audit: { action: "application.deferred", before: { status: app.status }, after: { deferred_until: spec.until } },
+    // somebody would otherwise make for no reason. Likewise the work on a
+    // decision that has been set aside: a letter to approve or price, an
+    // outcome letter to send, a lapsed or declined offer to chase.
+    resolveTaskTypes: [
+      "follow_up_no_show",
+      ...(decisionSetAside
+        ? ["send_outcome", "waitlist_place_available", "approve_offer", "configure_fees", "follow_up_expired_offer", "follow_up_declined_offer"]
+        : []),
+    ],
+    audit: {
+      action: "application.deferred",
+      before: { status: app.status },
+      after: { deferred_until: spec.until, decision_set_aside: decisionSetAside, offers_withdrawn: offersWithdrawn },
+    },
     actor,
   });
 }

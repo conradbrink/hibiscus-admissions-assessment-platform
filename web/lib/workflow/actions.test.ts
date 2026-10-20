@@ -36,15 +36,16 @@ type Chain = {
   select: () => Chain;
   eq: () => Chain;
   in: () => Chain;
+  contains: () => Chain;
   then: (resolve: (value: unknown) => void) => void;
 };
 
-function stub(failOn?: { table: string; message: string }) {
+function stub(failOn?: { table: string; message: string }, rows: Record<string, unknown[]> = {}) {
   const writes: string[] = [];
   let commits = 0;
 
   const answer = (table: string) => ({
-    data: [],
+    data: rows[table] ?? [],
     count: 0,
     error: failOn?.table === table ? { message: failOn.message, details: "", hint: "", code: "XX000" } : null,
   });
@@ -55,6 +56,7 @@ function stub(failOn?: { table: string; message: string }) {
       select: () => q,
       eq: () => q,
       in: () => q,
+      contains: () => q,
       then: (resolve) => resolve(answer(table)),
     };
     return q;
@@ -146,8 +148,45 @@ describe("onDeferred", () => {
 
     await onDeferred(s.admin, deferring, { until: "2027-01-15", reason: "Moving house" }, SYSTEM_ACTOR);
 
-    expect(s.writes).toEqual(["bookings", "applications"]);
+    // No letter to withdraw before a decision, so no offer line either.
+    expect(s.writes).toEqual(["bookings", "offers", "applications"]);
     expect(s.commits()).toBe(1);
+  });
+
+  // Deferring after a decision, on the school's request of 20 October 2026:
+  // the letter in play is withdrawn first, so it cannot be accepted while
+  // the family is paused.
+  const withOffer = { ...deferring, status: "offer_pending_approval" as const };
+
+  it("does not record a deferral when the offer cannot be withdrawn", async () => {
+    const s = stub({ table: "offers", message: "no" });
+
+    const error = await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: null }, SYSTEM_ACTOR).catch((e: unknown) => e);
+
+    expect((error as WorkflowError).message).toContain("withdraw its offer");
+    expect((error as WorkflowError).message).toContain(REFERENCE);
+    expect(s.commits()).toBe(0);
+    expect(s.writes).not.toContain("applications");
+  });
+
+  it("does not record a deferral when the letter's queued emails cannot be stopped", async () => {
+    const s = stub({ table: "jobs", message: "no" }, { offers: [{ id: "offer-1" }] });
+
+    const error = await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: null }, SYSTEM_ACTOR).catch((e: unknown) => e);
+
+    expect((error as WorkflowError).message).toContain("stop its offer emails");
+    expect(s.commits()).toBe(0);
+    expect(s.writes).not.toContain("applications");
+  });
+
+  it("withdraws the letter, writes its line, then defers", async () => {
+    const s = stub(undefined, { offers: [{ id: "offer-1" }] });
+
+    await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: "Next year instead" }, SYSTEM_ACTOR);
+
+    expect(s.writes).toEqual(["bookings", "offers", "jobs", "applications"]);
+    // One `offer.withdrawn` line for the letter, then the deferral itself.
+    expect(s.commits()).toBe(2);
   });
 });
 
