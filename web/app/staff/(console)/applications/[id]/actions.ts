@@ -37,8 +37,9 @@ import {
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
-import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
-import { mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { onDeferredAfterDecision, onMovedToStage } from "@/lib/workflow/stage-move-actions";
+import { defersThroughDecision, mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { can } from "@/lib/permissions";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
 import { resolveFeeSchedule } from "@/lib/offers/render";
@@ -272,6 +273,7 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
         .extend({
           until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
           reason: z.string().trim().max(500).optional(),
+          throughDecision: z.enum(["0", "1"]).optional(),
         })
         .parse(raw);
       // A date in the past is a typo, and the follow-ups for it would all be
@@ -279,7 +281,25 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
       // ever wake.
       if (!isFutureDate(parsed.until)) throw new Error("Choose a date in the future.");
       const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-      await onDeferred(admin, app, { until: parsed.until, reason: parsed.reason?.trim() || null }, ctx.actor);
+      const spec = { until: parsed.until, reason: parsed.reason?.trim() || null };
+      const throughDecision = defersThroughDecision(app.status);
+      // The page says whether this deferral withdraws a letter. A child
+      // accepted while it was open would otherwise lose their offer on a
+      // confirmation that never mentioned it.
+      if (parsed.throughDecision !== undefined && (parsed.throughDecision === "1") !== throughDecision) {
+        throw new Error(`${app.child_first_name} has moved since this page was loaded. Reload the page and choose again.`);
+      }
+      if (throughDecision) {
+        // It withdraws the letter, so it needs what withdrawing one needs —
+        // on the Offers page and on the move back to Decision alike.
+        if (!can(ctx.permissions, "offers.approve")) {
+          throw new Error("Deferring a family with an offer withdraws the offer, and your account cannot do that.");
+        }
+        await onDeferredAfterDecision(admin, app, spec, ctx.actor);
+        revalidatePath("/staff/offers");
+      } else {
+        await onDeferred(admin, app, spec, ctx.actor);
+      }
       done(parsed.applicationId);
       return;
     }

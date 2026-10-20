@@ -36,13 +36,16 @@ type Chain = {
   select: () => Chain;
   eq: () => Chain;
   in: () => Chain;
-  contains: () => Chain;
+  order: () => Chain;
+  limit: () => Chain;
+  maybeSingle: () => Chain;
   then: (resolve: (value: unknown) => void) => void;
 };
 
-function stub(failOn?: { table: string; message: string }, rows: Record<string, unknown[]> = {}) {
+function stub(failOn?: { table: string; message: string }, rows: Record<string, unknown> = {}) {
   const writes: string[] = [];
   let commits = 0;
+  const newStatuses: unknown[] = [];
 
   const answer = (table: string) => ({
     data: rows[table] ?? [],
@@ -56,7 +59,9 @@ function stub(failOn?: { table: string; message: string }, rows: Record<string, 
       select: () => q,
       eq: () => q,
       in: () => q,
-      contains: () => q,
+      order: () => q,
+      limit: () => q,
+      maybeSingle: () => q,
       then: (resolve) => resolve(answer(table)),
     };
     return q;
@@ -64,13 +69,14 @@ function stub(failOn?: { table: string; message: string }, rows: Record<string, 
 
   const admin = {
     from,
-    rpc: async () => {
+    rpc: async (_fn: string, args: { p_new_status?: unknown }) => {
       commits += 1;
+      newStatuses.push(args?.p_new_status);
       return { data: 1, error: null };
     },
   } as unknown as AdminClient;
 
-  return { admin, writes, commits: () => commits };
+  return { admin, writes, commits: () => commits, newStatuses };
 }
 
 /** Each cleanup step, and the words the staff member is shown when it fails. */
@@ -148,45 +154,20 @@ describe("onDeferred", () => {
 
     await onDeferred(s.admin, deferring, { until: "2027-01-15", reason: "Moving house" }, SYSTEM_ACTOR);
 
-    // No letter to withdraw before a decision, so no offer line either.
-    expect(s.writes).toEqual(["bookings", "offers", "applications"]);
+    expect(s.writes).toEqual(["bookings", "applications"]);
     expect(s.commits()).toBe(1);
   });
 
-  // Deferring after a decision, on the school's request of 20 October 2026:
-  // the letter in play is withdrawn first, so it cannot be accepted while
-  // the family is paused.
-  const withOffer = { ...deferring, status: "offer_pending_approval" as const };
+  it("refuses a status the graph does not pause, before cancelling anything", async () => {
+    // A page left open while the child started their sitting: the commit
+    // would refuse it, but only after the booking had gone.
+    const s = stub();
 
-  it("does not record a deferral when the offer cannot be withdrawn", async () => {
-    const s = stub({ table: "offers", message: "no" });
+    const error = await onDeferred(s.admin, { ...deferring, status: "assessment_in_progress" }, { until: "2027-01-15", reason: null }, SYSTEM_ACTOR).catch((e: unknown) => e);
 
-    const error = await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: null }, SYSTEM_ACTOR).catch((e: unknown) => e);
-
-    expect((error as WorkflowError).message).toContain("withdraw its offer");
-    expect((error as WorkflowError).message).toContain(REFERENCE);
+    expect((error as WorkflowError).code).toBe("status_conflict");
+    expect(s.writes).toEqual([]);
     expect(s.commits()).toBe(0);
-    expect(s.writes).not.toContain("applications");
-  });
-
-  it("does not record a deferral when the letter's queued emails cannot be stopped", async () => {
-    const s = stub({ table: "jobs", message: "no" }, { offers: [{ id: "offer-1" }] });
-
-    const error = await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: null }, SYSTEM_ACTOR).catch((e: unknown) => e);
-
-    expect((error as WorkflowError).message).toContain("stop its offer emails");
-    expect(s.commits()).toBe(0);
-    expect(s.writes).not.toContain("applications");
-  });
-
-  it("withdraws the letter, writes its line, then defers", async () => {
-    const s = stub(undefined, { offers: [{ id: "offer-1" }] });
-
-    await onDeferred(s.admin, withOffer, { until: "2027-01-15", reason: "Next year instead" }, SYSTEM_ACTOR);
-
-    expect(s.writes).toEqual(["bookings", "offers", "jobs", "applications"]);
-    // One `offer.withdrawn` line for the letter, then the deferral itself.
-    expect(s.commits()).toBe(2);
   });
 });
 
@@ -212,5 +193,27 @@ describe("onDeferralEnded", () => {
     await onDeferralEnded(s.admin, resuming, SYSTEM_ACTOR);
 
     expect(s.commits()).toBe(1);
+  });
+
+  it("refuses to resume when it cannot tell where the family paused", async () => {
+    const s = stub({ table: "application_events", message: "statement timeout" });
+
+    const error = await onDeferralEnded(s.admin, resuming, SYSTEM_ACTOR).catch((e: unknown) => e);
+
+    expect((error as WorkflowError).message).toContain(REFERENCE);
+    expect(s.commits()).toBe(0);
+  });
+
+  it("sends a child who paused at Decision back there, sat or not", async () => {
+    // Moved past the assessment by hand, or back from an offer on the way
+    // to the deferral: booking a sitting would ask for what the school waived.
+    const atDecision = stub(undefined, { application_events: { payload: { from: "awaiting_decision" } } });
+    await onDeferralEnded(atDecision.admin, resuming, SYSTEM_ACTOR);
+    expect(atDecision.newStatuses).toEqual(["awaiting_decision"]);
+
+    // Paused with a sitting booked: back to book it, as before.
+    const booked = stub(undefined, { application_events: { payload: { from: "assessment_booked" } } });
+    await onDeferralEnded(booked.admin, resuming, SYSTEM_ACTOR);
+    expect(booked.newStatuses).toEqual(["new_enquiry"]);
   });
 });

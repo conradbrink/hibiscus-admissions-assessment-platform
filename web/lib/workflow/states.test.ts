@@ -19,7 +19,6 @@ import {
   TERMINAL_STATUSES,
   TRANSITIONS,
 } from "@/lib/workflow/states";
-import { DEFERRABLE_AFTER_DECISION } from "@/lib/workflow/deferral";
 
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
 
@@ -56,21 +55,6 @@ describe("state machine", () => {
     for (const from of ["new_enquiry", "visit_booked", "callback_requested", "awaiting_decision", "staff_review"] as ApplicationStatus[]) {
       expect(canTransition(from, "deferred")).toBe(true);
     }
-  });
-
-  it("lets a family be deferred after a decision, until they accept the offer", () => {
-    // The school's request of 20 October 2026: the applicant page offered only
-    // Withdraw to a family whose offer was waiting for approval.
-    for (const from of ["approved", "waitlisted", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired", "offer_declined"] as ApplicationStatus[]) {
-      expect(canTransition(from, "deferred"), from).toBe(true);
-      expect(DEFERRABLE_AFTER_DECISION.has(from), from).toBe(true);
-    }
-    // Once accepted a payment request is open, and money may have moved.
-    for (const from of ["offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete"] as ApplicationStatus[]) {
-      expect(canTransition(from, "deferred"), from).toBe(false);
-    }
-    // Every deferral after a decision is one the graph allows.
-    for (const from of DEFERRABLE_AFTER_DECISION) expect(canTransition(from, "deferred"), from).toBe(true);
   });
 
   it("only ever points at real statuses", () => {

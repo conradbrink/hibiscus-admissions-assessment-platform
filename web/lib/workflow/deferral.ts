@@ -13,34 +13,7 @@
  * back — is never chased. This only says whose turn it is and when.
  */
 
-import type { ApplicationStatus } from "@/lib/supabase/types";
-
 export const DEFERRAL_TEMPLATE_KEY = "deferred_follow_up";
-
-/**
- * The statuses a family can be deferred from after the school has decided.
- *
- * Added on the school's request of 20 October 2026: a family with an offer
- * drafted, waiting for approval or already out could say "not this year" too,
- * and the page offered them only Withdraw. Deferring from here sets the
- * decision aside. Any letter in play is withdrawn (`onDeferred`), so nothing
- * can be accepted while the family is paused, and they come back to Decision
- * to be decided again — a place held open for months is a different question
- * from the one answered before they paused.
- *
- * Not once the offer is accepted: from there a payment request is open and
- * money may have moved, which is finance's to settle before anything pauses.
- * Moving the child back to Decision first (Move to stage) asks exactly that.
- */
-export const DEFERRABLE_AFTER_DECISION: ReadonlySet<ApplicationStatus> = new Set<ApplicationStatus>([
-  "approved",
-  "waitlisted",
-  "offer_draft",
-  "offer_pending_approval",
-  "offer_sent",
-  "offer_expired",
-  "offer_declined",
-]);
 
 /**
  * Every campus is UTC+2 the year round — Gaborone and Johannesburg alike, no
@@ -115,15 +88,23 @@ export function deferralTaskDueAt(deferredUntil: string): Date {
  * to `new_enquiry`, where the next step is to book.
  *
  * A family who has already sat it, or never needed to, goes to
- * `awaiting_decision`, which is where their answer actually comes from. That
- * includes a family deferred after a decision: theirs was set aside when they
- * paused (`DEFERRABLE_AFTER_DECISION`), so Decision is where they resume.
+ * `awaiting_decision`, which is where their answer actually comes from. So
+ * does one who paused while waiting for a decision without sitting: the school
+ * moved them past the assessment by hand, or moved them back to Decision from
+ * an offer on the way to the deferral (`defersThroughDecision`). Sending them
+ * to book would ask for the sitting the school had waived.
  */
 export function statusAfterDeferral(input: {
   requiresAssessment: boolean;
   /** A sitting that was submitted or marked. A cancelled booking is not one. */
   hasSatAssessment: boolean;
+  /**
+   * Where they paused, from the deferral's own event. Null for a deferral
+   * recorded before the event carried it, which keeps the old answer.
+   */
+  pausedFrom?: string | null;
 }): "new_enquiry" | "awaiting_decision" {
+  if (input.pausedFrom === "awaiting_decision" || input.pausedFrom === "staff_review") return "awaiting_decision";
   return input.requiresAssessment && !input.hasSatAssessment ? "new_enquiry" : "awaiting_decision";
 }
 
