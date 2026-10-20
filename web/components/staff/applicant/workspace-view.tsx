@@ -36,6 +36,7 @@ import { formatDate, formatDateTime, toSchoolDateString } from "@/lib/format-dat
 import { heardFromLabel } from "@/lib/heard-from";
 import { can, type PermissionSet } from "@/lib/permissions";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
+import { isStaffDiscountCode } from "@/lib/promotions/discount";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { cn } from "@/lib/utils";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
@@ -155,15 +156,17 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         : null,
     startMonth: campus?.intake_cadence === "month" ? { value: app.start_month, canSet: canWrite, choices: monthChoices(toSchoolDateString(new Date())) } : null,
     // Shown to whoever may change it, and to everyone else only when there is
-    // an award to see: "Scholarship: none" on every applicant is noise.
+    // an award or a discount to see: "Scholarship: none" on every applicant is
+    // noise. The staff discounts are chosen in the same box (20 October 2026).
     scholarshipBand:
-      w.scholarship || can(permissions, "offers.approve")
+      w.scholarship || isStaffDiscountCode(w.heldCode) || can(permissions, "offers.approve")
         ? {
             code: w.heldCode,
             promotionId: w.award?.promotion_id ?? null,
             isScholarship: w.scholarship,
             canSet: can(permissions, "offers.approve"),
             choices: w.bands.map((b) => b.code).filter((c): c is string => isScholarshipCode(c)),
+            discounts: w.bands.map((b) => b.code).filter(isStaffDiscountCode),
           }
         : null,
   };

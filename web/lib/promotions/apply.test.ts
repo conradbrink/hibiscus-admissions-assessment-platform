@@ -213,3 +213,47 @@ describe("a scholarship, which is a promotion like any other", () => {
     expect(tuition.original_minor).toBe(1899000);
   });
 });
+
+describe("the staff 5% discount (DISCOUNT-5)", () => {
+  // As 20261020090000_a_five_per_cent_discount.sql defines it: every tuition
+  // line, 5%, and nothing else.
+  const tuitionCodes = ["tuition_annual", "tuition_term", "tuition_term_half", "tuition_term_full", "tuition_month", "tuition_month_half", "tuition_month_full"] as const;
+  const discount: PromotionSummary = {
+    id: "p5",
+    code: "DISCOUNT-5",
+    name: "5% discount on tuition",
+    letter_text: null,
+    effects: tuitionCodes.map((fee_code) => ({ kind: "discount_percent" as const, fee_code, amount_minor: null, percent: 5, label: `5% off ${fee_code}` })),
+  };
+
+  it("takes 5% off tuition and leaves the application and admission fees alone", () => {
+    const monthly: FeeSnapshot = {
+      currency: "BWP",
+      lines: [
+        { code: "registration", label: "Application fee", amount_minor: 30000, payable_at_acceptance: true },
+        { code: "admission", label: "Admission fee", amount_minor: 200000, payable_at_acceptance: true },
+        { code: "tuition_month_half", label: "Monthly fees, half day", amount_minor: 159000, payable_at_acceptance: true },
+        { code: "tuition_month_full", label: "Monthly fees, full day", amount_minor: 210000, payable_at_acceptance: false },
+      ],
+      total_minor: 599000,
+      payable_at_acceptance_minor: 389000,
+    };
+    const out = applyPromotion(monthly, discount);
+    const amount = (code: string) => out.lines.find((l) => l.code === code)!.amount_minor;
+    expect(amount("registration")).toBe(30000);
+    expect(amount("admission")).toBe(200000);
+    expect(amount("tuition_month_half")).toBe(151050);
+    expect(amount("tuition_month_full")).toBe(199500);
+    // The first month falls due on acceptance, so what the family pays to
+    // accept is lower by its 5% and by nothing else.
+    expect(out.payable_at_acceptance_minor).toBe(30000 + 200000 + 151050);
+    // Only the lines the schedule has are printed under the deal.
+    expect(out.promotion?.fee_lines).toEqual(["5% off tuition_month_half", "5% off tuition_month_full"]);
+  });
+
+  it("does not discount twice when the letter is re-drafted", () => {
+    const once = applyPromotion(snapshot, discount);
+    const twice = applyPromotion(once, discount);
+    expect(twice.lines.find((l) => l.code === "tuition_term")!.amount_minor).toBe(1804050);
+  });
+});

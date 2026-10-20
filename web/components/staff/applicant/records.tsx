@@ -19,6 +19,7 @@ import type { ComputedProfile } from "@/lib/profile/compute";
 import { NARRATIVE_SCHEMA } from "@/lib/profile/narrative";
 import type { PromotionFeeSnapshot } from "@/lib/promotions/apply";
 import { awardLabelOf } from "@/lib/promotions/scholarship";
+import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
 import { SECTION_LABELS, SECTIONS } from "@/lib/registration/completeness";
 import type { RuleResult } from "@/lib/rules/evaluate";
 import { formatMonth, startLabel, type MonthChoice } from "@/lib/start-month";
@@ -275,7 +276,15 @@ export function DecisionHistory({ w }: { w: ApplicantWorkspace }) {
 export type OfferSettings = {
   dayPattern: { value: "half" | "full" | null; canSet: boolean; unit: "term" | "month" } | null;
   startMonth: { value: string | null; canSet: boolean; choices: MonthChoice[] } | null;
-  scholarshipBand: { code: string | null; promotionId: string | null; isScholarship: boolean; canSet: boolean; choices: string[] } | null;
+  scholarshipBand: {
+    code: string | null;
+    promotionId: string | null;
+    isScholarship: boolean;
+    canSet: boolean;
+    choices: string[];
+    /** The staff discounts on offer beside the bands: `DISCOUNT-5`. */
+    discounts: string[];
+  } | null;
 };
 
 /** The letter and the three things that decide what it says: the starting month, the day pattern and the scholarship. */
@@ -341,13 +350,18 @@ export function OfferSummary({ w, settings, brief = false }: { w: ApplicantWorks
     feeRows = (brief ? lines.filter((l) => l.code.startsWith("tuition")) : lines).map((l) => row(l.label, formatMoney(l.amount_minor, fees.currency)));
     payable = formatMoney(fees.payable_at_acceptance_minor, fees.currency);
   }
-  const letterScholarship = frozen ? awardLabelOf((fees as PromotionFeeSnapshot | null)?.promotion?.code ?? null) : null;
+  const letterCode = frozen ? ((fees as PromotionFeeSnapshot | null)?.promotion?.code ?? null) : null;
+  const letterScholarship = frozen ? awardLabelOf(letterCode) : null;
+  // A staff discount is a line of its own: "Scholarship: none" beside it
+  // would read as if the family had been refused something.
+  const discount = frozen ? discountLabelOf(letterCode) : discountLabelOf(w.heldCode);
 
   return (
     <dl className="divide-y divide-border/60 text-sm">
       {row("Starts", (frozen && str("intake")) || offerStart(w, settings))}
       {!brief && !frozen && settings.dayPattern ? row("Attendance", settings.dayPattern.value === "half" ? "Half day" : settings.dayPattern.value === "full" ? "Full day" : "Not decided — both rates quoted") : null}
-      {!brief && (frozen ? row("Scholarship", letterScholarship ? `${letterScholarship} of tuition` : "None") : settings.scholarshipBand || w.heldCode ? row("Scholarship", scholarshipText(settings.scholarshipBand)) : null)}
+      {!brief && discount ? row("Discount", discount) : null}
+      {!brief && !discount && (frozen ? row("Scholarship", letterScholarship ? `${letterScholarship} of tuition` : "None") : settings.scholarshipBand || w.heldCode ? row("Scholarship", scholarshipText(settings.scholarshipBand)) : null)}
       {fees ? (
         <>
           {feeRows}
@@ -421,7 +435,12 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
   // which way, so the button and its line can say so before it is pressed.
   const letterWithFamily = Boolean(liveOffer && ["sent", "viewed", "expired"].includes(liveOffer.status));
   const acceptedOffer = (offers ?? []).some((o) => o.status === "accepted");
-  const offerPricedUnder = awardLabelOf((feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null);
+  const pricedUnderCode = (feeSnapshotFrom(newestOffer?.fees) as PromotionFeeSnapshot | null)?.promotion?.code ?? null;
+  const offerPricedUnder = discountLabelOf(pricedUnderCode) ?? awardLabelOf(pricedUnderCode);
+  // A scholarship band or a staff discount: both are chosen in the one box,
+  // and a child holding either starts on it rather than on "keep".
+  const pickable = Boolean(scholarshipBand && (scholarshipBand.isScholarship || isStaffDiscountCode(scholarshipBand.code)));
+  const dealWord = scholarshipBand?.discounts.length ? "scholarship or discount" : "scholarship";
   const idField = <input type="hidden" name="applicationId" value={w.app.id} />;
   // Conditions are given when a letter is drafted: on the draft or the one
   // waiting for approval, or when there is none yet and one can be created.
@@ -459,37 +478,55 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
         {scholarshipBand?.canSet ? (
           <ActionForm
             action={setScholarship}
-            label={letterWithFamily ? "Save and re-issue the offer" : liveOffer ? "Save and re-draft the offer" : "Save scholarship"}
+            label={letterWithFamily ? "Save and re-issue the offer" : liveOffer ? "Save and re-draft the offer" : `Save ${dealWord}`}
             variant="outline"
             size="sm"
             className={field}
-            confirm={letterWithFamily ? "The letter the family has is withdrawn, and a new one at this scholarship waits for your approval. Continue?" : undefined}
+            confirm={letterWithFamily ? `The letter the family has is withdrawn, and a new one at this ${dealWord} waits for your approval. Continue?` : undefined}
           >
             {idField}
-            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="scholarship">Scholarship</label>
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="scholarship">
+              {scholarshipBand.discounts.length ? "Scholarship or discount" : "Scholarship"}
+            </label>
             {bandMovedSinceOffer ? (
               <p className="rounded-lg bg-warning/15 px-2 py-1.5 text-xs text-warning-foreground">
                 {offerPricedUnder ? `The most recent letter was priced at ${offerPricedUnder}, not this. ` : "The most recent letter was priced under a different deal. "}
                 {acceptedOffer ? "The family accepted that letter, so it keeps its fees." : liveOffer ? "Re-draft the offer to re-price it." : "Nothing is drafted now — create an offer to issue one at this band."}
               </p>
             ) : null}
-            <NativeSelect id="scholarship" name="code" defaultValue={scholarshipBand.isScholarship ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}>
+            <NativeSelect id="scholarship" name="code" defaultValue={pickable ? (scholarshipBand.code ?? "") : scholarshipBand.code ? "keep" : ""}>
               {/* A child on an ordinary deal starts on "keep", so saving
                   without choosing cannot take the deal off them. */}
-              {scholarshipBand.code && !scholarshipBand.isScholarship ? <option value="keep">Keep the {scholarshipBand.code} deal</option> : null}
-              <option value="">{scholarshipBand.code && !scholarshipBand.isScholarship ? `Remove the ${scholarshipBand.code} deal` : "No scholarship"}</option>
-              {scholarshipBand.choices.map((c) => <option key={c} value={c}>{awardLabelOf(c)}</option>)}
+              {scholarshipBand.code && !pickable ? <option value="keep">Keep the {scholarshipBand.code} deal</option> : null}
+              <option value="">{scholarshipBand.code && !pickable ? `Remove the ${scholarshipBand.code} deal` : `No ${dealWord}`}</option>
+              {scholarshipBand.discounts.length ? (
+                <>
+                  <optgroup label="Scholarship">
+                    {scholarshipBand.choices.map((c) => <option key={c} value={c}>{awardLabelOf(c)}</option>)}
+                  </optgroup>
+                  <optgroup label="Discount">
+                    {scholarshipBand.discounts.map((c) => <option key={c} value={c}>{discountLabelOf(c)}</option>)}
+                  </optgroup>
+                </>
+              ) : (
+                scholarshipBand.choices.map((c) => <option key={c} value={c}>{awardLabelOf(c)}</option>)
+              )}
             </NativeSelect>
-            <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label="Why the band changed" />
+            <Input name="reason" placeholder="Why (optional)" maxLength={500} aria-label={`Why the ${dealWord} changed`} />
             <p className="text-xs text-muted-foreground">
               {letterWithFamily
-                ? "Saving withdraws the letter the family has and drafts a new one at this scholarship, for your approval."
+                ? `Saving withdraws the letter the family has and drafts a new one at this ${dealWord}, for your approval.`
                 : liveOffer?.status === "pending_approval"
-                  ? "Saving re-drafts the offer at this scholarship. It still waits for approval."
+                  ? `Saving re-drafts the offer at this ${dealWord}. It still waits for approval.`
                   : acceptedOffer
-                    ? "The family has accepted their letter, which keeps its fees. Saving changes only the scholarship on file."
+                    ? `The family has accepted their letter, which keeps its fees. Saving changes only the ${dealWord} on file.`
                     : "Decides the tuition the next letter quotes."}
-              {scholarshipBand.code && !scholarshipBand.isScholarship ? " Awarding a scholarship replaces the deal; there is only ever one." : ""}
+              {scholarshipBand.discounts.length ? " A discount takes that much off tuition only; the other fees stay as they are." : ""}
+              {scholarshipBand.code && !pickable
+                ? " Awarding a scholarship replaces the deal; there is only ever one."
+                : scholarshipBand.discounts.length
+                  ? " A child holds a scholarship or a discount, never both."
+                  : ""}
             </p>
           </ActionForm>
         ) : null}

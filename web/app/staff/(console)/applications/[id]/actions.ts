@@ -14,6 +14,7 @@ import { saysAssessment } from "@/lib/messaging/template-checks";
 import { generateSummary } from "@/lib/summary/generate";
 import { clearPromotion, promotionOn, recordPromotion } from "@/lib/promotions/load";
 import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
+import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
 import { loadCatalogue } from "@/lib/enquiry";
 import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -1296,12 +1297,19 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     // away that nobody meant to touch.
     if (parsed.code === "keep") return;
     const to = parsed.code === "" ? null : parsed.code;
-    if (to !== null && !isScholarshipCode(to)) throw new Error("That is not a scholarship band.");
+    // A staff discount is chosen here too, beside the bands (20 October 2026):
+    // it is the same one deal per child, re-priced the same way.
+    if (to !== null && !isScholarshipCode(to) && !isStaffDiscountCode(to)) throw new Error("That is not a scholarship band or a discount.");
 
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const held = await promotionOn(admin, app.id);
     const from = held?.promo.code ?? null;
-    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
+    // "Scholarship 10% → 20%" as before; a change that involves a discount
+    // says what each side was, since "Scholarship 10% → 5% off tuition" is not.
+    const deal = isStaffDiscountCode(from) || isStaffDiscountCode(to);
+    const what = deal ? "Discount or scholarship" : "Scholarship";
+    const say = (code: string | null) =>
+      discountLabelOf(code) ?? (awardLabelOf(code) ? `${awardLabelOf(code)}${deal ? " scholarship" : ""}` : null) ?? code ?? (deal ? "none" : "no scholarship");
 
     // The letter in play, and whether saving re-prices it: one waiting for
     // approval is re-drafted, one with the family is withdrawn and re-drafted.
@@ -1357,7 +1365,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
         nextAction: isNextAction(app.next_action) ? app.next_action : null,
         event: {
           type: "scholarship.changed",
-          summary: `Scholarship ${say(from)} → ${say(to)}`,
+          summary: `${what} ${say(from)} → ${say(to)}`,
           payload: { from, to, reason: parsed.reason ?? null },
         },
         audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
@@ -1366,7 +1374,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     }
 
     if (withFamily && letter) {
-      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
+      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
     }
     if (reDraft) {
       const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
@@ -1374,7 +1382,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
       // Waits for approval whatever `offer_auto_approve` says: the screen
       // promises the officer a letter to check before it goes.
       const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
-      if (drafted.blocked) throw new Error("The scholarship is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.");
+      if (drafted.blocked) throw new Error(`The ${deal ? "change" : "scholarship"} is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.`);
       drainSoon();
     }
     done(app.id);
