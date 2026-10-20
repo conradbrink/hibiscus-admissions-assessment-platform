@@ -136,7 +136,7 @@ describe("onWithdrawn", () => {
 });
 
 describe("onDeferred", () => {
-  const deferring = { ...app, child_first_name: "Naledi", owner_staff_id: null };
+  const deferring = { ...app, child_first_name: "Naledi", owner_staff_id: null, requires_assessment: true };
 
   it("does not record a deferral, or a date, when the booking cancellation fails", async () => {
     const s = stub({ table: "bookings", message: "could not reach the database" });
@@ -154,7 +154,9 @@ describe("onDeferred", () => {
 
     await onDeferred(s.admin, deferring, { until: "2027-01-15", reason: "Moving house" }, SYSTEM_ACTOR);
 
-    expect(s.writes).toEqual(["bookings", "applications"]);
+    // What is still booked, then a sitting arrived for; a visit the family has
+    // been to is left as it is.
+    expect(s.writes).toEqual(["bookings", "bookings", "applications"]);
     expect(s.commits()).toBe(1);
   });
 
@@ -207,9 +209,15 @@ describe("onDeferralEnded", () => {
   it("sends a child who paused at Decision back there, sat or not", async () => {
     // Moved past the assessment by hand, or back from an offer on the way
     // to the deferral: booking a sitting would ask for what the school waived.
-    const atDecision = stub(undefined, { application_events: { payload: { from: "awaiting_decision" } } });
+    const atDecision = stub(undefined, { application_events: { payload: { from: "awaiting_decision", requires_assessment: true } } });
     await onDeferralEnded(atDecision.admin, resuming, SYSTEM_ACTOR);
     expect(atDecision.newStatuses).toEqual(["awaiting_decision"]);
+
+    // A pre-school child moved to an assessed stage while paused waived
+    // nothing: they book a sitting.
+    const regraded = stub(undefined, { application_events: { payload: { from: "awaiting_decision", requires_assessment: false } } });
+    await onDeferralEnded(regraded.admin, resuming, SYSTEM_ACTOR);
+    expect(regraded.newStatuses).toEqual(["new_enquiry"]);
 
     // Paused with a sitting booked: back to book it, as before.
     const booked = stub(undefined, { application_events: { payload: { from: "assessment_booked" } } });

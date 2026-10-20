@@ -39,7 +39,6 @@ import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
 import { onDeferredAfterDecision, onMovedToStage } from "@/lib/workflow/stage-move-actions";
 import { defersThroughDecision, mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
-import { can } from "@/lib/permissions";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
 import { resolveFeeSchedule } from "@/lib/offers/render";
@@ -273,7 +272,7 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
         .extend({
           until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
           reason: z.string().trim().max(500).optional(),
-          throughDecision: z.enum(["0", "1"]).optional(),
+          seenStatus: z.string().optional(),
         })
         .parse(raw);
       // A date in the past is a typo, and the follow-ups for it would all be
@@ -283,23 +282,31 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
       const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
       const spec = { until: parsed.until, reason: parsed.reason?.trim() || null };
       const throughDecision = defersThroughDecision(app.status);
-      // The page says whether this deferral withdraws a letter. A child
-      // accepted while it was open would otherwise lose their offer on a
-      // confirmation that never mentioned it.
-      if (parsed.throughDecision !== undefined && (parsed.throughDecision === "1") !== throughDecision) {
+      // The page posts the status it showed, and the confirmation it asked
+      // for was written for that status. A child sent an offer while it was
+      // open would otherwise lose the letter on a confirmation that never
+      // mentioned it. A form from before this field fails closed only where a
+      // letter is at stake.
+      if (parsed.seenStatus ? parsed.seenStatus !== app.status : throughDecision) {
         throw new Error(`${app.child_first_name} has moved since this page was loaded. Reload the page and choose again.`);
       }
       if (throughDecision) {
-        // It withdraws the letter, so it needs what withdrawing one needs —
-        // on the Offers page and on the move back to Decision alike.
-        if (!can(ctx.permissions, "offers.approve")) {
-          throw new Error("Deferring a family with an offer withdraws the offer, and your account cannot do that.");
+        // The move back to Decision, so exactly what that move needs.
+        if (!mayMoveTo(ctx.permissions, "decision", "back")) {
+          throw new Error("Deferring a family at the offer stage moves them back to Decision and withdraws their offer, and your account cannot do that.");
         }
-        await onDeferredAfterDecision(admin, app, spec, ctx.actor);
-        revalidatePath("/staff/offers");
-      } else {
-        await onDeferred(admin, app, spec, ctx.actor);
+        try {
+          await onDeferredAfterDecision(admin, app, spec, ctx.actor);
+        } finally {
+          // Even part way: the move back may have happened, and the page and
+          // the Offers board should show where the child is now.
+          done(parsed.applicationId);
+          revalidatePath("/staff/offers");
+          revalidatePath("/staff/decisions");
+        }
+        return;
       }
+      await onDeferred(admin, app, spec, ctx.actor);
       done(parsed.applicationId);
       return;
     }

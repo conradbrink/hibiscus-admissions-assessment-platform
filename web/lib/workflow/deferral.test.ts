@@ -74,8 +74,11 @@ describe("statusAfterDeferral", () => {
 
   it("sends a family who paused at the decision back to it, even without a sitting the school waived", () => {
     for (const pausedFrom of ["awaiting_decision", "staff_review"]) {
-      expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false, pausedFrom })).toBe("awaiting_decision");
+      expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false, pausedFrom, pausedRequiringAssessment: true })).toBe("awaiting_decision");
     }
+    // Moved from a pre-school class to an assessed stage while paused: the
+    // school waived nothing, so they book the sitting.
+    expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false, pausedFrom: "awaiting_decision", pausedRequiringAssessment: false })).toBe("new_enquiry");
     // Paused before it, or before the event said where: as before.
     expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false, pausedFrom: "assessment_booked" })).toBe("new_enquiry");
     expect(statusAfterDeferral({ requiresAssessment: true, hasSatAssessment: false, pausedFrom: null })).toBe("new_enquiry");

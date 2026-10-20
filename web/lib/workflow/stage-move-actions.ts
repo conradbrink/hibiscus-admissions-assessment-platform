@@ -623,9 +623,9 @@ async function moveBack(
  * left off. When the family resumes they are at Decision, where the decision
  * is made again (`statusAfterDeferral`).
  *
- * Two commits. If the deferral fails after the move back, the child rests at
- * Decision with the letter withdrawn — a state the page shows plainly, with
- * Defer offered again — and the message says so.
+ * Two commits. If anything fails after the move back, the child rests at
+ * Decision with the letter withdrawn, in the decisions queue, with Defer
+ * offered again — and the message says they were not deferred.
  */
 export async function onDeferredAfterDecision(
   admin: AdminClient,
@@ -639,15 +639,29 @@ export async function onDeferredAfterDecision(
       "status_conflict"
     );
   }
+  const notDeferred = (e: unknown) =>
+    new WorkflowError(
+      // The step that failed, without `mustSucceed`'s "its status is unchanged":
+      // the move back has changed it.
+      `${app.child_first_name} was moved back to Decision, but was not deferred: ${(e as Error).message.replace(/ Its status is unchanged — please try again\.$/, "")} Defer them again from their page.`,
+      e instanceof WorkflowError ? e.code : "database"
+    );
   const why = spec.reason ? `Deferred at the family's request: ${spec.reason}` : "Deferred at the family's request";
-  const back = await moveBack(admin, app, "decision", why, actor, { decideAgainTask: false });
+  let back: MovingApp;
+  try {
+    back = await moveBack(admin, app, "decision", why, actor, { decideAgainTask: false });
+  } catch (e) {
+    // Refused before it moved (money held, a status that changed): nothing
+    // happened, and the message says why. Failed tidying after it moved: say
+    // the deferral did not follow, or the officer takes it as done.
+    const now = await reload(admin, app.id).catch(() => null);
+    if (now?.status === "awaiting_decision") throw notDeferred(e);
+    throw e;
+  }
   try {
     await onDeferred(admin, { ...back, owner_staff_id: app.owner_staff_id }, spec, actor);
   } catch (e) {
-    throw new WorkflowError(
-      `${app.child_first_name} was moved back to Decision, but could not be deferred: ${(e as Error).message} Defer them again from their page.`,
-      e instanceof WorkflowError ? e.code : "database"
-    );
+    throw notDeferred(e);
   }
 }
 

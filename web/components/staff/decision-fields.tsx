@@ -47,6 +47,7 @@ export function DecisionFields({
   bookingWillBeCancelled,
   defersThroughDecision = false,
   offerWillBeWithdrawn = false,
+  seenStatus,
   autoSendOutcomes = false,
   upcomingBooking = false,
 }: {
@@ -66,6 +67,8 @@ export function DecisionFields({
   defersThroughDecision?: boolean;
   /** A letter in play, which that move back withdraws. */
   offerWillBeWithdrawn?: boolean;
+  /** The application's status as this page showed it; a deferral is refused if it has changed. */
+  seenStatus?: string;
   /** The `auto_send_outcomes` switch: a waitlist or decline letter goes the moment it is recorded. */
   autoSendOutcomes?: boolean;
   /** A visit or sitting still ahead of them, which sending a decline letter cancels (`onOutcomeSent`). */
@@ -142,9 +145,9 @@ export function DecisionFields({
               ? ` They are moved back to Decision first${offerWillBeWithdrawn ? ", and their offer is withdrawn so it cannot be accepted while they are paused" : ""}. When they come back, they are decided again.`
               : ""}
           </p>
-          {/* What this page expected, so the server can refuse a deferral
-              that would now withdraw a letter nobody was warned about. */}
-          <input type="hidden" name="throughDecision" value={defersThroughDecision ? "1" : "0"} />
+          {/* The status this page showed, so the server can refuse a deferral
+              this confirmation was not written for. */}
+          {seenStatus ? <input type="hidden" name="seenStatus" value={seenStatus} /> : null}
           <Input type="date" name="until" required aria-label="Come back to them on" />
           <Input name="reason" placeholder="What they said (optional)" maxLength={500} />
         </>

@@ -82,6 +82,7 @@ describe("onDeferredAfterDecision", () => {
       "write:jobs",
       // Then the deferral from Decision.
       "write:bookings",
+      "write:bookings",
       "write:applications",
       "commit:deferred",
     ]);
@@ -102,8 +103,20 @@ describe("onDeferredAfterDecision", () => {
     const error = await onDeferredAfterDecision(s.admin, app("offer_sent"), spec, SYSTEM_ACTOR).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(WorkflowError);
-    expect((error as WorkflowError).message).toContain("moved back to Decision");
+    expect((error as WorkflowError).message).toContain("moved back to Decision, but was not deferred");
     expect((error as WorkflowError).message).toContain("Defer them again");
+    // Not `mustSucceed`'s "unchanged": the move back changed it.
+    expect((error as WorkflowError).message).not.toContain("Its status is unchanged");
+    expect(s.log).not.toContain("commit:deferred");
+  });
+
+  it("says the deferral did not follow when tidying after the move back fails", async () => {
+    const s = stub(atDecision, "jobs");
+
+    const error = await onDeferredAfterDecision(s.admin, app("offer_sent"), spec, SYSTEM_ACTOR).catch((e: unknown) => e);
+
+    expect((error as WorkflowError).message).toContain("was not deferred");
+    expect(s.log).toContain("commit:awaiting_decision");
     expect(s.log).not.toContain("commit:deferred");
   });
 });

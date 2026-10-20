@@ -43,7 +43,7 @@ import { formatMoney } from "@/lib/money";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
-import { defersThroughDecision, moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
+import { defersThroughDecision, mayMoveTo, moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addApplicantTask,
@@ -115,12 +115,12 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   // Deferring and withdrawing are not overrides of the rules engine, so they
   // keep applications.write; deferring is asked of the graph like the rest.
   // From the offer stage a deferral is the move back to Decision and then the
-  // deferral (`defersThroughDecision`), so it also needs what that move back
-  // needs: offers.approve, and no money held (the same rule the server
-  // refuses by, so the button is not offered only to say no).
+  // deferral (`defersThroughDecision`), so it also needs exactly what that
+  // move back needs (`mayMoveTo`), and no money held — the same rules the
+  // server refuses by, so the button is not offered only to say no.
   const defersBack = defersThroughDecision(app.status);
-  const deferBackBlocked = defersBack && (!can(permissions, "offers.approve") || w.moneyHeld !== null);
-  const canDefer = canWrite && !terminal && (canTransition(app.status, "deferred") || (defersBack && !deferBackBlocked));
+  const mayDeferBack = defersBack && mayMoveTo(permissions, "decision", "back");
+  const canDefer = canWrite && !terminal && (canTransition(app.status, "deferred") || (mayDeferBack && w.moneyHeld === null));
   const canWithdraw = canWrite && !terminal;
   // Withdraw is offered everywhere Defer is not; the heading said "Defer or
   // withdraw" over a list with no Defer in it, so say why it is missing.
@@ -129,16 +129,22 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
       ? "They are deferred already: resume them from the next step above."
       : app.status === "assessment_in_progress"
         ? "The child is sitting the assessment now. Once the sitting ends, they can be deferred."
-        : defersBack && w.moneyHeld
-          ? w.moneyHeld.reason
-          : defersBack
-            ? "Deferring them now withdraws their offer, and your account cannot do that."
-            : "They are past the offer, so they can no longer be deferred.";
+        : app.status === "waitlisted"
+          ? "A waitlisted family cannot be deferred."
+          : mayDeferBack && w.moneyHeld
+            ? w.moneyHeld.reason
+            : defersBack
+              ? `Deferring them now moves them back to Decision${w.liveOffer ? " and withdraws their offer" : ""}, and your account cannot do that.`
+              : "They are past the offer, so they can no longer be deferred.";
   // The stages ahead that the officer may move the child to by hand.
   // The way back is not offered while money is held: the loader asked the
   // same rule the server refuses by (`moneyHeldReason`).
   const moveTargets = moveTargetsFor(app.status, permissions, { moneyReceived: w.moneyHeld !== null });
-  const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
+  // What `onDeferred` cancels: anything still booked, and a sitting arrived
+  // for. A visit the family has been to stays as it is.
+  const bookingWillBeCancelled = Boolean(
+    booking && (booking.status === "booked" || (booking.kind === "assessment" && (booking.status === "checked_in" || booking.status === "in_progress")))
+  );
 
   // Half day or full day, the starting month and the scholarship band: the
   // three things the next offer letter reads.
@@ -293,8 +299,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
                     deferred: [
                       "Defer this family?",
                       defersBack ? `They are moved back to Decision${w.liveOffer ? " and their offer is withdrawn" : ""}.` : null,
-                      bookingWillBeCancelled ? "Their booking is cancelled and the seat goes back." : null,
-                      defersBack || bookingWillBeCancelled ? null : "We will message them around the date you chose.",
+                      bookingWillBeCancelled ? "Their booking is cancelled and the seat goes back." : "We will message them around the date you chose.",
                     ]
                       .filter(Boolean)
                       .join(" "),
@@ -310,6 +315,7 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
                   bookingWillBeCancelled={bookingWillBeCancelled}
                   defersThroughDecision={defersBack}
                   offerWillBeWithdrawn={defersBack && Boolean(w.liveOffer)}
+                  seenStatus={app.status}
                 />
               </ActionForm>
             </div>
