@@ -151,7 +151,7 @@ export function securityHeaders(env: NodeJS.ProcessEnv = process.env): SecurityH
  * Pages that must never be indexed, whatever a crawler finds. The public
  * enquiry form is deliberately not on this list: the school links to it.
  */
-export const NOINDEX_PATHS = ["/staff/:path*", "/a/:path*", "/sit/:path*", "/family/:path*", "/next/:path*", "/offer/:path*", "/pay/:path*", "/register/:path*", "/profile/:path*"];
+export const NOINDEX_PATHS = ["/staff/:path*", "/a/:path*", "/sit/:path*", "/family/:path*", "/next/:path*", "/offer/:path*", "/pay/:path*", "/register/:path*", "/profile/:path*", "/transport/booking/:path*", "/transport/pay/:path*"];
 
 /**
  * A fresh nonce for one request. Base64 of 16 random bytes: unguessable, and

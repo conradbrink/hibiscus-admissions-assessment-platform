@@ -1,11 +1,12 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import { onExtrasPaid, onExtrasPaymentFailed } from "@/lib/extras/settle";
+import { onTransportPaid, onTransportPaymentFailed } from "@/lib/transport/settle";
 import { amountMatches } from "@/lib/payments/amounts";
 import { CHECKOUT_TTL_HOURS, getPaymentProvider, type VerifyResult } from "@/lib/payments/provider";
 import { subjectKindOf } from "@/lib/payments/subject";
 import { getSettings } from "@/lib/settings";
-import type { Json, PaymentRow } from "@/lib/supabase/types";
+import type { Json, PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
 import { SYSTEM_ACTOR, WorkflowError, type Actor } from "@/lib/workflow/engine";
 import { onPaymentFailed, onPaymentVerified } from "@/lib/workflow/payment-actions";
 
@@ -19,7 +20,8 @@ import { onPaymentFailed, onPaymentVerified } from "@/lib/workflow/payment-actio
  * everything up to the branch is shared: the verify, the attempt count, the
  * stamped response, the amount check and our own expiry. Only the consequences
  * differ — an admission moves an application through the engine, an extras
- * order settles its own lines (`lib/extras/settle.ts`).
+ * order settles its own lines (`lib/extras/settle.ts`), and a transport
+ * booking its own request and status (`lib/transport/settle.ts`).
  */
 export async function reconcilePayment(
   admin: AdminClient,
@@ -76,25 +78,12 @@ export async function reconcilePayment(
   // only outcome worth having here is the gateway saying it was paid.
   const ourExpiry = !revivable && payment.expires_at !== null && new Date(payment.expires_at).getTime() < Date.now();
 
-  if (subjectKindOf(payment) === "extras") {
-    if (result.status === "paid") {
-      if (!amountMatches(payment, result)) {
-        await onExtrasPaymentFailed(admin, request, payment, mismatch, { review: true });
-        return "failed";
-      }
-      await onExtrasPaid(admin, request, payment, { approvalCode: result.approvalCode });
-      return "paid";
-    }
-    if (!revivable && (result.status === "failed" || result.status === "expired")) {
-      await onExtrasPaymentFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
-      return "failed";
-    }
-    if (revivable) return "failed";
-    if (ourExpiry) {
-      await onExtrasPaymentFailed(admin, request, payment, "expired");
-      return "failed";
-    }
-    return "pending";
+  const kind = subjectKindOf(payment);
+  if (kind === "extras") {
+    return settleOutsideFunnel(admin, request, payment, result, { revivable: !!revivable, ourExpiry, mismatch }, EXTRAS);
+  }
+  if (kind === "transport") {
+    return settleOutsideFunnel(admin, request, payment, result, { revivable: !!revivable, ourExpiry, mismatch }, TRANSPORT);
   }
 
   const { data: app } = await admin.from("applications").select("*").eq("id", payment.application_id!).single();
@@ -120,6 +109,49 @@ export async function reconcilePayment(
   // Still pending at the gateway. Past our own time limit, give up on it.
   if (ourExpiry) {
     await onPaymentFailed(admin, app, request, payment, "expired", actor);
+    return "failed";
+  }
+  return "pending";
+}
+
+type OutsideFunnel = {
+  onPaid: (admin: AdminClient, request: PaymentRequestRow, payment: PaymentRow, result: { approvalCode: string | null }) => Promise<void>;
+  onFailed: (admin: AdminClient, request: PaymentRequestRow, payment: PaymentRow, reason: string, opts?: { review?: boolean }) => Promise<void>;
+};
+
+const EXTRAS: OutsideFunnel = { onPaid: onExtrasPaid, onFailed: onExtrasPaymentFailed };
+const TRANSPORT: OutsideFunnel = { onPaid: onTransportPaid, onFailed: onTransportPaymentFailed };
+
+/**
+ * The consequences for a payment with no application behind it: an extras
+ * order or a transport booking. One branch for both, so the two cannot drift
+ * apart on the cases that matter — a mismatched amount is never paid, a
+ * revived row only ever settles, and our own expiry fails a row the gateway
+ * still calls pending.
+ */
+async function settleOutsideFunnel(
+  admin: AdminClient,
+  request: PaymentRequestRow,
+  payment: PaymentRow,
+  result: VerifyResult,
+  state: { revivable: boolean; ourExpiry: boolean; mismatch: string },
+  settle: OutsideFunnel
+): Promise<"paid" | "pending" | "failed"> {
+  if (result.status === "paid") {
+    if (!amountMatches(payment, result)) {
+      await settle.onFailed(admin, request, payment, state.mismatch, { review: true });
+      return "failed";
+    }
+    await settle.onPaid(admin, request, payment, { approvalCode: result.approvalCode });
+    return "paid";
+  }
+  if (!state.revivable && (result.status === "failed" || result.status === "expired")) {
+    await settle.onFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
+    return "failed";
+  }
+  if (state.revivable) return "failed";
+  if (state.ourExpiry) {
+    await settle.onFailed(admin, request, payment, "expired");
     return "failed";
   }
   return "pending";

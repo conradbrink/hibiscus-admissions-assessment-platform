@@ -73,3 +73,17 @@ describe("the scholarship interview deadline", () => {
     expect((await getSettings(stub([]))).scholarshipInterviewDeadline).toBe(DEFAULT_SETTINGS.scholarshipInterviewDeadline);
   });
 });
+
+describe("school transport settings", () => {
+  it("ship with booking off and a three-day unpaid window", async () => {
+    const s = await getSettings(stub([]));
+    expect(s.transportBookingEnabled).toBe(false);
+    expect(s.transportUnpaidHours).toBe(72);
+    expect(s.transportSessionMinutes).toBe(120);
+  });
+
+  it("are switched on only by a real true", async () => {
+    expect((await getSettings(stub([{ key: "transport_booking_enabled", value: true }]))).transportBookingEnabled).toBe(true);
+    expect((await getSettings(stub([{ key: "transport_booking_enabled", value: "yes" }]))).transportBookingEnabled).toBe(false);
+  });
+});

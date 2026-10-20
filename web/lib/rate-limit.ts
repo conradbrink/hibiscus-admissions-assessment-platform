@@ -52,6 +52,10 @@ export const LIMITS = {
   storyVoice: { bucket: "story_voice", limit: 600, windowSeconds: 3600 },
   /** Accepting or declining an offer, per application. One click is the norm; ten is a stuck button. */
   offerDecision: { bucket: "offer_decision", limit: 10, windowSeconds: 3600 },
+  /** The public transport form, per IP. A household books a few times a year. */
+  transportBooking: { bucket: "transport_booking", limit: 10, windowSeconds: 3600 },
+  /** And per email address, so one inbox cannot fill the rider list from many networks. */
+  transportBookingEmail: { bucket: "transport_booking_email", limit: 5, windowSeconds: 3600 },
   /** Starting an online payment, per application. Each start creates a gateway transaction. */
   paymentStart: { bucket: "payment_start", limit: 10, windowSeconds: 3600 },
   /** Asking the gateway to re-check, per application. */

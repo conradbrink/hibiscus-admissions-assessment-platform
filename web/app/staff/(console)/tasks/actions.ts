@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
-import { can } from "@/lib/permissions";
+import { can, closesTransportTasks } from "@/lib/permissions";
 import { guarded } from "@/lib/staff/action-helpers";
-import { requireStaffAction } from "@/lib/staff/session";
+import { requireStaffAction, type StaffContext } from "@/lib/staff/session";
 
 /**
  * Tasks a person writes, as opposed to the ones the engine opens.
@@ -59,24 +59,33 @@ export async function createTask(_: StaffActionState, formData: FormData): Promi
 }
 
 /**
- * Tick it off.
- *
  * The assignee may always complete their own, whatever else they hold — that
  * is what being given a task means, and the policy agrees (`tasks_update`).
  * Anybody who may write tasks, or edit applicants, may complete somebody
- * else's: work gets covered when people are away.
+ * else's: work gets covered when people are away. A task about a transport
+ * booking is also for whoever runs transport or its money.
  */
+function mayTick(
+  ctx: Pick<StaffContext, "userId" | "permissions">,
+  task: { assignee_staff_id: string | null; transport_booking_id: string | null }
+): boolean {
+  return (
+    task.assignee_staff_id === ctx.userId ||
+    can(ctx.permissions, "tasks.write") ||
+    can(ctx.permissions, "applications.write") ||
+    (task.transport_booking_id !== null && closesTransportTasks(ctx.permissions))
+  );
+}
+
+/** Tick it off. */
 export async function markTaskDone(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
     const ctx = await requireStaffAction("applications.read");
     const { taskId } = z.object({ taskId: z.guid() }).parse(Object.fromEntries(formData));
 
-    const { data: task } = await ctx.supabase.from("tasks").select("assignee_staff_id").eq("id", taskId).maybeSingle();
+    const { data: task } = await ctx.supabase.from("tasks").select("assignee_staff_id, transport_booking_id").eq("id", taskId).maybeSingle();
     if (!task) throw new Error("That task is no longer there.");
-    const mine = task.assignee_staff_id === ctx.userId;
-    if (!mine && !can(ctx.permissions, "tasks.write") && !can(ctx.permissions, "applications.write")) {
-      throw new Error("That task belongs to somebody else.");
-    }
+    if (!mayTick(ctx, task)) throw new Error("That task belongs to somebody else.");
 
     const { error } = await ctx.supabase
       .from("tasks")
@@ -95,12 +104,9 @@ export async function reopenTask(_: StaffActionState, formData: FormData): Promi
     const ctx = await requireStaffAction("applications.read");
     const { taskId } = z.object({ taskId: z.guid() }).parse(Object.fromEntries(formData));
 
-    const { data: task } = await ctx.supabase.from("tasks").select("assignee_staff_id").eq("id", taskId).maybeSingle();
+    const { data: task } = await ctx.supabase.from("tasks").select("assignee_staff_id, transport_booking_id").eq("id", taskId).maybeSingle();
     if (!task) throw new Error("That task is no longer there.");
-    const mine = task.assignee_staff_id === ctx.userId;
-    if (!mine && !can(ctx.permissions, "tasks.write") && !can(ctx.permissions, "applications.write")) {
-      throw new Error("That task belongs to somebody else.");
-    }
+    if (!mayTick(ctx, task)) throw new Error("That task belongs to somebody else.");
 
     const { error } = await ctx.supabase
       .from("tasks")

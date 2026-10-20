@@ -4,6 +4,8 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import { removeDocumentObjects } from "@/lib/documents/storage";
 import { getSettings, type Settings } from "@/lib/settings";
 import type { Database } from "@/lib/supabase/types";
+import { toSchoolDateString } from "@/lib/format-date";
+import { transportRetentionDue } from "@/lib/transport/lifecycle";
 import { ABANDONED_STATUSES, CLOSED_STATUSES, retentionCandidates } from "@/lib/workflow/automation/rules";
 import { commit, SYSTEM_ACTOR, type Actor } from "@/lib/workflow/engine";
 
@@ -77,5 +79,77 @@ export async function anonymiseExpired(admin: AdminClient, opts: { force?: boole
     }
   }
   await admin.from("maintenance_runs").upsert({ key: RUN_KEY, last_run_at: new Date().toISOString(), detail: { anonymised, failed, due: due.length } });
+  return { anonymised, failed, skipped: null };
+}
+
+const TRANSPORT_RUN_KEY = "retention_transport";
+
+/**
+ * The same daily run for school transport bookings, behind the same switch.
+ *
+ * A booking names no application, so `anonymise_application()` cannot reach
+ * it; `anonymise_transport_booking()` is its twin, and this is its only
+ * caller. Bookings that were paid, cancelled since or not, go
+ * `transport_retention_days` after their period ends; expired and abandoned
+ * ones, and ones cancelled before they were paid,
+ * `transport_unpaid_retention_days` after they stopped. The amounts stay for
+ * the reports and the payouts.
+ */
+export async function anonymiseExpiredTransport(
+  admin: AdminClient,
+  opts: { force?: boolean; now?: Date } = {}
+): Promise<{ anonymised: number; failed: number; skipped: string | null }> {
+  const settings = await getSettings(admin);
+  if (!settings.retentionEnabled && !opts.force) return { anonymised: 0, failed: 0, skipped: "retention is switched off" };
+  if (!opts.force) {
+    const { data: last } = await admin.from("maintenance_runs").select("last_run_at").eq("key", TRANSPORT_RUN_KEY).maybeSingle();
+    if (last && Date.now() - new Date(last.last_run_at).getTime() < DAILY_MS) return { anonymised: 0, failed: 0, skipped: "already ran today" };
+  }
+  const now = opts.now ?? new Date();
+  const today = toSchoolDateString(now);
+  // Each kind is narrowed to what is due in the query itself. Reading the
+  // oldest few hundred and filtering here let bookings not yet due fill the
+  // page every day, so a due one behind them was never reached.
+  const periodCutoff = new Date(`${today}T00:00:00Z`);
+  periodCutoff.setUTCDate(periodCutoff.getUTCDate() - settings.transportRetentionDays);
+  const unpaidCutoff = new Date(now.getTime() - settings.transportUnpaidRetentionDays * 86_400_000).toISOString();
+  const [finished, unpaid] = await Promise.all([
+    admin
+      .from("transport_bookings")
+      .select("id, status, paid_at, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .is("anonymised_at", null)
+      .or("status.eq.paid,and(status.eq.cancelled,paid_at.not.is.null)")
+      .lt("transport_periods.ends_on", periodCutoff.toISOString().slice(0, 10))
+      .order("updated_at", { ascending: true })
+      .limit(200),
+    admin
+      .from("transport_bookings")
+      .select("id, status, paid_at, updated_at, anonymised_at, transport_periods!transport_bookings_period_id_fkey!inner(ends_on)")
+      .is("anonymised_at", null)
+      .or("status.in.(expired,abandoned),and(status.eq.cancelled,paid_at.is.null)")
+      .lt("updated_at", unpaidCutoff)
+      .order("updated_at", { ascending: true })
+      .limit(200),
+  ]);
+  for (const r of [finished, unpaid]) if (r.error) throw new Error(r.error.message);
+  const rows = [...(finished.data ?? []), ...(unpaid.data ?? [])].map((b) => {
+    const period = Array.isArray(b.transport_periods) ? b.transport_periods[0] : b.transport_periods;
+    return { id: b.id, status: b.status, paid_at: b.paid_at, updated_at: b.updated_at, anonymised_at: b.anonymised_at, period_ends_on: period?.ends_on ?? "9999-12-31" };
+  });
+  // The same rule again, so the query and the tested rule cannot drift apart.
+  const due = transportRetentionDue(rows, settings, today, now);
+
+  let anonymised = 0;
+  let failed = 0;
+  for (const id of due.slice(0, 50)) {
+    const { error: aErr } = await admin.rpc("anonymise_transport_booking", { p_booking_id: id });
+    if (aErr) {
+      failed += 1;
+      console.error("[retention] could not anonymise a transport booking", id, aErr.message);
+    } else {
+      anonymised += 1;
+    }
+  }
+  await admin.from("maintenance_runs").upsert({ key: TRANSPORT_RUN_KEY, last_run_at: new Date().toISOString(), detail: { anonymised, failed, due: due.length } });
   return { anonymised, failed, skipped: null };
 }

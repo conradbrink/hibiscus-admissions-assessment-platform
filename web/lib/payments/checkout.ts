@@ -1,5 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import type { BridgeBase } from "@/lib/payments/bridge";
 import { canPayOnline, transferOnlyReason } from "@/lib/payments/online";
 import { getPaymentProvider, paymentProviderName, type CheckoutRequest } from "@/lib/payments/provider";
 import type { PaymentRequestRow, PaymentRow } from "@/lib/supabase/types";
@@ -33,6 +34,8 @@ export async function startCheckout(
     customer: CheckoutRequest["customer"];
     returnUrl: string;
     backUrl: string;
+    /** The hand-off pages under the payer's own cookie path (`lib/payments/bridge.ts`). */
+    bridgeBase: BridgeBase;
     onStarted: (payment: PaymentRow) => Promise<void>;
   }
 ): Promise<{ payment: PaymentRow; redirectUrl: string }> {
@@ -78,6 +81,7 @@ export async function startCheckout(
       description: opts.description,
       returnUrl: opts.returnUrl,
       backUrl: opts.backUrl,
+      bridgeBase: opts.bridgeBase,
       customer: opts.customer,
     });
   } catch (e) {

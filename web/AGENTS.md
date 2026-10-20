@@ -21,12 +21,18 @@ cookie. Every parent-facing read and write then runs through the
 **service-role client** in `lib/supabase/admin.ts`, inside a route handler or
 server action, after `lib/tokens` has verified the cookie.
 
-There are two such cookies, and they are deliberately separate:
+There are three such cookies, and they are deliberately separate:
 
 - `hbs_parent`, scoped to **one application**, path `/`. The funnel: booking,
   results, the offer, payment, registration.
 - `hbs_family`, scoped to **one family**, path `/family`. The CRM: every child
   at once, for as long as the family is with the school.
+- `hbs_transport`, scoped to **one school transport booking**, path
+  `/transport` (17 October 2026). Not minted from a magic link: the public
+  booking form sets it for the browser that just made the booking, so it can
+  pay and fetch the receipt. Every read under `app/(transport)` goes through
+  `lib/transport/scope.ts`, and `lib/transport/scope.test.ts` fails the build
+  if a transport page queries a table itself.
 
 The family cookie is an amendment, agreed with the school on 10 September
 2026. The rule used to say a parent session named exactly one application,
@@ -45,9 +51,12 @@ That means:
   children, so **every read under `app/(parent)/family` goes through
   `lib/family/scope.ts`**, which takes the session and never a raw id.
   `scope.test.ts` fails the build if a family route queries a table itself.
-- The two cookies are signed under **different HMAC domains**, so a bug in one
+- The cookies are signed under **different HMAC domains**, so a bug in one
   decoder cannot promote a funnel cookie into a family one, or the reverse.
-  Do not collapse them into a single cookie carrying a subject field.
+  The transport cookie is the easiest of the three to come by — anybody can
+  fill in the form — so its decoder refusing the others, and theirs refusing
+  it, is tested both ways. Do not collapse them into a single cookie carrying
+  a subject field.
 - A token names exactly one subject, and its purpose decides which: the
   database enforces it in `access_tokens_subject_check`.
 - Never put an application id, a family id, a reference, or a token in a query
@@ -131,6 +140,34 @@ which payment to verify first. The dev adapter cannot report "paid" unless
 the non-production simulate screen wrote the outcome. Do not add a path
 that sets a payment status from a request.
 
+A payment names one of three subjects: an admission, a child's extras, or a
+school transport booking (`payment_requests_has_one_subject`,
+`lib/payments/subject.ts`). Extras and transport settle through one branch
+of `reconcilePayment` (`settleOutsideFunnel`), into `lib/extras/settle.ts`
+and `lib/transport/settle.ts`. A transport booking has no engine to own its
+status, so the database does: `transport_bookings_guard_status` refuses
+`paid` unless the booking's payment request is already paid, and the
+settlement marks the request first.
+
+A transport booking is priced by `create_transport_booking()` in the
+database, and each child's row holds a frozen snapshot of the tariff and the
+amounts. `lib/transport/pricing.ts` is the parent's side of the same rule,
+for the estimate on the form, pinned to the same figures from the school's
+sheet; the provider's side exists only in the database. The browser is
+given the parent's prices only (`customerTariffs`), never the provider's.
+The provider's own figures are not in the tariffs or the riders at all
+(19 October 2026): its list price is in `transport_tariff_provider_prices`
+and each child's share in `transport_rider_provider_shares`, both readable
+only with `transport.finance` (case 90). Do not copy either back into a
+table other staff read.
+
+The hand-off pages a gateway sends the parent through (PayGate's bridge and
+the dev simulate screen) must live under the path the payer's cookie is
+sent to, so `startCheckout` takes a `bridgeBase` (`lib/payments/bridge.ts`):
+`/pay` for an admission, `/family/pay` for a family, `/transport/pay` for a
+transport booking. A new kind of payer gets its own base and its own pages
+under its own cookie path.
+
 ## Documents go through one door
 
 Bytes are stored only by `storeDocument` (sniffed, capped, hashed, path
@@ -139,6 +176,33 @@ that first selects the `documents` row under RLS and then mints a
 one-minute signed URL. The bucket is private and has no policies; nothing
 but the service role touches it. Never hand a storage path or URL to a
 parent page.
+
+## Staff change transport through three functions
+
+There are no write policies on `transport_bookings`, `transport_booking_riders`
+or the payout tables. A cancel is `transport_cancel_riders`, a refund
+`transport_record_refund` and a payment to the provider
+`transport_record_payout`, each called under the staff member's own client so
+the function checks the permission and every child's campus. Their refusal
+codes get a sentence in `lib/transport/staff-errors.ts`; `staff-errors.test.ts`
+reads the migrations and fails on a code with no sentence. The money on the
+screens and in the files is `lib/transport/ledger.ts`, and nothing else adds
+it up.
+
+The tasks transport raises (a refund to decide, a payment twice, money after a
+cancellation) are closed by whoever holds `transport.finance` or
+`transport.manage` (`tasks_update`, case 91; `closesTransportTasks`), on the
+booking page or the Tasks page, as well as by those who close any task.
+
+A transport download (the provider's rider list, earnings, the payout
+statement and remittance) reads through the downloader's own client, writes
+its `audit_log` row first, and is refused rather than made if the row or the
+read fails (`lib/transport/download.ts`). An audit row about transport holds
+counts, ids and references, never a name or an amount: every `audit.read`
+holder reads it, and they are not all finance (case 91). The rider list carries what a
+driver needs and never the parent's email or a price (`staff-lines.test.ts`);
+the earnings file names a line by booking reference and place, never by the
+child.
 
 ## A message is an approved template
 
@@ -168,13 +232,20 @@ summary on the applicant page follows the same rule: `lib/summary/facts.ts`
 computes the facts and flags, the model may only write prose over them, and
 `validateSummary` decides whether that prose is kept.
 
-## Retention deletes through one function
+## Retention deletes through one function per subject
 
-`anonymise_application()` in the database is the only thing that removes
-personal data, and `lib/workflow/automation/retention.ts` is the only thing
-that calls it, after deleting the stored files. Do not add a delete of an
-applicant row anywhere else; if a new table holds personal data, add it to
-the function and to the security suite's check 37.
+`anonymise_application()` in the database is the only thing that removes an
+applicant's personal data, and `lib/workflow/automation/retention.ts` is the
+only thing that calls it, after deleting the stored files. Do not add a
+delete of an applicant row anywhere else; if a new table holds personal
+data, add it to the function and to the security suite's check 37.
+
+The one other is `anonymise_transport_booking()` (16 October 2026). A school
+transport booking is typed in on a public page and names no application,
+contact or family, so the first function cannot reach it. Same shape and the
+same rule: `retention.ts` (`anonymiseExpiredTransport`, behind
+`retention_enabled`) is its only caller, and a new table that holds a
+booking's personal data joins that function and case 87.
 
 ## A student outlives their application
 

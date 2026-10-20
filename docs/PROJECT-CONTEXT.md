@@ -676,6 +676,16 @@ recording a transfer against one is a later change), and an order is **never
 chased** — no reminder, no dunning, and it never makes a family look behind on
 the checklist.
 
+**Paying online through PayGate did not work for extras until 16 October
+2026.** Both gateways' hand-off pages (`/pay/gateway`, `/pay/dev`) asked for
+the admissions cookie, and the family cookie is only sent under `/family`,
+so a family pressing Pay arrived with no session and was told their link had
+expired, while the payment sat processing until it timed out. Nothing was
+charged, because the parent never reached PayGate. `startCheckout` now takes
+a `bridgeBase` and a family is sent to `/family/pay/gateway` and
+`/family/pay/dev`, which find the payment through the family loaders
+(`lib/payments/bridge.ts`, `bridge.test.ts`).
+
 ### The CRM (19 September 2026) — a second product on the same rows
 
 `/staff/crm` is the CRM the school asked for, built as a section of this
@@ -953,6 +963,190 @@ surfaces offers the card button again — no migration, no campus flag.
 A currency listed there is a claim that money will actually arrive in the
 school's account. Do not add one before the account exists.
 
+### School transport (16 October 2026) — the database
+
+Hibiscus is starting a school shuttle run by **Watermark Tours**. A parent
+books on a public page (no login, like `/join`): their details, one to six
+children with each child's school, grade, service (full, morning only or
+afternoon only) and weekdays, the home area, and a term or one month of it.
+They pay online; staff get a rider list for Watermark, a financial report and
+the payout owed to Watermark. Decided with the school:
+
+- **Weekdays are pro-rata**: term price × days ÷ 5. Watermark's share is cut
+  by the same fraction. *Watermark still has to agree to this.*
+- **A term or a month**, the parent's choice. A month is the term ÷ 3 (the
+  sheet's months per term) and is its own booking and payment: the gateway
+  cannot charge a card again by itself.
+- **The sibling rate is per child**, counting the children on one booking:
+  one child is "only one child"; a child who shares a school with another on
+  the booking is "same school"; a child alone at their school is "different
+  schools".
+
+The prices are the school's sheet (`Hibiscus_Watermark_Shuttle_Fees.xlsx`),
+seeded as twelve tariffs. Each holds the parent's term price including VAT
+and **Watermark's own price excluding VAT**; Watermark's nett is derived as
+list × 0.9 × 1.14, which reproduces every nett on the sheet exactly (4368 →
+4481.568) and keeps every stored amount in whole thebe. Rounding is half up,
+once per child line, and totals are sums of lines. 3 × a month can be one
+thebe over the term.
+
+**Pricing lives in the database.** `create_transport_booking()` (service role
+only) checks everything the parent typed — the period is published and open,
+the area is served, the terms are the current version, each school is an
+active Botswana campus that offers the grade — and prices each child, writing
+the tariff's figures onto the child's row as a snapshot. Check constraints on
+`transport_booking_riders` hold the rounding rule against the row's own
+snapshot, so a line can never claim a figure its tariff does not give, and a
+trigger freezes what was priced. The app's live estimate is to mirror the
+same rule, pinned to the same figures.
+
+**Staff read at the children's schools.** A child is visible with
+`transport.read` at their own campus; a booking at any of its children's, so
+a Broadhurst coordinator sees the parent on a booking with a Broadhurst
+child, and that child only. Nobody writes bookings through the API: the
+parent's side is the booking function, staff use `transport_cancel_riders()`
+(`transport.manage`) and `transport_record_refund()` (`transport.finance` +
+`finance.write`). Payouts to Watermark are `transport_record_payout()`
+(the same two permissions): each child charged once, a child cancelled after
+being paid out credited at most once, the total computed in SQL, and the rows
+never edited.
+
+**The money uses the existing tables**, with a third subject:
+`payment_requests`/`payments.transport_booking_id`, one payment per booking
+(every campus the shuttle serves charges in pula), filed under the first
+child's campus. A booking is marked paid only once its request is
+(`transport_bookings_guard_status`). Transport emails are read through the
+booking's own policy (`email_messages.transport_booking_id`) instead of the
+staff digest's "nobody's" branch, which every `applications.read` holder sees.
+
+**Retention** is `anonymise_transport_booking()`; see §3.
+
+Security suite cases 83 to 88. Booking ships **off**
+(`transport_booking_enabled`), and nothing is open until a period and the
+terms are published.
+
+### School transport (17 October 2026) — parents book and pay
+
+- **The parent pages** are their own route group, `app/(transport)`, with
+  their own header and footer: `/transport` (what it costs and what is open),
+  `/transport/book` (the form), `/transport/booking` (the priced booking and
+  Pay), its receipt, and the PayGate bridge, dev simulator and return under
+  `/transport/pay`. The landing page and the form are indexable, like `/join`;
+  the booking and payment pages are not.
+- **A third parent cookie**, `hbs_transport`: one booking, path `/transport`,
+  its own HMAC domain, set by the form rather than by a magic link. A parent
+  who loses it before paying books again (the unpaid one expires); one who has
+  paid has the receipt in their email. Every read goes through
+  `lib/transport/scope.ts`, and `scope.test.ts` greps the pages.
+- **The browser never sees the provider's prices.** The form's estimate runs
+  on the parent's prices only (`customerTariffs`, `estimateCustomerTotal`),
+  agreeing with the full rule on every shape (a test); what is charged is what
+  the database wrote.
+- **Settlement** is the extras branch of `reconcilePayment`, shared
+  (`settleOutsideFunnel`), into `lib/transport/settle.ts`: the request is marked
+  paid, then the booking; a failed attempt leaves the request open so the
+  parent can try again; a part payment, money for a cancelled booking, a
+  second payment and a mismatched amount each open a task naming the
+  reference only. The paid email (`transport_paid`, audience `transport`,
+  email only) carries the receipt.
+- **Sweeps**, from the drain: unpaid bookings expire after
+  `transport_unpaid_hours`, or sooner at the pay-by date they were given
+  (`lib/workflow/automation/transport.ts`), and a payment whose settlement
+  stopped part way is finished there rather than expired; retention
+  (`anonymiseExpiredTransport`, behind `retention_enabled`) clears bookings
+  that were paid `transport_retention_days` after their period, and unpaid
+  ones (expired, abandoned, or cancelled before payment)
+  `transport_unpaid_retention_days` after they stopped.
+- **Opening booking** is Settings → School transport (`transport.manage`): the
+  switch, the office contact, the terms and months, and the terms wording. A
+  coordinator may change exactly three settings keys
+  (`settings_update_transport`, case 88). See the runbook.
+- **The finance queue** lists transport requests read-only, under their own
+  heading.
+
+### School transport (18 October 2026) — staff run it
+
+- **Transport is an area of the console**, like Students and Insights:
+  Bookings and Riders (`transport.read`), Earnings and Payouts
+  (`transport.finance`), and the settings page as its last tab
+  (`transport.manage`). A coordinator, who holds no admissions permission,
+  lands on Bookings.
+- **Every read is the staff member's own client.** A booking shows the
+  children at schools the person covers; a campus-scoped bursar sees every
+  payout's total but only their own schools' lines, and the page says when
+  those do not add up. The loaders are `lib/transport/staff.ts`; they page by
+  id rather than offset, past PostgREST's thousand rows.
+- **Every write is one of the three functions** from part 1:
+  `transport_cancel_riders` (the booking page; an unpaid booking goes whole),
+  `transport_record_refund` (a cancelled child, after the money was sent) and
+  `transport_record_payout` (after the bank payment; each child once, each
+  credit capped). Their codes become sentences in
+  `lib/transport/staff-errors.ts`, and a test reads the migrations so a new
+  code cannot ship without one. Cancelling a paid child opens a
+  `transport_refund_review` task for finance and, if ticked, sends the parent
+  `transport_cancelled` (the reason stays internal).
+- **The money is one rule**, `lib/transport/ledger.ts`, behind the earnings
+  page, its workbook and the payouts screen: paid by parents, refunded, the
+  provider's share, paid to it, still owed, credits still to decide (a
+  ceiling, not a debt) and what Hibiscus keeps. A child cancelled before the
+  provider was paid for them costs the provider nothing; one cancelled after
+  is a credit finance and the provider agree.
+- **Who rides in a period** is its own bookings plus its term's or its
+  months' (`lib/transport/periods.ts`): a child booked for the term rides in
+  January, and so does one booked for January. Seats are counted month by
+  month (`seatWindows`), so children booked for different months never add up
+  on one run.
+- **The provider's prices are finance's alone** (19 October, the school's
+  call after Claude's review): Watermark's list price per tariff and its
+  share of each child's line moved out of `transport_tariffs` and
+  `transport_booking_riders`, which other staff read, into
+  `transport_tariff_provider_prices` and `transport_rider_provider_shares`,
+  readable only with `transport.finance` (case 90). A coordinator and
+  admissions staff see neither, through the screens or the API. The margin
+  check runs as its owner so it still sees the price when a coordinator
+  edits a parent's. The rebate and VAT stayed where they were.
+- **Claude's second review** (19 October): finance and the coordinator can
+  close the tasks transport raises (`tasks_update`, case 91), with a *Done*
+  button on the booking page; a payout's audit row no longer carries its
+  money; a booking expires at the pay-by date it was given; a payment whose
+  settlement stopped part way is finished by the sweep rather than expired;
+  a booking cancelled before it was paid is cleared on the unpaid window; the
+  booking page's provider total follows the ledger; and the form is checked
+  before its rate limits are spent.
+- **Late money** (from Claude's review, 18 October): a payment that lands on
+  a booking the office already cancelled sets its `paid_at`, so the refund
+  form and the earnings see it; one that lands on an expired booking after
+  the parent booked again raises `transport_possible_duplicate`. A `pending`
+  payment that never reached the gateway is closed after 30 minutes by the
+  expiry sweep, so it cannot hold a booking open for ever. Transport tasks
+  show on the booking page and link from the Tasks page; a coordinator cannot
+  open the Tasks page.
+- **The downloads** are Excel, built by `lib/enrolment/xlsx.ts`, which now
+  writes real numbers, widths, a money format and a frozen header when a
+  sheet asks (an importer's workbook is byte for byte as before). Each is
+  audited before it is made, and refused if the audit row or the read fails
+  (`lib/transport/download.ts`):
+  - the provider's rider list (`transport.export`): riders in route order, the
+    seats on each morning and afternoon run, children cancelled after payment,
+    and what the list leaves out. Names, the pick-up address and phone numbers;
+    never the parent's email or a price;
+  - earnings (`transport.finance`): totals, by school, by term or month, and one row
+    per child's line named by reference and place, never by name;
+  - the statement of what is owed before paying, and the remittance for a
+    recorded payout, which names the children because that is how the
+    provider knows them.
+- **Checked against a real PostgREST** on the replayed schema (18 October):
+  every page query, the three functions as a coordinator and as finance, and
+  the workbooks opened in a second reader. Not clicked through in a browser.
+
+To confirm with the school and Watermark: the full list of suburbs and their
+zones; Watermark's twelve prices excluding VAT; that Watermark accepts the
+pro-rata days; cancellation and refund rules; VAT on Hibiscus's share and
+whether parents need tax invoices; who absorbs the card fee (it comes out of
+Hibiscus's share as built); seats, youngest age and afternoon times; a
+data-processing agreement for what Watermark receives; who the coordinator
+is.
+
 ### Three things the code deliberately does not invent
 
 - **Admission thresholds.** No ruleset is seeded or active. Every assessed
@@ -1091,12 +1285,14 @@ school's account. Do not add one before the account exists.
 - **`server-only` modules cannot be imported by vitest.** Pure rules live in
   files without that import (`lib/workflow/automation/rules.ts`,
   `lib/documents/compare.ts`) and the server modules import them.
-- **Retention deletes through one function.** `anonymise_application()` is
+- **Retention deletes through one function per subject.** `anonymise_application()` is
   `security definer`, revoked from every role but the service role, and the
   application row survives with its status, dates, campus and grade so the
   analytics still count it. Storage objects are removed by code *before* the
   function runs. `child_date_of_birth` is `not null`, so it becomes
-  1900-01-01 rather than null.
+  1900-01-01 rather than null. A school transport booking names no
+  application, so it has its own, `anonymise_transport_booking()`, in the
+  same shape (16 October 2026).
 - **Daily jobs gate themselves** on `maintenance_runs`, because the cron is
   every five minutes; the digest is keyed `digest:<campus>:<date>` in
   Gaborone time, and `jobs.application_id` is nullable so a job can belong to
