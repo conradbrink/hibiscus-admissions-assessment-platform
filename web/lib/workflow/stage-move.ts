@@ -202,6 +202,26 @@ export function backPosition(status: ApplicationStatus): number | null {
   }
 }
 
+/**
+ * Whether deferring from here goes back to Decision first: the family is
+ * accepted, or has a letter drafted, waiting, out, lapsed or declined.
+ *
+ * Asked for by the school on 20 October 2026: a family whose offer was
+ * waiting for approval said "not this year", and the page offered only
+ * Withdraw. The graph still pauses only from before a decision. A deferral
+ * from the offer stage is the move back to Decision, which withdraws the
+ * letter and sets the decision aside, and then the ordinary deferral from
+ * there — so the family resumes at Decision, to be decided again. Because it
+ * withdraws a letter, it needs `offers.approve`, as that move back does.
+ *
+ * Not from Payment on: the family has accepted, and money may have moved.
+ * Not `waitlisted` either, which has no letter to withdraw and is already at
+ * Decision; nobody has asked to pause a waitlisted family.
+ */
+export function defersThroughDecision(status: ApplicationStatus): boolean {
+  return backPosition(status) === JOURNEY_INDEX.get("offer");
+}
+
 function targetIndex(target: MoveTarget): number {
   const stage = MOVE_TARGETS.find((t) => t.key === target)?.stage;
   return stage ? (JOURNEY_INDEX.get(stage) ?? -1) : -1;

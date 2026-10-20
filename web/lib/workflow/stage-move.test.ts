@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationStatus } from "@/lib/supabase/types";
 import { toPermissionSet } from "@/lib/permissions";
-import { backPosition, canMoveTo, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveDirection, moveTargetLabel, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
+import { backPosition, canMoveTo, defersThroughDecision, isMoveTarget, mayMoveTo, MOVE_TARGETS, moveDirection, moveTargetLabel, moveTargetsFor, moveTargetsFrom, mootTaskTypes, movePosition, stagesSkippedByMove, type MoveTarget } from "@/lib/workflow/stage-move";
 import { canBeDecided, canOverrideTransition, canTransition, OVERRIDE_TRANSITIONS, TERMINAL_STATUSES, TRANSITIONS } from "@/lib/workflow/states";
 
 const ALL = Object.keys(TRANSITIONS) as ApplicationStatus[];
@@ -26,6 +26,22 @@ describe("move to stage: where a child may go", () => {
     expect(moveDirection("registration_complete", "offer")).toBe("back");
     expect(moveTargetLabel("offer", "back")).toBe("Back to Offer");
     expect(moveTargetLabel("offer")).toBe("Offer");
+  });
+
+  it("defers from the offer stage by going back to Decision, and never from Payment on", () => {
+    // The school's request of 20 October 2026: a family whose offer was
+    // waiting for approval could only be withdrawn.
+    const through = ALL.filter(defersThroughDecision).sort();
+    expect(through).toEqual(["approved", "offer_declined", "offer_draft", "offer_expired", "offer_pending_approval", "offer_sent"]);
+    for (const from of through) {
+      // Each is a move back to Decision, then the ordinary deferral from there.
+      expect(moveDirection(from, "decision"), from).toBe("back");
+      expect(canTransition(from, "deferred"), from).toBe(false);
+    }
+    expect(canTransition("awaiting_decision", "deferred")).toBe(true);
+    for (const from of ["waitlisted", "offer_accepted", "payment_required", "paid", "registration_incomplete"] as ApplicationStatus[]) {
+      expect(defersThroughDecision(from), from).toBe(false);
+    }
   });
 
   it("lets a deferred child go on to any stage from Decision, wherever they paused", () => {

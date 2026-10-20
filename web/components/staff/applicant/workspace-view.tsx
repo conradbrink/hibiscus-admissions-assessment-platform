@@ -36,6 +36,7 @@ import { formatDate, formatDateTime, toSchoolDateString } from "@/lib/format-dat
 import { heardFromLabel } from "@/lib/heard-from";
 import { can, type PermissionSet } from "@/lib/permissions";
 import { isScholarshipCode } from "@/lib/promotions/scholarship";
+import { isStaffDiscountCode } from "@/lib/promotions/discount";
 import { monthChoices, startLabel } from "@/lib/start-month";
 import { cn } from "@/lib/utils";
 import { feeSnapshotFrom } from "@/lib/offers/snapshot";
@@ -43,7 +44,7 @@ import { formatMoney } from "@/lib/money";
 import { canCheckIn, canMarkNoShow } from "@/lib/workflow/appointment";
 import { stageLabel, stageOf, visibleViews } from "@/lib/workflow/stages";
 import { canBeDecided, canTransition, isNextAction, nextActionCopy, statusAfterBooking, TERMINAL_STATUSES } from "@/lib/workflow/states";
-import { moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
+import { defersThroughDecision, mayMoveTo, moveTargetsFor, stagesSkippedByMove } from "@/lib/workflow/stage-move";
 import { startWalkIn } from "@/app/staff/(console)/assessments/actions";
 import {
   addApplicantTask,
@@ -114,13 +115,37 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
   };
   // Deferring and withdrawing are not overrides of the rules engine, so they
   // keep applications.write; deferring is asked of the graph like the rest.
-  const canDefer = canWrite && !terminal && canTransition(app.status, "deferred");
+  // From the offer stage a deferral is the move back to Decision and then the
+  // deferral (`defersThroughDecision`), so it also needs exactly what that
+  // move back needs (`mayMoveTo`), and no money held — the same rules the
+  // server refuses by, so the button is not offered only to say no.
+  const defersBack = defersThroughDecision(app.status);
+  const mayDeferBack = defersBack && mayMoveTo(permissions, "decision", "back");
+  const canDefer = canWrite && !terminal && (canTransition(app.status, "deferred") || (mayDeferBack && w.moneyHeld === null));
   const canWithdraw = canWrite && !terminal;
+  // Withdraw is offered everywhere Defer is not; the heading said "Defer or
+  // withdraw" over a list with no Defer in it, so say why it is missing.
+  const noDeferral =
+    app.status === "deferred"
+      ? "They are deferred already: resume them from the next step above."
+      : app.status === "assessment_in_progress"
+        ? "The child is sitting the assessment now. Once the sitting ends, they can be deferred."
+        : app.status === "waitlisted"
+          ? "A waitlisted family cannot be deferred."
+          : mayDeferBack && w.moneyHeld
+            ? w.moneyHeld.reason
+            : defersBack
+              ? `Deferring them now moves them back to Decision${w.liveOffer ? " and withdraws their offer" : ""}, and your account cannot do that.`
+              : "They are past the offer, so they can no longer be deferred.";
   // The stages ahead that the officer may move the child to by hand.
   // The way back is not offered while money is held: the loader asked the
   // same rule the server refuses by (`moneyHeldReason`).
   const moveTargets = moveTargetsFor(app.status, permissions, { moneyReceived: w.moneyHeld !== null });
-  const bookingWillBeCancelled = Boolean(booking && booking.status !== "cancelled");
+  // What `onDeferred` cancels: anything still booked, and a sitting arrived
+  // for. A visit the family has been to stays as it is.
+  const bookingWillBeCancelled = Boolean(
+    booking && (booking.status === "booked" || (booking.kind === "assessment" && (booking.status === "checked_in" || booking.status === "in_progress")))
+  );
 
   // Half day or full day, the starting month and the scholarship band: the
   // three things the next offer letter reads.
@@ -131,15 +156,17 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         : null,
     startMonth: campus?.intake_cadence === "month" ? { value: app.start_month, canSet: canWrite, choices: monthChoices(toSchoolDateString(new Date())) } : null,
     // Shown to whoever may change it, and to everyone else only when there is
-    // an award to see: "Scholarship: none" on every applicant is noise.
+    // an award or a discount to see: "Scholarship: none" on every applicant is
+    // noise. The staff discounts are chosen in the same box (20 October 2026).
     scholarshipBand:
-      w.scholarship || can(permissions, "offers.approve")
+      w.scholarship || isStaffDiscountCode(w.heldCode) || can(permissions, "offers.approve")
         ? {
             code: w.heldCode,
             promotionId: w.award?.promotion_id ?? null,
             isScholarship: w.scholarship,
             canSet: can(permissions, "offers.approve"),
             choices: w.bands.map((b) => b.code).filter((c): c is string => isScholarshipCode(c)),
+            discounts: w.bands.map((b) => b.code).filter(isStaffDiscountCode),
           }
         : null,
   };
@@ -257,26 +284,42 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
         <div className="space-y-5">
           {canDefer || canWithdraw ? (
             <div>
-              <h3 className="font-semibold">Defer or withdraw</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">For a family who wants a place later, or who is no longer applying. Both keep the record and the figures.</p>
+              <h3 className="font-semibold">{canDefer ? "Defer or withdraw" : "Withdraw"}</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {canDefer
+                  ? "For a family who wants a place later, or who is no longer applying. Both keep the record and the figures."
+                  : `For a family who is no longer applying. It keeps the record and the figures. ${noDeferral}`}
+              </p>
               <ActionForm
                 action={recordDecision}
-                label="Save — defer or withdraw"
+                label={canDefer ? "Save — defer or withdraw" : "Save — withdraw"}
                 size="sm"
                 variant="outline"
                 className="mt-2 max-w-md"
                 confirmBy={{
                   field: "outcome",
                   messages: {
-                    deferred: bookingWillBeCancelled
-                      ? "Defer this family? Their booking is cancelled and the seat goes back."
-                      : "Defer this family? We will message them around the date you chose.",
+                    deferred: [
+                      "Defer this family?",
+                      defersBack ? `They are moved back to Decision${w.liveOffer ? " and their offer is withdrawn" : ""}.` : null,
+                      bookingWillBeCancelled ? "Their booking is cancelled and the seat goes back." : "We will message them around the date you chose.",
+                    ]
+                      .filter(Boolean)
+                      .join(" "),
                     withdrawn: "Withdraw this application? Bookings and open tasks are cancelled.",
                   },
                 }}
               >
                 {idField}
-                <DecisionFields canRecordOutcome={false} canDefer={canDefer} canWithdraw={canWithdraw} bookingWillBeCancelled={bookingWillBeCancelled} />
+                <DecisionFields
+                  canRecordOutcome={false}
+                  canDefer={canDefer}
+                  canWithdraw={canWithdraw}
+                  bookingWillBeCancelled={bookingWillBeCancelled}
+                  defersThroughDecision={defersBack}
+                  offerWillBeWithdrawn={defersBack && Boolean(w.liveOffer)}
+                  seenStatus={app.status}
+                />
               </ActionForm>
             </div>
           ) : null}

@@ -45,6 +45,9 @@ export function DecisionFields({
   canOfferTrial = false,
   hasHadTrial = false,
   bookingWillBeCancelled,
+  defersThroughDecision = false,
+  offerWillBeWithdrawn = false,
+  seenStatus,
   autoSendOutcomes = false,
   upcomingBooking = false,
 }: {
@@ -60,6 +63,12 @@ export function DecisionFields({
   hasHadTrial?: boolean;
   /** Said out loud when they pick Defer, because the seat going back is not theirs to undo. */
   bookingWillBeCancelled?: boolean;
+  /** From the offer stage, deferring moves them back to Decision first (`defersThroughDecision`). */
+  defersThroughDecision?: boolean;
+  /** A letter in play, which that move back withdraws. */
+  offerWillBeWithdrawn?: boolean;
+  /** The application's status as this page showed it; a deferral is refused if it has changed. */
+  seenStatus?: string;
   /** The `auto_send_outcomes` switch: a waitlist or decline letter goes the moment it is recorded. */
   autoSendOutcomes?: boolean;
   /** A visit or sitting still ahead of them, which sending a decline letter cancels (`onOutcomeSent`). */
@@ -132,7 +141,13 @@ export function DecisionFields({
             For a family who wants a place later in the year. We message them around the date and put a call on the
             owner&rsquo;s list for the day itself, and one click brings them back.
             {bookingWillBeCancelled ? " Their booking is cancelled, so the seat goes back and the reminders stop." : ""}
+            {defersThroughDecision
+              ? ` They are moved back to Decision first${offerWillBeWithdrawn ? ", and their offer is withdrawn so it cannot be accepted while they are paused" : ""}. When they come back, they are decided again.`
+              : ""}
           </p>
+          {/* The status this page showed, so the server can refuse a deferral
+              this confirmation was not written for. */}
+          {seenStatus ? <input type="hidden" name="seenStatus" value={seenStatus} /> : null}
           <Input type="date" name="until" required aria-label="Come back to them on" />
           <Input name="reason" placeholder="What they said (optional)" maxLength={500} />
         </>

@@ -4,12 +4,12 @@ import type { ApplicationRow, ApplicationStatus, OfferRow } from "@/lib/supabase
 import { loadApplicationGraph } from "@/lib/applications";
 import { resolveFeeSchedule } from "@/lib/offers/render";
 import { getSettings } from "@/lib/settings";
-import { mustSucceed } from "@/lib/workflow/actions";
+import { mustSucceed, onDeferred } from "@/lib/workflow/actions";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
 import { commit, WorkflowError, type Actor, type JobSpec, type TaskSpec } from "@/lib/workflow/engine";
 import { JOURNEY } from "@/lib/workflow/next-step";
 import { hasResults, onOfferAccepted, onOfferApproved, onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
-import { BACK_MOOT_TASKS, moveDirection, moveTargetLabel, mootTaskTypes, movePosition, type MoveTarget } from "@/lib/workflow/stage-move";
+import { BACK_MOOT_TASKS, defersThroughDecision, moveDirection, moveTargetLabel, mootTaskTypes, movePosition, type MoveTarget } from "@/lib/workflow/stage-move";
 import { formatMoney } from "@/lib/money";
 import { askable, CHECKOUT_TTL_HOURS, recentAttemptsSince } from "@/lib/payments/attempts";
 import { formatDateTime } from "@/lib/format-date";
@@ -529,7 +529,15 @@ const STALE_AFTER_MOVE_BACK = ["send_email", "send_whatsapp", "send_outcome", "d
  * old one carried, and leaves it for a person to approve — whatever the
  * auto-approve switch says, as every Move to stage letter does.
  */
-async function moveBack(admin: AdminClient, app: MovingApp, target: MoveTarget, reason: string, actor: Actor): Promise<MovingApp> {
+async function moveBack(
+  admin: AdminClient,
+  app: MovingApp,
+  target: MoveTarget,
+  reason: string,
+  actor: Actor,
+  /** Off for a deferral: the family has paused, and its own call on the date is the work. */
+  opts: { decideAgainTask?: boolean } = {}
+): Promise<MovingApp> {
   if (target !== "decision" && target !== "offer") {
     throw new WorkflowError(`A child cannot be moved back to ${moveTargetLabel(target)}.`, "illegal_transition");
   }
@@ -559,7 +567,7 @@ async function moveBack(admin: AdminClient, app: MovingApp, target: MoveTarget, 
     // Back to Decision puts the child in front of whoever decides, as the
     // rules engine's referral does.
     tasks:
-      target === "decision"
+      target === "decision" && opts.decideAgainTask !== false
         ? [{ type: "review_decision", title: `Decide again on ${app.child_first_name}'s application`, details: `Moved back to Decision by staff. Reason: ${reason}`, priority: "high" }]
         : [],
     audit: { action: "application.moved_to_stage", before: { status: app.status }, after: { stage: target, direction: "back", reason } },
@@ -602,6 +610,59 @@ async function moveBack(admin: AdminClient, app: MovingApp, target: MoveTarget, 
     cur = await reload(admin, app.id);
   }
   return cur;
+}
+
+/**
+ * Deferred from the offer stage (`defersThroughDecision`): back to Decision,
+ * then the ordinary deferral from there.
+ *
+ * The move back is the one above, for the reasons it gives: the status first,
+ * so a parent accepting in the same second is refused by status, then every
+ * letter withdrawn with its own line, unpaid requests closed, and the old
+ * letter's queued emails and expiry skipped. Only its "decide again" task is
+ * left off. When the family resumes they are at Decision, where the decision
+ * is made again (`statusAfterDeferral`).
+ *
+ * Two commits. If anything fails after the move back, the child rests at
+ * Decision with the letter withdrawn, in the decisions queue, with Defer
+ * offered again — and the message says they were not deferred.
+ */
+export async function onDeferredAfterDecision(
+  admin: AdminClient,
+  app: MovingApp & Pick<ApplicationRow, "owner_staff_id">,
+  spec: { until: string; reason: string | null },
+  actor: Actor
+): Promise<void> {
+  if (!defersThroughDecision(app.status)) {
+    throw new WorkflowError(
+      `A child who is "${STATUS_LABELS[app.status]}" cannot be deferred from here. Reload the page: they may have moved on already.`,
+      "status_conflict"
+    );
+  }
+  const notDeferred = (e: unknown) =>
+    new WorkflowError(
+      // The step that failed, without `mustSucceed`'s "its status is unchanged":
+      // the move back has changed it.
+      `${app.child_first_name} was moved back to Decision, but was not deferred: ${(e as Error).message.replace(/ Its status is unchanged — please try again\.$/, "")} Defer them again from their page.`,
+      e instanceof WorkflowError ? e.code : "database"
+    );
+  const why = spec.reason ? `Deferred at the family's request: ${spec.reason}` : "Deferred at the family's request";
+  let back: MovingApp;
+  try {
+    back = await moveBack(admin, app, "decision", why, actor, { decideAgainTask: false });
+  } catch (e) {
+    // Refused before it moved (money held, a status that changed): nothing
+    // happened, and the message says why. Failed tidying after it moved: say
+    // the deferral did not follow, or the officer takes it as done.
+    const now = await reload(admin, app.id).catch(() => null);
+    if (now?.status === "awaiting_decision") throw notDeferred(e);
+    throw e;
+  }
+  try {
+    await onDeferred(admin, { ...back, owner_staff_id: app.owner_staff_id }, spec, actor);
+  } catch (e) {
+    throw notDeferred(e);
+  }
 }
 
 /**

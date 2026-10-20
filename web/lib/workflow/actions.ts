@@ -10,7 +10,7 @@ import { awardLabelOf } from "@/lib/promotions/scholarship";
 import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { formatDateLong, formatTime } from "@/lib/format-date";
 import { onStaffDecision } from "@/lib/workflow/decision-actions";
-import { bookingTrackNextAction, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
+import { bookingTrackNextAction, canTransition, STATUS_LABELS, statusAfterBooking, statusAfterCancellation, statusAfterVisitArrival } from "@/lib/workflow/states";
 import { canCheckIn, noShowMove } from "@/lib/workflow/appointment";
 import {
   commit,
@@ -741,28 +741,47 @@ export async function onManualDecision(
  * days — and a seat nobody is coming to would stay held. Cancelling silently
  * stops both. No cancellation email: the family asked for this on the phone,
  * and the follow-ups around their date are the message that matters.
+ *
+ * A visit the family has already arrived for is not live: it happened, and it
+ * stays checked in, as `releaseAssessment` keeps it. Since a family can be
+ * deferred from the offer stage (`onDeferredAfterDecision`), most pre-school
+ * families deferred have one, and it was being rewritten as cancelled.
  */
 export async function onDeferred(
   admin: AdminClient,
-  app: Pick<ApplicationRow, "id" | "status" | "reference" | "child_first_name" | "owner_staff_id">,
+  app: Pick<ApplicationRow, "id" | "status" | "reference" | "child_first_name" | "owner_staff_id" | "requires_assessment">,
   spec: { until: string; reason: string | null },
   actor: Actor
 ): Promise<void> {
+  // Asked before anything is cancelled. The graph is enforced again by the
+  // commit below, but only after the booking had gone and the date had been
+  // written: a page left open while the child started their sitting cost
+  // them the booking, under an application that was never deferred.
+  if (!canTransition(app.status, "deferred")) {
+    throw new WorkflowError(
+      `A child who is "${STATUS_LABELS[app.status]}" cannot be deferred. Reload the page: they may have moved on already.`,
+      "status_conflict"
+    );
+  }
   const settings = await getSettings(admin);
 
   // Raising rather than reporting, and before the application is touched: a
   // failed cancellation must not leave a `deferred_until` on an application
   // that is still live, nor a held seat and a queue of reminders under one
   // that reads as deferred.
+  const cancelled = { status: "cancelled" as const, cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" };
   await mustSucceed(
     app.reference,
     "deferred",
     "cancel its bookings",
-    admin
-      .from("bookings")
-      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Deferred at the family's request" })
-      .eq("application_id", app.id)
-      .in("status", ["booked", "checked_in", "in_progress"])
+    admin.from("bookings").update(cancelled).eq("application_id", app.id).eq("status", "booked")
+  );
+  // Arrived for the sitting but not finished: the sitting will not happen.
+  await mustSucceed(
+    app.reference,
+    "deferred",
+    "cancel its bookings",
+    admin.from("bookings").update(cancelled).eq("application_id", app.id).eq("kind", "assessment").in("status", ["checked_in", "in_progress"])
   );
 
   const { error } = await admin
@@ -788,7 +807,8 @@ export async function onDeferred(
     event: {
       type: "application.deferred",
       summary: `Deferred until ${formatDateLong(spec.until)}`,
-      payload: { deferred_until: spec.until, reason: spec.reason },
+      // Where they resume is read back from these two: see `statusAfterDeferral`.
+      payload: { deferred_until: spec.until, reason: spec.reason, from: app.status, requires_assessment: app.requires_assessment },
     },
     // The messages are a courtesy; this is the promise. A family who does not
     // answer either message is rung by a person on the day.
@@ -823,13 +843,21 @@ export async function onDeferralEnded(
   app: Pick<ApplicationRow, "id" | "status" | "reference" | "requires_assessment">,
   actor: Actor
 ): Promise<void> {
-  // A sitting that was submitted or marked. The booking their deferral
-  // cancelled is not one, which is the whole point of asking.
-  const { count, error } = await admin
-    .from("attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("application_id", app.id)
-    .in("status", ["submitted", "marked"]);
+  const [sat, pausedAt] = await Promise.all([
+    // A sitting that was submitted or marked. The booking their deferral
+    // cancelled is not one, which is the whole point of asking.
+    admin.from("attempts").select("id", { count: "exact", head: true }).eq("application_id", app.id).in("status", ["submitted", "marked"]),
+    // Where they paused, from the deferral's own line.
+    admin
+      .from("application_events")
+      .select("payload")
+      .eq("application_id", app.id)
+      .eq("type", "application.deferred")
+      .order("occurred_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const { count, error } = sat;
   // Not swallowed: a failed count is undefined, `?? 0` reads it as none, and
   // the application would resume as though the child had never sat. That is a
   // wrong status rather than a missing cleanup — worse, because nothing
@@ -840,9 +868,21 @@ export async function onDeferralEnded(
       "database"
     );
   }
+  // Not swallowed either: read as nowhere, a child moved past the assessment
+  // by hand would be sent back to book the sitting the school had waived.
+  const { data: paused, error: pausedErr } = pausedAt;
+  if (pausedErr) {
+    throw new WorkflowError(
+      `${app.reference}: we could not check where the family paused (${pausedErr.message}). Its status is unchanged — please try again.`,
+      "database"
+    );
+  }
+  const pausedPayload = paused?.payload && typeof paused.payload === "object" && !Array.isArray(paused.payload) ? paused.payload : {};
   const newStatus = statusAfterDeferral({
     requiresAssessment: app.requires_assessment,
     hasSatAssessment: (count ?? 0) > 0,
+    pausedFrom: typeof pausedPayload.from === "string" ? pausedPayload.from : null,
+    pausedRequiringAssessment: pausedPayload.requires_assessment === true,
   });
 
   await commit(admin, {

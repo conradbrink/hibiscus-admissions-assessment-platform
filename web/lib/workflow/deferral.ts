@@ -88,13 +88,30 @@ export function deferralTaskDueAt(deferredUntil: string): Date {
  * to `new_enquiry`, where the next step is to book.
  *
  * A family who has already sat it, or never needed to, goes to
- * `awaiting_decision`, which is where their answer actually comes from.
+ * `awaiting_decision`, which is where their answer actually comes from. So
+ * does one who paused while waiting for a decision without sitting an
+ * assessment their stage already asked for: the school moved them past it by
+ * hand, or moved them back to Decision from an offer on the way to the
+ * deferral (`defersThroughDecision`). Sending them to book would ask for the
+ * sitting the school had waived.
+ *
+ * Only if the stage asked for one when they paused. A pre-school child moved
+ * to an assessed stage while deferred waived nothing, and books a sitting.
  */
 export function statusAfterDeferral(input: {
   requiresAssessment: boolean;
   /** A sitting that was submitted or marked. A cancelled booking is not one. */
   hasSatAssessment: boolean;
+  /**
+   * Where they paused, from the deferral's own event. Null for a deferral
+   * recorded before the event carried it, which keeps the old answer.
+   */
+  pausedFrom?: string | null;
+  /** Whether their stage asked for an assessment when they paused, from the same event. */
+  pausedRequiringAssessment?: boolean;
 }): "new_enquiry" | "awaiting_decision" {
+  const pausedAtDecision = input.pausedFrom === "awaiting_decision" || input.pausedFrom === "staff_review";
+  if (pausedAtDecision && input.pausedRequiringAssessment) return "awaiting_decision";
   return input.requiresAssessment && !input.hasSatAssessment ? "new_enquiry" : "awaiting_decision";
 }
 

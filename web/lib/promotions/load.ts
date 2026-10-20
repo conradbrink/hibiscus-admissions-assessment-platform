@@ -2,6 +2,7 @@ import "server-only";
 import type { ApplicationGraph } from "@/lib/applications";
 import { toSchoolDateString } from "@/lib/format-date";
 import { normaliseCode, pickRulePromotion, promotionMatches, type EligibilityContext, type PromotionSummary } from "@/lib/promotions/apply";
+import { isStaffDiscountCode } from "@/lib/promotions/discount";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { PromotionEffectRow, PromotionRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
@@ -116,7 +117,10 @@ export async function resolvePromotion(admin: AdminClient, graph: ApplicationGra
   if (active.length === 0) return null;
 
   const code = normaliseCode(graph.application.promo_code);
-  const byCode = code ? active.find((p) => p.code === code) : null;
+  // A staff discount is given by staff, never by a typed code: the enquiry form
+  // refuses it, and so does this, for a code that reached the application
+  // some other way.
+  const byCode = code && !isStaffDiscountCode(code) ? active.find((p) => p.code === code) : null;
   if (byCode) {
     const redemptions = await countRedemptions(admin, byCode.id);
     if (promotionMatches(byCode, contextFor(graph, code, redemptions)).ok) {
@@ -147,10 +151,14 @@ export async function codedPromotionLive(admin: AdminClient): Promise<boolean> {
   return (data ?? []).some((p) => (!p.starts_on || p.starts_on <= today) && (!p.ends_on || p.ends_on >= today));
 }
 
-/** The deal a typed code names, when it is live today; null otherwise. */
+/**
+ * The deal a typed code names, when it is live today; null otherwise. Null for
+ * a staff discount too, which a parent is told is not recognised: otherwise
+ * anybody who learned `DISCOUNT-5` could give themselves 5% off.
+ */
 export async function promotionForCode(admin: AdminClient, raw: string | null | undefined): Promise<PromotionRow | null> {
   const code = normaliseCode(raw);
-  if (!code) return null;
+  if (!code || isStaffDiscountCode(code)) return null;
   const { data } = await admin.from("promotions").select("*").eq("code", code).eq("is_active", true).maybeSingle();
   if (!data) return null;
   const today = toSchoolDateString(new Date());

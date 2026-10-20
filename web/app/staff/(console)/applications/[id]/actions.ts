@@ -14,6 +14,7 @@ import { saysAssessment } from "@/lib/messaging/template-checks";
 import { generateSummary } from "@/lib/summary/generate";
 import { clearPromotion, promotionOn, recordPromotion } from "@/lib/promotions/load";
 import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
+import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
 import { loadCatalogue } from "@/lib/enquiry";
 import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -37,8 +38,8 @@ import {
 } from "@/lib/workflow/actions";
 import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
-import { onMovedToStage } from "@/lib/workflow/stage-move-actions";
-import { mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
+import { onDeferredAfterDecision, onMovedToStage } from "@/lib/workflow/stage-move-actions";
+import { defersThroughDecision, mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
 import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
 import { resolveFeeSchedule } from "@/lib/offers/render";
@@ -272,6 +273,7 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
         .extend({
           until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date."),
           reason: z.string().trim().max(500).optional(),
+          seenStatus: z.string().optional(),
         })
         .parse(raw);
       // A date in the past is a typo, and the follow-ups for it would all be
@@ -279,7 +281,33 @@ export async function recordDecision(_: StaffActionState, formData: FormData): P
       // ever wake.
       if (!isFutureDate(parsed.until)) throw new Error("Choose a date in the future.");
       const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-      await onDeferred(admin, app, { until: parsed.until, reason: parsed.reason?.trim() || null }, ctx.actor);
+      const spec = { until: parsed.until, reason: parsed.reason?.trim() || null };
+      const throughDecision = defersThroughDecision(app.status);
+      // The page posts the status it showed, and the confirmation it asked
+      // for was written for that status. A child sent an offer while it was
+      // open would otherwise lose the letter on a confirmation that never
+      // mentioned it. A form from before this field fails closed only where a
+      // letter is at stake.
+      if (parsed.seenStatus ? parsed.seenStatus !== app.status : throughDecision) {
+        throw new Error(`${app.child_first_name} has moved since this page was loaded. Reload the page and choose again.`);
+      }
+      if (throughDecision) {
+        // The move back to Decision, so exactly what that move needs.
+        if (!mayMoveTo(ctx.permissions, "decision", "back")) {
+          throw new Error("Deferring a family at the offer stage moves them back to Decision and withdraws their offer, and your account cannot do that.");
+        }
+        try {
+          await onDeferredAfterDecision(admin, app, spec, ctx.actor);
+        } finally {
+          // Even part way: the move back may have happened, and the page and
+          // the Offers board should show where the child is now.
+          done(parsed.applicationId);
+          revalidatePath("/staff/offers");
+          revalidatePath("/staff/decisions");
+        }
+        return;
+      }
+      await onDeferred(admin, app, spec, ctx.actor);
       done(parsed.applicationId);
       return;
     }
@@ -1269,12 +1297,19 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     // away that nobody meant to touch.
     if (parsed.code === "keep") return;
     const to = parsed.code === "" ? null : parsed.code;
-    if (to !== null && !isScholarshipCode(to)) throw new Error("That is not a scholarship band.");
+    // A staff discount is chosen here too, beside the bands (20 October 2026):
+    // it is the same one deal per child, re-priced the same way.
+    if (to !== null && !isScholarshipCode(to) && !isStaffDiscountCode(to)) throw new Error("That is not a scholarship band or a discount.");
 
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const held = await promotionOn(admin, app.id);
     const from = held?.promo.code ?? null;
-    const say = (code: string | null) => awardLabelOf(code) ?? code ?? "no scholarship";
+    // "Scholarship 10% → 20%" as before; a change that involves a discount
+    // says what each side was, since "Scholarship 10% → 5% off tuition" is not.
+    const deal = isStaffDiscountCode(from) || isStaffDiscountCode(to);
+    const what = deal ? "Discount or scholarship" : "Scholarship";
+    const say = (code: string | null) =>
+      discountLabelOf(code) ?? (awardLabelOf(code) ? `${awardLabelOf(code)}${deal ? " scholarship" : ""}` : null) ?? code ?? (deal ? "none" : "no scholarship");
 
     // The letter in play, and whether saving re-prices it: one waiting for
     // approval is re-drafted, one with the family is withdrawn and re-drafted.
@@ -1330,7 +1365,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
         nextAction: isNextAction(app.next_action) ? app.next_action : null,
         event: {
           type: "scholarship.changed",
-          summary: `Scholarship ${say(from)} → ${say(to)}`,
+          summary: `${what} ${say(from)} → ${say(to)}`,
           payload: { from, to, reason: parsed.reason ?? null },
         },
         audit: { action: "scholarship.changed", entityType: "application", entityId: app.id },
@@ -1339,7 +1374,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     }
 
     if (withFamily && letter) {
-      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `Scholarship changed from ${say(from)} to ${say(to)}`, ctx.actor);
+      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
     }
     if (reDraft) {
       const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
@@ -1347,7 +1382,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
       // Waits for approval whatever `offer_auto_approve` says: the screen
       // promises the officer a letter to check before it goes.
       const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
-      if (drafted.blocked) throw new Error("The scholarship is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.");
+      if (drafted.blocked) throw new Error(`The ${deal ? "change" : "scholarship"} is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.`);
       drainSoon();
     }
     done(app.id);
