@@ -215,7 +215,7 @@ describe("a scholarship, which is a promotion like any other", () => {
 });
 
 describe("the staff 5% discount (DISCOUNT-5)", () => {
-  // As 20261020090000_a_five_per_cent_discount.sql defines it: every tuition
+  // As 20261020103656_a_five_per_cent_discount.sql defines it: every tuition
   // line, 5%, and nothing else.
   const tuitionCodes = ["tuition_annual", "tuition_term", "tuition_term_half", "tuition_term_full", "tuition_month", "tuition_month_half", "tuition_month_full"] as const;
   const discount: PromotionSummary = {

@@ -3,6 +3,7 @@ import type { ApplicationGraph } from "@/lib/applications";
 import { toSchoolDateString } from "@/lib/format-date";
 import { normaliseCode, pickRulePromotion, promotionMatches, type EligibilityContext, type PromotionSummary } from "@/lib/promotions/apply";
 import { isStaffDiscountCode } from "@/lib/promotions/discount";
+import { isScholarshipCode } from "@/lib/promotions/scholarship";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { PromotionEffectRow, PromotionRow } from "@/lib/supabase/types";
 import { WorkflowError } from "@/lib/workflow/engine";
@@ -15,6 +16,18 @@ import { WorkflowError } from "@/lib/workflow/engine";
  */
 
 export type ResolvedPromotion = { promo: PromotionSummary; source: "code" | "rule" | "staff" };
+
+/**
+ * A code that staff give and a family never types: a staff discount
+ * (`DISCOUNT-5`) or a scholarship band (`SCHOLARSHIP-50`, from the roster
+ * import or the Scholarship picker). Both are live promotions with codes, and
+ * a live code is otherwise anybody's who types it on the enquiry form — until
+ * this was checked for scholarships, `SCHOLARSHIP-50` typed by a parent was
+ * 50% off tuition with both fees waived.
+ */
+function givenByStaffOnly(code: string): boolean {
+  return isStaffDiscountCode(code) || isScholarshipCode(code);
+}
 
 function summarise(row: PromotionRow, effects: PromotionEffectRow[]): PromotionSummary {
   return {
@@ -117,10 +130,10 @@ export async function resolvePromotion(admin: AdminClient, graph: ApplicationGra
   if (active.length === 0) return null;
 
   const code = normaliseCode(graph.application.promo_code);
-  // A staff discount is given by staff, never by a typed code: the enquiry form
-  // refuses it, and so does this, for a code that reached the application
-  // some other way.
-  const byCode = code && !isStaffDiscountCode(code) ? active.find((p) => p.code === code) : null;
+  // A staff discount or a scholarship is given by staff, never by a typed
+  // code: the enquiry form refuses both, and so does this, for a code that
+  // reached the application some other way.
+  const byCode = code && !givenByStaffOnly(code) ? active.find((p) => p.code === code) : null;
   if (byCode) {
     const redemptions = await countRedemptions(admin, byCode.id);
     if (promotionMatches(byCode, contextFor(graph, code, redemptions)).ok) {
@@ -144,21 +157,29 @@ export async function resolvePromotion(admin: AdminClient, graph: ApplicationGra
   return null;
 }
 
-/** Whether any live deal has a code, so the enquiry form knows to ask. */
+/**
+ * Whether any live deal has a code a family may type, so the enquiry form
+ * knows to ask. A staff-only code does not count: with only `DISCOUNT-5` and
+ * the scholarship bands live, the form showed a code box that refused
+ * everything typed into it.
+ */
 export async function codedPromotionLive(admin: AdminClient): Promise<boolean> {
   const today = toSchoolDateString(new Date());
-  const { data } = await admin.from("promotions").select("id, starts_on, ends_on").eq("is_active", true).not("code", "is", null);
-  return (data ?? []).some((p) => (!p.starts_on || p.starts_on <= today) && (!p.ends_on || p.ends_on >= today));
+  const { data } = await admin.from("promotions").select("code, starts_on, ends_on").eq("is_active", true).not("code", "is", null);
+  return (data ?? []).some(
+    (p) => p.code !== null && !givenByStaffOnly(p.code) && (!p.starts_on || p.starts_on <= today) && (!p.ends_on || p.ends_on >= today)
+  );
 }
 
 /**
  * The deal a typed code names, when it is live today; null otherwise. Null for
- * a staff discount too, which a parent is told is not recognised: otherwise
- * anybody who learned `DISCOUNT-5` could give themselves 5% off.
+ * a staff discount or a scholarship band too, which a parent is told is not
+ * recognised: otherwise anybody who learned `DISCOUNT-5` could give themselves
+ * 5% off, or `SCHOLARSHIP-50` half their tuition.
  */
 export async function promotionForCode(admin: AdminClient, raw: string | null | undefined): Promise<PromotionRow | null> {
   const code = normaliseCode(raw);
-  if (!code || isStaffDiscountCode(code)) return null;
+  if (!code || givenByStaffOnly(code)) return null;
   const { data } = await admin.from("promotions").select("*").eq("code", code).eq("is_active", true).maybeSingle();
   if (!data) return null;
   const today = toSchoolDateString(new Date());
