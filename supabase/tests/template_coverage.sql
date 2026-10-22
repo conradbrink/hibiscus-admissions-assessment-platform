@@ -68,7 +68,10 @@ begin
     -- for it by email only, and nothing in the workflow routes to it.
     ('playdate_now_visit', 'one-off notice, sent by email as the school asked'),
     -- Bad news arriving unprompted, the same question as the outcomes above.
-    ('visit_cancelled_offer_expired', 'the offer lapsed — not news to deliver by notification');
+    ('visit_cancelled_offer_expired', 'the offer lapsed — not news to deliver by notification'),
+    -- A new date the family will act on and may need to find again. The school
+    -- asked for it in writing, and nothing approved on WhatsApp says it.
+    ('deadline_moved', 'a new deadline, confirmed in writing as the school asked');
 
   -- Eight of the nine were filled the same day this check was written: the
   -- school submitted them to Zavu and the rows followed. `offer_expired` is

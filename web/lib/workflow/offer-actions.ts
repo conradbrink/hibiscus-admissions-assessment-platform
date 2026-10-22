@@ -479,7 +479,14 @@ export async function onOfferAccepted(
   const { data: flipped } = await admin.from("offers").update({ status: "accepted" }).eq("id", offer.id).in("status", ["sent", "viewed"]).select("id");
   if (!flipped?.length) throw new WorkflowError("This offer is no longer open.", "status_conflict");
 
-  const dueAt = new Date(Date.now() + settings.paymentDueDays * DAY);
+  // Accepting never shortens the time the family was given. An offer whose
+  // closing date the school moved told them to accept and pay by that date;
+  // on 22 October 2026 a scholarship family told "5 December" accepted within
+  // minutes and was asked to pay by 5 November instead. An ordinary offer
+  // closes sooner than `payment_due_days` from any day it can be accepted on,
+  // so for those this changes nothing.
+  const closes = offer.expires_at ? new Date(offer.expires_at).getTime() : 0;
+  const dueAt = new Date(Math.max(Date.now() + settings.paymentDueDays * DAY, closes));
   const request = await createPaymentRequest(admin, { app, offer, acceptanceId: acceptance.id, dueAt });
 
   try {
