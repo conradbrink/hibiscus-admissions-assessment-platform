@@ -336,7 +336,7 @@ type TemplateLookup =
   | { ok: true; template: EmailTemplateRow }
   | { ok: false; result: SendTemplatedResult };
 
-async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff" | "family"): Promise<TemplateLookup> {
+async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "parent" | "staff" | "family" | "event"): Promise<TemplateLookup> {
   const { data: template, error } = await admin
     .from("email_templates")
     .select("*")
@@ -356,7 +356,7 @@ async function loadActiveTemplate(admin: AdminClient, key: string, audience?: "p
 type EmailRecipient = { email: string; contactId?: string | null; staffId?: string | null };
 
 /** What the email is about, for the record. Exactly one, in practice. */
-type EmailSubject = { applicationId?: string | null; familyId?: string | null; studentId?: string | null };
+type EmailSubject = { applicationId?: string | null; familyId?: string | null; studentId?: string | null; eventOrderId?: string | null };
 
 type EmailAttachment = { filename: string; content: string | Uint8Array; contentType: string };
 
@@ -396,6 +396,7 @@ async function renderAndSend(admin: AdminClient, opts: RenderAndSendOptions): Pr
       application_id: opts.subject?.applicationId ?? null,
       family_id: opts.subject?.familyId ?? null,
       student_id: opts.subject?.studentId ?? null,
+      event_order_id: opts.subject?.eventOrderId ?? null,
       contact_id: opts.recipient.contactId ?? null,
       recipient_staff_id: opts.recipient.staffId ?? null,
       template_key: template.key,
@@ -675,6 +676,39 @@ export async function sendFamilyEmail(admin: AdminClient, opts: SendFamilyOption
     variables: vars,
     recipient: { email: contact.email, contactId: contact.id },
     subject: { familyId: opts.familyId, studentId: opts.studentId ?? null },
+    idempotencyKey: opts.idempotencyKey,
+  });
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Event email: a template with audience 'event', to whoever bought a ticket
+// ---------------------------------------------------------------------------
+
+export type SendEventOptions = {
+  eventOrderId: string;
+  /** The address the buyer gave at checkout. A buyer is nobody's contact. */
+  to: string;
+  templateKey: string;
+  idempotencyKey: string;
+  variables: Record<string, string | null>;
+};
+
+/**
+ * Sends one templated email about an event order, and records it against the
+ * order. The same renderer, layout and provider as every other email. The
+ * buyer may be a member of the public, so there is no family to look up and
+ * no WhatsApp companion: nobody has said they want one. The caller builds
+ * the variables, link included (`lib/events/email.ts`).
+ */
+export async function sendEventEmail(admin: AdminClient, opts: SendEventOptions): Promise<SendTemplatedResult> {
+  const lookup = await loadActiveTemplate(admin, opts.templateKey, "event");
+  if (!lookup.ok) return lookup.result;
+  const { result } = await renderAndSend(admin, {
+    template: lookup.template,
+    variables: opts.variables,
+    recipient: { email: opts.to },
+    subject: { eventOrderId: opts.eventOrderId },
     idempotencyKey: opts.idempotencyKey,
   });
   return result;

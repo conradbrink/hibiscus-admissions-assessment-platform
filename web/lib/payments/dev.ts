@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { devShortcutsAllowed } from "@/lib/deployment";
+import { bridgeUrl } from "@/lib/payments/bridge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CheckoutRequest, CheckoutResult, PaymentProvider, VerifyResult } from "@/lib/payments/provider";
 
@@ -30,8 +31,9 @@ export const devProvider: PaymentProvider = {
     return {
       providerRef: `dev_${randomUUID()}`,
       // A relative URL: the parent stays on this site, on a page that says
-      // in large letters that nothing is being charged.
-      redirectUrl: `/pay/dev?ref=${encodeURIComponent(request.reference)}`,
+      // in large letters that nothing is being charged — under the path
+      // where their browser is recognised, as the PayGate bridge is.
+      redirectUrl: bridgeUrl(request.bridgeBase, "dev", request.reference),
       expiresAt: new Date(Date.now() + 3_600_000),
     };
   },

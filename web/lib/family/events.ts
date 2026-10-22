@@ -12,7 +12,17 @@ import type { CrmEventRow, CrmEventRegistrationRow } from "@/lib/supabase/types"
  * the family's campus's and the group-wide ones, upcoming, open, not
  * cancelled.
  */
-export type FamilyEvent = CrmEventRow & { campus: { name: string } | null; registration: CrmEventRegistrationRow | null; registered_count: number };
+export type FamilyEvent = CrmEventRow & {
+  campus: { name: string } | null;
+  registration: CrmEventRegistrationRow | null;
+  registered_count: number;
+  /**
+   * An event that sells tickets is joined by buying one, not by saying yes:
+   * the card links to its page instead. `showTime` is false while the time
+   * on the event is not the real one.
+   */
+  tickets: { href: string; open: boolean; showTime: boolean } | null;
+};
 
 export async function loadFamilyEvents(admin: AdminClient, session: FamilySession): Promise<FamilyEvent[]> {
   const family = await loadFamily(admin, session);
@@ -28,15 +38,21 @@ export async function loadFamilyEvents(admin: AdminClient, session: FamilySessio
   if (error) throw new Error(error.message);
   const ids = (events ?? []).map((e) => e.id);
   if (!ids.length) return [];
-  const [{ data: mine, error: mineError }, { data: counts, error: countsError }] = await Promise.all([
+  const [{ data: mine, error: mineError }, { data: counts, error: countsError }, { data: sales, error: salesError }] = await Promise.all([
     admin.from("crm_event_registrations").select("*").eq("family_id", session.familyId).in("event_id", ids),
     admin.from("crm_event_registrations").select("event_id, guests").in("event_id", ids).in("status", ["registered", "attended"]),
+    admin.from("event_sales").select("event_id, slug, tickets_open, show_time").in("event_id", ids),
   ]);
+  if (salesError) throw new Error(salesError.message);
   // A count that failed would read as an empty event, and a full one would
   // take another family.
   if (mineError) throw new Error(mineError.message);
   if (countsError) throw new Error(countsError.message);
   const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
+  const ticketsFor = (eventId: string): FamilyEvent["tickets"] => {
+    const s = (sales ?? []).find((x) => x.event_id === eventId);
+    return s ? { href: `/events/${s.slug}`, open: s.tickets_open, showTime: s.show_time } : null;
+  };
   const registeredCount = new Map<string, number>();
   for (const c of counts ?? []) registeredCount.set(c.event_id, (registeredCount.get(c.event_id) ?? 0) + 1 + c.guests);
   return (events ?? []).map((e) => {
@@ -46,6 +62,7 @@ export async function loadFamilyEvents(admin: AdminClient, session: FamilySessio
       campus: one(campuses),
       registration: (mine ?? []).find((r) => r.event_id === e.id && r.student_id === null) ?? (mine ?? []).find((r) => r.event_id === e.id) ?? null,
       registered_count: registeredCount.get(e.id) ?? 0,
+      tickets: ticketsFor(e.id),
     };
   });
 }

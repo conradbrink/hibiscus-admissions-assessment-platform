@@ -46,6 +46,7 @@ export default async function EventPage({ params, searchParams }: { params: Prom
     <>
       <PageTitle back={{ href: "/staff/crm/events", label: "Events" }} title={event.name} description={`${EVENT_KIND_LABELS[event.kind]} · ${one(event.campuses)?.name ?? "Every campus"} · ${formatDateLong(event.starts_at)} at ${formatTime(event.starts_at)}${event.location ? ` · ${event.location}` : ""}`}>
         {canWrite ? <Link href={`/staff/crm/events/${id}?edit=1`} className={buttonVariants({ variant: "outline", size: "lg" })}>Edit</Link> : null}
+        <Link href={`/staff/crm/events/${id}/tickets`} className={buttonVariants({ variant: "outline", size: "lg" })}>Tickets and stalls</Link>
         {can(permissions, "crm.campaigns.write") ? <Link href={`/staff/crm/campaigns/new?event=${id}`} className={buttonVariants({ size: "lg" })}>Send invitations</Link> : null}
       </PageTitle>
 
