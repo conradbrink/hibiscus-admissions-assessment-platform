@@ -12,17 +12,13 @@ import { createTask, markTaskDone, reopenTask } from "./actions";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
 
-/** How long a task stays on the open lists after it is ticked off. */
-const DONE_VISIBLE_DAYS = 7;
-
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ filter?: string; type?: string }> }) {
   const sp = await searchParams;
   const { supabase, userId, permissions } = await requireStaff("applications.read");
   const canWrite = can(permissions, "applications.write");
   const canCreate = can(permissions, "tasks.write");
   const now = new Date();
-  const doneSince = new Date(now);
-  doneSince.setDate(doneSince.getDate() - DONE_VISIBLE_DAYS);
+  const archive = sp.filter === "done";
 
   let query = supabase
     .from("tasks")
@@ -33,18 +29,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     .select(
       "*, applications(id, reference, child_first_name, child_last_name), students(id, legal_first_name, legal_last_name, preferred_name, student_code), campuses(name), staff_profiles!tasks_assignee_staff_id_fkey(full_name)"
     )
-    .order("status", { ascending: true })
-    .order("due_at", { ascending: true, nullsFirst: false })
+    // The archive reads newest first; the open list, soonest due first.
+    .order(archive ? "resolved_at" : "due_at", archive ? { ascending: false } : { ascending: true, nullsFirst: false })
     .limit(200);
 
-  // Ticking a task off should not make it vanish from under the cursor, so a
-  // recently completed one stays on the list, struck through, before it
-  // settles into the Done tab.
-  // "open" is the dashboard's: its counts are open tasks only, so the list
-  // it opens leaves out the ones ticked off this week.
-  if (sp.filter === "done") query = query.eq("status", "done");
-  else if (sp.filter === "open") query = query.eq("status", "open");
-  else query = query.or(`status.eq.open,and(status.eq.done,resolved_at.gte.${doneSince.toISOString()})`);
+  // A task ticked off leaves the list at once and is kept in the archive
+  // (the Done tab), where it can be reopened. It used to stay on the open
+  // list, struck through, for a week, so the list never got shorter as work
+  // was done; the school asked on 22 October 2026 for done to mean gone.
+  query = query.eq("status", archive ? "done" : "open");
 
   if (sp.filter === "mine") query = query.eq("assignee_staff_id", userId);
   if (sp.filter === "unassigned") query = query.is("assignee_staff_id", null);
@@ -68,7 +61,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageTitle title="Tasks" description="What needs doing, oldest due first." />
+      <PageTitle title="Tasks" description={archive ? "Ticked off, newest first. Reopen one to put it back on the list." : "What needs doing, oldest due first."} />
 
       {/* Writing one down. Its own permission: Management may set a task for
           somebody and may not touch an applicant. */}
@@ -108,7 +101,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         {tab("mine", "Mine")}
         {tab("unassigned", "Unassigned")}
         {tab("overdue", "Overdue")}
-        {tab("done", "Done")}
+        {tab("done", "Archive")}
       </div>
 
       {/* A link from the dashboard narrows to one kind of open task and
@@ -197,7 +190,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           })}
         </ul>
       ) : (
-        <EmptyState>{sp.filter === "done" ? "Nothing has been ticked off yet." : "Nothing open."}</EmptyState>
+        <EmptyState>{archive ? "Nothing has been ticked off yet." : "Nothing open."}</EmptyState>
       )}
     </>
   );
