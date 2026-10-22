@@ -3455,6 +3455,8 @@ export type Database = {
       };
       current_staff_id: { Args: Record<string, never>; Returns: string | null };
       has_permission: { Args: { p_code: string }; Returns: boolean };
+      /** Service role only: `has_permission('applications.write')` and `can_access_campus` for a named member of staff. */
+      staff_may_write_application: { Args: { p_staff_id: string; p_application_id: string }; Returns: boolean };
       my_permissions: { Args: Record<string, never>; Returns: string[] };
       mark_orientation_read: { Args: { p_slug: string; p_complete?: boolean }; Returns: undefined };
       reset_orientation: { Args: Record<string, never>; Returns: undefined };

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { loadApplicationGraph, type ApplicationGraph } from "@/lib/applications";
 import { loadRegistrationBundle, type RegistrationBundle } from "@/lib/registration/load";
@@ -35,35 +36,66 @@ export async function registrationForSession(): Promise<RegistrationSession> {
   if (!graph) redirect("/link?reason=unknown");
   const status = graph.application.status;
   if (status !== "registration_incomplete" && status !== "registration_complete" && status !== "enrolled") redirect("/next");
-  const assisted = await assistingStaff(admin, session.assistedBy ?? null);
+  const assisted = await assistingStaff(session.assistedBy ?? null, session.applicationId);
   const bundle = await loadRegistrationBundle(admin, graph);
   return { admin, graph, bundle, editable: status === "registration_incomplete", ...assisted };
 }
 
 /**
  * The actor for an upload route, which reads the cookie itself rather than
- * through `registrationForSession`. Null when the assisting account has been
- * switched off since the session was opened, which the caller refuses.
+ * through `registrationForSession`. Null when the member of staff who opened
+ * the session may no longer act on this child, which the caller refuses.
  */
-export async function uploadActor(admin: AdminClient): Promise<{ actor: Actor; staffId: string | null } | null> {
+export async function uploadActor(): Promise<{ actor: Actor; staffId: string | null } | null> {
   const session = await readParentSession();
   if (!session?.assistedBy) return { actor: PARENT_ACTOR, staffId: null };
-  const { data: staff } = await admin.from("staff_profiles").select("id, email, is_active").eq("id", session.assistedBy).maybeSingle();
-  if (!staff?.is_active) return null;
-  return { actor: staffActor(staff), staffId: staff.id };
-}
-
-function staffActor(staff: { id: string; email: string }): Actor {
-  return { type: "staff", id: staff.id, label: `${staff.email}, with the family` };
+  const staff = await assistantFor(session.assistedBy, session.applicationId);
+  return staff ? { actor: staff.actor, staffId: staff.id } : null;
 }
 
 /**
  * Re-checked on every page and save: an account switched off since the
- * session was opened ends it, as signing out would.
+ * session was opened, or one that has since lost the right to act on this
+ * child, ends it, as signing out would.
  */
-async function assistingStaff(admin: AdminClient, staffId: string | null): Promise<Pick<RegistrationSession, "actor" | "assistedBy">> {
+async function assistingStaff(staffId: string | null, applicationId: string): Promise<Pick<RegistrationSession, "actor" | "assistedBy">> {
   if (!staffId) return { actor: PARENT_ACTOR, assistedBy: null };
-  const { data: staff } = await admin.from("staff_profiles").select("id, full_name, email, is_active").eq("id", staffId).maybeSingle();
-  if (!staff?.is_active) redirect("/link?expired=1");
-  return { actor: staffActor(staff), assistedBy: { id: staff.id, name: staff.full_name || staff.email } };
+  const staff = await assistantFor(staffId, applicationId);
+  if (!staff) redirect("/link?expired=1");
+  return { actor: staff.actor, assistedBy: { id: staff.id, name: staff.name } };
+}
+
+/**
+ * The member of staff who opened the session, as an actor, or null once they
+ * may no longer act on this application. The session runs on the parent's
+ * cookie for an hour, so the staff sign-in's own checks never see it: a role
+ * cut to read-only, or the campus taken away, has to be asked about here, by
+ * the same rules the console applies (`staff_may_write_application`).
+ */
+async function activeAssistant(admin: AdminClient, staffId: string, applicationId: string): Promise<{ id: string; name: string; actor: Actor } | null> {
+  const [{ data: staff }, { data: may, error }] = await Promise.all([
+    admin.from("staff_profiles").select("id, full_name, email, is_active").eq("id", staffId).maybeSingle(),
+    admin.rpc("staff_may_write_application", { p_staff_id: staffId, p_application_id: applicationId }),
+  ]);
+  // A failed check is a refusal, never a pass.
+  if (error || may !== true || !staff?.is_active) return null;
+  return { id: staff.id, name: staff.full_name || staff.email, actor: { type: "staff", id: staff.id, label: `${staff.email}, with the family` } };
+}
+
+/**
+ * Once per request, however many places ask: the page, the layout's banner
+ * and an upload all want the same answer, and each used to look it up again.
+ */
+const assistantFor = cache((staffId: string, applicationId: string) => activeAssistant(createAdminClient(), staffId, applicationId));
+
+/**
+ * The member of staff with this family's form open at the desk, for the
+ * banner: null on a parent's own link, and null once they may no longer act
+ * (the page itself then ends the session).
+ */
+export async function assistedSessionStaff(): Promise<{ name: string } | null> {
+  const session = await readParentSession();
+  if (!session?.assistedBy) return null;
+  const staff = await assistantFor(session.assistedBy, session.applicationId);
+  return staff ? { name: staff.name } : null;
 }

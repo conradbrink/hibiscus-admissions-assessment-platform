@@ -227,6 +227,10 @@ const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: strin
   { table: "bookings", column: "checked_in_by", label: "check-ins" },
   { table: "documents", column: "reviewed_by", label: "reviewed documents" },
   { table: "documents", column: "uploaded_by_staff_id", label: "uploaded documents" },
+  // Deleting the person would null the column (`on delete set null`), and an
+  // agreement signed at the desk would then read as signed on the family's
+  // own link, from the school's address and browser.
+  { table: "agreement_acceptances", column: "witnessed_by_staff_id", label: "witnessed signatures" },
   { table: "application_promotions", column: "applied_by", label: "applied promotions" },
   { table: "tasks", column: "resolved_by", label: "resolved tasks" },
   { table: "tasks", column: "created_by", label: "created tasks" },

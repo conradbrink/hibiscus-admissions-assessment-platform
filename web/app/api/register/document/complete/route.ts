@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!guard.ok) return NextResponse.json({ ok: false, code: guard.code }, { status: guard.status });
   const { admin, graph } = guard.ctx;
   // A member of staff at the desk uploads under their own name.
-  const by = await uploadActor(admin);
+  const by = await uploadActor();
   if (!by) return NextResponse.json({ ok: false, code: "expired" }, { status: 401 });
 
   let document;

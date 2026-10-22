@@ -4827,6 +4827,48 @@ begin
   end;
   perform pg_temp.service();
 
+  -- -------------------------------------------------------------------------
+  -- 84. staff_may_write_application says what has_permission and
+  --     can_access_campus say, for every fixture user, and nobody signed in
+  --     can ask it. It copies their rules for a named person (an assisted
+  --     registration runs as the service role); this is what fails if one of
+  --     the rules changes and the copy does not.
+  -- -------------------------------------------------------------------------
+  declare
+    v_user uuid;
+    v_app uuid;
+    v_campus uuid;
+    v_named boolean;
+    v_own boolean;
+  begin
+    foreach v_user in array array[u_admin, u_staff, u_assessor, u_campus_admin, u_inactive, u_noroles, u_finance, u_author, u_campus_none, u_campus_mgr, u_finance_bh, u_management] loop
+      foreach v_app in array array[app_block7, app_broadhurst] loop
+        perform pg_temp.service();
+        select campus_id into v_campus from public.applications where id = v_app;
+        -- An earlier case deletes one of these; a missing application is
+        -- "no" by design, and has no campus to compare against.
+        continue when v_campus is null;
+        v_named := public.staff_may_write_application(v_user, v_app);
+        perform pg_temp.impersonate(v_user);
+        v_own := public.has_permission('applications.write') and public.can_access_campus(v_campus);
+        perform pg_temp.service();
+        if v_named is distinct from v_own then
+          v_fail := v_fail || E'\n  - ' || format('84: staff_may_write_application says %s where the signed-in rules say %s (user %s, application %s)', v_named, v_own, v_user, v_app);
+        end if;
+      end loop;
+    end loop;
+    perform pg_temp.impersonate(u_admin);
+    begin
+      perform public.staff_may_write_application(u_admin, app_block7);
+      v_fail := v_fail || E'\n  - ' || '84: a signed-in member of staff can call staff_may_write_application';
+    exception when insufficient_privilege then
+      null;
+    end;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('84: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

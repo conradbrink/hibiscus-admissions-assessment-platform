@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!verdict.ok) return back("busy");
 
   // A member of staff at the desk uploads under their own name.
-  const by = await uploadActor(admin);
+  const by = await uploadActor();
   if (!by) redirect("/link?expired=1");
 
   const file = form.get("file");

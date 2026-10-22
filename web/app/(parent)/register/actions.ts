@@ -51,9 +51,14 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
   const parsed = studentSchema.safeParse(values);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph, bundle, actor } = await openSession();
+    const { admin, graph, bundle, actor, assistedBy } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
+    // Saving this step is the parent's answer to the document check, and
+    // nothing else may give it (web/AGENTS.md: extraction proposes, the parent
+    // confirms). Saved by a member of staff at the desk, the flags stay, and
+    // so do their tasks, for the parent or a person reviewing the documents.
+    const answersFlags = !assistedBy;
     const { error } = await admin
       .from("registrations")
       .update({
@@ -74,14 +79,14 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
         student_completed_at: new Date().toISOString(),
         prefill_changed: changedFromApplication(graph.application, d),
         // The parent has looked at the document check and saved: the flags are answered.
-        mismatch_flags: [],
+        ...(answersFlags ? { mismatch_flags: [] } : {}),
         // Parent-effort metric: how much of this section we could fill for them, and how much they changed.
         prefilled_count: prefillRegistration(graph, null, null).prefilledFields.length,
         prefill_changed_count: changedFromApplication(graph.application, d).length,
       })
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");
-    const hadFlags = parseMismatchFlags(bundle.registration?.mismatch_flags).length > 0;
+    const hadFlags = answersFlags && parseMismatchFlags(bundle.registration?.mismatch_flags).length > 0;
     await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), actor, { clearedMismatch: hadFlags });
   } catch (e) {
     return failed(e, values);
@@ -367,7 +372,7 @@ export async function finishAssistedRegistration(): Promise<void> {
   const session = await readParentSession();
   if (!session?.assistedBy) redirect("/register");
   const admin = createAdminClient();
-  const by = await uploadActor(admin);
+  const by = await uploadActor();
   if (by) {
     await commit(admin, {
       applicationId: session.applicationId,

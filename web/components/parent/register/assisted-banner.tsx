@@ -1,7 +1,6 @@
 import { finishAssistedRegistration } from "@/app/(parent)/register/actions";
 import { Button } from "@/components/ui/button";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { readParentSession } from "@/lib/tokens/server";
+import { assistedSessionStaff } from "@/lib/registration/session";
 
 /**
  * Shown on every registration page while a member of staff has the form open
@@ -10,10 +9,9 @@ import { readParentSession } from "@/lib/tokens/server";
  * Nothing at all on a parent's own session.
  */
 export async function AssistedBanner() {
-  const session = await readParentSession();
-  if (!session?.assistedBy) return null;
-  const { data: staff } = await createAdminClient().from("staff_profiles").select("full_name, email").eq("id", session.assistedBy).maybeSingle();
-  const name = staff?.full_name || staff?.email || "a member of staff";
+  const staff = await assistedSessionStaff();
+  if (!staff) return null;
+  const name = staff.name;
   return (
     <div className="mb-5 rounded-2xl border-2 border-primary bg-card p-4 text-sm" role="status">
       <p className="font-semibold">Filled in at the school with {name}</p>
