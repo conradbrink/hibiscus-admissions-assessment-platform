@@ -453,7 +453,14 @@ export function offerEditorPanel(w: ApplicantWorkspace, permissions: PermissionS
     content: (
       <div className="space-y-4">
         {startMonth?.canSet ? (
-          <ActionForm action={setStartMonth} label="Save starting month" variant="outline" size="sm" className={field}>
+          <ActionForm
+            action={setStartMonth}
+            label={letterWithFamily ? "Save and re-issue the offer" : liveOffer?.status === "pending_approval" ? "Save and re-draft the offer" : "Save starting month"}
+            variant="outline"
+            size="sm"
+            className={field}
+            confirm={letterWithFamily ? "The letter the family has is withdrawn, and a new one for this month waits for your approval. Continue?" : undefined}
+          >
             {idField}
             <label className="block text-xs font-semibold text-muted-foreground" htmlFor="startMonth">Starting month</label>
             <NativeSelect id="startMonth" name="startMonth" defaultValue={startMonth.value ?? ""}>

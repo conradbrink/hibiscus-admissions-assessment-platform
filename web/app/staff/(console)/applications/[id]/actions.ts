@@ -15,8 +15,9 @@ import { generateSummary } from "@/lib/summary/generate";
 import { clearPromotion, promotionOn, recordPromotion } from "@/lib/promotions/load";
 import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
 import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
-import { loadCatalogue } from "@/lib/enquiry";
-import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
+import { can } from "@/lib/permissions";
+import { isMonthStart } from "@/lib/start-month";
+import { onStartMonthChanged } from "@/lib/workflow/reprice-actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { offerTrialWeek, recordTrialWeekOutcome } from "@/lib/workflow/trial-week";
@@ -1141,10 +1142,11 @@ export async function updateChildDetails(_: StaffActionState, formData: FormData
  * Potch and Tlokweng families join in a month, not a term, and the letter
  * names it. The term is still recorded underneath — the fee schedule belongs
  * to an academic year and every report counts by term — so it follows the
- * month here, worked out the same way the enquiry form works it out.
+ * month, worked out the same way the enquiry form works it out.
  *
  * Reversible to "not chosen", in which case the letter names the term again.
- * An offer already sent keeps the wording it froze either way.
+ * A letter already written is re-priced in the same step
+ * (`onStartMonthChanged`); one the family has accepted keeps its month.
  */
 export async function setStartMonth(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -1155,64 +1157,12 @@ export async function setStartMonth(_: StaffActionState, formData: FormData): Pr
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const to = parsed.startMonth === "" ? null : parsed.startMonth;
     if (to && !isMonthStart(to)) throw new Error("Choose a month.");
-    if (app.start_month === to) return;
-
-    const { data: campus } = await admin.from("campuses").select("intake_cadence").eq("id", app.campus_id).single();
-    if (campus?.intake_cadence !== "month") {
-      throw new Error("This campus takes children in by the term, so there is no starting month to set.");
+    const { reissued } = await onStartMonthChanged(admin, app, to, ctx.actor, { mayReprice: can(ctx.permissions, "offers.approve") });
+    if (reissued) {
+      drainSoon();
+      revalidatePath("/staff/offers");
     }
-
-    // The month decides the term the application is counted under, which the
-    // fee schedule, the enrolment and the letter all hang off. Once an offer
-    // has left the building, moving it under the family would contradict what
-    // they were sent — and an offer already approved is re-rendered at
-    // approval with whatever the application says now, on the template it was
-    // drafted from, which for an older offer cannot word a month at all.
-    const { data: offer } = await admin
-      .from("offers")
-      .select("status")
-      .eq("application_id", app.id)
-      .in("status", ["pending_approval", "sent", "viewed", "expired", "accepted"])
-      .limit(1)
-      .maybeSingle();
-    if (offer) {
-      throw new Error(
-        "An offer has already gone to approval for this child, so the starting month cannot change here. Withdraw the offer, set the month, then generate it again."
-      );
-    }
-    const { data: enrolment } = await admin
-      .from("enrolments")
-      .select("id")
-      .eq("origin_application_id", app.id)
-      .limit(1)
-      .maybeSingle();
-    if (enrolment) throw new Error("This child is already enrolled, so the starting month is set. Ask the registrar to move the enrolment.");
-
-    const update: { start_month: string | null; intake_id?: string } = { start_month: to };
-    if (to) {
-      const catalogue = await loadCatalogue(admin);
-      const intake = intakeForMonth(catalogue.intakes, to);
-      if (!intake) throw new Error("No open start term covers that month. Open the next year's terms under Settings → Intakes first.");
-      update.intake_id = intake.id;
-    }
-    const { error } = await admin.from("applications").update(update).eq("id", app.id);
-    if (error) throw new Error(error.message);
-
-    const say = (v: string | null) => (v ? formatMonth(v) : "not chosen");
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: app.status,
-      newStatus: null,
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
-      event: {
-        type: "application.start_month_set",
-        summary: `Starting month ${say(app.start_month)} → ${say(to)}`,
-        payload: { from: app.start_month, to, intake_id: update.intake_id ?? app.intake_id },
-      },
-      audit: { action: "application.start_month_set", entityType: "application", entityId: app.id },
-      actor: ctx.actor,
-    });
-    revalidatePath(`/staff/applications/${app.id}`);
+    done(app.id);
   });
 }
 
