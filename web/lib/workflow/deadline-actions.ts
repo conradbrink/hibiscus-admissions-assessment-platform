@@ -121,7 +121,10 @@ export async function onOfferDeadlineMoved(
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: app.status,
-    newStatus: lapsed ? "offer_sent" : null,
+    // The current status for an open offer, not null: null is a pure event
+    // and would leave the application's own due date — what the task list
+    // and the overdue counts read — on the old closing date.
+    newStatus: "offer_sent",
     nextAction: "review_offer",
     nextActionDueAt: newExpiresAt,
     event: {

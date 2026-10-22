@@ -92,7 +92,8 @@ describe("onOfferDeadlineMoved", () => {
   it("moves an open offer's date without touching its status", async () => {
     const { admin, log } = stub({ offer_templates: template, offers: [{ id: "offer-1" }], jobs: [], settings: [] });
     expect(await onOfferDeadlineMoved(admin, { id: "app-1", status: "offer_sent" }, offer("viewed"), decemberFifth, "r", SYSTEM_ACTOR)).toEqual({ reopened: false });
-    expect(log).toEqual(["write:offers", "commit:event"]);
+    // The current status again, which moves the application's own due date with it.
+    expect(log).toEqual(["write:offers", "commit:offer_sent"]);
   });
 
   it("refuses an offer already answered, and a date already gone", async () => {
