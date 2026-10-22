@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdminClient } from "@/lib/supabase/admin";
+import type { OfferStatus } from "@/lib/supabase/types";
 import { SYSTEM_ACTOR, WorkflowError } from "@/lib/workflow/engine";
 import { onOfferDeadlineMoved, onPaymentDeadlineMoved } from "@/lib/workflow/deadline-actions";
 import { letterInPlay } from "@/lib/workflow/reprice-actions";
@@ -44,7 +45,7 @@ function stub(rows: Record<string, unknown>) {
 
 const decemberFifth = new Date("2026-12-05T21:59:59Z");
 const template = { id: "t-1", body_html: "<p>Open until {{offer_expiry_date}}.</p>", terms_html: "", allowed_variables: ["offer_expiry_date"] };
-const offer = (status: string) => ({
+const offer = (status: OfferStatus) => ({
   id: "offer-1",
   status,
   expires_at: "2026-10-12T08:00:00Z",
