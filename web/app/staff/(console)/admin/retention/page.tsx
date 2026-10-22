@@ -29,7 +29,7 @@ export default async function RetentionPage() {
     <>
       <PageTitle back={{ href: "/staff/admin", label: "Settings" }}
         title="Data retention"
-        description={`${settings.retentionEnabled ? "On" : "Off"}: enquiries that went nowhere are anonymised after ${settings.retentionDaysAbandoned} days, closed applications after ${settings.retentionDaysClosed} days. Change these under Workflow settings.`}
+        description={`${settings.retentionEnabled ? "On" : "Off"}: enquiries that went nowhere are anonymised after ${settings.retentionDaysAbandoned} days, closed applications after ${settings.retentionDaysClosed} days, and ticket buyers' details ${settings.eventRetentionDays} days after their event. Change these under Workflow settings.`}
       />
       <p className="mb-4 text-sm text-muted-foreground">
         Anonymising removes the child&rsquo;s and family&rsquo;s details, documents, messages and notes. The application row stays with its status, dates, campus and grade, so the analytics keep counting it. A hold keeps an application out of the run until it is released.

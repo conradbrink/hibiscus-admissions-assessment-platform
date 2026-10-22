@@ -1,5 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { onEventOrderPaid, onEventPaymentFailed } from "@/lib/events/settle";
 import { onExtrasPaid, onExtrasPaymentFailed } from "@/lib/extras/settle";
 import { amountMatches } from "@/lib/payments/amounts";
 import { CHECKOUT_TTL_HOURS, getPaymentProvider, type VerifyResult } from "@/lib/payments/provider";
@@ -19,7 +20,8 @@ import { onPaymentFailed, onPaymentVerified } from "@/lib/workflow/payment-actio
  * everything up to the branch is shared: the verify, the attempt count, the
  * stamped response, the amount check and our own expiry. Only the consequences
  * differ — an admission moves an application through the engine, an extras
- * order settles its own lines (`lib/extras/settle.ts`).
+ * order settles its own lines (`lib/extras/settle.ts`), and an event order
+ * issues its tickets (`lib/events/settle.ts`).
  */
 export async function reconcilePayment(
   admin: AdminClient,
@@ -76,22 +78,27 @@ export async function reconcilePayment(
   // only outcome worth having here is the gateway saying it was paid.
   const ourExpiry = !revivable && payment.expires_at !== null && new Date(payment.expires_at).getTime() < Date.now();
 
-  if (subjectKindOf(payment) === "extras") {
+  const kind = subjectKindOf(payment);
+  if (kind === "extras" || kind === "event") {
+    // The same answers with different consequences: neither moves an
+    // application, so neither goes through the engine.
+    const onPaid = kind === "extras" ? onExtrasPaid : onEventOrderPaid;
+    const onFailed = kind === "extras" ? onExtrasPaymentFailed : onEventPaymentFailed;
     if (result.status === "paid") {
       if (!amountMatches(payment, result)) {
-        await onExtrasPaymentFailed(admin, request, payment, mismatch, { review: true });
+        await onFailed(admin, request, payment, mismatch, { review: true });
         return "failed";
       }
-      await onExtrasPaid(admin, request, payment, { approvalCode: result.approvalCode });
+      await onPaid(admin, request, payment, { approvalCode: result.approvalCode });
       return "paid";
     }
     if (!revivable && (result.status === "failed" || result.status === "expired")) {
-      await onExtrasPaymentFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
+      await onFailed(admin, request, payment, result.status === "expired" ? "expired" : "declined");
       return "failed";
     }
     if (revivable) return "failed";
     if (ourExpiry) {
-      await onExtrasPaymentFailed(admin, request, payment, "expired");
+      await onFailed(admin, request, payment, "expired");
       return "failed";
     }
     return "pending";

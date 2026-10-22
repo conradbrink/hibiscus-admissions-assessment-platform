@@ -903,6 +903,83 @@ which families it is, then take that list into a report.
   react-pdf 4.9 lays out `render` text that has a line height (every page
   here sets one) with no room. It now sets `lineHeight: 0`.
 
+### Event tickets and stalls (22 October 2026)
+
+Asked for by the owner for the **Hibiscus Christmas Show** at Block 7,
+Gaborone, on Friday 4 December 2026, open to families and to the public:
+a page to buy tickets and pay through the school's gateway, a ticket per
+person with its own number and the person's name, sent by email, and stalls
+booked and paid on the same site. Prices given: P150 a ticket until a week
+before (to the end of Friday 27 November), P200 after that online and at
+the gate; a stall P750 including two tickets, the stallholder and one member
+of their staff. Each parent brings a copy of each ticket to the gate.
+
+- **An event is still a `crm_events` row.** Selling tickets adds
+  `event_sales` beside it (prices, the early-bird moment, open switches, the
+  ticket counter), edited at `/staff/crm/events/<id>/tickets`. Name, date,
+  time, place and capacity stay on the event. A ticketed event must have a
+  campus: it decides the currency and who on the staff sees the money.
+- **A buyer is the public.** No family, no session, no account. The pages
+  live in `app/(public)/events` and read through `lib/events/orders.ts` with
+  the service role, scoped by an event that is on sale or by a link to one
+  order. A link is 32 random bytes whose SHA-256 is all that is kept
+  (`event_order_links`): one is made at checkout and kept in the buyer's
+  browser (`hbs_event_order`, so the gateway's return finds the order
+  without the link passing through the gateway), and a new one is minted
+  each time the tickets are emailed. The tickets page is a bearer link to
+  one order, like the email; it shows names and numbers, no address or
+  phone.
+- **The price is the database's.** `create_event_order()` decides the price
+  (early or standard, on the database's clock), checks sales are open and
+  there is room (capacity counts every ticket, stall tickets included; a
+  pending order holds its places for a day), and writes the order, under
+  the sales row's lock. The forms carry names and a count, never a figure.
+  `lib/events/pricing.ts` is the same rule for the page's price and
+  countdown.
+- **Paying is the third payment subject.** `payment_requests` and
+  `payments` gain `event_order_id`, `kind` gains `event`, and the triggers
+  derive kind and campus from the order, as for the other two. Checkout is
+  `startCheckout`, unchanged; `reconcilePayment` is still the only way to
+  paid, and its event branch (`lib/events/settle.ts`) marks the order paid,
+  calls `issue_event_tickets()` and queues the `event_tickets` email. A
+  failed or expired attempt cancels the order and frees its places. A
+  payment that lands after we gave up still issues the tickets and opens a
+  campus task, as do a part payment and an amount that does not match.
+- **The PayGate bridge and the dev gateway** used to require a parent
+  session. They now also accept the browser's event order, so a buyer with
+  no application reaches the gateway; a parent holding both is matched by
+  the gateway's reference.
+- **Ticket numbers** are `<prefix>-<sequence>-<three letters>`, HCS-0042-K7Q:
+  the sequence is what the gate reads out, the letters make an unsold number
+  hard to guess. The QR code on each ticket is its number.
+- **The gate** is the same page: type or paste a number, Check in. A number
+  lets one person in once; a second scan says when it was used. Staff hold
+  an update grant on `event_tickets.checked_in_at` and nothing else, and a
+  trigger stamps who.
+- **Email only, audience `event`.** A buyer gave no WhatsApp consent and is
+  nobody's contact, so the template has no companion and the coverage check
+  (parent and family audiences) does not apply. `email_messages` gains
+  `event_order_id`, and its policy no longer lets a message with no
+  application and no family (the digest's hole) be one about an event order.
+- **The Google Sheet** the owner mentioned is the download on the tickets
+  page: one row per ticket with its order, opened as it is by Google Sheets
+  or Excel, audited as `crm.export`. Cells a stranger typed are written so
+  they cannot run as formulas.
+- **Retention.** `anonymise_event_orders()` removes buyers' and holders'
+  names, addresses and numbers, the order's links and its emails' bodies,
+  and keeps the counts and amounts. The retention run calls it for events
+  `event_retention_days` (90) behind us, under the same switch.
+- **The Christmas Show is seeded with its sales closed.** Its start time was
+  not given, so the event starts at midnight and `show_time` is off; the
+  name is the owner's ("Hibiscus Christmas Show 2027", for a show in
+  December 2026 — to confirm). Somebody at the school sets the time on the
+  event, ticks "Show the start time", and opens sales.
+
+Limits, honestly: gate sales at P200 are not recorded in the system (cash
+at the gate is the school's own process); a refund is finance's, at the
+gateway, and the order stays paid on the page; a buyer cannot change names
+after paying (staff can see them and can re-send, not edit).
+
 ### The pre-schools' free trial week
 
 A child joining Nursery to Pre-Reception sits no assessment, and the
@@ -1350,6 +1427,13 @@ contradicts itself, the choice made is recorded and must be confirmed.
 
 ## 5. Open items, roughly by priority
 
+0. **The Christmas Show (4 December 2026).** Apply
+   `20261022100000_event_tickets.sql` to the live project, set the start
+   time on the event and tick "Show the start time", confirm the name (2027
+   for a show in 2026?), and open sales at
+   `/staff/crm/events/<id>/tickets`. Check `EMAIL_PROVIDER` is the live one
+   first: tickets go out by email only.
+
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in
    both currencies (Phase 3).
@@ -1420,6 +1504,15 @@ contradicts itself, the choice made is recorded and must be confirmed.
     of the kiosk on a lab computer's browser.
 
 ### What is untested, honestly
+
+- **Event tickets** were walked end to end on 22 October 2026 against a
+  local database behind PostgREST: three named tickets and a stall bought
+  through the dev gateway, a declined stall payment, the tickets page and
+  its printout, the email in the outbox, the gate (first scan, second scan,
+  an unknown number), the prices form and the download. Not against PayGate
+  itself: the bridge and return now take an event order, and the first live
+  sale will be the first real one. Buy one ticket on the live site before
+  sharing the link.
 
 - **What was exercised on 14 September 2026, in a browser, against a
   local stack:** all four doors at every active campus; grade confirmation;

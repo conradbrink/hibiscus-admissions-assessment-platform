@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDateLong, formatTime } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 import type { FamilyEvent } from "@/lib/family/events";
 import { cancelRegistration, registerForEvent, type FamilyActionState } from "@/app/(parent)/family/dates/actions";
 
@@ -22,12 +23,21 @@ export function EventCard({ event, students }: { event: FamilyEvent; students: A
       <p className="text-xs font-semibold tracking-wide text-primary uppercase">{event.campus?.name ?? "Every campus"}</p>
       <h2 className="mt-1 text-lg font-semibold">{event.name}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {formatDateLong(event.starts_at)} at {formatTime(event.starts_at)}
+        {formatDateLong(event.starts_at)}
+        {event.tickets && !event.tickets.showTime ? "" : ` at ${formatTime(event.starts_at)}`}
         {event.location ? ` · ${event.location}` : ""}
       </p>
       {event.description ? <p className="mt-2 text-sm">{event.description}</p> : null}
 
-      {registered ? (
+      {event.tickets ? (
+        event.tickets.open ? (
+          <a href={event.tickets.href} className={cn(buttonVariants({ size: "parent" }), "mt-4")}>
+            Buy tickets
+          </a>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">Tickets go on sale soon.</p>
+        )
+      ) : registered ? (
         <form action={cancelAction} className="mt-4 space-y-2">
           <p className="text-sm font-medium text-success">You are coming. We have kept a place for you.</p>
           <input type="hidden" name="registrationId" value={event.registration!.id} />

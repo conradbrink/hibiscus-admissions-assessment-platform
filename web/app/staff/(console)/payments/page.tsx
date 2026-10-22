@@ -24,11 +24,12 @@ const SHOWS = {
  * Finance's queue: what is owed, what is being confirmed, what went wrong, and
  * what came in.
  *
- * Rows are payment requests, and a request now has one of two subjects. An
- * admission links to the application; an extras order links to the child. Both
- * embeds are selected because a row has exactly one of them, and rendering
- * whichever is there is what stops an extras row appearing as a line of blanks —
- * the failure mode a null embed produces silently.
+ * Rows are payment requests, and a request has one of three subjects. An
+ * admission links to the application; an extras order links to the child; an
+ * event order links to the tickets page. All three embeds are selected
+ * because a row has exactly one of them, and rendering whichever is there is
+ * what stops a row appearing as a line of blanks — the failure mode a null
+ * embed produces silently.
  *
  * Campus scoping applies through the policies, which now read
  * `payment_requests.campus_id` directly rather than joining the application.
@@ -45,7 +46,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const { data: requests } = await supabase
     .from("payment_requests")
     .select(
-      "*, applications(id, reference, status, child_first_name, child_last_name, campuses(name), grades!applications_grade_id_fkey(name)), students(id, student_code, legal_first_name, legal_last_name, preferred_name, campuses!students_current_campus_id_fkey(name), grades!students_current_grade_id_fkey(name))"
+      "*, applications(id, reference, status, child_first_name, child_last_name, campuses(name), grades!applications_grade_id_fkey(name)), students(id, student_code, legal_first_name, legal_last_name, preferred_name, campuses!students_current_campus_id_fkey(name), grades!students_current_grade_id_fkey(name)), event_orders(id, event_id, reference, kind, buyer_first_name, buyer_last_name, ticket_count, business_name, crm_events(name))"
     )
     .or(`status.in.(required,processing,failed,partially_paid),and(status.eq.paid,paid_at.gte.${since})`)
     .order("due_at", { ascending: true });
@@ -58,6 +59,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   const admissions = (requests ?? []).filter((r) => r.kind === "admission");
   const extras = (requests ?? []).filter((r) => r.kind === "extras");
+  // An abandoned checkout is cancelled by the reconciler and drops out of the
+  // query above, so what is left here is being confirmed or was paid.
+  const events = (requests ?? []).filter((r) => r.kind === "event");
 
   const now = new Date().getTime();
   const groups: Array<{ key: string; title: string; note?: string; rows: NonNullable<typeof requests> }> = show
@@ -76,11 +80,34 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         note: "Stationery, transport, lunch and aftercare a family ordered in the portal. Paid online by the family; not chased.",
         rows: extras,
       },
+      {
+        key: "events",
+        title: "Event tickets and stalls",
+        // Read-only for the same reason as extras: nothing on the panel below
+        // applies to an order that moves no application.
+        note: "Bought online by anybody, school family or not. Paid means the tickets were issued and emailed.",
+        rows: events,
+      },
       ];
 
   const Head = ({ r }: { r: NonNullable<typeof requests>[number] }) => {
     const a = one(r.applications);
     const s = one(r.students);
+    const e = one(r.event_orders);
+    if (e) {
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <Link href={`/staff/crm/events/${e.event_id}/tickets`} className="font-semibold hover:underline">
+              {e.buyer_first_name} {e.buyer_last_name}
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              {one(e.crm_events)?.name} · {e.kind === "stall" ? `Stall: ${e.business_name ?? ""}` : `${e.ticket_count} tickets`} · {e.reference} · ordered {formatDateTime(r.created_at)}
+            </p>
+          </div>
+        </div>
+      );
+    }
     if (a) {
       return (
         <div className="flex flex-wrap items-center gap-3">
@@ -123,7 +150,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         data={header}
         stage="enrolment"
         view="payments"
-        description="Registration and admission fees, and the optional extras families order in the portal. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here."
+        description="Registration and admission fees, the optional extras families order in the portal, and event tickets. Anything becomes paid only on a verified gateway payment or a bank transfer recorded here."
       />
       {show ? (
         <p className="mb-4 text-sm text-muted-foreground">
@@ -139,7 +166,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
               {g.rows.map((r) => {
                 const a = one(r.applications);
                 // Strip the embeds before handing the row to the panel.
-                const request = Object.fromEntries(Object.entries(r).filter(([k]) => k !== "applications" && k !== "students"));
+                const request = Object.fromEntries(Object.entries(r).filter(([k]) => k !== "applications" && k !== "students" && k !== "event_orders"));
                 return (
                   <section key={r.id} className="surface p-4">
                     <Head r={r} />

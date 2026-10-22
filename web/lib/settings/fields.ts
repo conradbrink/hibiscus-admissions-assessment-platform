@@ -136,6 +136,7 @@ export const SETTING_FIELDS: Record<string, SettingField> = {
   retention_enabled: F("bool", "Keeping and deleting data", "Anonymise old applications automatically"),
   retention_days_abandoned: F("int", "Keeping and deleting data", "Anonymise an enquiry that never progressed after", { unit: "days" }),
   retention_days_closed: F("int", "Keeping and deleting data", "Anonymise a closed application after", { unit: "days" }),
+  event_retention_days: F("int", "Keeping and deleting data", "Remove ticket buyers' details after the event ends, after", { unit: "days" }),
 };
 
 /** The field for a key, or null when nothing has labelled it yet. */

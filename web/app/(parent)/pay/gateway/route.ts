@@ -4,17 +4,58 @@ import { escapeHtml } from "@/lib/email/render";
 import { paygateConfig } from "@/lib/payments/paygate";
 import { processChecksum } from "@/lib/payments/paygate-wire";
 import { paymentProviderName } from "@/lib/payments/provider";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { requireParentSession } from "@/lib/tokens/server";
+import { orderIdForToken } from "@/lib/events/orders";
+import { rememberedOrderToken } from "@/lib/events/session";
+import { createAdminClient, type AdminClient } from "@/lib/supabase/admin";
+import { readParentSession } from "@/lib/tokens/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * The processing payment this browser may be sent to the gateway for, and
+ * where to send it back to if there is none: a parent's, found through their
+ * session, or an event buyer's, found through the order their browser is
+ * paying for (`lib/events/session.ts`). A buyer holds no parent session, and
+ * requiring one sent every ticket buyer to "your link has expired". A parent
+ * may hold both — a school family buying tickets — so the reference decides
+ * which, and each is still scoped to what that browser holds.
+ */
+async function paymentForThisBrowser(
+  admin: AdminClient,
+  ref: string
+): Promise<{ payment: { provider_ref: string | null; company_ref: string; status: string } | null; fallback: string }> {
+  const session = await readParentSession();
+  const token = await rememberedOrderToken();
+  if (!session && !token) redirect("/link?expired=1");
+
+  if (session) {
+    const { data } = await admin
+      .from("payments")
+      .select("provider_ref, company_ref, status")
+      .eq("application_id", session.applicationId)
+      .eq("provider_ref", ref)
+      .maybeSingle();
+    if (data) return { payment: data, fallback: "/pay" };
+  }
+  const orderId = token ? await orderIdForToken(admin, token) : null;
+  if (orderId) {
+    const { data } = await admin
+      .from("payments")
+      .select("provider_ref, company_ref, status")
+      .eq("event_order_id", orderId)
+      .eq("provider_ref", ref)
+      .maybeSingle();
+    if (data) return { payment: data, fallback: "/events/return" };
+  }
+  return { payment: null, fallback: session ? "/pay" : "/events/return" };
+}
+
+/**
  * The bridge to PayGate. PayWeb 3 wants the browser to POST the pay request
  * id and its checksum to process.trans, so this page renders that form and
- * submits it at once. Only the parent whose processing payment carries the
- * request id gets the form; anyone else is sent back to the payment page.
+ * submits it at once. Only the parent or buyer whose processing payment
+ * carries the request id gets the form; anyone else is sent back.
  */
 export async function GET(request: Request): Promise<Response> {
   if (paymentProviderName() !== "paygate") redirect("/pay");
@@ -22,16 +63,10 @@ export async function GET(request: Request): Promise<Response> {
   // request's nonce or the browser refuses it — and the form below still has
   // its own button, so a parent gets to the gateway either way.
   const nonce = (await headers()).get("x-nonce") ?? "";
-  const session = await requireParentSession();
   const ref = new URL(request.url).searchParams.get("ref") ?? "";
   const admin = createAdminClient();
-  const { data: payment } = await admin
-    .from("payments")
-    .select("provider_ref, company_ref, status")
-    .eq("application_id", session.applicationId)
-    .eq("provider_ref", ref)
-    .maybeSingle();
-  if (!payment || payment.status !== "processing" || !payment.provider_ref) redirect("/pay");
+  const { payment, fallback } = await paymentForThisBrowser(admin, ref);
+  if (!payment || payment.status !== "processing" || !payment.provider_ref) redirect(fallback);
 
   const { paygateId, key, apiUrl } = paygateConfig();
   const checksum = processChecksum(paygateId, payment.provider_ref, payment.company_ref, key);

@@ -88,6 +88,8 @@ export type Settings = {
   retentionEnabled: boolean;
   retentionDaysAbandoned: number;
   retentionDaysClosed: number;
+  /** Days after a ticketed event ends before its buyers' names and contact details are removed. */
+  eventRetentionDays: number;
   digestEnabled: boolean;
   digestHour: number;
   rescheduleCutoffHours: number;
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   retentionEnabled: false,
   retentionDaysAbandoned: 180,
   retentionDaysClosed: 365,
+  eventRetentionDays: 90,
   digestEnabled: false,
   digestHour: 7,
   rescheduleCutoffHours: 24,
@@ -223,6 +226,7 @@ export const KEYS: Record<keyof Settings, string> = {
   retentionEnabled: "retention_enabled",
   retentionDaysAbandoned: "retention_days_abandoned",
   retentionDaysClosed: "retention_days_closed",
+  eventRetentionDays: "event_retention_days",
   digestEnabled: "digest_enabled",
   digestHour: "digest_hour",
   rescheduleCutoffHours: "reschedule_cutoff_hours",
@@ -366,6 +370,7 @@ export async function getSettings(supabase: SupabaseClient<Database>): Promise<S
     retentionEnabled: asBoolean(map.get(KEYS.retentionEnabled), d.retentionEnabled),
     retentionDaysAbandoned: asPositiveInt(map.get(KEYS.retentionDaysAbandoned), d.retentionDaysAbandoned),
     retentionDaysClosed: asPositiveInt(map.get(KEYS.retentionDaysClosed), d.retentionDaysClosed),
+    eventRetentionDays: asPositiveInt(map.get(KEYS.eventRetentionDays), d.eventRetentionDays),
     digestEnabled: asBoolean(map.get(KEYS.digestEnabled), d.digestEnabled),
     // The hour may legitimately be 0; a non-integer or out-of-range value falls back.
     digestHour: asHour(map.get(KEYS.digestHour), d.digestHour),
