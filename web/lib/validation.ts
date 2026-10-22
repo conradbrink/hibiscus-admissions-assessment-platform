@@ -17,6 +17,9 @@ const name = z
   .max(80, "Too long")
   .regex(/^[\p{L}\p{M}'’\-. ]+$/u, "Letters, spaces, hyphens and apostrophes only");
 
+/** A person's first or last name, as every form asks for one. */
+export const personName = name;
+
 /**
  * A mobile number, in the one form WhatsApp accepts. The field asks for the
  * country and the number separately and submits them joined; this refuses

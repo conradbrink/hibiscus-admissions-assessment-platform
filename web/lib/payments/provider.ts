@@ -21,6 +21,12 @@ export type CheckoutRequest = {
   returnUrl: string;
   backUrl: string;
   customer: { email: string; firstName: string; lastName: string };
+  /**
+   * Where the payer's browser is recognised, for a gateway that sends them to
+   * a page of ours first (`lib/payments/bridge.ts`). Unset is `/pay`, the
+   * applicant's. A family's is under `/family`, where its cookie is sent.
+   */
+  bridgeBase?: string;
 };
 
 export type CheckoutResult = {

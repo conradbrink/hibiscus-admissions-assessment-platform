@@ -2,6 +2,7 @@ import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { JobRow } from "@/lib/supabase/types";
 import { sendFamilyEmail, sendTemplatedEmail, type FamilyLinkPurpose, type LinkPurpose } from "@/lib/email/send";
+import { sendEventOrderEmail } from "@/lib/events/email";
 import { sendFamilyMessage } from "@/lib/messaging/send";
 import { getSettings } from "@/lib/settings";
 import { enqueueJobs } from "@/lib/workflow/engine";
@@ -28,9 +29,23 @@ export async function sendEmailHandler(admin: AdminClient, job: JobRow): Promise
     variables?: Record<string, string | null>;
     /** A CRM automation asking for the WhatsApp half alone: no email goes. */
     whatsapp_only?: boolean;
+    /** An event order's buyer, who is nobody's family. */
+    event_order_id?: string | null;
   };
   if (!payload.template_key) {
     return { outcome: "failed", error: "send_email job missing template_key", retryable: false };
+  }
+
+  // Somebody who bought tickets. Email only: a buyer gave no WhatsApp consent.
+  if (payload.event_order_id) {
+    const result = await sendEventOrderEmail(admin, {
+      orderId: payload.event_order_id,
+      templateKey: payload.template_key,
+      idempotencyKey: job.idempotency_key,
+    });
+    if (result.status === "sent") return { outcome: "done" };
+    if (result.status === "skipped") return { outcome: "skipped", reason: result.reason };
+    return { outcome: "failed", error: result.error, retryable: result.retryable };
   }
 
   // A family moment: the re-enrolment ask and everything after it. One job

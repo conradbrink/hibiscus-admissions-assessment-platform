@@ -278,6 +278,63 @@ export async function paymentAttemptForStudent(
 }
 
 /**
+ * This child's processing online attempt carrying the gateway's reference,
+ * for the family's PayGate bridge. The child is checked against the session
+ * first, so a reference that belongs to another family matches nothing.
+ */
+export async function processingAttemptForStudent(
+  admin: AdminClient,
+  session: FamilySession,
+  studentId: string,
+  providerRef: string
+): Promise<PaymentRow | null> {
+  const student = await requireStudentInFamily(admin, session, studentId);
+  if (!providerRef) return null;
+  const { data, error } = await admin
+    .from("payments")
+    .select("*")
+    .eq("provider_ref", providerRef)
+    .eq("student_id", student.id)
+    .eq("method", "online")
+    .eq("status", "processing")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * The development gateway's one power, for this child: writing what the dev
+ * adapter will report onto their newest processing dev attempt. The page and
+ * the action refuse to exist outside development (`devGatewayEnabled`).
+ * False when there is no such attempt.
+ */
+export async function simulateDevOutcomeForStudent(
+  admin: AdminClient,
+  session: FamilySession,
+  studentId: string,
+  outcome: "paid" | "failed"
+): Promise<boolean> {
+  const student = await requireStudentInFamily(admin, session, studentId);
+  const { data: attempt, error } = await admin
+    .from("payments")
+    .select("id")
+    .eq("student_id", student.id)
+    .eq("provider", "dev")
+    .eq("status", "processing")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!attempt) return false;
+  const { error: uErr } = await admin
+    .from("payments")
+    .update({ raw_response: { dev_simulated: outcome, simulated_at: new Date().toISOString() } })
+    .eq("id", attempt.id);
+  if (uErr) throw new Error(uErr.message);
+  return true;
+}
+
+/**
  * Everything the receipt for a paid order needs, in one scoped read.
  *
  * The campus is reference data rather than family data, so it is fetched here

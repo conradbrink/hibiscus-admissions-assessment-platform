@@ -29,6 +29,7 @@ only where judgement is needed.
 | `web/lib/rules/`, `web/lib/profile/`, `web/lib/ai/` | The admission rules engine, the learning profile with its validated AI narrative, and the AI provider seam |
 | `web/lib/offers/` | Fee snapshots and offer rendering |
 | `web/lib/payments/` | The gateway seam: DPO Pay adapter, a dev adapter, checkout, the reconciler that is the only path to "paid" |
+| `web/lib/events/` | Selling tickets and stalls for an event: pricing and the early-bird rule, the public forms' checks, taking an order, settling it, the tickets email |
 | `web/lib/registration/`, `web/lib/documents/`, `web/lib/enrolment/` | Registration schemas and the completeness rule, document storage and sniffing, the enrolment record and the student-system seam |
 | `web/lib/messaging/` | The WhatsApp seam: Meta Cloud API adapter, a dev adapter, the companion sender, replies |
 | `web/lib/summary/`, `web/lib/analytics/` | Applicant facts and flags with optional validated prose; the funnel, breakdown and forecast arithmetic |
@@ -37,6 +38,7 @@ only where judgement is needed.
 | `web/app/staff/(crm)/crm/` | `/staff/crm`: the CRM console, a second product on the same staff session and permissions |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
+| `web/app/(public)/events/` | Pages anybody may open: an event's page with its ticket form, stall booking, the buyer's tickets, the gateway's return |
 | `supabase/seed/` | `dev_phase2.sql`: a labelled sample bank, template, fee schedule and draft ruleset for development databases only. `secondary_intake_2026.sql`: the school's Form 1–4 English and Mathematics intake papers, loaded once on the live project |
 | `supabase/migrations/` | The schema, replayable from empty |
 | `supabase/tests/` | `replay_local.sh` rebuilds a local database; `security_regression.sql` attacks it |

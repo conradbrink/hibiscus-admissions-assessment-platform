@@ -33,6 +33,8 @@ export async function startCheckout(
     customer: CheckoutRequest["customer"];
     returnUrl: string;
     backUrl: string;
+    /** Where the payer's browser is recognised; `/pay` unless said (`lib/payments/bridge.ts`). */
+    bridgeBase?: string;
     onStarted: (payment: PaymentRow) => Promise<void>;
   }
 ): Promise<{ payment: PaymentRow; redirectUrl: string }> {
@@ -79,6 +81,7 @@ export async function startCheckout(
       returnUrl: opts.returnUrl,
       backUrl: opts.backUrl,
       customer: opts.customer,
+      bridgeBase: opts.bridgeBase,
     });
   } catch (e) {
     await admin

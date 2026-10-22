@@ -37,6 +37,15 @@ const SAMPLE: TemplateVariables = {
   start_date: "Monday 11 January 2027",
   results_link: "https://example.invalid/profile",
   offer_link: "https://example.invalid/offer",
+  // The event tickets email (`event_tickets`).
+  buyer_first_name: "Neo",
+  event_name: "Hibiscus Christmas Show 2026",
+  event_when: "Friday 4 December 2026",
+  event_location: "Hibiscus Block 7 Campus, Gaborone",
+  ticket_list: "HCS-0001-K7Q · Ticket · Neo Molefe\nHCS-0002-TQ4 · Ticket · Kago Molefe",
+  ticket_count: "2",
+  tickets_link: "https://example.invalid/events/tickets/sample",
+  order_reference: "HCS-7F3A9C",
 };
 
 export function TemplateEditor({

@@ -302,6 +302,52 @@ The parent's offer link stops working immediately, the reminders for that
 offer skip themselves, and a corrected offer can be generated and approved.
 The withdrawn offer stays in the applicant's history with the reason given.
 
+## Selling tickets for an event (the Christmas Show)
+
+1. CRM → **Events** → the event → **Tickets and stalls**. A ticketed event
+   needs a campus; the campus decides the currency.
+2. Set the **start time** on the event itself (**Edit**), then tick **Show
+   the start time on the public page** on the tickets page. Until then the
+   page prints the date only.
+3. Check the prices, the early bird's last day, and the stall price and how
+   many tickets come with a stall. A price change applies to new orders
+   only. Tick **Tickets on sale** and **Stall bookings open**, and **Save**.
+4. Share the two links under **Links to share**. Buy one ticket yourself
+   first and check the email arrives.
+
+Every person needs their own ticket with their own name. A parent buying
+for four types four names.
+
+## At the gate
+
+On a phone or laptop signed in to the console, open the event's **Tickets
+and stalls** page. Type the number printed on the ticket (any case, with or
+without spaces), or scan the QR code with the phone's camera and paste the
+number, and press **Check in**.
+
+- **Let in: name**: the ticket is good. Check the name with the person.
+- **Already used**: the number came in before, at the time shown. Ask for
+  the name; it may be a copied ticket.
+- **Not a ticket for this event**: do not let them in on that number.
+
+A mistake is undone with **Undo** beside the ticket in the orders list.
+People who pay at the gate are the school's cash process; they are not
+recorded here.
+
+## A buyer says their tickets never arrived
+
+Tickets page → the order → **Email the tickets again**. It goes to the
+address they typed, with a new link. If the address was wrong, read them
+the numbers from the order instead; the gate needs only the number and the
+name. If the order says **Paying** for more than a few minutes, see the
+section below on "confirming": the same check applies.
+
+## A buyer wants a refund
+
+Finance refunds it at the gateway, as for any card payment. The order
+stays paid here and its tickets stay valid, so if it matters, tell the gate
+the numbers (they are on the order).
+
 ## A parent says they paid but the site says "confirming"
 
 1. Online payments are confirmed by asking the payment provider, not by the

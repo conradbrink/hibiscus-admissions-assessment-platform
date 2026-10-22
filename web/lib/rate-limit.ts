@@ -68,6 +68,12 @@ export const LIMITS = {
   summary: { bucket: "summary", limit: 60, windowSeconds: 3600 },
   /** Adding an applicant at the desk, per person. A busy open day is nowhere near this. */
   staffApplicant: { bucket: "staff_applicant", limit: 60, windowSeconds: 3600 },
+  /**
+   * Buying event tickets or booking a stall, per address. Each order opens a
+   * gateway transaction. Generous, because a school's own wifi and a mobile
+   * network's shared address put many buyers behind one.
+   */
+  eventOrder: { bucket: "event_order", limit: 40, windowSeconds: 3600 },
 } satisfies Record<string, Limit>;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
