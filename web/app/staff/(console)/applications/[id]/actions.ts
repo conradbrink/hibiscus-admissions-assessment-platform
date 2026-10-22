@@ -17,7 +17,7 @@ import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
 import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
 import { can } from "@/lib/permissions";
 import { isMonthStart } from "@/lib/start-month";
-import { letterInPlay, onStartMonthChanged, reissueLetter, requirePriceable } from "@/lib/workflow/reprice-actions";
+import { letterInPlay, letterPricedElsewhere, onStartMonthChanged, reissueLetter, requirePriceable } from "@/lib/workflow/reprice-actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { offerTrialWeek, recordTrialWeekOutcome } from "@/lib/workflow/trial-week";
@@ -41,9 +41,7 @@ import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
 import { onDeferredAfterDecision, onMovedToStage } from "@/lib/workflow/stage-move-actions";
 import { defersThroughDecision, mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
-import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
-import { resolveFeeSchedule } from "@/lib/offers/render";
 import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
@@ -790,7 +788,21 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       .extend({ campusId: z.guid(), gradeId: z.union([z.guid(), z.literal("")]).optional(), reason: z.string().trim().max(300).optional() })
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) return;
+    if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) {
+      // Already at this campus. Unless the move was saved and its re-draft
+      // failed, leaving the letter priced at the old campus: then the
+      // re-draft is what is left to do, and pressing the button again does it.
+      const play = await letterInPlay(admin, app);
+      if (!(await letterPricedElsewhere(admin, play, app.campus_id))) return;
+      if (!can(ctx.permissions, "offers.approve")) {
+        throw new Error("This child's offer is still priced at the old campus. Ask someone who approves offers to move them again, which re-drafts it.");
+      }
+      await reissueLetter(admin, app, play, "Re-priced at the campus already set", ctx.actor);
+      drainSoon();
+      revalidatePath("/staff/offers");
+      done(app.id);
+      return;
+    }
     const agreedStages: ApplicationStatus[] = [
       "offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
     ];
@@ -1289,18 +1301,10 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     // approval is re-drafted, one with the family is withdrawn and re-drafted.
     // A draft resting on `offer_draft` is one waiting for fees: drafting it
     // again would only raise a second "configure fees" task, and it takes the
-    // band when Generate offer is pressed.
-    const { data: letter, error: letterErr } = await admin
-      .from("offers")
-      .select("id, status, promotion_id")
-      .eq("application_id", app.id)
-      .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (letterErr) throw new Error(letterErr.message);
-    const withFamily = Boolean(letter && ["sent", "viewed", "expired"].includes(letter.status) && (app.status === "offer_sent" || app.status === "offer_expired"));
-    const reDraft = withFamily || (letter?.status === "pending_approval" && app.status === "offer_pending_approval");
+    // band when Generate offer is pressed. The same rule as the starting
+    // month and the campus (`lib/workflow/reprice-actions.ts`).
+    const play = await letterInPlay(admin, app);
+    const { letter, withFamily, reDraft } = play;
 
     // The band on file already: nothing to record, but a letter still priced
     // under another deal — a band changed before saving re-drafted — is
@@ -1313,10 +1317,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     if (withFamily) {
       const graph = await loadApplicationGraph(admin, app.id);
       if (!graph) throw new Error("That applicant no longer exists.");
-      const schedule = await resolveFeeSchedule(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
-      if (!schedule || schedule.lines.length === 0) {
-        throw new Error("No active fee schedule covers this campus, stage and year, so a new letter could not be priced. Nothing was changed; set the fees first.");
-      }
+      await requirePriceable(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
     }
 
     if (from !== to) {
@@ -1347,16 +1348,13 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
       });
     }
 
-    if (withFamily && letter) {
-      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
-    }
     if (reDraft) {
-      const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
-      if (current.error) throw new Error(current.error.message);
-      // Waits for approval whatever `offer_auto_approve` says: the screen
-      // promises the officer a letter to check before it goes.
-      const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
-      if (drafted.blocked) throw new Error(`The ${deal ? "change" : "scholarship"} is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.`);
+      // Withdraws the family's letter when they have it, then drafts the next
+      // one for approval, whatever `offer_auto_approve` says: the screen
+      // promises the officer a letter to check before it goes. The old
+      // letter's conditions carry over, which re-drafting here used to drop
+      // for a letter the family already had.
+      await reissueLetter(admin, app, play, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
       drainSoon();
     }
     done(app.id);

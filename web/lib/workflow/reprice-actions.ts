@@ -1,7 +1,6 @@
 import "server-only";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { ApplicationRow, OfferRow } from "@/lib/supabase/types";
-import { loadApplicationGraph } from "@/lib/applications";
 import { loadCatalogue } from "@/lib/enquiry";
 import { resolveFeeSchedule } from "@/lib/offers/render";
 import { formatMonth, intakeForMonth } from "@/lib/start-month";
@@ -29,7 +28,7 @@ import { isNextAction } from "@/lib/workflow/states";
 type RepricingApp = Pick<ApplicationRow, "id" | "status" | "child_first_name" | "requires_assessment">;
 
 export type LetterInPlay = {
-  letter: Pick<OfferRow, "id" | "status" | "conditions"> | null;
+  letter: Pick<OfferRow, "id" | "status" | "conditions" | "promotion_id" | "start_date" | "fee_schedule_id"> | null;
   /** Sent, viewed or expired: the family has it, so it is withdrawn before the new one is drafted. */
   withFamily: boolean;
   /** Whether saving re-prices a letter at all. A draft waiting for fees takes the change when Generate offer is pressed. */
@@ -40,7 +39,7 @@ export type LetterInPlay = {
 export async function letterInPlay(admin: AdminClient, app: Pick<ApplicationRow, "id" | "status">): Promise<LetterInPlay> {
   const { data: letter, error } = await admin
     .from("offers")
-    .select("id, status, conditions")
+    .select("id, status, conditions, promotion_id, start_date, fee_schedule_id")
     .eq("application_id", app.id)
     .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
     .order("created_at", { ascending: false })
@@ -97,6 +96,13 @@ export async function reissueLetter(admin: AdminClient, app: Pick<ApplicationRow
  * with the letter re-priced to match. `mayReprice` is whether the person may
  * approve offers: re-drafting a letter is theirs to do, so without it a
  * written letter refuses the change rather than quietly pulling it.
+ *
+ * Saving the month the child already has is not always nothing to do. The
+ * month is saved before the letter is re-drafted, so a re-draft that failed
+ * (a database error, a schedule switched off in between) left the month moved
+ * and the letter priced from the old one, and pressing Save again found
+ * nothing changed. The letter's own start date says which month it was
+ * priced for; when it disagrees, the re-draft is what is left to do.
  */
 export async function onStartMonthChanged(
   admin: AdminClient,
@@ -105,26 +111,38 @@ export async function onStartMonthChanged(
   actor: Actor,
   opts: { mayReprice: boolean }
 ): Promise<{ reissued: boolean }> {
-  if (app.start_month === to) return { reissued: false };
-
   const { data: campus, error: campusErr } = await admin.from("campuses").select("intake_cadence").eq("id", app.campus_id).single();
   if (campusErr) throw new WorkflowError(campusErr.message, "database");
   if (campus.intake_cadence !== "month") {
+    if (app.start_month === to) return { reissued: false };
     throw new WorkflowError("This campus takes children in by the term, so there is no starting month to set.", "status_conflict");
   }
-  await refuseOnceAgreed(admin, app.id, "starting month");
 
+  // The term the child is counted under now, for its year and first day.
+  const { data: current, error: intakeErr } = await admin.from("intakes").select("academic_year_id, starts_on").eq("id", app.intake_id).single();
+  if (intakeErr) throw new WorkflowError(intakeErr.message, "database");
   const play = await letterInPlay(admin, app);
+  const unchanged = app.start_month === to;
+  if (unchanged) {
+    // By the month, not the day: letters drafted before `firstSchoolDay`
+    // carry the 1st even when it fell on a weekend, and are not out of date.
+    const pricedFor = play.letter?.start_date ?? null;
+    const upToDate = to ? pricedFor?.slice(0, 7) === to.slice(0, 7) : pricedFor === current.starts_on;
+    if (!play.reDraft || upToDate) return { reissued: false };
+  }
+
+  await refuseOnceAgreed(admin, app.id, "starting month");
   if (play.reDraft && !opts.mayReprice) {
     throw new WorkflowError("This child's offer is already written. Changing the month re-drafts it, so ask someone who approves offers to change it.", "status_conflict");
   }
 
   // The month decides the term the application is counted under, and so the
   // academic year its fees come from: November 2026 is Term 3, 2026 and is
-  // priced from the 2026 schedule, January 2027 from the 2027 one.
+  // priced from the 2026 schedule, January 2027 from the 2027 one. A month
+  // already saved keeps the term it was given.
   const update: { start_month: string | null; intake_id?: string } = { start_month: to };
-  let academicYearId: string | null = null;
-  if (to) {
+  let academicYearId = current.academic_year_id;
+  if (to && !unchanged) {
     const catalogue = await loadCatalogue(admin);
     const intake = intakeForMonth(catalogue.intakes, to);
     if (!intake) throw new WorkflowError("No open start term covers that month. Open the next year's terms under Settings → Intakes first.", "status_conflict");
@@ -133,33 +151,42 @@ export async function onStartMonthChanged(
   }
 
   if (play.reDraft) {
-    const graph = await loadApplicationGraph(admin, app.id);
-    if (!graph) throw new WorkflowError("That applicant no longer exists.", "application_not_found");
-    await requirePriceable(admin, {
-      campusId: graph.application.campus_id,
-      academicYearId: academicYearId ?? graph.intake.academic_year_id,
-      gradeSort: graph.grade.sort_order,
+    const { data: grade, error: gradeErr } = await admin.from("grades").select("sort_order").eq("id", app.grade_id).single();
+    if (gradeErr) throw new WorkflowError(gradeErr.message, "database");
+    await requirePriceable(admin, { campusId: app.campus_id, academicYearId, gradeSort: grade.sort_order });
+  }
+
+  const say = (v: string | null) => (v ? formatMonth(v) : "not chosen");
+  if (!unchanged) {
+    const { error } = await admin.from("applications").update(update).eq("id", app.id);
+    if (error) throw new WorkflowError(error.message, "database");
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      nextAction: isNextAction(app.next_action) ? app.next_action : null,
+      event: {
+        type: "application.start_month_set",
+        summary: `Starting month ${say(app.start_month)} → ${say(to)}`,
+        payload: { from: app.start_month, to, intake_id: update.intake_id ?? app.intake_id },
+      },
+      audit: { action: "application.start_month_set", entityType: "application", entityId: app.id },
+      actor,
     });
   }
 
-  const { error } = await admin.from("applications").update(update).eq("id", app.id);
-  if (error) throw new WorkflowError(error.message, "database");
-
-  const say = (v: string | null) => (v ? formatMonth(v) : "not chosen");
-  await commit(admin, {
-    applicationId: app.id,
-    expectedStatus: app.status,
-    newStatus: null,
-    nextAction: isNextAction(app.next_action) ? app.next_action : null,
-    event: {
-      type: "application.start_month_set",
-      summary: `Starting month ${say(app.start_month)} → ${say(to)}`,
-      payload: { from: app.start_month, to, intake_id: update.intake_id ?? app.intake_id },
-    },
-    audit: { action: "application.start_month_set", entityType: "application", entityId: app.id },
-    actor,
-  });
-
-  await reissueLetter(admin, app, play, `Starting month changed from ${say(app.start_month)} to ${say(to)}`, actor);
+  await reissueLetter(admin, app, play, unchanged ? `Re-priced for the starting month already set, ${say(to)}` : `Starting month changed from ${say(app.start_month)} to ${say(to)}`, actor);
   return { reissued: play.reDraft };
+}
+
+/**
+ * Whether the letter in play was priced at another campus than the one the
+ * application names: the campus move was saved and its re-draft did not
+ * happen. The schedule a letter was priced from says where.
+ */
+export async function letterPricedElsewhere(admin: AdminClient, play: LetterInPlay, campusId: string): Promise<boolean> {
+  if (!play.reDraft || !play.letter?.fee_schedule_id) return false;
+  const { data: schedule, error } = await admin.from("fee_schedules").select("campus_id").eq("id", play.letter.fee_schedule_id).maybeSingle();
+  if (error) throw new WorkflowError(error.message, "database");
+  return Boolean(schedule && schedule.campus_id !== campusId);
 }
