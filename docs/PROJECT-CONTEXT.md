@@ -983,10 +983,17 @@ of their staff. Each parent brings a copy of each ticket to the gate.
   and keeps the counts and amounts. The retention run calls it for events
   `event_retention_days` (90) behind us, under the same switch.
 - **The Christmas Show is seeded with its sales closed.** Its start time was
-  not given, so the event starts at midnight and `show_time` is off; the
-  name is the owner's ("Hibiscus Christmas Show 2027", for a show in
-  December 2026 — to confirm). Somebody at the school sets the time on the
-  event, ticks "Show the start time", and opens sales.
+  not given, so the event starts at midnight and `show_time` is off.
+  Somebody at the school sets the time on the event, ticks "Show the start
+  time", and opens sales. It was seeded as "Hibiscus Christmas Show 2027";
+  the owner corrected it the same day, and
+  `20261022130121_christmas_show_2026_name.sql` renames it to 2026.
+- **Applying it to production.** The Supabase connector asks the user to
+  approve any SQL with a `DROP` in it, and a cloud session cannot show that
+  prompt, so the call times out after 60 seconds and nothing runs. The
+  owner ran the migration in the SQL editor on 22 October 2026, with sales
+  opened in the same script, and the version was recorded by hand. Plain
+  inserts and updates through the connector are not affected.
 
 Limits, honestly: gate sales at P200 are not recorded in the system (cash
 at the gate is the school's own process); a refund is finance's, at the
@@ -1440,12 +1447,11 @@ contradicts itself, the choice made is recorded and must be confirmed.
 
 ## 5. Open items, roughly by priority
 
-0. **The Christmas Show (4 December 2026).** Apply
-   `20261022100000_event_tickets.sql` to the live project, set the start
-   time on the event and tick "Show the start time", confirm the name (2027
-   for a show in 2026?), and open sales at
-   `/staff/crm/events/<id>/tickets`. Check `EMAIL_PROVIDER` is the live one
-   first: tickets go out by email only.
+0. **The Christmas Show (4 December 2026).** Applied to the live project
+   and on sale since 22 October 2026, as "Hibiscus Christmas Show 2026".
+   Still to do: set the start time on the event and tick "Show the start
+   time" at `/staff/crm/events/<id>/tickets`, and buy one ticket to see the
+   email arrive (tickets go out by email only).
 
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in

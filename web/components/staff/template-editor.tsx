@@ -39,7 +39,7 @@ const SAMPLE: TemplateVariables = {
   offer_link: "https://example.invalid/offer",
   // The event tickets email (`event_tickets`).
   buyer_first_name: "Neo",
-  event_name: "Hibiscus Christmas Show 2027",
+  event_name: "Hibiscus Christmas Show 2026",
   event_when: "Friday 4 December 2026",
   event_location: "Hibiscus Block 7 Campus, Gaborone",
   ticket_list: "HCS-0001-K7Q · Ticket · Neo Molefe\nHCS-0002-TQ4 · Ticket · Kago Molefe",
