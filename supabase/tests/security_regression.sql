@@ -4652,6 +4652,181 @@ begin
     end;
   end;
 
+  -- -------------------------------------------------------------------------
+  -- 83. Event tickets: the buyers are read at the event's campus, the money
+  --     and the numbers are nobody's to write, and a ticket email is not mail
+  --     for every member of staff
+  -- -------------------------------------------------------------------------
+  -- Ticket buyers are the public: no session, no family. Every write is the
+  -- service role's, through create_event_order() and the reconciler. Staff
+  -- read orders and tickets at the event's campus, set prices, and check
+  -- people in — that one column and nothing else.
+  declare
+    v_ev uuid;
+    v_order uuid;
+    v_ticket uuid;
+    v_req uuid;
+    v_pay uuid;
+    v_mail uuid;
+  begin
+    perform pg_temp.service();
+    insert into public.crm_events (name, kind, campus_id, starts_at, created_by)
+    values ('Sec ticketed show', 'other', c_block7, now() + interval '20 days', u_admin) returning id into v_ev;
+    insert into public.event_sales (event_id, slug, ticket_price_minor, tickets_open, ticket_prefix, next_ticket_no)
+    values (v_ev, 'sec-ticketed-show', 10000, true, 'SEC', 500);
+    if (select next_ticket_no from public.event_sales where event_id = v_ev) <> 1 then
+      v_fail := v_fail || E'\n  - ' || '83: a new sales row kept the ticket counter it was given';
+    end if;
+    select order_id into v_order from public.create_event_order(
+      v_ev, 'tickets', 'Sec', 'Buyer', 'sec-buyer@test.invalid', null, 2,
+      '[{"first_name":"Sec","last_name":"One"},{"first_name":"Sec","last_name":"Two"}]'::jsonb,
+      null, null, null, 'sec-link-hash-83');
+    if (select amount_minor from public.event_orders where id = v_order) <> 20000 then
+      v_fail := v_fail || E'\n  - ' || '83: the order was not priced from the event''s own price';
+    end if;
+    update public.event_orders set status = 'paid', paid_at = now() where id = v_order;
+    perform public.issue_event_tickets(v_order);
+    perform public.issue_event_tickets(v_order);
+    select count(*) into v_count from public.event_tickets where order_id = v_order;
+    if v_count <> 2 then
+      v_fail := v_fail || E'\n  - ' || ('83: a paid order issued ' || v_count || ' tickets for two names, after two calls');
+    end if;
+    select id into v_ticket from public.event_tickets where order_id = v_order order by number limit 1;
+    insert into public.email_messages (event_order_id, to_email, subject, body_html, body_text, provider, status)
+    values (v_order, 'sec-buyer@test.invalid', 'Your tickets', '<p>x</p>', 'x', 'dev', 'sent') returning id into v_mail;
+
+    -- The payment subject: kind and campus follow the order, whatever was sent.
+    insert into public.payment_requests (event_order_id, campus_id, kind, currency, amount_minor, due_at)
+    values (v_order, c_broadhurst, 'extras', 'BWP', 20000, now() + interval '1 day') returning id into v_req;
+    if (select kind from public.payment_requests where id = v_req) <> 'event'
+       or (select campus_id from public.payment_requests where id = v_req) <> c_block7 then
+      v_fail := v_fail || E'\n  - ' || '83: an event payment request kept a forged kind or campus';
+    end if;
+    insert into public.payments (payment_request_id, method, provider, company_ref, status, amount_minor, currency)
+    values (v_req, 'online', 'dev', 'SEC-83', 'pending', 20000, 'BWP') returning id into v_pay;
+    if (select event_order_id from public.payments where id = v_pay) is distinct from v_order then
+      v_fail := v_fail || E'\n  - ' || '83: an event payment did not take its order from its request';
+    end if;
+    begin
+      insert into public.payment_requests (event_order_id, student_id, currency, amount_minor, due_at)
+      values (v_order, crm_student_block7, 'BWP', 100, now());
+      v_fail := v_fail || E'\n  - ' || '83: a payment request named an event order and a child';
+    exception when check_violation then null;
+    end;
+
+    -- Another campus's manager sees none of it, and nobody anonymous does.
+    perform pg_temp.impersonate(u_campus_mgr);
+    select count(*) into v_count from public.event_orders where id = v_order;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: a Broadhurst manager read a Block 7 ticket order'; end if;
+    select count(*) into v_count from public.event_tickets where order_id = v_order;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: a Broadhurst manager read Block 7 tickets'; end if;
+    select count(*) into v_count from public.event_sales where event_id = v_ev;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: a Broadhurst manager read a Block 7 event''s prices'; end if;
+    perform pg_temp.service();
+
+    -- The staff digest's hole (no application, no family) must not hold a
+    -- buyer's email: an assessor reads digests, not the public's tickets.
+    perform pg_temp.impersonate(u_assessor);
+    select count(*) into v_count from public.email_messages where id = v_mail;
+    if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: an assessor read a ticket buyer''s email'; end if;
+    perform pg_temp.service();
+
+    begin
+      execute 'set local role anon';
+      select count(*) into v_count from public.event_orders;
+      if v_count <> 0 then v_fail := v_fail || E'\n  - ' || '83: anon read ticket orders'; end if;
+    exception when insufficient_privilege then null;
+    end;
+    perform pg_temp.service();
+    begin
+      execute 'set local role anon';
+      select count(*) into v_count from public.event_order_links;
+      v_fail := v_fail || E'\n  - ' || '83: anon could read the ticket links table';
+    exception when insufficient_privilege then null;
+    end;
+    perform pg_temp.service();
+
+    -- Control: somebody at the campus reads all of it.
+    perform pg_temp.impersonate(u_admin);
+    select count(*) into v_count from public.event_tickets where order_id = v_order;
+    if v_count <> 2 then v_fail := v_fail || E'\n  - ' || '83 control: the administrator could not read the tickets'; end if;
+    select count(*) into v_count from public.email_messages where id = v_mail;
+    if v_count <> 1 then v_fail := v_fail || E'\n  - ' || '83 control: the administrator could not read the ticket email'; end if;
+    perform pg_temp.service();
+
+    -- Nobody signed in writes an order, a ticket's name or number, or the counter.
+    perform pg_temp.impersonate(u_admin);
+    begin
+      update public.event_orders set amount_minor = 1, unit_amount_minor = 1, quantity = 1 where id = v_order;
+      v_fail := v_fail || E'\n  - ' || '83: staff rewrote what an order cost';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      update public.event_tickets set holder_first_name = 'Forged' where id = v_ticket;
+      v_fail := v_fail || E'\n  - ' || '83: staff renamed a ticket';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      update public.event_tickets set number = 'SEC-0001-AAA' where id = v_ticket;
+      v_fail := v_fail || E'\n  - ' || '83: staff renumbered a ticket';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      update public.event_sales set next_ticket_no = 1 where event_id = v_ev;
+      v_fail := v_fail || E'\n  - ' || '83: staff moved the ticket counter';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      insert into public.event_orders (event_id, campus_id, kind, reference, buyer_first_name, buyer_last_name, email, quantity, ticket_count, unit_amount_minor, amount_minor, currency, price_name)
+      values (v_ev, c_block7, 'tickets', 'SEC-FORGED', 'A', 'B', 'a@test.invalid', 1, 1, 1, 1, 'BWP', 'Standard');
+      v_fail := v_fail || E'\n  - ' || '83: staff wrote an order by hand';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      perform public.issue_event_tickets(v_order);
+      v_fail := v_fail || E'\n  - ' || '83: a member of staff could call issue_event_tickets()';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      perform public.anonymise_event_orders(v_ev);
+      v_fail := v_fail || E'\n  - ' || '83: a member of staff could call anonymise_event_orders()';
+    exception when insufficient_privilege then null;
+    end;
+
+    -- Control: checking somebody in, stamped with who did it, and only once.
+    begin
+      update public.event_tickets set checked_in_at = now() where id = v_ticket;
+      update public.event_tickets set checked_in_at = now() + interval '1 hour' where id = v_ticket;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83 control: the administrator could not check a ticket in: ' || sqlerrm);
+    end;
+    perform pg_temp.service();
+    if (select checked_in_by from public.event_tickets where id = v_ticket) is distinct from u_admin
+       or (select checked_in_at from public.event_tickets where id = v_ticket) > now() + interval '1 minute' then
+      v_fail := v_fail || E'\n  - ' || '83: a check-in was not stamped with its person, or a second scan moved it';
+    end if;
+
+    -- A Broadhurst manager cannot let somebody in at Block 7.
+    perform pg_temp.impersonate(u_campus_mgr);
+    update public.event_tickets set checked_in_at = null where id = v_ticket;
+    perform pg_temp.service();
+    if (select checked_in_at from public.event_tickets where id = v_ticket) is null then
+      v_fail := v_fail || E'\n  - ' || '83: a Broadhurst manager undid a Block 7 check-in';
+    end if;
+
+    -- Anonymising keeps the figures and removes the people.
+    perform public.anonymise_event_orders(v_ev);
+    if exists (select 1 from public.event_orders where id = v_order and (buyer_first_name <> 'Removed' or email not like 'removed+%@invalid' or holders <> '[]'::jsonb or ticket_count <> 2 or amount_minor <> 20000))
+       or exists (select 1 from public.event_tickets where order_id = v_order and holder_first_name <> 'Removed')
+       or exists (select 1 from public.event_order_links where order_id = v_order)
+       or exists (select 1 from public.email_messages where id = v_mail and to_email <> 'removed') then
+      v_fail := v_fail || E'\n  - ' || '83: anonymising an event left a person behind, or lost its figures';
+    end if;
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('83: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

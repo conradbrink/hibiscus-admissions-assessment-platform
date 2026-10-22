@@ -64,6 +64,11 @@ export async function startExtrasPayment(studentId: string): Promise<PayState> {
       customer: await payerForFamily(admin, session),
       returnUrl: `${siteUrl()}/family/extras/pay/${order.student.id}/return`,
       backUrl: `${siteUrl()}/family/extras/pay/${order.student.id}?cancelled=1`,
+      // The family's cookie is scoped to /family, so a gateway that sends the
+      // parent to a page of ours first must send them to one under it. The
+      // default, /pay, never sees the cookie, and every family paying through
+      // PayGate was told their link had expired.
+      bridgeBase: `/family/extras/pay/${order.student.id}`,
       // No status to move and no application timeline to write to, so the only
       // consequence is the verify the reconciler will do anyway. The sweep
       // (`reconcileProcessingPayments`) picks this up within

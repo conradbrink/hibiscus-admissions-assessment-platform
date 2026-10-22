@@ -15,6 +15,12 @@ export { ABANDONED_STATUSES, CLOSED_STATUSES, retentionCandidates };
  * the database removes the personal data; this module decides which rows,
  * deletes the stored files first, and records what it did. A hold on the
  * application excludes it until somebody clears the hold.
+ *
+ * Ticketed events are the other half: once an event is `event_retention_days`
+ * behind us, `anonymise_event_orders()` removes its buyers' and ticket
+ * holders' names, addresses and numbers, and keeps the counts and amounts.
+ * They are nobody's application, so they have their own function, run by
+ * the same switch.
  */
 
 const SELECT = "id, reference, status, status_changed_at, retention_hold, retention_hold_reason, anonymised_at, child_first_name, child_last_name, campus_id, campuses(name)";
@@ -76,6 +82,40 @@ export async function anonymiseExpired(admin: AdminClient, opts: { force?: boole
       console.error("[retention] could not anonymise", app.reference, (e as Error).message);
     }
   }
-  await admin.from("maintenance_runs").upsert({ key: RUN_KEY, last_run_at: new Date().toISOString(), detail: { anonymised, failed, due: due.length } });
+  let eventOrders = 0;
+  try {
+    eventOrders = await anonymiseEndedEvents(admin, settings);
+  } catch (e) {
+    failed += 1;
+    console.error("[retention] could not anonymise event orders", (e as Error).message);
+  }
+  await admin.from("maintenance_runs").upsert({ key: RUN_KEY, last_run_at: new Date().toISOString(), detail: { anonymised, failed, due: due.length, event_orders: eventOrders } });
   return { anonymised, failed, skipped: null };
+}
+
+/**
+ * Every ticketed event that ended more than `event_retention_days` ago and
+ * still has a buyer on record. An event with no end time ends the day after
+ * it starts, as its sales do (`eventStillAhead`).
+ */
+export async function anonymiseEndedEvents(admin: AdminClient, settings: Settings, now = new Date()): Promise<number> {
+  const cutoff = now.getTime() - settings.eventRetentionDays * 86_400_000;
+  const { data: sales, error } = await admin.from("event_sales").select("event_id");
+  if (error) throw new Error(error.message);
+  if (!sales?.length) return 0;
+  const { data: events, error: eErr } = await admin
+    .from("crm_events")
+    .select("id, starts_at, ends_at")
+    .in("id", sales.map((s) => s.event_id))
+    .lt("starts_at", new Date(cutoff).toISOString());
+  if (eErr) throw new Error(eErr.message);
+  let removed = 0;
+  for (const event of events ?? []) {
+    const ended = event.ends_at ? new Date(event.ends_at).getTime() : new Date(event.starts_at).getTime() + 86_400_000;
+    if (ended >= cutoff) continue;
+    const { data, error: rErr } = await admin.rpc("anonymise_event_orders", { p_event_id: event.id });
+    if (rErr) throw new Error(rErr.message);
+    removed += data ?? 0;
+  }
+  return removed;
 }

@@ -659,7 +659,7 @@ export type EmailTemplateRow = {
   body_text: string;
   allowed_variables: string[];
   is_active: boolean;
-  audience: "parent" | "staff" | "family";
+  audience: "parent" | "staff" | "family" | "event";
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -670,6 +670,7 @@ export type EmailMessageRow = {
   application_id: string | null;
   family_id: string | null;
   student_id: string | null;
+  event_order_id: string | null;
   contact_id: string | null;
   template_key: string | null;
   template_version: number | null;
@@ -1159,11 +1160,12 @@ export type OfferAcceptanceRow = {
 };
 
 /**
- * What is owed, for one of two subjects: the admissions triple (an
+ * What is owed, for one of three subjects: the admissions triple (an
  * application, the offer that priced it and the acceptance that agreed to it),
- * or a child, for the optional extras their family ordered. Exactly one is
- * named — `payment_requests_has_one_subject` — and `kind` and `campus_id` are
- * both derived by trigger from whichever it is, never written by a caller.
+ * a child, for the optional extras their family ordered, or an event order
+ * (tickets or a stall). Exactly one is named —
+ * `payment_requests_has_one_subject` — and `kind` and `campus_id` are both
+ * derived by trigger from whichever it is, never written by a caller.
  */
 export type PaymentRequestRow = {
   id: string;
@@ -1171,7 +1173,8 @@ export type PaymentRequestRow = {
   offer_id: string | null;
   acceptance_id: string | null;
   student_id: string | null;
-  kind: "admission" | "extras";
+  event_order_id: string | null;
+  kind: "admission" | "extras" | "event";
   campus_id: string;
   currency: "BWP" | "ZAR";
   amount_minor: number;
@@ -1190,6 +1193,7 @@ export type PaymentRow = {
   payment_request_id: string;
   application_id: string | null;
   student_id: string | null;
+  event_order_id: string | null;
   campus_id: string;
   method: PaymentMethod;
   provider: PaymentProviderName;
@@ -2022,6 +2026,86 @@ export type CrmEventRow = {
 
 export type EventRegistrationStatus = "invited" | "registered" | "attended" | "no_show" | "cancelled";
 
+/** What is on sale for one ticketed event. One row per `crm_events` row that sells tickets. */
+export type EventSalesRow = {
+  event_id: string;
+  slug: string;
+  ticket_label: string;
+  ticket_price_minor: number;
+  early_price_minor: number | null;
+  early_until: string | null;
+  max_tickets_per_order: number;
+  tickets_open: boolean;
+  stall_price_minor: number | null;
+  stall_tickets: number;
+  stall_capacity: number | null;
+  stalls_open: boolean;
+  ticket_prefix: string;
+  /** Moved only by `issue_event_tickets()`; staff hold no grant on it. */
+  next_ticket_no: number;
+  show_time: boolean;
+  intro: string | null;
+  stall_intro: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EventOrderKind = "tickets" | "stall";
+export type EventOrderStatus = "pending" | "paid" | "cancelled";
+
+/** One checkout for an event. Written by `create_event_order()`, paid by the reconciler. */
+export type EventOrderRow = {
+  id: string;
+  event_id: string;
+  campus_id: string;
+  kind: EventOrderKind;
+  status: EventOrderStatus;
+  reference: string;
+  buyer_first_name: string;
+  buyer_last_name: string;
+  email: string;
+  mobile: string | null;
+  quantity: number;
+  ticket_count: number;
+  unit_amount_minor: number;
+  amount_minor: number;
+  currency: "BWP" | "ZAR";
+  price_name: string;
+  /** `[{first_name, last_name}]`, one per ticket. */
+  holders: Json;
+  business_name: string | null;
+  stall_goods: string | null;
+  needs_power: boolean | null;
+  paid_at: string | null;
+  cancelled_at: string | null;
+  anonymised_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A link that shows one order's tickets: only its hash is kept. Service role only. */
+export type EventOrderLinkRow = {
+  token_hash: string;
+  order_id: string;
+  created_reason: "checkout" | "email";
+  created_at: string;
+};
+
+/** One person's ticket, issued once its order is paid. */
+export type EventTicketRow = {
+  id: string;
+  order_id: string;
+  event_id: string;
+  campus_id: string;
+  number: string;
+  label: string;
+  holder_first_name: string;
+  holder_last_name: string;
+  issued_at: string;
+  checked_in_at: string | null;
+  checked_in_by: string | null;
+};
+
 export type CrmEventRegistrationRow = {
   id: string;
   event_id: string;
@@ -2440,6 +2524,7 @@ export type Database = {
         | "application_id"
         | "family_id"
         | "student_id"
+        | "event_order_id"
         | "contact_id"
         | "template_key"
         | "template_version"
@@ -2734,13 +2819,14 @@ export type Database = {
         PaymentRequestRow,
         // The subject columns are all optional because only one set of them is
         // ever given; `kind` and `campus_id` are trigger-derived from it.
-        | "application_id" | "offer_id" | "acceptance_id" | "student_id" | "kind" | "campus_id"
+        | "application_id" | "offer_id" | "acceptance_id" | "student_id" | "event_order_id" | "kind" | "campus_id"
         | "lines" | "paid_minor" | "status" | "paid_at",
         [
           Rel<"payment_requests_application_id_fkey", "application_id", "applications">,
           Rel<"payment_requests_offer_id_fkey", "offer_id", "offers">,
           Rel<"payment_requests_acceptance_id_fkey", "acceptance_id", "offer_acceptances">,
           Rel<"payment_requests_student_id_fkey", "student_id", "students">,
+          Rel<"payment_requests_event_order_id_fkey", "event_order_id", "event_orders">,
           Rel<"payment_requests_campus_id_fkey", "campus_id", "campuses">,
         ]
       >;
@@ -2750,6 +2836,7 @@ export type Database = {
         // not send any of it.
         | "application_id"
         | "student_id"
+        | "event_order_id"
         | "campus_id"
         | "provider_ref"
         | "status"
@@ -3084,6 +3171,35 @@ export type Database = {
           Rel<"crm_events_created_by_fkey", "created_by", "staff_profiles">,
         ]
       >;
+      event_sales: TableOf<
+        EventSalesRow,
+        | "ticket_label" | "early_price_minor" | "early_until" | "max_tickets_per_order" | "tickets_open"
+        | "stall_price_minor" | "stall_tickets" | "stall_capacity" | "stalls_open" | "ticket_prefix"
+        | "next_ticket_no" | "show_time" | "intro" | "stall_intro",
+        [Rel<"event_sales_event_id_fkey", "event_id", "crm_events", true>]
+      >;
+      event_orders: TableOf<
+        EventOrderRow,
+        "status" | "mobile" | "holders" | "business_name" | "stall_goods" | "needs_power" | "paid_at" | "cancelled_at" | "anonymised_at",
+        [
+          Rel<"event_orders_event_id_fkey", "event_id", "crm_events">,
+          Rel<"event_orders_campus_id_fkey", "campus_id", "campuses">,
+        ]
+      >;
+      event_order_links: TableOf<
+        EventOrderLinkRow,
+        "created_at",
+        [Rel<"event_order_links_order_id_fkey", "order_id", "event_orders">]
+      >;
+      event_tickets: TableOf<
+        EventTicketRow,
+        "issued_at" | "checked_in_at" | "checked_in_by",
+        [
+          Rel<"event_tickets_order_id_fkey", "order_id", "event_orders">,
+          Rel<"event_tickets_event_id_fkey", "event_id", "crm_events">,
+          Rel<"event_tickets_checked_in_by_fkey", "checked_in_by", "staff_profiles">,
+        ]
+      >;
       crm_event_registrations: TableOf<
         CrmEventRegistrationRow,
         "student_id" | "contact_id" | "status" | "source" | "campaign_id" | "guests" | "note" | "registered_at" | "attended_at",
@@ -3257,6 +3373,25 @@ export type Database = {
         Args: { p_q: string; p_limit?: number };
         Returns: { kind: "family" | "contact" | "student" | "applicant"; id: string; title: string; subtitle: string; href: string }[];
       };
+      create_event_order: {
+        Args: {
+          p_event_id: string;
+          p_kind: EventOrderKind;
+          p_buyer_first_name: string;
+          p_buyer_last_name: string;
+          p_email: string;
+          p_mobile: string | null;
+          p_quantity: number;
+          p_holders: Json;
+          p_business_name: string | null;
+          p_stall_goods: string | null;
+          p_needs_power: boolean | null;
+          p_link_hash: string;
+        };
+        Returns: { order_id: string; order_reference: string; order_amount_minor: number; order_currency: "BWP" | "ZAR" }[];
+      };
+      issue_event_tickets: { Args: { p_order_id: string }; Returns: number };
+      anonymise_event_orders: { Args: { p_event_id: string }; Returns: number };
       crm_register_family_for_event: {
         Args: { p_event_id: string; p_family_id: string; p_student_id: string | null; p_contact_id: string | null; p_guests: number; p_note: string | null };
         Returns: string;
