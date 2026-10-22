@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApplicationGraph } from "@/lib/applications";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { PromotionRow } from "@/lib/supabase/types";
-import { promotionForCode, resolvePromotion } from "@/lib/promotions/load";
+import { codedPromotionLive, promotionForCode, resolvePromotion } from "@/lib/promotions/load";
 
 /**
  * A staff discount (`DISCOUNT-5`, 20 October 2026) and a scholarship band
@@ -11,7 +11,8 @@ import { promotionForCode, resolvePromotion } from "@/lib/promotions/load";
  * themselves 5% off, or half their tuition with both fees waived. The enquiry
  * form asks `promotionForCode`, so that is where it is refused; the offer asks
  * `resolvePromotion`, which refuses it again for a code that reached
- * `applications.promo_code` some other way.
+ * `applications.promo_code` some other way. Nor does a staff-only code make
+ * the form show its code box (`codedPromotionLive`).
  *
  * The doubles answer every promotion lookup with a live row carrying the code
  * asked for, so the only thing that can say no is the rule under test.
@@ -123,5 +124,26 @@ describe("resolvePromotion", () => {
     expect(resolved?.source).toBe("code");
     expect(resolved?.promo.code).toBe("LAUNCH2027");
     expect(db.recorded).toMatchObject([{ promotion_id: "promo-LAUNCH2027", source: "code" }]);
+  });
+});
+
+/** Every one of `codes` live today, as the form's question sees them. */
+function liveCodes(codes: string[]): AdminClient {
+  const q = {
+    select: () => q,
+    eq: () => q,
+    not: () => q,
+    then: (resolve: (value: unknown) => void) => resolve({ data: codes.map((code) => ({ code, starts_on: null, ends_on: null })), error: null }),
+  };
+  return { from: () => q } as unknown as AdminClient;
+}
+
+describe("codedPromotionLive", () => {
+  it("does not ask for a code when only staff-only codes are live", async () => {
+    expect(await codedPromotionLive(liveCodes(["DISCOUNT-5", "SCHOLARSHIP-10", "SCHOLARSHIP-50"]))).toBe(false);
+  });
+
+  it("asks for a code when a family may type one", async () => {
+    expect(await codedPromotionLive(liveCodes(["DISCOUNT-5", "SCHOLARSHIP-50", "LAUNCH2027"]))).toBe(true);
   });
 });
