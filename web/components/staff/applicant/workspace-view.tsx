@@ -274,9 +274,11 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
     const canMoveCampus =
       canWrite &&
       !terminal &&
-      ["new_enquiry", "callback_requested", "visit_booked", "assessment_booked", "no_show", "assessment_completed", "awaiting_decision", "staff_review", "deferred", "waitlisted"].includes(app.status) &&
+      ["new_enquiry", "callback_requested", "visit_booked", "assessment_booked", "no_show", "assessment_completed", "awaiting_decision", "staff_review", "deferred", "waitlisted", "approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired"].includes(app.status) &&
       w.otherCampuses.length > 1;
     const canChangeStage = canWrite && app.status !== "enrolled";
+    // Moving campus re-prices a letter the family holds; the confirmation says so.
+    const letterWithFamily = Boolean(w.liveOffer && ["sent", "viewed", "expired"].includes(w.liveOffer.status));
     if (!canDefer && !canWithdraw && !canMoveCampus && !canChangeStage && !canDelete) return null;
     return (
       <Group title="More actions">
@@ -332,7 +334,18 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
               {canMoveCampus ? (
                 <div>
                   <h3 className="font-semibold">Change campus</h3>
-                  <ActionForm action={changeCampus} label="Move to campus" variant="outline" size="sm" className="mt-2" confirm="Move this family to another campus? Open tasks move with them, and the stage must be one the new campus teaches.">
+                  <ActionForm
+                    action={changeCampus}
+                    label="Move to campus"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    confirm={
+                      letterWithFamily
+                        ? "Move this family to another campus? The letter they have is withdrawn, and a new one priced at the new campus waits for approval."
+                        : "Move this family to another campus? Open tasks move with them, and the stage must be one the new campus teaches."
+                    }
+                  >
                     {idField}
                     <NativeSelect name="campusId" defaultValue={app.campus_id} aria-label="Campus">
                       {w.otherCampuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -342,7 +355,9 @@ export function ApplicantWorkspaceView({ w, permissions }: { w: ApplicantWorkspa
                       {w.otherCampuses.flatMap((c) => gradesAt(c.id).map((g) => <option key={`${c.id}:${g.id}`} value={g.id}>{c.name} · {g.name}</option>))}
                     </NativeSelect>
                     <Input name="reason" placeholder="Why (optional)" maxLength={300} />
-                    <p className="text-xs text-muted-foreground">Only before a decision. Cancel or move a live booking first.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Until the family accepts. A letter already written is re-drafted at the new campus and waits for approval. Cancel or move a live booking first.
+                    </p>
                   </ActionForm>
                 </div>
               ) : null}

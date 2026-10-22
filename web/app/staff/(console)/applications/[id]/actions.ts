@@ -17,7 +17,7 @@ import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
 import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
 import { can } from "@/lib/permissions";
 import { isMonthStart } from "@/lib/start-month";
-import { onStartMonthChanged } from "@/lib/workflow/reprice-actions";
+import { letterInPlay, onStartMonthChanged, reissueLetter, requirePriceable } from "@/lib/workflow/reprice-actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { offerTrialWeek, recordTrialWeekOutcome } from "@/lib/workflow/trial-week";
@@ -769,13 +769,19 @@ function trackAfterFlagChange(
  * The campus a child is applying to, changed by hand.
  *
  * A family who chose the wrong campus, or moved house, could not be moved:
- * `changeGrade` said "Change the campus first" and nothing did. Refused once
- * an offer exists, because the letter, the fees and the bank details are the
- * campus's; before that the campus, and with it the grade if the new campus
- * does not teach the old one, the assessment flag, and the open tasks (which
- * are what scope who sees the work) all follow. A live booking is at the old
- * campus and has to be cancelled or moved first — a sitting cannot change
- * building on its own.
+ * `changeGrade` said "Change the campus first" and nothing did. The campus,
+ * and with it the grade if the new campus does not teach the old one, the
+ * assessment flag, and the open tasks (which are what scope who sees the
+ * work) all follow. A live booking is at the old campus and has to be
+ * cancelled or moved first — a sitting cannot change building on its own.
+ *
+ * Until 22 October 2026 this was refused once a decision existed, and told
+ * staff to withdraw the offer first — but withdrawing leaves the child at
+ * `offer_draft`, which was refused too, so a family could not be moved at
+ * all after the decision. The letter, the fees and the bank details are the
+ * campus's, so a letter in play is now re-priced at the new campus in the
+ * same step, as the starting month is (`reissueLetter`). Once the family has
+ * accepted, the campus is part of what they agreed to and paid against.
  */
 export async function changeCampus(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -785,12 +791,18 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) return;
-    const offerStages: ApplicationStatus[] = [
-      "approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired", "offer_declined", "offer_accepted",
-      "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
+    const agreedStages: ApplicationStatus[] = [
+      "offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
     ];
-    if (offerStages.includes(app.status)) {
-      throw new Error("The campus cannot change once a decision has been made: withdraw the offer first, or withdraw and re-enquire.");
+    if (agreedStages.includes(app.status)) {
+      throw new Error("The family has accepted the offer, so the campus is set. To move them, take them back to Offer with Move to stage first.");
+    }
+    if (app.status === "offer_declined") throw new Error("The family declined the offer. Take them back with Move to stage before moving them.");
+    // A letter already written is re-priced at the new campus, which is the
+    // offer approver's to do, as re-pricing it for a scholarship is.
+    const play = await letterInPlay(admin, app);
+    if (play.reDraft && !can(ctx.permissions, "offers.approve")) {
+      throw new Error("This child's offer is already written. Moving campus re-drafts it, so ask someone who approves offers to move them.");
     }
     // Through the caller's own client: a campus administrator may move a
     // family only between campuses they can see.
@@ -809,11 +821,18 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       admin.from("campus_grades").select("grade_id").eq("campus_id", parsed.campusId).eq("grade_id", gradeId).eq("is_active", true).maybeSingle(),
       admin.from("campuses").select("id, name, intake_cadence").eq("id", parsed.campusId).maybeSingle(),
       admin.from("campuses").select("id, name").eq("id", app.campus_id).maybeSingle(),
-      admin.from("grades").select("id, name").eq("id", gradeId).maybeSingle(),
+      admin.from("grades").select("id, name, sort_order").eq("id", gradeId).maybeSingle(),
     ]);
     if (!to) throw new Error("That campus does not exist.");
     const toCadence = to.intake_cadence;
     if (!offered || !grade) throw new Error(`${to.name} does not teach ${grade?.name ?? "that stage"}. Choose a stage it offers.`);
+    // Before anything changes: a family's letter is withdrawn only when the
+    // new campus can price the one that replaces it.
+    if (play.reDraft) {
+      const { data: intake, error: intakeErr } = await admin.from("intakes").select("academic_year_id").eq("id", app.intake_id).single();
+      if (intakeErr) throw new Error(intakeErr.message);
+      await requirePriceable(admin, { campusId: parsed.campusId, academicYearId: intake.academic_year_id, gradeSort: grade.sort_order });
+    }
 
     const requires = await requiresAssessmentAt(admin, parsed.campusId, gradeId);
     const { error } = await admin
@@ -846,6 +865,11 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       },
       actor: ctx.actor,
     });
+    if (play.reDraft) {
+      await reissueLetter(admin, app, play, `Campus changed from ${fromCampus?.name ?? "unknown"} to ${to.name}`, ctx.actor);
+      drainSoon();
+      revalidatePath("/staff/offers");
+    }
     done(app.id);
   });
 }
