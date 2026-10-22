@@ -11,6 +11,7 @@ import { chargeAtAcceptance, securedWithoutPaying } from "@/lib/payments/due";
 import { resolvePromotion } from "@/lib/promotions/load";
 import { scholarshipCodeFor } from "@/lib/promotions/scholarship-server";
 import { onPaymentVerified } from "@/lib/workflow/payment-actions";
+import { reminderJobs } from "@/lib/workflow/reminder-jobs";
 import { getSettings } from "@/lib/settings";
 import { commit, WorkflowError, type Actor, type JobSpec } from "@/lib/workflow/engine";
 
@@ -308,17 +309,17 @@ export async function onOfferApproved(
       precondition: live,
     },
   ];
-  for (const days of opts.notify === false ? [] : settings.offerReminderDaysBefore) {
-    const at = new Date(expiresAt.getTime() - days * DAY);
-    if (at.getTime() <= Date.now() + 15 * 60_000) continue;
-    jobs.push({
-      type: "send_email",
-      payload: { template_key: "offer_reminder", links: ["offer"], offer_id: offer.id },
-      idempotencyKey: `email:${app.id}:offer_reminder:${offer.id}:${days}d`,
-      runAfter: at,
+  jobs.push(
+    ...reminderJobs({
+      applicationId: app.id,
+      template: "offer_reminder",
+      subjectId: offer.id,
+      deadline: expiresAt,
+      daysBefore: opts.notify === false ? [] : settings.offerReminderDaysBefore,
+      payload: { links: ["offer"], offer_id: offer.id },
       precondition: live,
-    });
-  }
+    })
+  );
 
   await commit(admin, {
     applicationId: app.id,
@@ -479,14 +480,14 @@ export async function onOfferAccepted(
   const { data: flipped } = await admin.from("offers").update({ status: "accepted" }).eq("id", offer.id).in("status", ["sent", "viewed"]).select("id");
   if (!flipped?.length) throw new WorkflowError("This offer is no longer open.", "status_conflict");
 
-  // Accepting never shortens the time the family was given. An offer whose
-  // closing date the school moved told them to accept and pay by that date;
-  // on 22 October 2026 a scholarship family told "5 December" accepted within
-  // minutes and was asked to pay by 5 November instead. An ordinary offer
-  // closes sooner than `payment_due_days` from any day it can be accepted on,
-  // so for those this changes nothing.
-  const closes = offer.expires_at ? new Date(offer.expires_at).getTime() : 0;
-  const dueAt = new Date(Math.max(Date.now() + settings.paymentDueDays * DAY, closes));
+  // A family whose closing date the school moved was told to accept and pay
+  // by that date (`deadline_moved`), so accepting never gives them less: on
+  // 22 October 2026 a scholarship family told "5 December" accepted within
+  // minutes and was asked to pay by 5 November. Only those offers. An
+  // ordinary offer keeps `payment_due_days` from acceptance, which is what
+  // its letter promised, whatever the two settings say about each other.
+  const byDays = Date.now() + settings.paymentDueDays * DAY;
+  const dueAt = new Date((await closingDateMoved(admin, offer)) ? Math.max(byDays, new Date(offer.expires_at!).getTime()) : byDays);
   const request = await createPaymentRequest(admin, { app, offer, acceptanceId: acceptance.id, dueAt });
 
   try {
@@ -569,17 +570,17 @@ export async function onOfferAccepted(
       precondition: { application_status: ["payment_required"] },
     },
   ];
-  for (const days of settings.paymentReminderDaysBefore) {
-    const at = new Date(dueAt.getTime() - days * DAY);
-    if (at.getTime() <= Date.now() + 15 * 60_000) continue;
-    jobs.push({
-      type: "send_email",
-      payload: { template_key: "payment_reminder", links: ["payment"], offer_id: offer.id, payment_request_id: request.id },
-      idempotencyKey: `email:${app.id}:payment_reminder:${request.id}:${days}d`,
-      runAfter: at,
+  jobs.push(
+    ...reminderJobs({
+      applicationId: app.id,
+      template: "payment_reminder",
+      subjectId: request.id,
+      deadline: dueAt,
+      daysBefore: settings.paymentReminderDaysBefore,
+      payload: { links: ["payment"], offer_id: offer.id, payment_request_id: request.id },
       precondition: { application_status: ["payment_required"] },
-    });
-  }
+    })
+  );
   await commit(admin, {
     applicationId: app.id,
     expectedStatus: "offer_accepted",
@@ -595,6 +596,19 @@ export async function onOfferAccepted(
     actor: { type: "system", label: "System" },
   });
   return { acceptanceId: acceptance.id, paymentRequestId: request.id };
+}
+
+/** Whether this offer's closing date was moved by staff after it was sent (`onOfferDeadlineMoved`). */
+async function closingDateMoved(admin: AdminClient, offer: Pick<OfferRow, "id" | "application_id" | "expires_at">): Promise<boolean> {
+  if (!offer.expires_at) return false;
+  const { count, error } = await admin
+    .from("application_events")
+    .select("id", { count: "exact", head: true })
+    .eq("application_id", offer.application_id)
+    .eq("type", "offer.deadline_moved")
+    .eq("payload->>offer_id", offer.id);
+  if (error) throw new WorkflowError(error.message, "database");
+  return (count ?? 0) > 0;
 }
 
 /** The parent declines. Recorded like an acceptance; staff get a task, the parent gets no email. */

@@ -18,6 +18,10 @@ describe("reminderDaysFromKey", () => {
     expect(reminderDaysFromKey("email:app-1:payment_reminder:req-1:2d")).toBe(2);
   });
 
+  it("reads a reminder queued by an earlier deadline move, keyed by its date", () => {
+    expect(reminderDaysFromKey("email:app-1:payment_reminder:req-1:7d:2026-12-05")).toBe(7);
+  });
+
   it("is null for anything that is not a payment reminder", () => {
     // The drain queues plenty of other mail against an application, and a
     // deadline move must not reschedule the offer reminders or the receipt.

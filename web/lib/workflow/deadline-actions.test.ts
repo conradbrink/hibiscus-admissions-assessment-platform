@@ -14,17 +14,21 @@ import { letterInPlay } from "@/lib/workflow/reprice-actions";
  * query resolves to the rows given for its table, writes are logged, and the
  * commit's arguments are kept so a test can read what it asked for.
  */
-function stub(rows: Record<string, unknown>) {
+function stub(rows: Record<string, unknown>, opts: { refuseCommit?: boolean } = {}) {
   const log: string[] = [];
   const commits: Array<Record<string, unknown>> = [];
+  const updates: Array<{ table: string; values: Record<string, unknown> }> = [];
   const from = (table: string): unknown => {
     const q: unknown = new Proxy(
       {},
       {
         get(_, prop) {
           if (prop === "then") return (resolve: (value: unknown) => void) => resolve({ data: rows[table] ?? [], error: null });
-          return () => {
-            if (prop === "update") log.push(`write:${table}`);
+          return (...args: unknown[]) => {
+            if (prop === "update") {
+              log.push(`write:${table}`);
+              updates.push({ table, values: args[0] as Record<string, unknown> });
+            }
             return q;
           };
         },
@@ -37,10 +41,10 @@ function stub(rows: Record<string, unknown>) {
     rpc: async (_fn: string, args: Record<string, unknown>) => {
       commits.push(args);
       log.push(`commit:${(args.p_new_status as string | null) ?? "event"}`);
-      return { data: 1, error: null };
+      return opts.refuseCommit ? { data: null, error: { message: "status_conflict: expected offer_expired, found withdrawn" } } : { data: 1, error: null };
     },
   } as unknown as AdminClient;
-  return { admin, log, commits };
+  return { admin, log, commits, updates };
 }
 
 const decemberFifth = new Date("2026-12-05T21:59:59Z");
@@ -52,6 +56,9 @@ const offer = (status: OfferStatus) => ({
   template_id: "t-1",
   variables: { offer_expiry_date: "12 October 2026" },
   first_viewed_at: "2026-10-01T09:00:00Z",
+  fees: { currency: "ZAR", lines: [{ code: "registration", label: "2026/2027 admission fee", amount_minor: 120_000 }] },
+  rendered_html: "<p>Open until 12 October 2026.</p>",
+  terms_html: "",
 });
 
 describe("letterInPlay", () => {
@@ -81,12 +88,25 @@ describe("onOfferDeadlineMoved", () => {
     expect(log).toEqual(["write:offers", "commit:offer_sent"]);
     expect(commits[0].p_resolve_task_types).toEqual(["follow_up_expired_offer"]);
     const jobs = commits[0].p_jobs as Array<{ type: string; idempotency_key: string; payload: { template_key?: string; variables?: Record<string, string | null> } }>;
-    // A new sweep for the new date, keyed so the outbox treats it as new.
-    expect(jobs.find((j) => j.type === "offer_expire")?.idempotency_key).toBe("offer_expire:offer-1:2026-12-05");
+    // A new sweep for the new date, keyed per move so the outbox treats it as
+    // new even when an earlier move used the same date.
+    expect(jobs.find((j) => j.type === "offer_expire")?.idempotency_key).toMatch(/^offer_expire:offer-1:2026-12-05:\d+$/);
     // The family is told, with the date in their own words.
     const email = jobs.find((j) => j.payload.template_key === "deadline_moved");
     expect(email?.payload.variables).toMatchObject({ offer_open: "yes", fees_due: null });
     expect(email?.payload.variables?.new_deadline).toContain("December 2026");
+  });
+
+  it("names the application fee on a letter frozen before the label existed", async () => {
+    const { admin, updates } = stub({
+      offer_templates: { ...template, body_html: "<p>{{registration_fee_label}}: open until {{offer_expiry_date}}.</p>", allowed_variables: ["offer_expiry_date", "registration_fee_label"] },
+      offers: [{ id: "offer-1" }],
+      jobs: [],
+      settings: [],
+    });
+    await onOfferDeadlineMoved(admin, { id: "app-1", status: "offer_sent" }, offer("viewed"), decemberFifth, "r", SYSTEM_ACTOR);
+    const written = updates.find((u) => u.table === "offers")?.values;
+    expect(written?.rendered_html).toContain("2026/2027 admission fee: open until");
   });
 
   it("moves an open offer's date without touching its status", async () => {
@@ -94,6 +114,16 @@ describe("onOfferDeadlineMoved", () => {
     expect(await onOfferDeadlineMoved(admin, { id: "app-1", status: "offer_sent" }, offer("viewed"), decemberFifth, "r", SYSTEM_ACTOR)).toEqual({ reopened: false });
     // The current status again, which moves the application's own due date with it.
     expect(log).toEqual(["write:offers", "commit:offer_sent"]);
+  });
+
+  it("puts the offer back when the application refuses the move", async () => {
+    // A stage moved in the same second: the commit says no. Left as written,
+    // the offer would be open under an application still marked expired, and
+    // could neither be moved again nor answered.
+    const { admin, log, updates } = stub({ offer_templates: template, offers: [{ id: "offer-1" }], jobs: [], settings: [] }, { refuseCommit: true });
+    await expect(onOfferDeadlineMoved(admin, { id: "app-1", status: "offer_expired" }, offer("expired"), decemberFifth, "r", SYSTEM_ACTOR)).rejects.toThrow(/status_conflict/);
+    expect(log).toEqual(["write:offers", "commit:offer_sent", "write:offers"]);
+    expect(updates[1].values).toMatchObject({ status: "expired", expires_at: "2026-10-12T08:00:00Z", rendered_html: "<p>Open until 12 October 2026.</p>" });
   });
 
   it("refuses an offer already answered, and a date already gone", async () => {
@@ -105,15 +135,23 @@ describe("onOfferDeadlineMoved", () => {
 });
 
 describe("onPaymentDeadlineMoved", () => {
-  const app = { id: "app-1", status: "payment_required" as const, next_action: "pay_fees" };
+  const app = { id: "app-1", status: "payment_required" as const, next_action: "pay_fees", next_action_due_at: "2026-10-16T21:59:59Z" };
 
   it("answers the overdue task and queues a new sweep when a passed date moves forward", async () => {
     const { admin, commits } = stub({ payment_requests: [{ id: "req-1" }], jobs: [], settings: [] });
     await onPaymentDeadlineMoved(admin, app, { id: "req-1", due_at: "2026-10-16T21:59:59Z" }, decemberFifth, "r", SYSTEM_ACTOR, { notify: true });
     expect(commits[0].p_resolve_task_types).toEqual(["payment_overdue"]);
     const jobs = commits[0].p_jobs as Array<{ type: string; idempotency_key: string; payload: { template_key?: string } }>;
-    expect(jobs.find((j) => j.type === "payment_overdue")?.idempotency_key).toBe("payment_overdue:req-1:2026-12-05");
+    expect(jobs.find((j) => j.type === "payment_overdue")?.idempotency_key).toMatch(/^payment_overdue:req-1:2026-12-05:\d+$/);
     expect(jobs.some((j) => j.payload.template_key === "deadline_moved")).toBe(true);
+  });
+
+  it("puts the date and the application's due date back when the move is refused", async () => {
+    const { admin, updates } = stub({ payment_requests: [{ id: "req-1" }], jobs: [], settings: [] }, { refuseCommit: true });
+    await expect(onPaymentDeadlineMoved(admin, app, { id: "req-1", due_at: "2026-10-16T21:59:59Z" }, decemberFifth, "r", SYSTEM_ACTOR)).rejects.toThrow(/status_conflict/);
+    const last = (table: string) => updates.filter((u) => u.table === table).at(-1)?.values;
+    expect(last("payment_requests")).toEqual({ due_at: "2026-10-16T21:59:59Z" });
+    expect(last("applications")).toEqual({ next_action_due_at: "2026-10-16T21:59:59Z" });
   });
 
   it("refuses a request that is no longer open", async () => {

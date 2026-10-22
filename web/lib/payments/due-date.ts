@@ -1,3 +1,5 @@
+import { reminderDaysFromKey as reminderDaysOf, TOO_SOON_MS } from "@/lib/workflow/reminder-jobs";
+
 /**
  * Moving a family's payment deadline, and the queued work that has to move
  * with it.
@@ -22,14 +24,6 @@
 /** A minute after the deadline, matching what `onOfferAccepted` queues. */
 const OVERDUE_GRACE_MS = 60_000;
 
-/**
- * Inside this much of now, a reminder is not worth sending: it would land
- * alongside the message announcing the new date. The same window the queueing
- * code uses, deliberately — a reminder it would have declined to create is a
- * reminder this should decline to keep.
- */
-const TOO_SOON_MS = 15 * 60_000;
-
 const DAY_MS = 86_400_000;
 
 export type PendingPaymentJob = {
@@ -42,12 +36,9 @@ export type JobMove =
   | { id: string; action: "reschedule"; runAfter: string }
   | { id: string; action: "skip"; reason: string };
 
-/** The days-before a reminder's key encodes, or null if it encodes none. */
+/** The days-before a payment reminder's key encodes, or null if it encodes none. The key's shape lives with the code that builds it. */
 export function reminderDaysFromKey(key: string): number | null {
-  const m = /:payment_reminder:[^:]+:(\d+)d$/.exec(key);
-  if (!m) return null;
-  const days = Number(m[1]);
-  return Number.isFinite(days) && days > 0 ? days : null;
+  return reminderDaysOf(key, "payment_reminder");
 }
 
 /**
