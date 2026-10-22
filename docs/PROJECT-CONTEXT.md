@@ -670,6 +670,19 @@ mismatch) as a **student-scoped task** on the owner's badge. The money trail is
 the `payments` rows, which carry the provider's answer, the amount, the
 approval code and every verify attempt.
 
+**Paying through PayGate from the family pages (22 October 2026).** PayGate
+needs a page of ours between the checkout and its own (the bridge that
+posts the request id and checksum), and so does the dev gateway. Both lived
+under `/pay` and recognised only an applicant's session, but the family
+cookie is scoped to `/family` and never reaches `/pay`: a family paying for
+extras through PayGate was told their link had expired, and the dev gateway
+did the same on a laptop. The caller now says where its payer is recognised
+(`bridgeBase`, `lib/payments/bridge.ts`); the extras checkout names the
+child's own pay page, and `/family/extras/pay/<child>/gateway` and `/dev`
+find the attempt through the family loaders and draw the same page as the
+applicant's (`lib/payments/paygate-bridge.ts`). DPO sends the payer straight
+to its own site and was never affected.
+
 Two honest limits: extras rows are **read-only in the finance console** (every
 write on that panel moves an application, and an extras order has none, so
 recording a transfer against one is a later change), and an order is **never

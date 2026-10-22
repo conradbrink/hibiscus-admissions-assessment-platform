@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { bridgeUrl } from "@/lib/payments/bridge";
 import { CHECKOUT_TTL_HOURS, type CheckoutRequest, type CheckoutResult, type PaymentProvider, type VerifyResult } from "@/lib/payments/provider";
 import { PAYGATE_LIVE_API, buildInitiateFields, buildQueryFields, checksumValid, encodeForm, fieldMap, keepFields, mapTransactionStatus, parseWire, paygateDate } from "@/lib/payments/paygate-wire";
 
@@ -61,8 +62,9 @@ export const paygateProvider: PaymentProvider = {
     return {
       providerRef: m.PAY_REQUEST_ID,
       // The bridge posts PAY_REQUEST_ID and its checksum to process.trans,
-      // which PayGate requires as a POST rather than a link.
-      redirectUrl: `/pay/gateway?ref=${encodeURIComponent(m.PAY_REQUEST_ID)}`,
+      // which PayGate requires as a POST rather than a link. It lives where
+      // the payer's browser is recognised (`lib/payments/bridge.ts`).
+      redirectUrl: bridgeUrl(request.bridgeBase, "gateway", m.PAY_REQUEST_ID),
       expiresAt: new Date(Date.now() + CHECKOUT_TTL_HOURS * 3_600_000),
     };
   },
