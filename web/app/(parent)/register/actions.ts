@@ -10,12 +10,14 @@ import { nest } from "@/lib/registration/form-values";
 import { loadRegistrationBundle, ensureRegistration } from "@/lib/registration/load";
 import { changedFromApplication, prefillRegistration } from "@/lib/registration/prefill";
 import { agreementsSchema, emergencySchema, familySchema, issuesToFields, medicalSchema, signatureMatches, studentSchema } from "@/lib/registration/schema";
-import { registrationForSession } from "@/lib/registration/session";
+import { registrationForSession, uploadActor } from "@/lib/registration/session";
 import { parseSignature, signatureSvg } from "@/lib/registration/signature";
 import { requestContext } from "@/lib/request";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { endParentSession, readParentSession } from "@/lib/tokens/server";
 import type { RegisterFormState } from "@/components/parent/register/field";
 import type { Database } from "@/lib/supabase/types";
-import { PARENT_ACTOR, WorkflowError } from "@/lib/workflow/engine";
+import { commit, WorkflowError } from "@/lib/workflow/engine";
 import { onRegistrationSaved, onRegistrationSubmitted } from "@/lib/workflow/registration-actions";
 
 /**
@@ -49,7 +51,7 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
   const parsed = studentSchema.safeParse(values);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph, bundle } = await openSession();
+    const { admin, graph, bundle, actor } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
     const { error } = await admin
@@ -80,7 +82,7 @@ export async function saveStudent(_prev: RegisterFormState, formData: FormData):
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");
     const hadFlags = parseMismatchFlags(bundle.registration?.mismatch_flags).length > 0;
-    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), PARENT_ACTOR, { clearedMismatch: hadFlags });
+    await onRegistrationSaved(admin, graph.application, "student", changedFromApplication(graph.application, d), actor, { clearedMismatch: hadFlags });
   } catch (e) {
     return failed(e, values);
   }
@@ -92,7 +94,7 @@ export async function saveMedical(_prev: RegisterFormState, formData: FormData):
   const parsed = medicalSchema.safeParse(values);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, actor } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
     const { error } = await admin
@@ -111,7 +113,7 @@ export async function saveMedical(_prev: RegisterFormState, formData: FormData):
       })
       .eq("application_id", graph.application.id);
     if (error) throw new WorkflowError(error.message, "database");
-    await onRegistrationSaved(admin, graph.application, "medical", [], PARENT_ACTOR);
+    await onRegistrationSaved(admin, graph.application, "medical", [], actor);
   } catch (e) {
     return failed(e, values);
   }
@@ -128,7 +130,7 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
   const parsed = familySchema.safeParse(nested);
   if (!parsed.success) return { fields: issuesToFields(parsed.error), values };
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, actor } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const d = parsed.data;
     const appId = graph.application.id;
@@ -187,7 +189,7 @@ export async function saveFamily(_prev: RegisterFormState, formData: FormData): 
         .eq("id", graph.contact.id);
     }
     await admin.from("registrations").update({ family_completed_at: new Date().toISOString() }).eq("application_id", appId);
-    await onRegistrationSaved(admin, graph.application, "family", [], PARENT_ACTOR);
+    await onRegistrationSaved(admin, graph.application, "family", [], actor);
   } catch (e) {
     return failed(e, values);
   }
@@ -213,7 +215,7 @@ export async function saveEmergency(_prev: RegisterFormState, formData: FormData
     return { fields, values };
   }
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, actor } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     const appId = graph.application.id;
     await admin.from("registration_contacts").delete().eq("application_id", appId).eq("kind", "emergency");
@@ -233,7 +235,7 @@ export async function saveEmergency(_prev: RegisterFormState, formData: FormData
     );
     if (error) throw new WorkflowError(error.message, "database");
     await admin.from("registrations").update({ emergency_completed_at: new Date().toISOString() }).eq("application_id", appId);
-    await onRegistrationSaved(admin, graph.application, "emergency", [], PARENT_ACTOR);
+    await onRegistrationSaved(admin, graph.application, "emergency", [], actor);
   } catch (e) {
     return failed(e, values);
   }
@@ -242,10 +244,10 @@ export async function saveEmergency(_prev: RegisterFormState, formData: FormData
 
 export async function continueFromDocuments(): Promise<RegisterFormState> {
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, actor } = await openSession();
     await ensureRegistration(admin, graph.application.id);
     await admin.from("registrations").update({ documents_completed_at: new Date().toISOString() }).eq("application_id", graph.application.id);
-    await onRegistrationSaved(admin, graph.application, "documents", [], PARENT_ACTOR);
+    await onRegistrationSaved(admin, graph.application, "documents", [], actor);
   } catch (e) {
     return failed(e, {});
   }
@@ -277,7 +279,7 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
     return { fields: { signature: messages[signature.reason] }, values };
   }
   try {
-    const { admin, graph, bundle } = await openSession();
+    const { admin, graph, bundle, actor, assistedBy } = await openSession();
     const primary = bundle.contacts.find((c) => c.kind === "primary_guardian");
     const first = primary?.first_name ?? graph.contact.first_name;
     const last = primary?.last_name ?? graph.contact.last_name;
@@ -320,6 +322,9 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
         ip_hash: ctx.ipHash,
         user_agent: ctx.userAgent,
         decision,
+        // Signed at the desk with a member of staff: the browser and address
+        // above are the school's, and the record says whose.
+        witnessed_by_staff_id: assistedBy?.id ?? null,
       })),
       // Not `ignoreDuplicates`, which it was until the photographs consent
       // became a question with two answers. A parent who declined and came
@@ -331,7 +336,7 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
     if (error) throw new WorkflowError(error.message, "database");
     await ensureRegistration(admin, graph.application.id);
     await admin.from("registrations").update({ agreements_completed_at: new Date().toISOString() }).eq("application_id", graph.application.id);
-    await onRegistrationSaved(admin, graph.application, "agreements", [], PARENT_ACTOR);
+    await onRegistrationSaved(admin, graph.application, "agreements", [], actor);
   } catch (e) {
     return failed(e, values);
   }
@@ -340,13 +345,39 @@ export async function acceptAgreements(_prev: RegisterFormState, formData: FormD
 
 export async function submitRegistration(): Promise<RegisterFormState> {
   try {
-    const { admin, graph } = await openSession();
+    const { admin, graph, actor } = await openSession();
     const bundle = await loadRegistrationBundle(admin, graph);
     const ctx = await requestContext();
-    await onRegistrationSubmitted(admin, graph, bundle.completeness, { ipHash: ctx.ipHash }, PARENT_ACTOR);
+    await onRegistrationSubmitted(admin, graph, bundle.completeness, { ipHash: ctx.ipHash }, actor);
   } catch (e) {
     return failed(e, {});
   }
   drainSoon();
   redirect("/register/done");
+}
+
+/**
+ * The member of staff hands the form back. The session they opened at the
+ * desk ends here rather than lingering in the school's browser for the rest
+ * of the hour, and they land on the registration in the console. A parent's
+ * own session never reaches this: there is no button for it, and a session
+ * without a member of staff in it is sent back to the form.
+ */
+export async function finishAssistedRegistration(): Promise<void> {
+  const session = await readParentSession();
+  if (!session?.assistedBy) redirect("/register");
+  const admin = createAdminClient();
+  const by = await uploadActor(admin);
+  if (by) {
+    await commit(admin, {
+      applicationId: session.applicationId,
+      expectedStatus: null,
+      newStatus: null,
+      nextAction: null,
+      event: { type: "registration.assisted_ended", summary: "Finished filling in the registration with the family", payload: {} },
+      actor: by.actor,
+    });
+  }
+  await endParentSession();
+  redirect(`/staff/registrations/${session.applicationId}`);
 }

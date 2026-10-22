@@ -32,6 +32,8 @@ export type SignedAgreement = {
   bodyHash: string;
   /** A refused agreement is still signed and dated; it just says no. */
   declined: boolean;
+  /** The member of staff at the desk when it was signed, or null on the family's own link. */
+  witnessedBy?: string | null;
 };
 
 export type AgreementsDocumentProps = {
@@ -66,6 +68,7 @@ export function AgreementsDocument(p: AgreementsDocumentProps) {
             <View style={s.sign} wrap={false}>
               <Text style={s.signMeta}>
                 {a.declined ? `DECLINED by ${a.signatureName} on ${a.acceptedOn}. This family did not give permission.` : `Accepted by ${a.signatureName} on ${a.acceptedOn}.`}
+                {a.witnessedBy ? ` Signed at the school, with ${a.witnessedBy}.` : ""}
               </Text>
               {a.signaturePath ? (
                 <Svg viewBox={`0 0 ${SIGNATURE_WIDTH} ${SIGNATURE_HEIGHT}`} style={{ width: 240, height: 80, marginTop: 4 }}>

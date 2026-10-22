@@ -174,9 +174,10 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
       const status = !d ? (q.required ? "Not received" : "Not provided (optional)") : d.review_status === "accepted" ? "Accepted" : d.review_status === "rejected" ? "Rejected, awaiting a new upload" : "Received, awaiting review";
       return { label: q.label, status, filename: d?.original_filename ?? null, uploadedOn: d ? formatDateLong(d.uploaded_at) : null };
     });
+    const witnessOf = await witnesses(admin, bundle.acceptances);
     const agreements = bundle.acceptances.map((a) => {
       const t = bundle.agreementTemplates.find((x) => x.id === a.agreement_template_id);
-      return { name: t?.name ?? a.template_key, version: a.template_version, acceptedOn: formatDateLong(a.accepted_at), signedBy: a.signature_name, declined: a.decision === "declined" };
+      return { name: t?.name ?? a.template_key, version: a.template_version, acceptedOn: formatDateLong(a.accepted_at), signedBy: a.signature_name, declined: a.decision === "declined", witnessedBy: witnessOf(a.witnessed_by_staff_id) };
     });
     const buffer = await render(
       createElement(RegistrationDocument, {
@@ -202,12 +203,25 @@ export async function renderStaffPdf(admin: AdminClient, graph: ApplicationGraph
   if (!bundle.acceptances.length) return { unavailable: "No agreements have been answered yet." };
   const ids = [...new Set(bundle.acceptances.map((a) => a.agreement_template_id))];
   const { data: templates } = await admin.from("agreement_templates").select("*").in("id", ids);
+  const witnessOf = await witnesses(admin, bundle.acceptances);
   const agreements = bundle.acceptances
     .map((a) => {
       const t = (templates ?? []).find((x) => x.id === a.agreement_template_id);
-      return { name: t?.name ?? a.template_key, version: a.template_version, bodyHtml: t?.body_html ?? "<p>The wording of this version is no longer stored.</p>", signatureName: a.signature_name, signaturePath: signaturePathFrom(a.signature_svg), acceptedOn: formatDateLong(a.accepted_at), bodyHash: a.body_hash, sort: t?.sort_order ?? 0, declined: a.decision === "declined" };
+      return { name: t?.name ?? a.template_key, version: a.template_version, bodyHtml: t?.body_html ?? "<p>The wording of this version is no longer stored.</p>", signatureName: a.signature_name, signaturePath: signaturePathFrom(a.signature_svg), acceptedOn: formatDateLong(a.accepted_at), bodyHash: a.body_hash, sort: t?.sort_order ?? 0, declined: a.decision === "declined", witnessedBy: witnessOf(a.witnessed_by_staff_id) };
     })
     .sort((a, b) => a.sort - b.sort);
   const buffer = await render(createElement(AgreementsDocument, { logoUrl, letterhead: graph.campus, studentName: nameOf(graph), reference: ref, printedOn: formatDateLong(new Date()), agreements }));
   return { buffer, filename: `hibiscus-agreements-${ref}.pdf` };
+}
+
+/**
+ * Who was at the desk for each signature made in an assisted session, by
+ * name. The browser and address on such a row are the school's, so the
+ * record says whose help the family had rather than reading as signed alone.
+ */
+async function witnesses(admin: AdminClient, acceptances: Array<{ witnessed_by_staff_id: string | null }>): Promise<(id: string | null) => string | null> {
+  const ids = [...new Set(acceptances.map((a) => a.witnessed_by_staff_id).filter((x): x is string => Boolean(x)))];
+  if (!ids.length) return () => null;
+  const { data } = await admin.from("staff_profiles").select("id, full_name").in("id", ids);
+  return (id) => (id ? ((data ?? []).find((w) => w.id === id)?.full_name ?? "a member of staff") : null);
 }

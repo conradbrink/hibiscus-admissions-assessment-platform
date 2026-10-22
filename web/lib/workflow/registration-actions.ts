@@ -314,7 +314,10 @@ export async function onRegistrationSubmitted(
   }
 
   await admin.from("registrations").update({ submitted_at: new Date().toISOString(), submitted_ip_hash: ctx.ipHash }).eq("application_id", app.id);
-  await completeRegistration(admin, app, { summary: "Registration completed by the parent", payload: {} }, actor);
+  // Said as it happened: a form filled in at the desk was the family's
+  // answers, entered with a member of staff, not the parent alone.
+  const by = actor.type === "staff" ? "with the family, at the school" : "by the parent";
+  await completeRegistration(admin, app, { summary: `Registration completed ${by}`, payload: actor.type === "staff" ? { assisted_by_staff: actor.id ?? null } : {} }, actor);
   return { complete: true };
 }
 

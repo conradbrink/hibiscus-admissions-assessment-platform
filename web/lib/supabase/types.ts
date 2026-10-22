@@ -1388,6 +1388,8 @@ export type AgreementAcceptanceRow = {
   accepted_at: string;
   /** A declined row is still a signed, timestamped answer: this family said no. */
   decision: AgreementDecision;
+  /** The member of staff at the desk when it was signed in an assisted session; null on the family's own link. */
+  witnessed_by_staff_id: string | null;
 };
 
 export type ExportStatus = "pending" | "exported" | "failed";
@@ -2816,10 +2818,11 @@ export type Database = {
       >;
       agreement_acceptances: TableOf<
         AgreementAcceptanceRow,
-        "signature_svg" | "ip_hash" | "user_agent" | "accepted_at",
+        "signature_svg" | "ip_hash" | "user_agent" | "accepted_at" | "witnessed_by_staff_id",
         [
           Rel<"agreement_acceptances_application_id_fkey", "application_id", "applications">,
           Rel<"agreement_acceptances_agreement_template_id_fkey", "agreement_template_id", "agreement_templates">,
+          Rel<"agreement_acceptances_witnessed_by_staff_id_fkey", "witnessed_by_staff_id", "staff_profiles">,
         ]
       >;
       student_records: TableOf<

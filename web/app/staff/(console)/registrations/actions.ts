@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { loadApplicationGraph } from "@/lib/applications";
@@ -13,6 +14,7 @@ import { loadRegistrationBundle } from "@/lib/registration/load";
 import { applicableRequirements, missingDocumentsText, registrationCompleteness } from "@/lib/registration/completeness";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
+import { startParentSession } from "@/lib/tokens/server";
 import { commit, enqueueJobs, WorkflowError } from "@/lib/workflow/engine";
 import { onEnrolmentConfirmed } from "@/lib/workflow/enrolment-actions";
 import { onDocumentReviewed, onDocumentUploaded, onMismatchConfirmationRequested, onRegistrationConfirmedByStaff, registrationReminderKey } from "@/lib/workflow/registration-actions";
@@ -196,4 +198,53 @@ export async function uploadDocumentForParent(_: StaffActionState, formData: For
     drainSoon();
     done(parsed.applicationId);
   });
+}
+
+/** Long enough to sit with a family through every step and the documents, short enough not to outlive the visit. */
+const ASSISTED_MINUTES = 60;
+
+/**
+ * Open the family's registration form in this browser, to fill it in with
+ * them at the desk or for them from what they have given the school.
+ *
+ * Asked for by the school on 22 October 2026. Until now the only way was to
+ * generate the parent's link and paste it in, and then every answer, upload
+ * and signature was recorded as the parent's own, from the school's
+ * computer. This opens the same form — the same steps, checks and
+ * completeness rule, so nothing a parent is held to is skipped — under a
+ * session that names the member of staff. Every save goes on the timeline
+ * as theirs, uploads are recorded as staff uploads, and a signature drawn
+ * at the desk says who was there (`agreement_acceptances.witnessed_by_staff_id`).
+ *
+ * No token is minted: the cookie is set here, after the same permission and
+ * campus checks as every other action on the registration, so there is no
+ * reusable link left in the browser's history. It is the parent cookie, so it
+ * names this one application and nothing else, and "Finish" on the form ends
+ * it.
+ */
+export async function startAssistedRegistration(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
+  // `redirect` throws and `guarded` would catch it, so the redirect happens
+  // after the guard, as Delete applicant does.
+  let opened: string | null = null;
+  const state = await guarded(async () => {
+    const ctx = await requireStaffAction("applications.write");
+    const p = z.object({ applicationId: z.guid() }).parse(Object.fromEntries(formData));
+    const { admin, app } = await loadApplicationForStaff(ctx, p.applicationId);
+    if (app.status !== "registration_incomplete") {
+      throw new WorkflowError("The registration is not open: it is only filled in after the fees are paid, and until it is submitted.", "status_conflict");
+    }
+    await commit(admin, {
+      applicationId: app.id,
+      expectedStatus: app.status,
+      newStatus: null,
+      nextAction: null,
+      event: { type: "registration.assisted_started", summary: "Opened the registration form to fill in with the family", payload: {} },
+      audit: { action: "registration.assisted_started", entityType: "application", entityId: app.id },
+      actor: ctx.actor,
+    });
+    await startParentSession(app.id, "registration", ASSISTED_MINUTES, { assistedBy: ctx.userId });
+    opened = app.id;
+  });
+  if (opened) redirect("/register");
+  return state;
 }
