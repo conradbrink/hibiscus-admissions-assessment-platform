@@ -39,6 +39,14 @@ export type ApplicationSession = {
   purpose: TokenPurpose;
   issuedAt: number;
   expiresAt: number;
+  /**
+   * The member of staff who opened this session at the desk, to fill the
+   * registration in with or for the family (the school's request of 22
+   * October 2026). Absent on every session a parent's own link opened. Part
+   * of the signed payload, so it cannot be added to a parent's cookie, or
+   * taken off a staff one, without the signature failing.
+   */
+  assistedBy?: string | null;
 };
 
 export type FamilySession = {
@@ -93,6 +101,8 @@ export function encodeParentSession(session: ParentSession, secret: string): str
       p: session.purpose,
       i: session.issuedAt,
       e: session.expiresAt,
+      // Only when there is one, so a parent's cookie is byte for byte what it was.
+      ...(session.assistedBy ? { s: session.assistedBy } : {}),
     })
   );
   return `${payload}.${signPayload(payload, secret, PARENT_DOMAIN)}`;
@@ -124,7 +134,7 @@ export function decodeParentSession(
   if (!parts) return null;
   if (!verifyPayload(parts.payload, parts.signature, secret, PARENT_DOMAIN)) return null;
 
-  let parsed: { a?: unknown; p?: unknown; i?: unknown; e?: unknown };
+  let parsed: { a?: unknown; p?: unknown; i?: unknown; e?: unknown; s?: unknown };
   try {
     parsed = JSON.parse(Buffer.from(parts.payload, "base64url").toString("utf8"));
   } catch {
@@ -134,7 +144,8 @@ export function decodeParentSession(
     typeof parsed.a !== "string" ||
     typeof parsed.p !== "string" ||
     typeof parsed.i !== "number" ||
-    typeof parsed.e !== "number"
+    typeof parsed.e !== "number" ||
+    (parsed.s !== undefined && typeof parsed.s !== "string")
   ) {
     return null;
   }
@@ -144,6 +155,7 @@ export function decodeParentSession(
     purpose: parsed.p as TokenPurpose,
     issuedAt: parsed.i,
     expiresAt: parsed.e,
+    assistedBy: typeof parsed.s === "string" ? parsed.s : null,
   };
 }
 

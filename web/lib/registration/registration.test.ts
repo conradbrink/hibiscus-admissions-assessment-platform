@@ -21,7 +21,7 @@ const template = (
 
 const answer = (templateId: string, decision: "accepted" | "declined" = "accepted"): AgreementAcceptanceRow => ({
   id: templateId, application_id: "a", agreement_template_id: templateId, template_key: templateId, template_version: 1,
-  body_hash: "h", signature_name: "K M", signature_svg: null, ip_hash: null, user_agent: null, accepted_at: "", decision,
+  body_hash: "h", signature_name: "K M", signature_svg: null, ip_hash: null, user_agent: null, accepted_at: "", decision, witnessed_by_staff_id: null,
 });
 const contact = (kind: RegistrationContactRow["kind"]): RegistrationContactRow => ({
   id: kind, application_id: "a", kind, position: 1, contact_id: null, title: "Mrs", gender: "F", first_name: "K", last_name: "M", relationship: "mother", email: null, mobile: null, mobile_normalised: null, phone: null, address: null, nationality: null, created_at: "", updated_at: "",

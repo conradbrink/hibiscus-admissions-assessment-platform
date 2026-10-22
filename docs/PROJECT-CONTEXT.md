@@ -1228,6 +1228,43 @@ Worth knowing: a fee schedule edited in the admin changes no letter already
 drafted. When someone says a letter "still shows" a fee, look at the
 schedule and the open offers' `fees` snapshots, not only the schedule.
 
+### Re-pricing a written letter, moving deadlines, assisted registration (22 October 2026)
+
+- **Potch's application fee is R1,200 in 2026 and 2027**, named "2026/2027
+  admission fee", at both sites (`20261022103732`). A month in 2026 is priced
+  from the 2026 schedule, which still asked R950. The nine Potch letters
+  waiting for approval were redrafted onto it; letters already with
+  families keep theirs. The letter prints the line's own name
+  (`registration_fee_label`) once `20261022180000` is applied, **after** the
+  code is live: on its own the template would print the label as nothing.
+- **A written letter is re-priced, not a wall.** Saving the starting month or
+  changing campus after the decision used to be refused, and "withdraw the
+  offer first" could not be done without deciding again, which drafted the
+  next letter in the same click. Both now go through
+  `lib/workflow/reprice-actions.ts`: re-drafted in place while it waits for
+  approval, withdrawn and drafted again once the family has it, refused once
+  they have accepted. Karla and Nadia Seegers and Hlompho Moabelo were moved
+  to November 2026 this way (`scripts/start-month-run.test.ts`).
+- **Deadlines move with their clocks** (`lib/workflow/deadline-actions.ts`):
+  an offer's closing date (reopening one that lapsed, as it was) and a
+  payment's due date, each moving its sweep and reminders and optionally
+  sending `deadline_moved`. Accepting never gives a payment date earlier than
+  the offer's own closing date. Every scholarship deadline was moved to
+  5 December 2026 and each family emailed (`scripts/deadline-run.test.ts`),
+  except two whose later dates staff had already given them.
+- **Staff can fill in a registration with or for a family**: Registrations →
+  "Fill in with the parent" opens the family's own form in that browser for
+  an hour, under a parent session that names the member of staff
+  (`assistedBy`, signed into the cookie). Every save, upload and signature is
+  recorded as theirs; agreement rows carry `witnessed_by_staff_id`, and both
+  PDFs say the signature was made at the school. The parent still types and
+  draws their own signature.
+- **Done tasks leave the list** and wait under Archive.
+- Learned: the scheduled drain has 60 seconds and runs its sweeps first, so a
+  burst of 80 emails was sent a few per run, and a batch cut off part way sits
+  "running" for ten minutes before it is claimed again. Stagger a large send's
+  `run_after` rather than queueing it all at once.
+
 ### Learned on the end-to-end QA run (14 September 2026)
 
 Every parent door, every active campus, every stage and every staff role was

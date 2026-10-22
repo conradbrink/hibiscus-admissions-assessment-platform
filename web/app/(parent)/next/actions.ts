@@ -34,6 +34,9 @@ import { drainJobs } from "@/lib/workflow/jobs";
 
 export type ActionState = { error?: string };
 
+/** Shown to a member of staff who has the family's form open at the desk. */
+const ASSISTED_REFUSAL = "The school has this form open. Change this from the applicant's page in the staff console, so it is recorded under your name.";
+
 function drainSoon() {
   after(async () => {
     await drainJobs(createAdminClient()).catch((e) => console.error("[jobs] drain failed", e));
@@ -255,6 +258,10 @@ export async function cancelBooking(): Promise<void> {
  */
 export async function setWhatsAppPreference(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const session = await requireParentSession();
+  // A session a member of staff opened at the desk (`startAssistedRegistration`)
+  // is the parent cookie, and reaches this page too. Saved here, the school's
+  // own click would be recorded as the parent's consent.
+  if (session.assistedBy) return { error: ASSISTED_REFUSAL };
   const admin = createAdminClient();
   const ctx = await requestContext();
   const optIn = formData.get("optIn") === "1";
@@ -304,6 +311,8 @@ export async function setWhatsAppPreference(_prev: ActionState, formData: FormDa
  */
 export async function changeEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const session = await requireParentSession();
+  // As for WhatsApp: the timeline would say the parent changed it.
+  if (session.assistedBy) return { error: ASSISTED_REFUSAL };
   const admin = createAdminClient();
   const ctx = await requestContext();
   const graph = await loadApplicationGraph(admin, session.applicationId);

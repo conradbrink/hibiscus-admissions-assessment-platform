@@ -39,6 +39,9 @@ describe("offer variables", () => {
   it("fills fee variables from the snapshot in the schedule's currency", () => {
     const vars = buildOfferVariables(graph, snapshotFees({ currency: "BWP" }, lines), { expiresAt: new Date("2026-10-01T00:00:00Z"), conditions: null });
     expect(vars.registration_fee).toBe("P 2,500.00");
+    // The schedule's own name for the fee, so a campus that calls it
+    // something else is not printed as "Application fee".
+    expect(vars.registration_fee_label).toBe("Registration fee");
     expect(vars.admission_fee).toBe("P 5,000.00");
     expect(vars.tuition_annual).toBe("P 48,000.00");
     expect(vars.tuition_term).toBeNull();
@@ -52,6 +55,7 @@ describe("offer variables", () => {
     const vars = buildOfferVariables(graph, null, { expiresAt: null, conditions: "Subject to the transfer report" });
     expect(vars.amount_due).toBeNull();
     expect(vars.registration_fee).toBeNull();
+    expect(vars.registration_fee_label).toBeNull();
     expect(vars.offer_expiry_date).toBeNull();
     expect(vars.currency).toBe("BWP");
     expect(vars.conditions).toBe("Subject to the transfer report");

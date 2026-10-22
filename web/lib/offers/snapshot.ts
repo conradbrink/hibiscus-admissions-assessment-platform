@@ -151,6 +151,11 @@ export function buildOfferVariables(
     // assessment they were never asked to sit.
     assessed: application.requires_assessment ? "yes" : null,
     registration_fee: line("registration"),
+    // What the schedule calls that fee, frozen with its amount. The letter
+    // printed "Application fee" whatever the schedule said, so Potch's
+    // "2026/2027 admission fee" (22 October 2026) reached the parent's fee
+    // list and payment page but not the letter beside them.
+    registration_fee_label: fees?.lines.find((x) => x.code === "registration")?.label ?? null,
     admission_fee: line("admission"),
     tuition_annual: line("tuition_annual"),
     // Pre-school is priced at two rates and a child is placed on one. Once

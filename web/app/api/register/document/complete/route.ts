@@ -6,8 +6,8 @@ import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { drainSoon } from "@/lib/parent/actions";
 import { registrationCompleteness } from "@/lib/registration/completeness";
 import { loadRegistrationBundle } from "@/lib/registration/load";
+import { uploadActor } from "@/lib/registration/session";
 import { getSettings } from "@/lib/settings";
-import { PARENT_ACTOR } from "@/lib/workflow/engine";
 import { onDocumentUploaded } from "@/lib/workflow/registration-actions";
 
 export const runtime = "nodejs";
@@ -31,6 +31,9 @@ export async function POST(request: Request): Promise<Response> {
   const guard = await guardParentUpload(parsed.data.requirement, { rateLimit: false });
   if (!guard.ok) return NextResponse.json({ ok: false, code: guard.code }, { status: guard.status });
   const { admin, graph } = guard.ctx;
+  // A member of staff at the desk uploads under their own name.
+  const by = await uploadActor();
+  if (!by) return NextResponse.json({ ok: false, code: "expired" }, { status: 401 });
 
   let document;
   try {
@@ -39,7 +42,8 @@ export async function POST(request: Request): Promise<Response> {
       requirementCode: parsed.data.requirement,
       path: parsed.data.path,
       originalFilename: parsed.data.filename || "document",
-      uploadedBy: "parent",
+      uploadedBy: by.staffId ? "staff" : "parent",
+      staffId: by.staffId,
     });
   } catch (e) {
     if (e instanceof DocumentError) return NextResponse.json({ ok: false, code: e.code }, { status: 422 });
@@ -47,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ ok: false, code: "failed" }, { status: 500 });
   }
   const after = await loadRegistrationBundle(admin, graph);
-  await onDocumentUploaded(admin, graph.application, document, registrationCompleteness({ ...after, gradeSort: graph.grade.sort_order }), PARENT_ACTOR);
+  await onDocumentUploaded(admin, graph.application, document, registrationCompleteness({ ...after, gradeSort: graph.grade.sort_order }), by.actor);
   drainSoon();
   const settings = await getSettings(admin);
   const reading = settings.aiExtractionEnabled && isExtractable(document.requirement_code) && document.scan_status !== "infected" && (process.env.DOCUMENT_EXTRACTOR ?? "none") !== "none";

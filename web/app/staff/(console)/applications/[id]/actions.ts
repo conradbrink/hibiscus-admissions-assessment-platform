@@ -15,8 +15,9 @@ import { generateSummary } from "@/lib/summary/generate";
 import { clearPromotion, promotionOn, recordPromotion } from "@/lib/promotions/load";
 import { awardLabelOf, isScholarshipCode } from "@/lib/promotions/scholarship";
 import { discountLabelOf, isStaffDiscountCode } from "@/lib/promotions/discount";
-import { loadCatalogue } from "@/lib/enquiry";
-import { formatMonth, intakeForMonth, isMonthStart } from "@/lib/start-month";
+import { can } from "@/lib/permissions";
+import { isMonthStart } from "@/lib/start-month";
+import { letterInPlay, letterPricedElsewhere, onStartMonthChanged, reissueLetter, requirePriceable } from "@/lib/workflow/reprice-actions";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { offerTrialWeek, recordTrialWeekOutcome } from "@/lib/workflow/trial-week";
@@ -40,9 +41,7 @@ import { commit } from "@/lib/workflow/engine";
 import { isFutureDate } from "@/lib/workflow/deferral";
 import { onDeferredAfterDecision, onMovedToStage } from "@/lib/workflow/stage-move-actions";
 import { defersThroughDecision, mayMoveTo, moveDirection, moveTargetLabel } from "@/lib/workflow/stage-move";
-import { onOfferDrafted, onOfferWithdrawn } from "@/lib/workflow/offer-actions";
 import { loadApplicationGraph } from "@/lib/applications";
-import { resolveFeeSchedule } from "@/lib/offers/render";
 import { isNextAction, statusAfterBooking, type NextAction } from "@/lib/workflow/states";
 import type { ApplicationRow, ApplicationStatus } from "@/lib/supabase/types";
 import { WITHDRAWN_REASON_CODES } from "@/lib/workflow/withdrawal";
@@ -768,13 +767,19 @@ function trackAfterFlagChange(
  * The campus a child is applying to, changed by hand.
  *
  * A family who chose the wrong campus, or moved house, could not be moved:
- * `changeGrade` said "Change the campus first" and nothing did. Refused once
- * an offer exists, because the letter, the fees and the bank details are the
- * campus's; before that the campus, and with it the grade if the new campus
- * does not teach the old one, the assessment flag, and the open tasks (which
- * are what scope who sees the work) all follow. A live booking is at the old
- * campus and has to be cancelled or moved first — a sitting cannot change
- * building on its own.
+ * `changeGrade` said "Change the campus first" and nothing did. The campus,
+ * and with it the grade if the new campus does not teach the old one, the
+ * assessment flag, and the open tasks (which are what scope who sees the
+ * work) all follow. A live booking is at the old campus and has to be
+ * cancelled or moved first — a sitting cannot change building on its own.
+ *
+ * Until 22 October 2026 this was refused once a decision existed, and told
+ * staff to withdraw the offer first — but withdrawing leaves the child at
+ * `offer_draft`, which was refused too, so a family could not be moved at
+ * all after the decision. The letter, the fees and the bank details are the
+ * campus's, so a letter in play is now re-priced at the new campus in the
+ * same step, as the starting month is (`reissueLetter`). Once the family has
+ * accepted, the campus is part of what they agreed to and paid against.
  */
 export async function changeCampus(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -783,13 +788,33 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       .extend({ campusId: z.guid(), gradeId: z.union([z.guid(), z.literal("")]).optional(), reason: z.string().trim().max(300).optional() })
       .parse(Object.fromEntries(formData));
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
-    if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) return;
-    const offerStages: ApplicationStatus[] = [
-      "approved", "offer_draft", "offer_pending_approval", "offer_sent", "offer_expired", "offer_declined", "offer_accepted",
-      "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
+    if (app.campus_id === parsed.campusId && (!parsed.gradeId || parsed.gradeId === app.grade_id)) {
+      // Already at this campus. Unless the move was saved and its re-draft
+      // failed, leaving the letter priced at the old campus: then the
+      // re-draft is what is left to do, and pressing the button again does it.
+      const play = await letterInPlay(admin, app);
+      if (!(await letterPricedElsewhere(admin, play, app.campus_id))) return;
+      if (!can(ctx.permissions, "offers.approve")) {
+        throw new Error("This child's offer is still priced at the old campus. Ask someone who approves offers to move them again, which re-drafts it.");
+      }
+      await reissueLetter(admin, app, play, "Re-priced at the campus already set", ctx.actor);
+      drainSoon();
+      revalidatePath("/staff/offers");
+      done(app.id);
+      return;
+    }
+    const agreedStages: ApplicationStatus[] = [
+      "offer_accepted", "payment_required", "payment_processing", "paid", "registration_incomplete", "registration_complete", "enrolled",
     ];
-    if (offerStages.includes(app.status)) {
-      throw new Error("The campus cannot change once a decision has been made: withdraw the offer first, or withdraw and re-enquire.");
+    if (agreedStages.includes(app.status)) {
+      throw new Error("The family has accepted the offer, so the campus is set. To move them, take them back to Offer with Move to stage first.");
+    }
+    if (app.status === "offer_declined") throw new Error("The family declined the offer. Take them back with Move to stage before moving them.");
+    // A letter already written is re-priced at the new campus, which is the
+    // offer approver's to do, as re-pricing it for a scholarship is.
+    const play = await letterInPlay(admin, app);
+    if (play.reDraft && !can(ctx.permissions, "offers.approve")) {
+      throw new Error("This child's offer is already written. Moving campus re-drafts it, so ask someone who approves offers to move them.");
     }
     // Through the caller's own client: a campus administrator may move a
     // family only between campuses they can see.
@@ -808,11 +833,18 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       admin.from("campus_grades").select("grade_id").eq("campus_id", parsed.campusId).eq("grade_id", gradeId).eq("is_active", true).maybeSingle(),
       admin.from("campuses").select("id, name, intake_cadence").eq("id", parsed.campusId).maybeSingle(),
       admin.from("campuses").select("id, name").eq("id", app.campus_id).maybeSingle(),
-      admin.from("grades").select("id, name").eq("id", gradeId).maybeSingle(),
+      admin.from("grades").select("id, name, sort_order").eq("id", gradeId).maybeSingle(),
     ]);
     if (!to) throw new Error("That campus does not exist.");
     const toCadence = to.intake_cadence;
     if (!offered || !grade) throw new Error(`${to.name} does not teach ${grade?.name ?? "that stage"}. Choose a stage it offers.`);
+    // Before anything changes: a family's letter is withdrawn only when the
+    // new campus can price the one that replaces it.
+    if (play.reDraft) {
+      const { data: intake, error: intakeErr } = await admin.from("intakes").select("academic_year_id").eq("id", app.intake_id).single();
+      if (intakeErr) throw new Error(intakeErr.message);
+      await requirePriceable(admin, { campusId: parsed.campusId, academicYearId: intake.academic_year_id, gradeSort: grade.sort_order });
+    }
 
     const requires = await requiresAssessmentAt(admin, parsed.campusId, gradeId);
     const { error } = await admin
@@ -845,6 +877,11 @@ export async function changeCampus(_: StaffActionState, formData: FormData): Pro
       },
       actor: ctx.actor,
     });
+    if (play.reDraft) {
+      await reissueLetter(admin, app, play, `Campus changed from ${fromCampus?.name ?? "unknown"} to ${to.name}`, ctx.actor);
+      drainSoon();
+      revalidatePath("/staff/offers");
+    }
     done(app.id);
   });
 }
@@ -1141,10 +1178,11 @@ export async function updateChildDetails(_: StaffActionState, formData: FormData
  * Potch and Tlokweng families join in a month, not a term, and the letter
  * names it. The term is still recorded underneath — the fee schedule belongs
  * to an academic year and every report counts by term — so it follows the
- * month here, worked out the same way the enquiry form works it out.
+ * month, worked out the same way the enquiry form works it out.
  *
  * Reversible to "not chosen", in which case the letter names the term again.
- * An offer already sent keeps the wording it froze either way.
+ * A letter already written is re-priced in the same step
+ * (`onStartMonthChanged`); one the family has accepted keeps its month.
  */
 export async function setStartMonth(_: StaffActionState, formData: FormData): Promise<StaffActionState> {
   return guarded(async () => {
@@ -1155,64 +1193,12 @@ export async function setStartMonth(_: StaffActionState, formData: FormData): Pr
     const { admin, app } = await loadApplicationForStaff(ctx, parsed.applicationId);
     const to = parsed.startMonth === "" ? null : parsed.startMonth;
     if (to && !isMonthStart(to)) throw new Error("Choose a month.");
-    if (app.start_month === to) return;
-
-    const { data: campus } = await admin.from("campuses").select("intake_cadence").eq("id", app.campus_id).single();
-    if (campus?.intake_cadence !== "month") {
-      throw new Error("This campus takes children in by the term, so there is no starting month to set.");
+    const { reissued } = await onStartMonthChanged(admin, app, to, ctx.actor, { mayReprice: can(ctx.permissions, "offers.approve") });
+    if (reissued) {
+      drainSoon();
+      revalidatePath("/staff/offers");
     }
-
-    // The month decides the term the application is counted under, which the
-    // fee schedule, the enrolment and the letter all hang off. Once an offer
-    // has left the building, moving it under the family would contradict what
-    // they were sent — and an offer already approved is re-rendered at
-    // approval with whatever the application says now, on the template it was
-    // drafted from, which for an older offer cannot word a month at all.
-    const { data: offer } = await admin
-      .from("offers")
-      .select("status")
-      .eq("application_id", app.id)
-      .in("status", ["pending_approval", "sent", "viewed", "expired", "accepted"])
-      .limit(1)
-      .maybeSingle();
-    if (offer) {
-      throw new Error(
-        "An offer has already gone to approval for this child, so the starting month cannot change here. Withdraw the offer, set the month, then generate it again."
-      );
-    }
-    const { data: enrolment } = await admin
-      .from("enrolments")
-      .select("id")
-      .eq("origin_application_id", app.id)
-      .limit(1)
-      .maybeSingle();
-    if (enrolment) throw new Error("This child is already enrolled, so the starting month is set. Ask the registrar to move the enrolment.");
-
-    const update: { start_month: string | null; intake_id?: string } = { start_month: to };
-    if (to) {
-      const catalogue = await loadCatalogue(admin);
-      const intake = intakeForMonth(catalogue.intakes, to);
-      if (!intake) throw new Error("No open start term covers that month. Open the next year's terms under Settings → Intakes first.");
-      update.intake_id = intake.id;
-    }
-    const { error } = await admin.from("applications").update(update).eq("id", app.id);
-    if (error) throw new Error(error.message);
-
-    const say = (v: string | null) => (v ? formatMonth(v) : "not chosen");
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: app.status,
-      newStatus: null,
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
-      event: {
-        type: "application.start_month_set",
-        summary: `Starting month ${say(app.start_month)} → ${say(to)}`,
-        payload: { from: app.start_month, to, intake_id: update.intake_id ?? app.intake_id },
-      },
-      audit: { action: "application.start_month_set", entityType: "application", entityId: app.id },
-      actor: ctx.actor,
-    });
-    revalidatePath(`/staff/applications/${app.id}`);
+    done(app.id);
   });
 }
 
@@ -1315,18 +1301,10 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     // approval is re-drafted, one with the family is withdrawn and re-drafted.
     // A draft resting on `offer_draft` is one waiting for fees: drafting it
     // again would only raise a second "configure fees" task, and it takes the
-    // band when Generate offer is pressed.
-    const { data: letter, error: letterErr } = await admin
-      .from("offers")
-      .select("id, status, promotion_id")
-      .eq("application_id", app.id)
-      .in("status", ["draft", "pending_approval", "sent", "viewed", "expired"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (letterErr) throw new Error(letterErr.message);
-    const withFamily = Boolean(letter && ["sent", "viewed", "expired"].includes(letter.status) && (app.status === "offer_sent" || app.status === "offer_expired"));
-    const reDraft = withFamily || (letter?.status === "pending_approval" && app.status === "offer_pending_approval");
+    // band when Generate offer is pressed. The same rule as the starting
+    // month and the campus (`lib/workflow/reprice-actions.ts`).
+    const play = await letterInPlay(admin, app);
+    const { letter, withFamily, reDraft } = play;
 
     // The band on file already: nothing to record, but a letter still priced
     // under another deal — a band changed before saving re-drafted — is
@@ -1339,10 +1317,7 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
     if (withFamily) {
       const graph = await loadApplicationGraph(admin, app.id);
       if (!graph) throw new Error("That applicant no longer exists.");
-      const schedule = await resolveFeeSchedule(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
-      if (!schedule || schedule.lines.length === 0) {
-        throw new Error("No active fee schedule covers this campus, stage and year, so a new letter could not be priced. Nothing was changed; set the fees first.");
-      }
+      await requirePriceable(admin, { campusId: graph.application.campus_id, academicYearId: graph.intake.academic_year_id, gradeSort: graph.grade.sort_order });
     }
 
     if (from !== to) {
@@ -1373,16 +1348,13 @@ export async function setScholarship(_: StaffActionState, formData: FormData): P
       });
     }
 
-    if (withFamily && letter) {
-      await onOfferWithdrawn(admin, app, letter, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
-    }
     if (reDraft) {
-      const current = await admin.from("applications").select("id, status, child_first_name, requires_assessment").eq("id", app.id).single();
-      if (current.error) throw new Error(current.error.message);
-      // Waits for approval whatever `offer_auto_approve` says: the screen
-      // promises the officer a letter to check before it goes.
-      const drafted = await onOfferDrafted(admin, current.data, ctx.actor, { autoApprove: false });
-      if (drafted.blocked) throw new Error(`The ${deal ? "change" : "scholarship"} is saved, but the letter could not be priced: no active fee schedule covers this campus, stage and year.`);
+      // Withdraws the family's letter when they have it, then drafts the next
+      // one for approval, whatever `offer_auto_approve` says: the screen
+      // promises the officer a letter to check before it goes. The old
+      // letter's conditions carry over, which re-drafting here used to drop
+      // for a letter the family already had.
+      await reissueLetter(admin, app, play, from === to ? `Re-priced at ${say(to)}` : `${what} changed from ${say(from)} to ${say(to)}`, ctx.actor);
       drainSoon();
     }
     done(app.id);

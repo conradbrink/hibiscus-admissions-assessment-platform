@@ -14,7 +14,7 @@ import { requireStaff } from "@/lib/staff/session";
 import { parseMismatchFlags } from "@/lib/documents/compare";
 import { isExtractable } from "@/lib/documents/extraction-schemas";
 import { DocumentReading } from "@/components/staff/document-reading";
-import { askParentToConfirm, confirmEnrolment, confirmRegistration, extractDocument, reviewDocument, sendRegistrationReminder, uploadDocumentForParent } from "../actions";
+import { askParentToConfirm, confirmEnrolment, confirmRegistration, extractDocument, reviewDocument, sendRegistrationReminder, startAssistedRegistration, uploadDocumentForParent } from "../actions";
 import { startLabel } from "@/lib/start-month";
 
 const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null));
@@ -48,7 +48,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
     supabase.from("documents").select("*, staff_profiles!documents_reviewed_by_fkey(full_name)").eq("application_id", id).is("deleted_at", null).order("uploaded_at", { ascending: false }),
     supabase.from("document_requirements").select("*").eq("is_active", true).order("sort_order"),
     supabase.from("agreement_templates").select("*").eq("is_active", true).order("sort_order").order("name"),
-    supabase.from("agreement_acceptances").select("*").eq("application_id", id),
+    supabase.from("agreement_acceptances").select("*, staff_profiles!agreement_acceptances_witnessed_by_staff_id_fkey(full_name)").eq("application_id", id),
     supabase.from("student_records").select("*").eq("application_id", id).maybeSingle(),
   ]);
   const c = registrationCompleteness({
@@ -107,7 +107,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                       {d ? (
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                           <Link href={`/staff/registrations/${app.id}/documents/${d.id}`} className="font-medium text-primary underline underline-offset-2" prefetch={false} target="_blank" rel="noopener">View {d.original_filename}</Link>
-                          <span>{Math.round(d.size_bytes / 1024)} KB · uploaded {formatDateTime(d.uploaded_at)}</span>
+                          <span>{Math.round(d.size_bytes / 1024)} KB · uploaded {d.uploaded_by === "staff" ? "by staff " : ""}{formatDateTime(d.uploaded_at)}</span>
                           {d.reviewed_at ? <span>· {d.review_status} by {one(d.staff_profiles)?.full_name ?? "staff"} {formatDate(d.reviewed_at)}{d.review_note ? `: ${d.review_note}` : ""}</span> : null}
                           {canWrite && d.review_status !== "accepted" ? (
                             <ActionForm action={reviewDocument} label="Accept" size="xs" variant="success">
@@ -228,6 +228,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                     {a ? (
                       <span className="text-xs text-muted-foreground">
                         v{a.template_version} · {declined ? "refused" : "signed"} &ldquo;{a.signature_name}&rdquo; {formatDateTime(a.accepted_at)}{a.signature_svg ? "" : " (typed name only)"}
+                        {/* Signed at the desk: the browser and address on the row are the school's. */}
+                        {a.witnessed_by_staff_id ? ` · at the school, with ${one(a.staff_profiles)?.full_name ?? "a member of staff"}` : ""}
                       </span>
                     ) : (
                       <Badge variant={t.required ? "warning" : "secondary"}>{t.required ? (t.may_decline ? "not answered" : "not accepted") : "optional, not accepted"}</Badge>
@@ -278,6 +280,21 @@ export default async function RegistrationPage({ params }: { params: Promise<{ i
                   </div>
                 ) : null}
                 <ActionForm action={sendRegistrationReminder} label="Send reminder" variant="outline" size="sm">{idField}</ActionForm>
+                {/* For a family at the desk, or one who gave the school their
+                    details on paper: the parent's own form, in this browser,
+                    with everything saved recorded under your name. */}
+                <div className="border-t border-border pt-3">
+                  <ActionForm
+                    action={startAssistedRegistration}
+                    label="Fill in with the parent"
+                    variant="outline"
+                    size="sm"
+                    confirm="Open this family's registration form in this browser? Everything you save is recorded under your name. The parent types their own name and signs the agreements. Press Finish on the form when you are done."
+                  >
+                    {idField}
+                  </ActionForm>
+                  <p className="mt-1 text-xs text-muted-foreground">Opens the family&rsquo;s own form here for an hour, for this child only.</p>
+                </div>
               </div>
             ) : null}
           </section>

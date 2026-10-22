@@ -23,7 +23,8 @@ function secret(): string {
 export async function startParentSession(
   applicationId: string,
   purpose: TokenPurpose,
-  ttlMinutes: number
+  ttlMinutes: number,
+  opts: { assistedBy?: string } = {}
 ): Promise<void> {
   const now = Date.now();
   const session: ParentSession = {
@@ -31,6 +32,7 @@ export async function startParentSession(
     purpose,
     issuedAt: now,
     expiresAt: now + ttlMinutes * 60_000,
+    assistedBy: opts.assistedBy ?? null,
   };
   const store = await cookies();
   store.set(PARENT_COOKIE, encodeParentSession(session, secret()), {

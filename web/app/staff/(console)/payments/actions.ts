@@ -5,15 +5,13 @@ import { z } from "zod";
 import type { StaffActionState } from "@/components/staff/action-form";
 import { parseMoneyToMinor } from "@/lib/money";
 import { reconcilePayment } from "@/lib/payments/reconcile";
-import { endOfSchoolDay, formatDate } from "@/lib/format-date";
-import { rescheduleForDueDate } from "@/lib/payments/due-date";
-import { loadOpenPaymentRequest, OPEN_REQUEST_STATUSES } from "@/lib/payments/requests";
+import { endOfSchoolDay } from "@/lib/format-date";
+import { loadOpenPaymentRequest } from "@/lib/payments/requests";
 import { drainSoon, guarded, loadApplicationForStaff } from "@/lib/staff/action-helpers";
 import { requireStaffAction } from "@/lib/staff/session";
 import { WorkflowError } from "@/lib/workflow/engine";
-import { commit } from "@/lib/workflow/engine";
-import { isNextAction } from "@/lib/workflow/states";
 import { onEftRecorded, onPaymentFailed, onPaymentRefunded } from "@/lib/workflow/payment-actions";
+import { onPaymentDeadlineMoved } from "@/lib/workflow/deadline-actions";
 
 /**
  * Finance's three actions. Each reads the application through the caller's
@@ -178,66 +176,7 @@ export async function setPaymentDueDate(_: StaffActionState, formData: FormData)
     if (newDueAt.getTime() > Date.now() + 730 * 86_400_000) {
       throw new WorkflowError("That date is more than two years away. Check the year.", "database");
     }
-    const was = request.due_at;
-    if (new Date(was).getTime() === newDueAt.getTime()) return;
-
-    const { error: dueErr } = await admin
-      .from("payment_requests")
-      .update({ due_at: newDueAt.toISOString() })
-      .eq("id", request.id)
-      .in("status", [...OPEN_REQUEST_STATUSES]);
-    if (dueErr) throw new WorkflowError(dueErr.message, "database");
-
-    // The applicant's own "due" field, which drives the staff task list and the
-    // overdue counts on the dashboard. Only while the application is still
-    // waiting on this payment: a later stage's due date is not ours to move.
-    if (app.next_action === "pay_fees") {
-      const { error } = await admin.from("applications").update({ next_action_due_at: newDueAt.toISOString() }).eq("id", app.id);
-      if (error) throw new WorkflowError(error.message, "database");
-    }
-
-    // The overdue sweep and the reminders, which carry the old date in their
-    // own `run_after`. Pending only — one that has already gone out is history.
-    const { data: pending } = await admin
-      .from("jobs")
-      .select("id, type, idempotency_key")
-      .eq("application_id", app.id)
-      .eq("status", "pending")
-      .or(`type.eq.payment_overdue,idempotency_key.like.%:payment_reminder:${request.id}:%`);
-    const moves = rescheduleForDueDate(
-      (pending ?? []).filter((j) => j.type !== "payment_overdue" || j.idempotency_key === `payment_overdue:${request.id}`),
-      newDueAt
-    );
-    for (const move of moves) {
-      const patch =
-        move.action === "reschedule"
-          ? { run_after: move.runAfter }
-          : { status: "skipped" as const, last_error: move.reason, completed_at: new Date().toISOString() };
-      const { error } = await admin.from("jobs").update(patch).eq("id", move.id).eq("status", "pending");
-      if (error) throw new WorkflowError(error.message, "database");
-    }
-
-    await commit(admin, {
-      applicationId: app.id,
-      expectedStatus: app.status,
-      newStatus: null,
-      nextAction: isNextAction(app.next_action) ? app.next_action : null,
-      nextActionDueAt: app.next_action === "pay_fees" ? newDueAt : undefined,
-      event: {
-        type: "payment.due_date_changed",
-        summary: `Payment deadline ${formatDate(was)} → ${formatDate(newDueAt)}`,
-        payload: {
-          payment_request_id: request.id,
-          from: was,
-          to: newDueAt.toISOString(),
-          reason: p.reason,
-          rescheduled: moves.filter((m) => m.action === "reschedule").length,
-          skipped: moves.filter((m) => m.action === "skip").length,
-        },
-      },
-      audit: { action: "payment.due_date_changed", entityType: "payment_request", entityId: request.id, before: { due_at: was }, after: { due_at: newDueAt.toISOString() } },
-      actor: ctx.actor,
-    });
+    await onPaymentDeadlineMoved(admin, app, request, newDueAt, p.reason, ctx.actor);
     drainSoon();
     done(app.id);
   });

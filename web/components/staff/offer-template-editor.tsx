@@ -23,6 +23,9 @@ const SAMPLE: TemplateVariables = {
   offer_expiry_date: "26 September 2026",
   application_reference: "HBS-2026-00482",
   registration_fee: "P 2,500.00",
+  // Without it the preview printed the fee row with no name once the letters
+  // took `{{registration_fee_label}}` (22 October 2026).
+  registration_fee_label: "Application fee",
   admission_fee: "P 5,000.00",
   tuition_annual: "P 48,000.00",
   tuition_month: "R 2,980.00",

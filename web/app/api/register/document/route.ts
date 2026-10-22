@@ -4,10 +4,10 @@ import { drainSoon } from "@/lib/parent/actions";
 import { loadApplicationGraph } from "@/lib/applications";
 import { applicableRequirements, liveDocument, registrationCompleteness } from "@/lib/registration/completeness";
 import { loadRegistrationBundle } from "@/lib/registration/load";
+import { uploadActor } from "@/lib/registration/session";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readParentSession } from "@/lib/tokens/server";
-import { PARENT_ACTOR } from "@/lib/workflow/engine";
 import { onDocumentUploaded } from "@/lib/workflow/registration-actions";
 
 export const runtime = "nodejs";
@@ -40,19 +40,23 @@ export async function POST(request: Request): Promise<Response> {
   const verdict = await enforceRateLimit(admin, LIMITS.documentUpload, graph.application.id);
   if (!verdict.ok) return back("busy");
 
+  // A member of staff at the desk uploads under their own name.
+  const by = await uploadActor();
+  if (!by) redirect("/link?expired=1");
+
   const file = form.get("file");
   if (!(file instanceof File)) return back("empty");
   const bytes = new Uint8Array(await file.arrayBuffer());
   let document;
   try {
-    document = await storeDocument(admin, { applicationId: graph.application.id, requirementCode: requirement, bytes, originalFilename: file.name, uploadedBy: "parent" });
+    document = await storeDocument(admin, { applicationId: graph.application.id, requirementCode: requirement, bytes, originalFilename: file.name, uploadedBy: by.staffId ? "staff" : "parent", staffId: by.staffId });
   } catch (e) {
     if (e instanceof DocumentError) return back(e.code);
     console.error("[documents] upload failed", e);
     return back("failed");
   }
   const after = await loadRegistrationBundle(admin, graph);
-  await onDocumentUploaded(admin, graph.application, document, registrationCompleteness({ ...after, gradeSort: graph.grade.sort_order }), PARENT_ACTOR);
+  await onDocumentUploaded(admin, graph.application, document, registrationCompleteness({ ...after, gradeSort: graph.grade.sort_order }), by.actor);
   drainSoon();
   redirect("/register/documents");
 }

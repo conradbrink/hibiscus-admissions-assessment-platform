@@ -19,7 +19,20 @@ const session: ParentSession = {
 describe("parent session cookie", () => {
   it("round-trips", () => {
     const encoded = encodeParentSession(session, SECRET);
-    expect(decodeParentSession(encoded, SECRET, 1_500_000)).toEqual(session);
+    expect(decodeParentSession(encoded, SECRET, 1_500_000)).toEqual({ ...session, assistedBy: null });
+  });
+  it("carries the member of staff who opened an assisted session", () => {
+    const assisted = { ...session, assistedBy: "0b9c7d1e-2f3a-4b5c-8d6e-7f8091a2b3c4" };
+    expect(decodeParentSession(encodeParentSession(assisted, SECRET), SECRET, 1_500_000)).toEqual(assisted);
+  });
+  it("keeps a parent's cookie exactly as it was before assisted sessions", () => {
+    const [payload] = encodeParentSession(session, SECRET).split(".");
+    expect(JSON.parse(Buffer.from(payload, "base64url").toString("utf8"))).toEqual({ a: session.applicationId, p: "next_step", i: 1_000_000, e: 2_000_000 });
+  });
+  it("refuses a parent's cookie with a member of staff written into it", () => {
+    const [, sig] = encodeParentSession(session, SECRET).split(".");
+    const forged = Buffer.from(JSON.stringify({ a: session.applicationId, p: "next_step", i: 1_000_000, e: 2_000_000, s: "someone" })).toString("base64url");
+    expect(decodeParentSession(`${forged}.${sig}`, SECRET, 1_500_000)).toBeNull();
   });
   it("rejects an expired session", () => {
     const encoded = encodeParentSession(session, SECRET);
