@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ApplicationGraph } from "@/lib/applications";
 import type { AdminClient } from "@/lib/supabase/admin";
 import type { PromotionRow } from "@/lib/supabase/types";
-import { promotionForCode, resolvePromotion } from "@/lib/promotions/load";
+import { codedPromotionLive, promotionForCode, resolvePromotion } from "@/lib/promotions/load";
 
 /**
  * A staff discount (`DISCOUNT-5`, 20 October 2026) and a scholarship band
@@ -123,5 +123,30 @@ describe("resolvePromotion", () => {
     expect(resolved?.source).toBe("code");
     expect(resolved?.promo.code).toBe("LAUNCH2027");
     expect(db.recorded).toMatchObject([{ promotion_id: "promo-LAUNCH2027", source: "code" }]);
+  });
+});
+
+/** Every live coded promotion is one of these, unscoped and in its window. */
+function liveCodes(codes: string[]): AdminClient {
+  const q = {
+    select: () => q,
+    eq: () => q,
+    not: () => q,
+    then: (resolve: (value: unknown) => void) =>
+      resolve({ data: codes.map((code, i) => ({ id: `promo-${i}`, code, starts_on: null, ends_on: null })), error: null }),
+  };
+  return { from: () => q } as unknown as AdminClient;
+}
+
+describe("codedPromotionLive", () => {
+  it("does not show parents a code box when only staff-only codes are live", async () => {
+    // What was live on 22 October 2026.
+    expect(await codedPromotionLive(liveCodes(["DISCOUNT-5", "SCHOLARSHIP-10", "SCHOLARSHIP-20", "SCHOLARSHIP-30", "SCHOLARSHIP-40", "SCHOLARSHIP-50"]))).toBe(false);
+  });
+
+  it("shows it again once a deal with an ordinary code is live", async () => {
+    expect(await codedPromotionLive(liveCodes(["SCHOLARSHIP-50", "LAUNCH2027"]))).toBe(true);
+    // A deal with an unfortunate name is not an award (`isScholarshipCode`).
+    expect(await codedPromotionLive(liveCodes(["SCHOLARSHIP-LAUNCH"]))).toBe(true);
   });
 });

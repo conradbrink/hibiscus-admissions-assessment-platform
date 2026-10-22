@@ -157,11 +157,19 @@ export async function resolvePromotion(admin: AdminClient, graph: ApplicationGra
   return null;
 }
 
-/** Whether any live deal has a code, so the enquiry form knows to ask. */
+/**
+ * Whether any live deal has a code a parent may type, so the enquiry form
+ * knows to ask. A staff discount or a scholarship band does not count: the
+ * form refuses those codes, and on 22 October 2026 they were the only live
+ * codes, so parents were shown a box no code of theirs could work in. It comes
+ * back on its own when a deal with an ordinary code is switched on.
+ */
 export async function codedPromotionLive(admin: AdminClient): Promise<boolean> {
   const today = toSchoolDateString(new Date());
-  const { data } = await admin.from("promotions").select("id, starts_on, ends_on").eq("is_active", true).not("code", "is", null);
-  return (data ?? []).some((p) => (!p.starts_on || p.starts_on <= today) && (!p.ends_on || p.ends_on >= today));
+  const { data } = await admin.from("promotions").select("id, code, starts_on, ends_on").eq("is_active", true).not("code", "is", null);
+  return (data ?? []).some(
+    (p) => p.code !== null && !givenByStaffOnly(p.code) && (!p.starts_on || p.starts_on <= today) && (!p.ends_on || p.ends_on >= today)
+  );
 }
 
 /**
