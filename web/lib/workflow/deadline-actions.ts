@@ -80,7 +80,7 @@ export async function onOfferDeadlineMoved(
   const frozen = (offer.variables as Record<string, string | null>) ?? {};
   // A letter frozen before `registration_fee_label` existed (22 October 2026)
   // has no such variable, but its template row was given `{{registration_fee_label}}`
-  // in place (20261022180000_the_letter_names_the_application_fee.sql), so a
+  // in place (20261022180159_the_letter_names_the_application_fee.sql), so a
   // re-render printed the fee with no name. The fee snapshot it froze names
   // the line as it was priced, which is what the letter would have said.
   const feeLabel =
