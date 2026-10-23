@@ -1235,8 +1235,9 @@ schedule and the open offers' `fees` snapshots, not only the schedule.
   from the 2026 schedule, which still asked R950. The nine Potch letters
   waiting for approval were redrafted onto it; letters already with
   families keep theirs. The letter prints the line's own name
-  (`registration_fee_label`) once `20261022180000` is applied, **after** the
-  code is live: on its own the template would print the label as nothing.
+  (`registration_fee_label`) since `20261022180159`, applied on 22 October
+  2026 after the code was live: on its own the template would have printed
+  the label as nothing.
 - **A written letter is re-priced, not a wall.** Saving the starting month or
   changing campus after the decision used to be refused, and "withdraw the
   offer first" could not be done without deciding again, which drafted the
