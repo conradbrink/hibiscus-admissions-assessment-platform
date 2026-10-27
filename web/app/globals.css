@@ -258,3 +258,35 @@
     break-inside: avoid;
   }
 }
+
+/*
+ * Confetti on a festive event page (components/events/confetti.tsx). Each
+ * piece falls from where it sits, tumbling, and fades in and out so the loop
+ * never shows a jump. Transform and opacity only, so the browser never has
+ * to lay the page out again while it runs.
+ */
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -1.5rem, 0) rotate3d(1, 1, 0, 0deg);
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: var(--confetti-opacity, 0.85);
+  }
+  100% {
+    transform: translate3d(var(--confetti-drift, 1.5rem), 32rem, 0) rotate3d(1, 1, 0, var(--confetti-spin, 540deg));
+    opacity: 0;
+  }
+}
+
+.confetti-piece {
+  animation: confetti-fall var(--confetti-duration, 12s) linear var(--confetti-delay, 0s) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece {
+    animation: none;
+    opacity: var(--confetti-opacity, 0.85);
+  }
+}

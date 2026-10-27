@@ -51,7 +51,7 @@ export function TicketForm({
       ) : null}
 
       <section className="space-y-3">
-        <h3 className="text-base font-semibold">How many people?</h3>
+        <h3 className="text-base font-semibold">How many {noun}s?</h3>
         <div className="flex items-center gap-3">
           <Button
             type="button"
