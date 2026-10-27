@@ -68,7 +68,7 @@ export default async function EventPage({ params, searchParams }: Props) {
     <div className="rounded-3xl bg-background p-5 text-foreground shadow-lift sm:p-6">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm font-semibold text-muted-foreground">{price.name === "Early bird" ? "Early bird price" : `Price per ${sales.ticket_label.toLowerCase()}`}</p>
-        <p className="text-3xl font-bold tracking-tight tabular-nums">{formatMoney(price.unitMinor, campus.currency)}</p>
+        <p className="text-3xl font-bold tracking-tight whitespace-nowrap tabular-nums">{formatMoney(price.unitMinor, campus.currency)}</p>
       </div>
       <div className="relative my-4 border-t-2 border-dashed border-border" aria-hidden>
         <span className="absolute -top-3 -left-8 size-6 rounded-full bg-foreground sm:-left-9" />
@@ -85,7 +85,7 @@ export default async function EventPage({ params, searchParams }: Props) {
         </>
       ) : (
         <p className="text-sm">
-          {selling ? `Per ${sales.ticket_label.toLowerCase()}. Each one has one person's name on it.` : closedReason}
+          {selling ? `Each ${sales.ticket_label.toLowerCase()} has one person's name on it.` : closedReason}
         </p>
       )}
     </div>
@@ -161,7 +161,7 @@ export default async function EventPage({ params, searchParams }: Props) {
                 className="h-auto w-full rounded-3xl ring-1 ring-background/15"
               />
               {/* Overlapping the photo by less than the height of the price line, so the ticket's notches fall on the dark background and not on the picture. */}
-              <div className="relative mx-4 -mt-12 md:mr-4 md:-ml-8">{priceTicket}</div>
+              <div className="relative mx-2 -mt-12 sm:mx-4 md:mr-4 md:-ml-8">{priceTicket}</div>
             </div>
           ) : (
             priceTicket

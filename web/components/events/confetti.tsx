@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * a phone that came from a WhatsApp link. Each piece moves by transform and
  * fades by opacity, so drawing it costs next to nothing, and it fades in and
  * out of its loop so the restart is never seen. With reduced motion asked
- * for, every piece stays still where it sits.
+ * for, there is no confetti at all.
  *
  * The pieces are written out rather than generated so the page renders the
  * same on the server and in the browser.
