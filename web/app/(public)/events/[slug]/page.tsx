@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, MapPin, Store, Ticket } from "lucide-react";
+import { Baby, CalendarDays, MapPin, Store, Ticket } from "lucide-react";
+import { Confetti } from "@/components/events/confetti";
 import { Countdown } from "@/components/events/countdown";
 import { TicketForm } from "@/components/events/ticket-form";
 import { buttonVariants } from "@/components/ui/button";
+import { eventArtwork } from "@/lib/events/artwork";
 import { loadSaleEvent } from "@/lib/events/orders";
 import { earlyLastDay, eventStillAhead, eventWhen, ticketPriceAt } from "@/lib/events/pricing";
 import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { siteUrl } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { buyTickets } from "./actions";
 
@@ -19,10 +23,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const sale = await loadSaleEvent(createAdminClient(), slug);
   if (!sale) return { title: "Event" };
-  const description = `${eventWhen(sale.event, sale.sales.show_time)} at ${sale.event.location ?? sale.campus.name}. Buy your tickets online.`;
+  const art = eventArtwork(sale.sales.slug);
+  const description = `${eventWhen(sale.event, sale.sales.show_time)} at ${sale.event.location ?? sale.campus.name}.${art ? ` With ${art.headliner.name}.` : ""} Buy your tickets online.`;
+  // The link is mostly shared on WhatsApp, which shows this picture in the
+  // chat. An absolute address, because there is no metadataBase to resolve
+  // a relative one against.
+  const images = art ? [{ url: `${siteUrl()}${art.headliner.photo.src}`, width: art.headliner.photo.width, height: art.headliner.photo.height, alt: art.headliner.name }] : undefined;
   // An event open to the public is meant to be found and shared, unlike
   // every other page here.
-  return { title: sale.event.name, description, robots: { index: true, follow: false }, openGraph: { title: sale.event.name, description } };
+  return { title: sale.event.name, description, robots: { index: true, follow: false }, openGraph: { title: sale.event.name, description, images } };
 }
 
 /**
@@ -46,12 +55,41 @@ export default async function EventPage({ params, searchParams }: Props) {
   const lastEarlyDay = price.earlyEndsAt ? formatDateLong(earlyLastDay(price.earlyEndsAt)) : null;
   const laterFrom = price.earlyEndsAt ? formatDateLong(price.earlyEndsAt) : null;
   const hasStalls = sales.stall_price_minor !== null;
+  const art = eventArtwork(sales.slug);
 
   const closedReason = event.is_cancelled
     ? "This event has been cancelled."
     : !ahead
       ? "This event has already taken place. Thank you to everyone who came."
       : "Tickets are not on sale yet. Please come back soon.";
+
+  // The price, as a ticket: what one costs now and how long that lasts.
+  const priceTicket = (
+    <div className="rounded-3xl bg-background p-5 text-foreground shadow-lift sm:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold text-muted-foreground">{price.name === "Early bird" ? "Early bird price" : `Price per ${sales.ticket_label.toLowerCase()}`}</p>
+        <p className="text-3xl font-bold tracking-tight whitespace-nowrap tabular-nums">{formatMoney(price.unitMinor, campus.currency)}</p>
+      </div>
+      <div className="relative my-4 border-t-2 border-dashed border-border" aria-hidden>
+        <span className="absolute -top-3 -left-8 size-6 rounded-full bg-foreground sm:-left-9" />
+        <span className="absolute -top-3 -right-8 size-6 rounded-full bg-foreground sm:-right-9" />
+      </div>
+      {price.earlyEndsAt && selling ? (
+        <>
+          <p className="mb-3 text-sm">
+            Until <strong>{lastEarlyDay}</strong>. After that,{" "}
+            <span className="whitespace-nowrap">{formatMoney(price.laterMinor ?? sales.ticket_price_minor, campus.currency)}</span> per{" "}
+            {sales.ticket_label.toLowerCase()}.
+          </p>
+          <Countdown until={price.earlyEndsAt.toISOString()} serverNow={now.toISOString()} />
+        </>
+      ) : (
+        <p className="text-sm">
+          {selling ? `Each ${sales.ticket_label.toLowerCase()} has one person's name on it.` : closedReason}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -61,10 +99,23 @@ export default async function EventPage({ params, searchParams }: Props) {
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-8 opacity-70 [background-image:radial-gradient(circle,#f26a2e_2.5px,transparent_3px),radial-gradient(circle,#ffd68a_2px,transparent_2.5px)] [background-position:0_10px,22px_18px] [background-size:44px_28px]"
         />
-        <div className="mx-auto grid max-w-4xl gap-8 px-4 pt-14 pb-10 sm:pt-16 md:grid-cols-[1.15fr_1fr] md:items-center md:gap-10 md:pb-14">
+        {art?.confetti ? <Confetti /> : null}
+        <div
+          className={cn(
+            "relative mx-auto grid max-w-4xl gap-8 px-4 pt-14 pb-10 sm:pt-16 md:items-center md:gap-10 md:pb-14",
+            art ? "md:grid-cols-[minmax(0,1fr)_22rem]" : "md:grid-cols-[1.15fr_1fr]",
+          )}
+        >
           <div>
             <p className="text-sm font-semibold text-[#ffb27f]">{campus.name}</p>
             <h1 className="mt-2 text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl">{event.name}</h1>
+            {art ? (
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-[#ffb27f]">Featuring</p>
+                <p className="text-2xl font-bold tracking-tight sm:text-3xl">{art.headliner.name}</p>
+                <p className="mt-2 text-base text-background/85">{art.billing}</p>
+              </div>
+            ) : null}
             <ul className="mt-6 space-y-2 text-base text-background/85">
               <li className="flex items-start gap-2.5">
                 <CalendarDays className="mt-0.5 size-5 shrink-0 text-[#ffb27f]" aria-hidden />
@@ -74,6 +125,12 @@ export default async function EventPage({ params, searchParams }: Props) {
                 <MapPin className="mt-0.5 size-5 shrink-0 text-[#ffb27f]" aria-hidden />
                 <span>{place}</span>
               </li>
+              {art?.freeEntry ? (
+                <li className="flex items-start gap-2.5">
+                  <Baby className="mt-0.5 size-5 shrink-0 text-[#ffb27f]" aria-hidden />
+                  <span>{art.freeEntry.note}</span>
+                </li>
+              ) : null}
             </ul>
             <div className="mt-8 flex flex-wrap gap-3">
               {selling ? (
@@ -92,31 +149,23 @@ export default async function EventPage({ params, searchParams }: Props) {
             </div>
           </div>
 
-          {/* The price, as a ticket: what one costs now and how long that lasts. */}
-          <div className="rounded-3xl bg-background p-5 text-foreground shadow-lift sm:p-6">
-            <div className="flex items-baseline justify-between gap-3">
-              <p className="text-sm font-semibold text-muted-foreground">{price.name === "Early bird" ? "Early bird price" : `Price per ${sales.ticket_label.toLowerCase()}`}</p>
-              <p className="text-3xl font-bold tracking-tight tabular-nums">{formatMoney(price.unitMinor, campus.currency)}</p>
+          {art ? (
+            <div className="relative mx-auto w-full max-w-sm md:mx-0 md:max-w-none">
+              <Image
+                src={art.headliner.photo.src}
+                width={art.headliner.photo.width}
+                height={art.headliner.photo.height}
+                alt={art.headliner.name}
+                priority
+                sizes="(min-width: 768px) 22rem, 24rem"
+                className="h-auto w-full rounded-3xl ring-1 ring-background/15"
+              />
+              {/* Overlapping the photo by less than the height of the price line, so the ticket's notches fall on the dark background and not on the picture. */}
+              <div className="relative mx-2 -mt-12 sm:mx-4 md:mr-4 md:-ml-8">{priceTicket}</div>
             </div>
-            <div className="relative my-4 border-t-2 border-dashed border-border" aria-hidden>
-              <span className="absolute -top-3 -left-8 size-6 rounded-full bg-foreground sm:-left-9" />
-              <span className="absolute -top-3 -right-8 size-6 rounded-full bg-foreground sm:-right-9" />
-            </div>
-            {price.earlyEndsAt && selling ? (
-              <>
-                <p className="mb-3 text-sm">
-                  Until <strong>{lastEarlyDay}</strong>. After that,{" "}
-                  <span className="whitespace-nowrap">{formatMoney(price.laterMinor ?? sales.ticket_price_minor, campus.currency)}</span> per{" "}
-                  {sales.ticket_label.toLowerCase()}.
-                </p>
-                <Countdown until={price.earlyEndsAt.toISOString()} serverNow={now.toISOString()} />
-              </>
-            ) : (
-              <p className="text-sm">
-                {selling ? `Per person. Every person needs a ${sales.ticket_label.toLowerCase()} with their own name on it.` : closedReason}
-              </p>
-            )}
-          </div>
+          ) : (
+            priceTicket
+          )}
         </div>
       </section>
 
@@ -144,6 +193,12 @@ export default async function EventPage({ params, searchParams }: Props) {
                   </dt>
                   <dd className="font-semibold tabular-nums">{formatMoney(sales.ticket_price_minor, campus.currency)}</dd>
                 </div>
+                {art?.freeEntry ? (
+                  <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                    <dt>{art.freeEntry.who}</dt>
+                    <dd className="font-semibold">Free</dd>
+                  </div>
+                ) : null}
                 {hasStalls ? (
                   <div className="flex items-baseline justify-between gap-4 px-4 py-3">
                     <dt>
@@ -160,7 +215,7 @@ export default async function EventPage({ params, searchParams }: Props) {
               <h2 className="text-lg font-semibold">How it works</h2>
               <ol className="mt-3 space-y-3 text-sm leading-relaxed">
                 {[
-                  "Choose how many people are coming, and type each person's name.",
+                  "Choose how many tickets you need, and type each person's name.",
                   "Pay online on the school's secure payment page.",
                   "We email your tickets. Each one has its own number and the person's name.",
                   "Bring a copy of each ticket to the gate, printed or on your phone.",
