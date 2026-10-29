@@ -16,7 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const sale = await loadSaleEvent(createAdminClient(), slug);
   if (!sale) return { title: "Book a stall" };
   const description = `Book a stall at ${sale.event.name}, ${eventWhen(sale.event, sale.sales.show_time)}.`;
-  return { title: `Book a stall · ${sale.event.name}`, description, robots: { index: true, follow: false }, openGraph: { title: `Book a stall at ${sale.event.name}`, description } };
+  // By invitation: the school sends this address to the traders it chooses,
+  // and nothing links to it, so it should not turn up in a search either.
+  return { title: `Book a stall · ${sale.event.name}`, description, robots: { index: false, follow: false }, openGraph: { title: `Book a stall at ${sale.event.name}`, description } };
 }
 
 /** Booking and paying for a stall. The stall's tickets are issued with it. */

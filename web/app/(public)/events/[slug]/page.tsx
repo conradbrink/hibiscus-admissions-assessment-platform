@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Baby, CalendarDays, MapPin, Store, Ticket } from "lucide-react";
+import { Baby, CalendarDays, MapPin, Ticket } from "lucide-react";
 import { Confetti } from "@/components/events/confetti";
 import { Countdown } from "@/components/events/countdown";
 import { TicketForm } from "@/components/events/ticket-form";
-import { buttonVariants } from "@/components/ui/button";
 import { eventArtwork } from "@/lib/events/artwork";
 import { loadSaleEvent } from "@/lib/events/orders";
 import { earlyLastDay, eventStillAhead, eventWhen, ticketPriceAt } from "@/lib/events/pricing";
@@ -38,6 +36,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * An event's page: what it is, when and where, what a ticket costs and until
  * when, and the form to buy them. Read first on a phone, from a link shared
  * on WhatsApp, by people who may know nothing about the school.
+ *
+ * Stalls are not on this page. The school chooses its traders and sends each
+ * one the stall page's address (shown to staff on the event's Tickets page),
+ * as the owner asked on 29 October 2026; a public "Book a stall" let anybody
+ * who found the show buy one.
  */
 export default async function EventPage({ params, searchParams }: Props) {
   const { slug } = await params;
@@ -54,7 +57,6 @@ export default async function EventPage({ params, searchParams }: Props) {
   const place = event.location ?? campus.name;
   const lastEarlyDay = price.earlyEndsAt ? formatDateLong(earlyLastDay(price.earlyEndsAt)) : null;
   const laterFrom = price.earlyEndsAt ? formatDateLong(price.earlyEndsAt) : null;
-  const hasStalls = sales.stall_price_minor !== null;
   const art = eventArtwork(sales.slug);
 
   const closedReason = event.is_cancelled
@@ -138,14 +140,6 @@ export default async function EventPage({ params, searchParams }: Props) {
                   <Ticket className="size-5" aria-hidden /> Buy tickets
                 </a>
               ) : null}
-              {hasStalls && ahead && sales.stalls_open ? (
-                <Link
-                  href={`/events/${sales.slug}/stall`}
-                  className="inline-flex h-12 items-center gap-2 rounded-xl px-5 text-base font-semibold text-background ring-1 ring-background/40 transition-[transform,background-color] hover:bg-background/10 active:scale-[0.98]"
-                >
-                  <Store className="size-5" aria-hidden /> Book a stall
-                </Link>
-              ) : null}
             </div>
           </div>
 
@@ -199,15 +193,6 @@ export default async function EventPage({ params, searchParams }: Props) {
                     <dd className="font-semibold">Free</dd>
                   </div>
                 ) : null}
-                {hasStalls ? (
-                  <div className="flex items-baseline justify-between gap-4 px-4 py-3">
-                    <dt>
-                      Stall
-                      <span className="block text-xs text-muted-foreground">Includes {sales.stall_tickets} tickets</span>
-                    </dt>
-                    <dd className="font-semibold tabular-nums">{formatMoney(sales.stall_price_minor ?? 0, campus.currency)}</dd>
-                  </div>
-                ) : null}
               </dl>
             </section>
 
@@ -227,19 +212,6 @@ export default async function EventPage({ params, searchParams }: Props) {
                 ))}
               </ol>
             </section>
-
-            {hasStalls && ahead && sales.stalls_open ? (
-              <section className="rounded-2xl bg-accent/60 p-5">
-                <h2 className="text-base font-semibold text-accent-foreground">Selling at the show?</h2>
-                <p className="mt-1 text-sm leading-relaxed">
-                  Book a stall for {formatMoney(sales.stall_price_minor ?? 0, campus.currency)}. It includes {sales.stall_tickets} tickets: one for you and{" "}
-                  {sales.stall_tickets - 1 === 1 ? "one for a member of your staff" : `${sales.stall_tickets - 1} for your staff`}.
-                </p>
-                <Link href={`/events/${sales.slug}/stall`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-4")}>
-                  <Store data-icon="inline-start" /> Book a stall
-                </Link>
-              </section>
-            ) : null}
           </aside>
 
           <section id="tickets" className="scroll-mt-6">
