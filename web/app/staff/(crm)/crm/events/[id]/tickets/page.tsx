@@ -179,6 +179,7 @@ export default async function EventTicketsPage({ params }: { params: Promise<{ i
                 <>
                   <p className="mt-2 text-xs text-muted-foreground">Stalls</p>
                   <p className="font-mono text-xs break-all">{publicUrl}/stall</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Only people you send this to can book a stall. The event page does not link to it.</p>
                 </>
               ) : null}
             </section>
