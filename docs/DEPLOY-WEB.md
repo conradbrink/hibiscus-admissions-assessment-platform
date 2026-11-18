@@ -22,6 +22,15 @@ deploy token lives in GitHub.
 ### Vercel
 
 1. Import the repository. **Root directory: `web`.**
+   The functions run in **`cdg1` (Paris)**, set by `regions` in
+   `web/vercel.json`. Paris is the database's region (Supabase
+   `eu-west-3`), and the two must stay together. Until 18 November 2026
+   the setting was missing, so Vercel used its default, Washington
+   (`iad1`). Every query then crossed the Atlantic and back: about 230 ms
+   each, even for a lookup the database answered in under a millisecond. A
+   staff page makes a dozen such queries, several of them one after another,
+   so pages took seconds. If the database ever moves, move this setting with
+   it in the same change.
 2. Environment variables, from `web/.env.example`:
 
 | Variable | Secret? | Notes |

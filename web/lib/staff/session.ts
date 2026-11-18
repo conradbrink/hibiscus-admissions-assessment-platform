@@ -1,11 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Database, StaffProfileRow } from "@/lib/supabase/types";
 import { can, toPermissionSet, type PermissionCode, type PermissionSet } from "@/lib/permissions";
 import { MFA_SECURITY_PATH, MFA_VERIFY_PATH, mfaRedirectPath } from "@/lib/staff/mfa";
-import { mfaVerdict } from "@/lib/staff/mfa-server";
+import { mfaVerdict, type MfaVerdict } from "@/lib/staff/mfa-server";
 import type { Actor } from "@/lib/workflow/engine";
 
 /**
@@ -45,26 +46,54 @@ export class SecondFactorRequired extends Error {
   }
 }
 
-export async function getStaff(): Promise<StaffContext | null> {
+type SecondFactorOwed = "verify" | "enrol" | "unknown" | null;
+
+/**
+ * Who is asking and whether they still owe a code, read once per request.
+ *
+ * The console layout and the page under it both call `requireStaff`, and
+ * Next renders the two at the same time. Before this was cached, every staff
+ * page load asked the auth server who the person was twice, read their
+ * profile and permissions twice, and read the settings twice. The settings
+ * read also waited for the profile read, though it needs only the session.
+ * That was six round trips to Supabase before the page could fetch its own
+ * data, three of them back to back. Now it is four, two of them back to
+ * back. Staff felt every trip as a slow console.
+ *
+ * `cache` lasts for one request only, so a role taken away or a factor
+ * enrolled takes effect on the very next page or action, as before. Outside
+ * a render, such as in a route handler, it just calls through.
+ */
+const staffGate = cache(async (): Promise<{ ctx: StaffContext; owed: SecondFactorOwed } | null> => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [{ data: profile }, { data: granted }] = await Promise.all([
+  // All three need only the session that getUser has just validated, so
+  // they go together rather than one after another.
+  const [{ data: profile }, { data: granted }, verdict] = await Promise.all([
     supabase.from("staff_profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase.rpc("my_permissions"),
+    mfaVerdict(supabase),
   ]);
   if (!profile || !profile.is_active) return null;
 
   return {
-    supabase,
-    userId: user.id,
-    profile,
-    permissions: toPermissionSet(granted),
-    actor: { type: "staff", id: user.id, label: profile.email },
+    ctx: {
+      supabase,
+      userId: user.id,
+      profile,
+      permissions: toPermissionSet(granted),
+      actor: { type: "staff", id: user.id, label: profile.email },
+    },
+    owed: secondFactorOwed(verdict),
   };
+});
+
+export async function getStaff(): Promise<StaffContext | null> {
+  return (await staffGate())?.ctx ?? null;
 }
 
 /**
@@ -80,8 +109,7 @@ export async function getStaff(): Promise<StaffContext | null> {
  * because the alternative is that an auth server having a bad minute silently
  * turns the second factor off for everybody.
  */
-async function secondFactorOutstanding(ctx: StaffContext): Promise<"verify" | "enrol" | "unknown" | null> {
-  const verdict = await mfaVerdict(ctx.supabase);
+function secondFactorOwed(verdict: MfaVerdict): SecondFactorOwed {
   if (!verdict.ok) {
     console.warn("[staff] could not establish the second factor:", verdict.reason);
     return "unknown";
@@ -111,9 +139,9 @@ export class AuthCheckUnavailable extends Error {
 
 /** For pages: redirects to login when signed out. */
 export async function requireStaff(permission?: PermissionCode): Promise<StaffContext> {
-  const ctx = await getStaff();
-  if (!ctx) redirect("/staff/login");
-  const owed = await secondFactorOutstanding(ctx);
+  const gate = await staffGate();
+  if (!gate) redirect("/staff/login");
+  const { ctx, owed } = gate;
   if (owed === "unknown") throw new AuthCheckUnavailable();
   if (owed) redirect(mfaRedirectPath(owed));
   if (permission && !can(ctx.permissions, permission)) redirect("/staff/no-access");
@@ -129,9 +157,9 @@ export async function requireStaff(permission?: PermissionCode): Promise<StaffCo
  * lacks a permission it may well hold.
  */
 export async function requireStaffAction(permission: PermissionCode): Promise<StaffContext> {
-  const ctx = await getStaff();
-  if (!ctx) throw new ForbiddenError(permission);
-  const owed = await secondFactorOutstanding(ctx);
+  const gate = await staffGate();
+  if (!gate) throw new ForbiddenError(permission);
+  const { ctx, owed } = gate;
   if (owed === "unknown") throw new AuthCheckUnavailable();
   if (owed) throw new SecondFactorRequired(owed);
   if (!can(ctx.permissions, permission)) throw new ForbiddenError(permission);
