@@ -108,15 +108,24 @@ export async function proxy(request: NextRequest) {
   // screen -- somebody with no factor would be stranded there, asked for a
   // code no app can produce.
   if (user && !isStaffPublicPath(pathname)) {
-    const { data: settingRow, error: settingError } = await supabase
-      .from("settings")
-      .select("value")
-      .eq("key", "staff_mfa_required")
-      .maybeSingle();
-    // `nextLevel` is aal2 exactly when the session carries a verified factor,
-    // read from the session rather than fetched, so this adds no round trip to
-    // the auth server on every single page load.
-    const { data: levels, error: levelError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    // The three reads go out together and are judged one after another below.
+    // Asked in sequence, they were three trips from the proxy to the database
+    // on every staff page load. The proxy runs next to the person (Cape Town
+    // for Gaborone) and the database is in Paris, so each trip cost about
+    // 180 ms. Reading the permissions of a session that may still owe a code
+    // decides nothing: the verdict on the code is still applied first.
+    const [
+      { data: settingRow, error: settingError },
+      // `nextLevel` is aal2 exactly when the session carries a verified factor,
+      // read from the session rather than fetched, so this adds no round trip to
+      // the auth server on every single page load.
+      { data: levels, error: levelError },
+      { data: granted, error: permissionError },
+    ] = await Promise.all([
+      supabase.from("settings").select("value").eq("key", "staff_mfa_required").maybeSingle(),
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      supabase.rpc("my_permissions"),
+    ]);
 
     if (settingError || levelError) {
       return withPolicy(
@@ -136,12 +145,6 @@ export async function proxy(request: NextRequest) {
       url.search = "";
       return withPolicy(NextResponse.redirect(url));
     }
-  }
-
-  if (user && !isStaffPublicPath(pathname)) {
-    const { data: granted, error: permissionError } = await supabase.rpc(
-      "my_permissions"
-    );
 
     // A query that failed is not the same fact as a person with no
     // permissions. Falling through to "nothing" on a timeout would strand an
