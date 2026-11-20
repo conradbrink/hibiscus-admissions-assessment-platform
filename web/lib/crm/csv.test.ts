@@ -94,4 +94,25 @@ describe("csv out", () => {
     expect(csvLine(["a", 'b "c"', "d,e", null, 3, true])).toBe('a,"b ""c""","d,e",,3,true');
     expect(toCsv(["x", "y"], [["1", "2"]])).toBe("x,y\r\n1,2\r\n");
   });
+  it("writes a text cell that would start a formula as text", () => {
+    expect(csvLine(['=HYPERLINK("https://evil.example","click")'])).toBe(`"'=HYPERLINK(""https://evil.example"",""click"")"`);
+    expect(csvLine(["=1+1", "+27 71", "-2", "@SUM(A1)", "\tx", "\rx"])).toBe(`'=1+1,'+27 71,'-2,'@SUM(A1),'\tx,"'\rx"`);
+    expect(toCsv(["first_name"], [["=cmd"]])).toBe("first_name\r\n'=cmd\r\n");
+  });
+  it("leaves a real number alone, so a negative amount stays a number", () => {
+    expect(csvLine([-150, -0.5, 0])).toBe("-150,-0.5,0");
+  });
+  it("leaves ordinary text unchanged, a formula sign later in the cell included", () => {
+    expect(csvLine(["Anna", "anna@example.com", "Mpho's Bakes", "a=b", "x-y", "", null])).toBe("Anna,anna@example.com,Mpho's Bakes,a=b,x-y,,");
+  });
+  it("quotes a guarded cell that also has a comma", () => {
+    expect(csvLine(["=SUM(A1,B1)", "-1,000"])).toBe(`"'=SUM(A1,B1)","'-1,000"`);
+  });
+  it("does not prefix a cell that was already guarded", () => {
+    expect(csvLine(["'=HYPERLINK(x)"])).toBe("'=HYPERLINK(x)");
+  });
+  it("round-trips through the reader as the guarded text", () => {
+    const t = parseCsv(toCsv(["name", "notes"], [["=SUM(A1,B1)", 'Says "hi"']]));
+    expect(t.rows).toEqual([["'=SUM(A1,B1)", 'Says "hi"']]);
+  });
 });
