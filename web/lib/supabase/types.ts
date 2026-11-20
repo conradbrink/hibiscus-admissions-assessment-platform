@@ -2267,7 +2267,7 @@ export type CrmFamilyFactsRow = {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Hibiscus Stores (20261120110000_stores_core and the two after it)
+// Hibiscus Stores (20261120145020_stores_core and the four after it)
 // ---------------------------------------------------------------------------
 
 export type StoresItemType = "reusable" | "consumable" | "asset";
