@@ -4668,6 +4668,7 @@ begin
     v_req uuid;
     v_pay uuid;
     v_mail uuid;
+    v_offer uuid;
   begin
     perform pg_temp.service();
     insert into public.crm_events (name, kind, campus_id, starts_at, created_by)
@@ -4684,6 +4685,45 @@ begin
     if (select amount_minor from public.event_orders where id = v_order) <> 20000 then
       v_fail := v_fail || E'\n  - ' || '83: the order was not priced from the event''s own price';
     end if;
+
+    -- A dated offer is charged while it runs, by its own name, and only if
+    -- it is the lower price: one typed too high must not make a ticket dearer.
+    update public.event_sales
+       set offer_name = 'Sec offer', offer_price_minor = 7000, offer_from = now() - interval '1 hour', offer_until = now() + interval '1 hour'
+     where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'tickets', 'Sec', 'Offer', 'sec-offer@test.invalid', null, 2,
+      '[{"first_name":"Sec","last_name":"Three"},{"first_name":"Sec","last_name":"Four"}]'::jsonb,
+      null, null, null, 'sec-link-hash-83-offer');
+    if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 7000 and amount_minor = 14000 and price_name = 'Sec offer') then
+      v_fail := v_fail || E'\n  - ' || '83: an order placed while an offer ran was not charged the offer''s price under its name';
+    end if;
+    update public.event_sales set offer_price_minor = 12000 where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'tickets', 'Sec', 'Offer', 'sec-offer@test.invalid', null, 1,
+      '[{"first_name":"Sec","last_name":"Five"}]'::jsonb, null, null, null, 'sec-link-hash-83-dear');
+    if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 10000 and price_name = 'Standard') then
+      v_fail := v_fail || E'\n  - ' || '83: an offer above the ticket price made a ticket dearer';
+    end if;
+    update public.event_sales
+       set offer_price_minor = 7000, offer_from = now() - interval '2 hours', offer_until = now() - interval '1 hour'
+     where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'tickets', 'Sec', 'Offer', 'sec-offer@test.invalid', null, 1,
+      '[{"first_name":"Sec","last_name":"Six"}]'::jsonb, null, null, null, 'sec-link-hash-83-over');
+    if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 10000 and price_name = 'Standard') then
+      v_fail := v_fail || E'\n  - ' || '83: an offer that had ended was still charged';
+    end if;
+    begin
+      update public.event_sales set offer_from = null where event_id = v_ev;
+      v_fail := v_fail || E'\n  - ' || '83: half an offer was saved';
+    exception when check_violation then null;
+    end;
+    begin
+      update public.event_sales set offer_from = now(), offer_until = now() - interval '1 day' where event_id = v_ev;
+      v_fail := v_fail || E'\n  - ' || '83: an offer was saved that ends before it starts';
+    exception when check_violation then null;
+    end;
     update public.event_orders set status = 'paid', paid_at = now() where id = v_order;
     perform public.issue_event_tickets(v_order);
     perform public.issue_event_tickets(v_order);
@@ -4791,6 +4831,18 @@ begin
       perform public.anonymise_event_orders(v_ev);
       v_fail := v_fail || E'\n  - ' || '83: a member of staff could call anonymise_event_orders()';
     exception when insufficient_privilege then null;
+    end;
+
+    -- Control: an offer is a price, and prices are the staff's to set.
+    begin
+      update public.event_sales
+         set offer_name = 'Sec staff offer', offer_price_minor = 8000, offer_from = now() + interval '1 day', offer_until = now() + interval '2 days'
+       where event_id = v_ev;
+      if not exists (select 1 from public.event_sales where event_id = v_ev and offer_name = 'Sec staff offer') then
+        v_fail := v_fail || E'\n  - ' || '83 control: the administrator''s offer was not saved';
+      end if;
+    exception when others then
+      v_fail := v_fail || E'\n  - ' || ('83 control: the administrator could not set an offer: ' || sqlerrm);
     end;
 
     -- Control: checking somebody in, stamped with who did it, and only once.

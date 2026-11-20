@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { earlyUntilFromLastDay, lastDayFromEarlyUntil, normaliseTicketNumber, parseSalesForm, safeCell } from "@/lib/events/sales-form";
+import {
+  earlyUntilFromLastDay,
+  firstDayFromOfferFrom,
+  lastDayFromEarlyUntil,
+  normaliseTicketNumber,
+  offerFromFirstDay,
+  parseSalesForm,
+  safeCell,
+} from "@/lib/events/sales-form";
 
 const FORM = {
   slug: "christmas-show",
@@ -46,6 +54,50 @@ describe("parseSalesForm", () => {
   it("refuses an address with spaces or capitals, and a bad prefix", () => {
     expect(parseSalesForm({ ...FORM, slug: "Christmas Show" }).ok).toBe(false);
     expect(parseSalesForm({ ...FORM, ticketPrefix: "H1" }).ok).toBe(false);
+  });
+});
+
+describe("a special offer on the form", () => {
+  // The school's Black Friday poster of 20 November 2026.
+  const OFFER = { offerName: " Black Friday ", offerPrice: "150", offerFirstDay: "2026-11-23", offerLastDay: "2026-12-01" };
+
+  it("reads its first and last day as whole school days", () => {
+    expect(parseSalesForm({ ...FORM, ...OFFER })).toMatchObject({
+      ok: true,
+      value: { offer_name: "Black Friday", offer_price_minor: 15000, offer_from: "2026-11-22T22:00:00.000Z", offer_until: "2026-12-01T22:00:00.000Z" },
+    });
+  });
+
+  it("clears the offer when all four boxes are empty", () => {
+    expect(parseSalesForm({ ...FORM, offerName: "", offerPrice: "", offerFirstDay: "", offerLastDay: "" })).toMatchObject({
+      ok: true,
+      value: { offer_name: null, offer_price_minor: null, offer_from: null, offer_until: null },
+    });
+  });
+
+  it("leaves the offer alone when the form has no boxes for it", () => {
+    // A tickets page left open from before the offer existed: saving it must
+    // not write the offer columns at all, or it would end a running offer.
+    const r = parseSalesForm(FORM);
+    expect(r.ok && "offer_name" in r.value).toBe(false);
+    expect(r.ok && "offer_until" in r.value).toBe(false);
+  });
+
+  it("wants all four boxes, in order, and a price below the ticket price", () => {
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerLastDay: "" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerName: "" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerFirstDay: "2026-12-02" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerPrice: "200" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerName: "x".repeat(41) }).ok).toBe(false);
+    // One day is an offer: it starts and ends on the same day.
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerLastDay: "2026-11-23" })).toMatchObject({ ok: true, value: { offer_until: "2026-11-23T22:00:00.000Z" } });
+  });
+
+  it("round-trips its first day through the moment it starts", () => {
+    expect(offerFromFirstDay("2026-11-23")).toBe("2026-11-22T22:00:00.000Z");
+    expect(firstDayFromOfferFrom("2026-11-22T22:00:00.000Z")).toBe("2026-11-23");
+    expect(firstDayFromOfferFrom(null)).toBe("");
+    expect(offerFromFirstDay("23 November")).toBeNull();
   });
 });
 

@@ -7,8 +7,8 @@ import { Countdown } from "@/components/events/countdown";
 import { TicketForm } from "@/components/events/ticket-form";
 import { eventArtwork } from "@/lib/events/artwork";
 import { loadSaleEvent } from "@/lib/events/orders";
-import { earlyLastDay, eventStillAhead, eventWhen, ticketPriceAt } from "@/lib/events/pricing";
-import { formatDateLong } from "@/lib/format-date";
+import { eventStillAhead, eventWhen, lastDay, offerToShow, ticketPriceAt } from "@/lib/events/pricing";
+import { formatDateLong, formatWeekdayDate } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/tokens";
@@ -55,9 +55,13 @@ export default async function EventPage({ params, searchParams }: Props) {
   const selling = ahead && sales.tickets_open;
   const when = eventWhen(event, sales.show_time);
   const place = event.location ?? campus.name;
-  const lastEarlyDay = price.earlyEndsAt ? formatDateLong(earlyLastDay(price.earlyEndsAt)) : null;
-  const laterFrom = price.earlyEndsAt ? formatDateLong(price.earlyEndsAt) : null;
+  const offer = offerToShow(sales, now);
+  const earlyUntil = sales.early_price_minor !== null && sales.early_until ? new Date(sales.early_until) : null;
+  const laterFrom = earlyUntil && now.getTime() < earlyUntil.getTime() ? formatDateLong(earlyUntil) : null;
   const art = eventArtwork(sales.slug);
+  const noun = sales.ticket_label.toLowerCase();
+  const money = (minor: number) => formatMoney(minor, campus.currency);
+  const priceLabel = price.kind === "offer" ? `${price.name} price` : price.kind === "early" ? "Early bird price" : `Price per ${noun}`;
 
   const closedReason = event.is_cancelled
     ? "This event has been cancelled."
@@ -66,29 +70,59 @@ export default async function EventPage({ params, searchParams }: Props) {
       : "Tickets are not on sale yet. Please come back soon.";
 
   // The price, as a ticket: what one costs now and how long that lasts.
+  // During an offer the usual price is crossed out above it, as on the
+  // school's poster. A price about to rise gets a countdown; one about to
+  // fall (an offer that has not started) is said in words and not counted
+  // down to, because nobody needs hurrying towards a lower price.
   const priceTicket = (
     <div className="rounded-3xl bg-background p-5 text-foreground shadow-lift sm:p-6">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-muted-foreground">{price.name === "Early bird" ? "Early bird price" : `Price per ${sales.ticket_label.toLowerCase()}`}</p>
-        <p className="text-3xl font-bold tracking-tight whitespace-nowrap tabular-nums">{formatMoney(price.unitMinor, campus.currency)}</p>
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-sm font-semibold text-muted-foreground">{priceLabel}</p>
+        <p className="text-right">
+          {price.usualMinor !== null ? (
+            <span className="block text-sm text-muted-foreground">
+              <span className="sr-only">Usual price </span>
+              <s className="whitespace-nowrap tabular-nums">{money(price.usualMinor)}</s>
+            </span>
+          ) : null}
+          <span className="block text-3xl font-bold tracking-tight whitespace-nowrap tabular-nums">{money(price.unitMinor)}</span>
+        </p>
       </div>
       <div className="relative my-4 border-t-2 border-dashed border-border" aria-hidden>
         <span className="absolute -top-3 -left-8 size-6 rounded-full bg-foreground sm:-left-9" />
         <span className="absolute -top-3 -right-8 size-6 rounded-full bg-foreground sm:-right-9" />
       </div>
-      {price.earlyEndsAt && selling ? (
-        <>
-          <p className="mb-3 text-sm">
-            Until <strong>{lastEarlyDay}</strong>. After that,{" "}
-            <span className="whitespace-nowrap">{formatMoney(price.laterMinor ?? sales.ticket_price_minor, campus.currency)}</span> per{" "}
-            {sales.ticket_label.toLowerCase()}.
+      {selling && price.endsAt && price.next ? (
+        price.next.unitMinor > price.unitMinor ? (
+          <>
+            <p className="mb-3 text-sm">
+              {price.usualMinor !== null ? (
+                <>
+                  You save <strong className="whitespace-nowrap">{money(price.usualMinor - price.unitMinor)}</strong> on each {noun}.{" "}
+                </>
+              ) : null}
+              Until <strong>{formatDateLong(lastDay(price.endsAt))}</strong>. After that,{" "}
+              <span className="whitespace-nowrap">{money(price.next.unitMinor)}</span> per {noun}.
+            </p>
+            <Countdown until={price.endsAt.toISOString()} serverNow={now.toISOString()} />
+          </>
+        ) : (
+          <p className="text-sm">
+            {price.next.kind === "offer" ? (
+              <>
+                <strong>{price.next.name}</strong> price from <strong>{formatWeekdayDate(price.endsAt)}</strong>
+                {offer ? <> to {formatDateLong(lastDay(offer.until))}</> : null}:{" "}
+              </>
+            ) : (
+              <>
+                From <strong>{formatDateLong(price.endsAt)}</strong>:{" "}
+              </>
+            )}
+            <span className="whitespace-nowrap">{money(price.next.unitMinor)}</span> per {noun}.
           </p>
-          <Countdown until={price.earlyEndsAt.toISOString()} serverNow={now.toISOString()} />
-        </>
+        )
       ) : (
-        <p className="text-sm">
-          {selling ? `Each ${sales.ticket_label.toLowerCase()} has one person's name on it.` : closedReason}
-        </p>
+        <p className="text-sm">{selling ? `Each ${noun} has one person's name on it.` : closedReason}</p>
       )}
     </div>
   );
@@ -171,13 +205,24 @@ export default async function EventPage({ params, searchParams }: Props) {
             <section>
               <h2 className="text-lg font-semibold">Prices</h2>
               <dl className="mt-3 divide-y divide-border/70 rounded-2xl border border-border/70 bg-card text-sm">
-                {sales.early_price_minor !== null && sales.early_until ? (
+                {offer ? (
+                  <div className="flex items-baseline justify-between gap-4 px-4 py-3">
+                    <dt>
+                      {offer.name}
+                      <span className="block text-xs text-muted-foreground">
+                        {formatWeekdayDate(offer.from)} to {formatDateLong(lastDay(offer.until))}
+                      </span>
+                    </dt>
+                    <dd className="font-semibold whitespace-nowrap tabular-nums">{money(offer.unitMinor)}</dd>
+                  </div>
+                ) : null}
+                {sales.early_price_minor !== null && earlyUntil ? (
                   <div className="flex items-baseline justify-between gap-4 px-4 py-3">
                     <dt>
                       Early bird
-                      <span className="block text-xs text-muted-foreground">Until {formatDateLong(earlyLastDay(new Date(sales.early_until)))}</span>
+                      <span className="block text-xs text-muted-foreground">Until {formatDateLong(lastDay(earlyUntil))}</span>
                     </dt>
-                    <dd className="font-semibold tabular-nums">{formatMoney(sales.early_price_minor, campus.currency)}</dd>
+                    <dd className="font-semibold whitespace-nowrap tabular-nums">{money(sales.early_price_minor)}</dd>
                   </div>
                 ) : null}
                 <div className="flex items-baseline justify-between gap-4 px-4 py-3">
@@ -185,7 +230,7 @@ export default async function EventPage({ params, searchParams }: Props) {
                     {sales.early_until ? "Standard" : sales.ticket_label}
                     {laterFrom ? <span className="block text-xs text-muted-foreground">From {laterFrom}</span> : null}
                   </dt>
-                  <dd className="font-semibold tabular-nums">{formatMoney(sales.ticket_price_minor, campus.currency)}</dd>
+                  <dd className="font-semibold whitespace-nowrap tabular-nums">{money(sales.ticket_price_minor)}</dd>
                 </div>
                 {art?.freeEntry ? (
                   <div className="flex items-baseline justify-between gap-4 px-4 py-3">

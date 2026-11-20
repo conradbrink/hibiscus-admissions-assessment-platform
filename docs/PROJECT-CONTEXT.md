@@ -1000,6 +1000,53 @@ at the gate is the school's own process); a refund is finance's, at the
 gateway, and the order stays paid on the page; a buyer cannot change names
 after paying (staff can see them and can re-send, not edit).
 
+### A dated offer on event tickets: Black Friday (20 November 2026)
+
+The owner sent the school's Black Friday poster for the Christmas Show and
+asked for the deal to be loaded: **P150 a ticket instead of P180, from 23
+November to 1 December 2026**. The code on the poster opens
+`/events/christmas-show`, so the deal belongs on the page already selling.
+By then the school had changed the prices on the form to P180 early (to the
+end of 27 November) and P220 after, and the ticket is called "Adult ticket".
+
+- **A third kind of price.** `event_sales` knew an early price until a
+  moment and a standard one after. An offer starts on one day and stops on
+  another in the middle of those, so it is four columns of its own:
+  `offer_name`, `offer_price_minor`, `offer_from`, `offer_until`, all set or
+  all empty.
+- **The rule, in two places as before.** `create_event_order()` works out
+  the early or standard price, then, while the offer runs, charges the
+  offer's price if it is lower, and stores the offer's name as the order's
+  `price_name` ("2 × Adult ticket (Black Friday)"). `ticketPriceAt` in
+  `lib/events/pricing.ts` is the same rule for the page. **An offer never
+  makes a ticket dearer**: one typed above the early price does nothing
+  until the early price ends.
+- **The page.** While the offer runs the price ticket is headed with the
+  offer's name, the usual price is crossed out above the price, and the
+  countdown runs to the offer's end. The "usual price" is whatever a ticket
+  would cost at that moment without the offer, so for the Christmas Show it
+  is P180 to 27 November and P220 from 28 November, where the poster says
+  P180 throughout. Before the offer starts the page says so in words and
+  counts down to nothing: nobody needs hurrying towards a lower price. The
+  Prices list names the offer with its dates until it is over.
+- **`ticketPriceAt` returns a timeline, not "early or not".** The current
+  price, when it ends, and the price after. It ends at the first moment the
+  price really changes, so an early price that stops in the middle of an
+  offer is passed over.
+- **Staff set it on the tickets page**: a name, a price, a first day and a
+  last day, read as whole school days. The price must be below the ticket
+  price. `parseSalesForm` writes the offer only when the form carried its
+  boxes, so a tickets page left open across the deploy cannot wipe a running
+  offer by being saved.
+- **Applied to production on 20 November 2026** through the connector
+  (`20261120082243`), before the page was deployed. That order is the safe
+  one: the old page ignores the new columns, while the new staff form would
+  fail to save without them.
+
+Limits, honestly: the poster says "limited presold tickets" and gives no
+number, so nothing limits how many are sold at the offer price; the event's
+capacity is still the only cap.
+
 ### The pre-schools' free trial week
 
 A child joining Nursery to Pre-Reception sits no assessment, and the
@@ -1487,9 +1534,11 @@ contradicts itself, the choice made is recorded and must be confirmed.
 
 0. **The Christmas Show (4 December 2026).** Applied to the live project
    and on sale since 22 October 2026, as "Hibiscus Christmas Show 2026".
-   Still to do: set the start time on the event and tick "Show the start
-   time" at `/staff/crm/events/<id>/tickets`, and buy one ticket to see the
-   email arrive (tickets go out by email only).
+   The start time is set (17:00) and shown, and tickets have been bought
+   and paid for. The Black Friday offer (P150, 23 November to 1 December)
+   is in the live database since 20 November; the page that names it must
+   be deployed before 23 November. After 1 December the price goes to the
+   standard P220: say if the school wants something else.
 
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in

@@ -315,6 +315,16 @@ The withdrawn offer stays in the applicant's history with the reason given.
 4. Share the two links under **Links to share**. Buy one ticket yourself
    first and check the email arrives.
 
+### A special offer (Black Friday)
+
+On the same page, under the early-bird boxes: **Special offer's name**,
+**Offer price**, **Offer's first day** and **Offer's last day**. Fill in all
+four and **Save**. The offer runs from the start of its first day to the end
+of its last day, and the public page names it and crosses out the usual
+price. It must be lower than the ticket price, and it is only charged when
+it is the lowest price that day. To end an offer early, empty all four boxes
+and **Save**. Tickets already bought keep the price they were bought at.
+
 Every person needs their own ticket with their own name. A parent buying
 for four types four names.
 
