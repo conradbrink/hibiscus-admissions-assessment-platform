@@ -1,0 +1,21 @@
+{
+  "name": "Hibiscus Stores",
+  "short_name": "Stores",
+  "description": "The Hibiscus Schools storeroom register: inventory, equipment on loan, signatures and stock movements.",
+  "id": "/staff/stores",
+  "start_url": "/staff/stores",
+  "scope": "/staff/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f8fb",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "/stores/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/stores/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/stores/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Check out equipment", "short_name": "Check out", "url": "/staff/stores/check-out", "icons": [{ "src": "/stores/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Check in equipment", "short_name": "Check in", "url": "/staff/stores/check-in", "icons": [{ "src": "/stores/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -23,7 +23,10 @@ export type NavIcon =
   | "fees" | "promotions" | "campuses" | "grades" | "intakes" | "staff" | "workflow" | "retention" | "columns" | "outbox" | "jobs"
   // The CRM's rail and settings hub.
   | "families" | "contacts" | "opportunities" | "events" | "inbox" | "campaigns" | "segments" | "automations"
-  | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm";
+  | "reports" | "lifecycle" | "tags" | "leadSources" | "approvals" | "import" | "crm"
+  // Hibiscus Stores' rail and settings hub.
+  | "inventory" | "checkOut" | "checkIn" | "stockIssues" | "receive" | "movements"
+  | "departments" | "categories" | "locations" | "employees" | "stores";
 
 export type NavItem = {
   href: string;

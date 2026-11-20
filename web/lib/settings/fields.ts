@@ -35,7 +35,9 @@ export type SettingKind =
   | "timeList"
   | "bool"
   | "date"
-  | "text";
+  | "text"
+  /** Text that may not be blank: what somebody signs, for instance. */
+  | "requiredText";
 
 export type SettingField = {
   kind: SettingKind;
@@ -57,6 +59,7 @@ export const SECTIONS = [
   "Scholarships",
   "Automation",
   "CRM",
+  "Stores",
   "Keeping and deleting data",
   "Everything else",
 ] as const;
@@ -131,6 +134,11 @@ export const SETTING_FIELDS: Record<string, SettingField> = {
   crm_campaign_approval_required: F("bool", "CRM", "A campaign needs signing off before it sends"),
   crm_follow_up_days: F("int", "CRM", "A new enquiry should be contacted within", { unit: "days" }),
   crm_stale_contact_days: F("int", "CRM", "Count a family as “no response” after", { unit: "days" }),
+
+  // Hibiscus Stores
+  stores_checkout_acknowledgement: F("requiredText", "Stores", "What an employee signs when equipment is checked out to them", { help: "Shown on the handover screen above the signature box and stored with every signature. Changing it affects the next signature only." }),
+  stores_return_acknowledgement: F("requiredText", "Stores", "What an employee signs when they return equipment", { help: "Shown on the return screen above the signature box and stored with every signature." }),
+  stores_due_soon_days: F("int0", "Stores", "Show equipment as due soon (amber) this many days before its return date", { unit: "days" }),
 
   // Keeping and deleting data
   retention_enabled: F("bool", "Keeping and deleting data", "Anonymise old applications automatically"),
@@ -223,6 +231,12 @@ export function parseSetting(kind: SettingKind, raw: string, label: string): str
       return value;
     }
     case "text":
+      return value;
+    case "requiredText":
+      // A blank acknowledgement would put a signature under nothing at all;
+      // the database falls back to the built-in wording, so the screen and
+      // the record would also disagree about what was signed.
+      if (!value) throw new Error(`${label}: this cannot be left blank.`);
       return value;
   }
 }

@@ -28,6 +28,7 @@ export function StaffTopbar({
   notifications,
   heading,
   pdf = false,
+  showTasks = true,
 }: {
   name: string;
   email: string;
@@ -45,6 +46,12 @@ export function StaffTopbar({
   heading?: { path: string; title: string };
   /** Whether to offer Download PDF: `pages.export_pdf`. */
   pdf?: boolean;
+  /**
+   * Whether to show the tasks link. Stores has no tasks of its own, and a
+   * storekeeper who holds nothing else would be sent to a page the proxy
+   * refuses them.
+   */
+  showTasks?: boolean;
 }) {
   const first = (name || email).split(/[\s@]/)[0];
   const today = new Date();
@@ -89,10 +96,12 @@ export function StaffTopbar({
             {notifications.unread > 0 ? <span className={countBadge}>{notifications.unread}</span> : null}
           </Link>
         ) : null}
-        <Link href={tasksHref} aria-label={`${openTasks} open tasks assigned to you`} className={iconLink}>
-          <SquareCheck className="size-4" strokeWidth={1.75} aria-hidden />
-          {openTasks > 0 ? <span className={countBadge}>{openTasks}</span> : null}
-        </Link>
+        {showTasks ? (
+          <Link href={tasksHref} aria-label={`${openTasks} open tasks assigned to you`} className={iconLink}>
+            <SquareCheck className="size-4" strokeWidth={1.75} aria-hidden />
+            {openTasks > 0 ? <span className={countBadge}>{openTasks}</span> : null}
+          </Link>
+        ) : null}
         <div className="ml-1 flex items-center gap-2 pl-1">
           <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(name || email)}</span>
           <span className="hidden text-[13px] font-medium text-foreground sm:inline">{name || email}</span>

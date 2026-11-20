@@ -676,7 +676,10 @@ waits for a person to approve it.
    `digest_hour` (Gaborone time), once per campus per day, only when there
    is something to report.
 2. Each person has **Receives the morning digest** on Staff & roles; a
-   campus-limited person gets their campuses', head office gets all.
+   campus-limited person gets their campuses', head office gets all. Only
+   people whose roles let them read admissions (or who are super
+   administrators) get it at all: a Stores-only or CRM-only account never
+   does, whatever that box says.
 3. `/staff/admin/dev-outbox` lists digests like any other email; a
    `failed` one shows why.
 
@@ -1253,3 +1256,58 @@ instead so the record of who did what stays intact. Deletions are audited.
 13. Never turn a medical export column on without the data-protection
     officer's say-so, and never switch `retention_enabled` on without reading
     the preview first. Anonymisation cannot be undone.
+
+## Hibiscus Stores: giving somebody access
+
+Stores → Settings → Users, as a Stores administrator (or a super
+administrator). "Make storekeeper" or "Make Stores administrator" on an
+existing colleague, or "Invite somebody new" with one of the two Stores
+roles. Nobody can change their own roles there, and nobody can invite somebody
+into a role that carries more than they hold themselves. A Stores role never
+gives access to Admissions or the CRM, and an account invited from Stores has
+the admissions morning digest off (it is only ever sent to people who can read
+admissions anyway); switching somebody's sign-in off is still
+done under Admissions → Settings → Staff and roles.
+
+## Hibiscus Stores: a transaction was recorded wrongly
+
+Nothing in Stores is edited after the fact. Open the transaction (from Stock
+Movements, or the item's history) and, as a Stores administrator, press
+Reverse with a reason. The original stays as it was, signature included,
+marked as reversed, and the reversal has its own RV- reference.
+
+- A **checkout** can be reversed only while nothing on it has come back. If
+  some has, reverse the returns first (latest first), or use a write-off.
+- A **return** reverses the latest return on its checkout only.
+- A **receipt** can be reversed only while that quantity is still on the
+  shelf. If it was the receipt that last set the item's price or supplier,
+  those go back to what they were before it.
+- A **wrong count** is a count correction on the item's page (Adjust stock),
+  with a reason. Equipment on loan that will never come back is "Written off
+  while on loan", which closes that quantity on the checkout. It is refused
+  on a checkout that was reversed or is already complete.
+- An item **filed as the wrong type** (a consumable that should be reusable,
+  say) can be changed on its Edit page. While it has stock on the shelf or
+  held back, only a Stores administrator can change the type.
+
+A button pressed twice, or pressed again after a dropped connection, is
+recorded once: every Stores form carries a request id, and the database
+holds a lock on it while it saves. If a storekeeper sees "the storeroom could
+not reach the server", pressing the same button again is safe.
+
+## Hibiscus Stores: the dashboard says a balance does not agree
+
+The line at the foot of the Stores dashboard comes from
+`stores_reconciliation()`. It should never say anything but "Every balance
+agrees". If it names an item, nothing in the app wrote that balance:
+something changed the table directly. Run `select * from
+stores_reconciliation();` in the SQL editor to see the figures, look at the
+`audit_log` for that item, and correct it with a documented count correction
+once the cause is known. Do not update `stores_items` by hand.
+
+## Hibiscus Stores: sample data on a development database
+
+`psql "$DEV_DATABASE_URL" -1 -f supabase/seed/dev_stores.sql` adds fifteen
+items, five employees and a handful of checkouts, returns and issues,
+recorded as the first super administrator through the same functions the app
+uses. Never on production.

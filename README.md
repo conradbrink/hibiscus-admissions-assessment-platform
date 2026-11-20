@@ -36,6 +36,8 @@ only where judgement is needed.
 | `web/lib/workflow/automation/` | Waitlist promotion, data retention, the morning digest, and the pure rules behind them |
 | `web/lib/crm/` | The CRM: the lifecycle rule, segment rules and recipient planning (consent), campaign rendering and sending, the opportunity and automation engines, the family timeline, the Ed-admin and CSV imports, notifications, global search |
 | `web/app/staff/(crm)/crm/` | `/staff/crm`: the CRM console, a second product on the same staff session and permissions |
+| `web/app/staff/(stores)/stores/` | `/staff/stores`: Hibiscus Stores, the storeroom register — inventory, checkout and check-in signed by the employee, consumable issues, asset assignments, stock movements, reports. A third product on the same session |
+| `web/lib/stores/` | Stores' rules (item status, due and overdue), the signature and photo checks, the reports and their safe export, the shared reads |
 | `web/app/(kiosk)/` | `/sit`: what a child sees on the lab computer |
 | `web/app/(parent)/{offer,pay,register}/` | Accept the offer, pay the fees, complete registration |
 | `web/app/(public)/events/` | Pages anybody may open: an event's page with its ticket form, stall booking, the buyer's tickets, the gateway's return |
@@ -124,4 +126,11 @@ su postgres -c "supabase/tests/replay_local.sh"   # rebuilds a local Postgres fr
   the agreement bodies, verbatim, with the PDFs served by the site; the
   signature is drawn, validated and rendered on the server, and stored with
   the version and hash of what was signed.
+- **A storeroom balance has only database writers.** Staff hold no grant on
+  `stores_items`' quantities; the `stores_*` functions check the permission,
+  lock the items, refuse negative stock and write the matching
+  `stores_movements` line in the same transaction, and
+  `stores_reconciliation()` proves the two agree. Movements and employee
+  signatures are append-only for every role; a mistake is reversed, with a
+  reason, never edited. Stores sends nothing to employees.
 - **Migrations are never edited once applied.** CI blocks it.

@@ -1,3 +1,4 @@
+import { MFA_SECURITY_PATH, MFA_VERIFY_PATH } from "@/lib/staff/mfa";
 import { STAFF_PUBLIC_PREFIXES } from "@/lib/staff/public-paths";
 
 /**
@@ -65,6 +66,12 @@ export const PERMISSION_CODES = [
   "crm.campaigns.approve_sensitive",
   "crm.export",
   "crm.import",
+  /** Hibiscus Stores: the storeroom register, read only. */
+  "stores.read",
+  /** Record stock: receive, check out, check in, issue and assign. The storekeeper. */
+  "stores.write",
+  /** Stores settings, count corrections, write-offs and reversals. */
+  "stores.admin",
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -106,6 +113,9 @@ export const PERMISSION_LABELS: Record<PermissionCode, string> = {
   "crm.campaigns.approve_sensitive": "Approve fee, policy and group-wide campaigns",
   "crm.export": "Export CRM lists and reports",
   "crm.import": "Import families and contacts from a file",
+  "stores.read": "View Hibiscus Stores: inventory, equipment on loan, stock movements and reports",
+  "stores.write": "Record stock: receive, check out, check in, issue consumables and assign assets",
+  "stores.admin": "Manage Stores settings, adjust stock and reverse a transaction, with a reason",
 };
 
 export type PermissionSet = ReadonlySet<string>;
@@ -175,6 +185,18 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
   ["/staff/crm/analytics", "analytics.read"],
   ["/staff/crm/students", "students.read"],
   ["/staff/crm", "crm.read"],
+  // Hibiscus Stores. Read is the floor; recording stock is the storekeeper's,
+  // and the settings that shape the register are an administrator's. The
+  // directory of employees is the storekeeper's too, because the person at
+  // the hatch has to be added while they wait.
+  ["/staff/stores/settings/employees", "stores.write"],
+  ["/staff/stores/settings", "stores.admin"],
+  ["/staff/stores/check-out", "stores.write"],
+  ["/staff/stores/check-in", "stores.write"],
+  ["/staff/stores/issues", "stores.write"],
+  ["/staff/stores/receive", "stores.write"],
+  ["/staff/stores/inventory/new", "stores.write"],
+  ["/staff/stores", "stores.read"],
   ["/staff/analytics/export", "data.export"],
   ["/staff/analytics", "analytics.read"],
   ["/staff/enrolment", "enrolment.export"],
@@ -199,7 +221,11 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
 // The public pages are here too: a person who *is* signed in and opens an
 // invitation or reset link (an administrator checking one, say) is shown the
 // page rather than "no access" for a permission nobody thought to map.
-const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", ...STAFF_PUBLIC_PREFIXES];
+// The two-step verification pages are here too: somebody who must present a
+// second factor is sent to one of them before anything else, and a person
+// whose roles are Stores alone (no `applications.read`, which `/staff`
+// otherwise falls back to) was bounced from there to "no access" and back.
+const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", MFA_VERIFY_PATH, MFA_SECURITY_PATH, ...STAFF_PUBLIC_PREFIXES];
 
 export function permissionForPath(pathname: string): PermissionCode | null {
   if (ALWAYS_ALLOWED.some((p) => matchesPrefix(pathname, p))) return null;
@@ -227,6 +253,7 @@ export function homeFor(permissions: PermissionSet): string {
   const candidates = [
     "/staff",
     "/staff/crm",
+    "/staff/stores",
     "/staff/assessments/today",
     "/staff/payments",
     "/staff/students",
