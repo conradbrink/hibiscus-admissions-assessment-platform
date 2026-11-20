@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ChevronRight, PackagePlus, Plus } from "lucide-react";
 import { Pagination, queryBuilder } from "@/components/crm/bits";
 import { EmptyState, PageTitle } from "@/components/staff/page-title";
@@ -9,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
-import { listNamed, searchTerm } from "@/lib/stores/data";
+import { isPastLastPage, listNamed, searchTerm } from "@/lib/stores/data";
 import { ITEM_TYPES, ITEM_TYPE_LABELS, type ItemType } from "@/lib/stores/rules";
 import { cn } from "@/lib/utils";
+import { isUuid } from "@/lib/uuid";
 
 export const metadata = { title: "Inventory" };
 
@@ -48,7 +50,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     .range((page - 1) * PAGE, page * PAGE - 1);
   q = show === "off" ? q.eq("is_active", false) : q.eq("is_active", true);
   if (term) q = q.or(`name.ilike.%${term}%,description.ilike.%${term}%,supplier.ilike.%${term}%`);
-  if (sp.category) q = q.eq("category_id", sp.category);
+  if (isUuid(sp.category)) q = q.eq("category_id", sp.category);
   if (type) q = q.eq("item_type", type);
   if (show === "low") q = q.eq("is_low_stock", true);
   if (show === "out") q = q.eq("qty_available", 0);
@@ -56,6 +58,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   if (show === "held") q = q.gt("qty_unavailable", 0);
 
   const [{ data: items, count, error }, categories] = await Promise.all([q, listNamed(supabase, "stores_categories")]);
+  if (isPastLastPage(error) && page > 1) redirect(`/staff/stores/inventory${queryBuilder(sp)({ page: undefined })}`);
   if (error) throw new Error(error.message);
   const total = count ?? 0;
   const qs = queryBuilder(sp);

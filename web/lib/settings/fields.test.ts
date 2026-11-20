@@ -24,6 +24,12 @@ describe("the catalogue covers what the engine reads", () => {
 });
 
 describe("parseSetting", () => {
+  it("refuses a blank acknowledgement, and keeps the wording otherwise", () => {
+    expect(() => parseSetting("requiredText", "   ", "What an employee signs")).toThrow(/cannot be left blank/);
+    expect(parseSetting("requiredText", " I received it. ", "What an employee signs")).toBe("I received it.");
+    expect(parseSetting("text", "", "Link")).toBe("");
+  });
+
   it("takes one whole number, and refuses a list where one is meant", () => {
     expect(parseSetting("int", " 14 ", "Days")).toBe(14);
     expect(() => parseSetting("int", "7, 2", "Days")).toThrow(/one whole number/);

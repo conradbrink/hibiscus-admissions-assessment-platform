@@ -75,7 +75,12 @@ export async function listNamed(
   table: "stores_departments" | "stores_categories" | "stores_locations",
   opts: { includeInactive?: boolean } = {}
 ): Promise<NamedChoice[]> {
-  let q = supabase.from(table).select("id, name, is_active").order("name").limit(1000);
+  // Categories and storage places are listed in their set order, so the main
+  // storeroom (the first) is the one a new item's form starts on; the
+  // database picks the same one when no place is given.
+  let q = supabase.from(table).select("id, name, is_active");
+  q = table === "stores_departments" ? q.order("name") : q.order("sort_order").order("name");
+  q = q.limit(1000);
   if (!opts.includeInactive) q = q.eq("is_active", true);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
@@ -99,11 +104,26 @@ export async function acknowledgements(supabase: Client): Promise<{ checkout: st
 }
 
 /**
- * A search box's words, made safe for a PostgREST `or` filter: commas,
- * brackets, dots and wildcards are filter syntax there, not text, so they are
- * dropped rather than passed through.
+ * A page number past the last page. With an exact count, PostgREST answers
+ * such a range with an error (PGRST103) rather than an empty page, which
+ * happens after the last row on the last page is filtered away, or from an
+ * old bookmark. The lists send the person to page one instead of the error
+ * screen.
  */
-export function searchTerm(raw: string | undefined | null): string | null {
-  const s = (raw ?? "").replace(/[,().*%\\:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
-  return s || null;
+export function isPastLastPage(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "PGRST103";
+}
+
+/**
+ * A search box's words, made safe for a PostgREST `or` filter. Commas,
+ * brackets, dots, quotes and wildcards are filter syntax there, not text, so
+ * each becomes `_`, which ilike reads as "any one character": "O'Brien"
+ * still finds O'Brien and "A4 (80gsm)" still finds the paper, where turning
+ * them into spaces found nothing. A repeated `?q=` arrives as a list; the
+ * first is used. Pure; tested.
+ */
+export function searchTerm(raw: string | string[] | undefined | null): string | null {
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  const s = (first ?? "").replace(/\s+/g, " ").trim().slice(0, 60).replace(/[,().*%\\:"'_]/g, "_");
+  return s.replace(/_/g, "") ? s : null;
 }

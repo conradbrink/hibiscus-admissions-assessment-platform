@@ -10,6 +10,7 @@ import { listNamed } from "@/lib/stores/data";
 import { REPORTS, REPORT_KINDS, buildReport, displayCell, type ReportKind } from "@/lib/stores/reports";
 import { schoolToday } from "@/lib/stores/server";
 import { cn } from "@/lib/utils";
+import { isUuid } from "@/lib/uuid";
 
 type Search = { from?: string; to?: string; category?: string };
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,9 +29,12 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
   const from = sp.from && DATE.test(sp.from) ? sp.from : k === "assigned" || k === "outstanding" ? "2000-01-01" : daysAgoDateString(30);
   const to = sp.to && DATE.test(sp.to) ? sp.to : today;
   const categories = await listNamed(supabase, "stores_categories");
-  const category = k === "consumables" ? (categories.find((c) => c.id === sp.category)?.name ?? null) : sp.category || null;
+  // A hand-typed or stale ?category= that is not an id is ignored, not sent
+  // to the database to fail the whole report.
+  const catId = isUuid(sp.category) ? sp.category : null;
+  const category = k === "consumables" ? (categories.find((c) => c.id === catId)?.name ?? null) : catId;
   const report = await buildReport(supabase, k, { from, to, category }, today);
-  const qs = new URLSearchParams({ kind: k, from, to, ...(sp.category ? { category: sp.category } : {}) }).toString();
+  const qs = new URLSearchParams({ kind: k, from, to, ...(catId ? { category: catId } : {}) }).toString();
   const usesCategory = k !== "outstanding" && k !== "overdue" && k !== "assigned";
 
   return (

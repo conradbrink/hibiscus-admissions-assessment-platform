@@ -96,16 +96,18 @@ export async function createItem(_: StoresActionState, formData: FormData): Prom
     );
     const { id } = recorded(data);
     let message = `${f.name} is on the register.`;
+    let photoFailed = false;
     if (photo) {
       try {
         await savePhoto(ctx, id, photo);
       } catch (e) {
+        photoFailed = true;
         message = `${f.name} is on the register, but the photo was not saved: ${e instanceof Error ? e.message : "try again from Edit"}.`;
       }
     }
     const { data: item } = await ctx.supabase.from("stores_items").select("id, name, unit, item_type, qty_available").eq("id", id).maybeSingle();
     revalidatePath("/staff/stores", "layout");
-    return { id, message, item: item ?? undefined };
+    return { id, message, item: item ?? undefined, photoFailed };
   });
 }
 
@@ -175,7 +177,13 @@ export async function adjustStock(_: StoresActionState, formData: FormData): Pro
     if (!ADJUST_KINDS.includes(kind)) throw new Error("Choose what kind of adjustment this is.");
     let quantity = wholeNumber(formData.get("quantity"));
     if (quantity === null || quantity <= 0) throw new Error("Enter how many.");
-    if (kind === "count_correction" && formData.get("direction") === "down") quantity = -quantity;
+    if (kind === "count_correction") {
+      // Never assumed: a correction with no direction once added stock that
+      // the person meant to take off.
+      const direction = formData.get("direction");
+      if (direction !== "up" && direction !== "down") throw new Error("Say whether the count found more or fewer than the register.");
+      if (direction === "down") quantity = -quantity;
+    }
     const reason = text(formData.get("reason"), 500);
     if (!reason || reason.length < 3) throw new Error("Say why, in a few words.");
     const lineId = String(formData.get("checkoutLineId") ?? "") || null;

@@ -13,6 +13,7 @@ import { Picker } from "@/components/stores/picker";
 import { QuantityStepper } from "@/components/stores/quantity-stepper";
 import { assignAsset, issueConsumables } from "@/app/staff/(stores)/stores/issues/actions";
 import type { EmployeeChoice, ItemChoice } from "@/lib/stores/data";
+import { NO_ANSWER } from "@/lib/stores/offline";
 import { newRequestId } from "@/lib/stores/request-id";
 import { ITEM_TYPE_LABELS, quantityLine } from "@/lib/stores/rules";
 
@@ -59,7 +60,13 @@ export function IssueForm({
     if (over) return setError(`Only ${byId.get(over.itemId)?.qty_available} of ${byId.get(over.itemId)?.name} in stock.`);
     setError(null);
     startTransition(async () => {
-      const r = await issueConsumables({ requestId, employeeId: employee.id, lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity })), notes });
+      let r: Awaited<ReturnType<typeof issueConsumables>>;
+      try {
+        r = await issueConsumables({ requestId, employeeId: employee.id, lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity })), notes });
+      } catch {
+        // Same request id on the next press, so a recorded issue replays.
+        return setError(NO_ANSWER);
+      }
       if (r.error || !r.id) return setError(r.error ?? "The issue was not saved. Try again.");
       router.replace(`/staff/stores/transactions/issue/${r.id}?done=1`);
     });
@@ -155,7 +162,14 @@ export function AssignForm({
     if (!departmentId && !employee) return setError("Choose the department, or the person responsible, the item is assigned to.");
     setError(null);
     startTransition(async () => {
-      const r = await assignAsset({ requestId, itemId: item.id, quantity, departmentId: departmentId || null, employeeId: employee?.id ?? null, locationNote, notes });
+      let r: Awaited<ReturnType<typeof assignAsset>>;
+      try {
+        r = await assignAsset({ requestId, itemId: item.id, quantity, departmentId: departmentId || null, employeeId: employee?.id ?? null, locationNote, notes });
+      } catch {
+        // Keep the request id: the assignment may have been recorded.
+        setError(NO_ANSWER);
+        return;
+      }
       if (r.error || !r.id) {
         setError(r.error ?? "The assignment was not saved. Try again.");
         setRequestId(newRequestId());
@@ -188,7 +202,10 @@ export function AssignForm({
         <h2 className="text-base font-semibold">2. Assigned to</h2>
         <div className="space-y-1.5">
           <Label>Responsible person (optional)</Label>
-          <EmployeePicker employees={employees} departments={departments} value={employee?.id ?? null} label="Responsible person" onChange={(_, e) => { setEmployee(e); if (e && !departmentId) setDepartmentId(e.department_id); }} />
+          {/* The department is not filled in from the person: left empty it is
+              theirs, decided when it is saved, so changing the person changes
+              it too. Filling it in kept the first person's department. */}
+          <EmployeePicker employees={employees} departments={departments} value={employee?.id ?? null} label="Responsible person" onChange={(_, e) => setEmployee(e)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="assign-dept">Department</Label>

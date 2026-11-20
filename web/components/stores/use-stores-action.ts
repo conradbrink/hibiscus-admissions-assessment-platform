@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
+import { NO_ANSWER } from "@/lib/stores/offline";
 import type { StoresActionState } from "@/lib/stores/server";
 
 type Action = (state: StoresActionState, formData: FormData) => Promise<StoresActionState>;
@@ -20,7 +21,17 @@ export function useStoresAction(action: Action) {
   const [pending, start] = useTransition();
   const run = (formData: FormData, onDone?: (result: StoresActionState) => void) =>
     start(async () => {
-      const result = await action({}, formData);
+      // A request that never got an answer rejects. Uncaught inside a
+      // transition, React hands it to the page's error boundary, which
+      // throws the form away with whatever was typed and the request id.
+      // Caught here, the form stays as it was and the same submit can be
+      // pressed again.
+      let result: StoresActionState;
+      try {
+        result = await action({}, formData);
+      } catch {
+        result = { error: NO_ANSWER };
+      }
       setState(result);
       if (result.ok) onDone?.(result);
     });

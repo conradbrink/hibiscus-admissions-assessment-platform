@@ -1,3 +1,4 @@
+import { MFA_SECURITY_PATH, MFA_VERIFY_PATH } from "@/lib/staff/mfa";
 import { STAFF_PUBLIC_PREFIXES } from "@/lib/staff/public-paths";
 
 /**
@@ -220,7 +221,11 @@ const PATH_PERMISSIONS: ReadonlyArray<readonly [string, PermissionCode]> = [
 // The public pages are here too: a person who *is* signed in and opens an
 // invitation or reset link (an administrator checking one, say) is shown the
 // page rather than "no access" for a permission nobody thought to map.
-const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", ...STAFF_PUBLIC_PREFIXES];
+// The two-step verification pages are here too: somebody who must present a
+// second factor is sent to one of them before anything else, and a person
+// whose roles are Stores alone (no `applications.read`, which `/staff`
+// otherwise falls back to) was bounced from there to "no access" and back.
+const ALWAYS_ALLOWED = ["/staff/no-access", "/staff/account", MFA_VERIFY_PATH, MFA_SECURITY_PATH, ...STAFF_PUBLIC_PREFIXES];
 
 export function permissionForPath(pathname: string): PermissionCode | null {
   if (ALWAYS_ALLOWED.some((p) => matchesPrefix(pathname, p))) return null;

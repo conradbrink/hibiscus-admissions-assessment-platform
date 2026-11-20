@@ -42,7 +42,13 @@ export function AdjustForm({
     ...(isAdmin && unavailable > 0 ? (["write_off"] as const) : []),
     ...(isAdmin && outstanding.length > 0 ? (["write_off_outstanding"] as const) : []),
   ];
-  const [kind, setKind] = useState<AdjustmentKind | "">(kinds[0] ?? "");
+  const [chosen, setChosen] = useState<AdjustmentKind | "">(kinds[0] ?? "");
+  // After a save the item's balances change and so do the kinds on offer
+  // (the last held-back unit written off, nothing left to repair). The
+  // choice is read through this, so the select, its hint and the fields that
+  // depend on it always agree on one kind that is actually offered.
+  const kind: AdjustmentKind | "" = chosen && kinds.includes(chosen) ? chosen : (kinds[0] ?? "");
+  const setKind = setChosen;
 
   // Once one is recorded, a new request id and empty fields, so the next
   // adjustment is its own and not a replay of this one.

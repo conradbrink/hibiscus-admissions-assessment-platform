@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { PageTitle } from "@/components/staff/page-title";
 import { ItemForm } from "@/components/stores/item-form";
+import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
 import { listNamed } from "@/lib/stores/data";
 import { itemPhotoUrl } from "@/lib/stores/photo";
@@ -11,7 +12,7 @@ export const metadata = { title: "Edit item" };
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const { supabase } = await requireStaff("stores.write");
+  const { supabase, permissions } = await requireStaff("stores.write");
   const [{ data: item }, categories, locations] = await Promise.all([
     supabase.from("stores_items").select("*, stores_item_photos(sha256)").eq("id", id).maybeSingle(),
     listNamed(supabase, "stores_categories", { includeInactive: true }),
@@ -26,6 +27,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
         <ItemForm
           categories={categories.filter((c) => c.is_active || c.id === item.category_id)}
           locations={locations.filter((l) => l.is_active || l.id === item.location_id)}
+          typeLocked={item.qty_available + item.qty_unavailable > 0 && !can(permissions, "stores.admin")}
           initial={{
             id: item.id,
             name: item.name,

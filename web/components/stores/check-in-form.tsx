@@ -10,6 +10,7 @@ import { AcknowledgementScreen } from "@/components/stores/acknowledgement";
 import { QuantityStepper } from "@/components/stores/quantity-stepper";
 import { checkInEquipment } from "@/app/staff/(stores)/stores/check-in/actions";
 import { formatDateTime } from "@/lib/format-date";
+import { NO_ANSWER } from "@/lib/stores/offline";
 import { newRequestId } from "@/lib/stores/request-id";
 import { CONDITIONS, CONDITION_LABELS, quantityLine, type Condition } from "@/lib/stores/rules";
 import type { Drawing } from "@/lib/stores/signature";
@@ -75,14 +76,21 @@ export function CheckInForm({
     if (!drawing) return;
     setError(null);
     startTransition(async () => {
-      const result = await checkInEquipment({
-        requestId,
-        checkoutId,
-        lines: lines.map((l) => ({ line_id: l.lineId, quantity: entries[l.lineId].quantity, condition: entries[l.lineId].condition, note: entries[l.lineId].note || undefined })),
-        drawing: JSON.stringify(drawing),
-        acknowledgement,
-        notes,
-      });
+      let result: Awaited<ReturnType<typeof checkInEquipment>>;
+      try {
+        result = await checkInEquipment({
+          requestId,
+          checkoutId,
+          lines: lines.map((l) => ({ line_id: l.lineId, quantity: entries[l.lineId].quantity, condition: entries[l.lineId].condition, note: entries[l.lineId].note || undefined })),
+          drawing: JSON.stringify(drawing),
+          acknowledgement,
+          notes,
+        });
+      } catch {
+        // As on Check Out: keep the signature and the request id.
+        setError(NO_ANSWER);
+        return;
+      }
       if (result.error || !result.id) {
         setError(result.error ?? "The return was not saved. Try again.");
         return;
@@ -123,7 +131,10 @@ export function CheckInForm({
                         key={c}
                         type="button"
                         aria-pressed={e.condition === c}
-                        onClick={() => set(l.lineId, { condition: c })}
+                        // Back to Good clears the note: it was hidden with the
+                        // box, and a hidden "screen cracked" was still being
+                        // saved against a return marked good.
+                        onClick={() => set(l.lineId, c === "good" ? { condition: c, note: "" } : { condition: c })}
                         className={cn(
                           "min-h-11 rounded-xl border px-2 text-sm font-medium transition-colors",
                           e.condition === c ? (c === "good" ? "border-success bg-success/10 text-success" : "border-warning bg-warning/20 text-warning-foreground") : "border-input bg-card hover:bg-muted"
@@ -165,7 +176,7 @@ export function CheckInForm({
             { label: "Checkout", value: reference },
           ]}
           linesLabel="Equipment being returned"
-          lines={returning.map((l) => ({ key: l.lineId, text: quantityLine(entries[l.lineId].quantity, l.itemName, l.unit), detail: `Condition: ${CONDITION_LABELS[entries[l.lineId].condition]}` }))}
+          lines={returning.map((l) => ({ key: l.lineId, text: quantityLine(entries[l.lineId].quantity, l.itemName, l.unit), detail: [`Condition: ${CONDITION_LABELS[entries[l.lineId].condition]}`, entries[l.lineId].note.trim()].filter(Boolean).join(" · ") }))}
           after={
             remainingAfter.length ? (
               <p className="mt-2 rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning-foreground">

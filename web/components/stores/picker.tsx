@@ -169,12 +169,12 @@ export function Picker({
                   aria-selected={i === active}
                   aria-disabled={o.disabled || undefined}
                   onMouseEnter={() => setActive(i)}
-                  // Pointer down rather than click, so the choice lands before
-                  // the input's blur on a phone.
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    choose(o);
-                  }}
+                  // A click, which a phone sends only for a tap. Choosing on
+                  // pointer down chose whichever row a finger landed on to
+                  // scroll the list. Mouse down is held back only so a
+                  // desktop's search box keeps its focus.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => choose(o)}
                   className={cn(
                     "flex min-h-12 cursor-pointer items-center gap-3 border-t border-border/60 px-4 py-2 first:border-t-0",
                     i === active && !o.disabled && "bg-muted",

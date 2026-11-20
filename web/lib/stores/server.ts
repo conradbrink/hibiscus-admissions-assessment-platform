@@ -20,6 +20,8 @@ export type StoresActionState = {
   employee?: { id: string; full_name: string; department_id: string; department_name: string; employee_number: string | null };
   /** For the inline "new item": the row the picker should select. */
   item?: { id: string; name: string; unit: string; item_type: string; qty_available: number };
+  /** The item was saved but its photo was not. */
+  photoFailed?: boolean;
 };
 
 /**

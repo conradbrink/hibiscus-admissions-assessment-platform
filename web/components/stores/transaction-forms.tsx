@@ -60,7 +60,10 @@ export function ReverseForm({ kind, id, reference, consequence }: { kind: string
 export function ReturnAssetForm({ assignmentId, held, unit }: { assignmentId: string; held: number; unit: string }) {
   const router = useRouter();
   const [requestId, setRequestId] = useState(newRequestId);
-  const [quantity, setQuantity] = useState(held);
+  const [chosen, setQuantity] = useState(held);
+  // After a part has come back the page refreshes with less held; the
+  // number chosen before must not stay above it.
+  const quantity = Math.min(chosen, held);
   const [key, setKey] = useState(0);
   const { state, pending, onSubmit } = useStoresAction(returnAsset);
   return (

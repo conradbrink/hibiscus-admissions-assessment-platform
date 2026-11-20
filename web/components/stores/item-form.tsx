@@ -44,6 +44,7 @@ export function ItemForm({
   categories,
   locations,
   compact = false,
+  typeLocked = false,
   onCreated,
   onCancel,
 }: {
@@ -51,6 +52,12 @@ export function ItemForm({
   categories: Array<{ id: string; name: string }>;
   locations: Array<{ id: string; name: string }>;
   compact?: boolean;
+  /**
+   * The item holds stock and the signed-in person is not a Stores
+   * administrator: its type is shown but cannot be changed (the database
+   * refuses it too, so the form does not offer what will fail).
+   */
+  typeLocked?: boolean;
   onCreated?: (item: NonNullable<StoresActionState["item"]>) => void;
   onCancel?: () => void;
 }) {
@@ -63,8 +70,10 @@ export function ItemForm({
 
   const saved = (result: StoresActionState) => {
     if (!result.id) return;
-    if (compact && result.item && onCreated) onCreated(result.item);
-    else router.push(`/staff/stores/inventory/${result.id}${editing ? "" : "?added=1"}`);
+    if (compact && result.item && onCreated) {
+      if (result.photoFailed) window.alert(result.message ?? "The item was added, but its photo was not saved. Add it from Edit.");
+      onCreated(result.item);
+    } else router.push(`/staff/stores/inventory/${result.id}${editing ? "" : result.photoFailed ? "?added=1&photo=failed" : "?added=1"}`);
   };
 
   const field = "space-y-1.5";
@@ -86,16 +95,23 @@ export function ItemForm({
 
       <fieldset className={field}>
         <legend className="mb-1.5 text-sm font-medium">What kind of item is it?</legend>
+        {typeLocked ? (
+          <>
+            <input type="hidden" name="itemType" value={type} />
+            <p className="mb-2 text-xs text-muted-foreground">This item has stock, so only a Stores administrator can change its type.</p>
+          </>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-3">
           {ITEM_TYPES.map((t) => (
             <label
               key={t}
               className={cn(
-                "flex min-h-12 cursor-pointer flex-col gap-0.5 rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/30",
-                type === t ? "border-primary bg-accent" : "border-input bg-card hover:bg-muted"
+                "flex min-h-12 flex-col gap-0.5 rounded-xl border px-3 py-2.5 transition-colors has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/30",
+                typeLocked ? "cursor-not-allowed" : "cursor-pointer",
+                type === t ? "border-primary bg-accent" : cn("border-input bg-card", typeLocked ? "opacity-50" : "hover:bg-muted")
               )}
             >
-              <input type="radio" name="itemType" value={t} checked={type === t} onChange={() => setType(t)} className="sr-only" />
+              <input type="radio" name={typeLocked ? undefined : "itemType"} value={t} checked={type === t} onChange={() => setType(t)} disabled={typeLocked} className="sr-only" />
               <span className="text-sm font-semibold">{ITEM_TYPE_LABELS[t]}</span>
               {!compact ? <span className="text-xs text-muted-foreground">{ITEM_TYPE_HINTS[t]}</span> : null}
             </label>
@@ -150,7 +166,9 @@ export function ItemForm({
           </div>
         </>
       ) : (
-        <input type="hidden" name="locationId" value={locations[0]?.id ?? ""} />
+        // Left to the database, which files it in the first storage place in
+        // use: the same rule as everywhere else, not whatever this list held.
+        <input type="hidden" name="locationId" value="" />
       )}
 
       {!editing && !compact ? (

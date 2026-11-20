@@ -250,6 +250,13 @@ const STAFF_HISTORY: ReadonlyArray<{ table: string; column: string; label: strin
   { table: "offer_templates", column: "created_by", label: "offer templates" },
   { table: "agreement_templates", column: "created_by", label: "agreements" },
   { table: "message_templates", column: "updated_by", label: "WhatsApp templates" },
+  // Stores. Every receipt, checkout, return, issue, assignment, adjustment
+  // and reversal writes movements as the person who recorded it, so this one
+  // row covers them all; a signature taken at the counter names its witness.
+  { table: "stores_movements", column: "recorded_by", label: "stores movements" },
+  { table: "stores_signatures", column: "recorded_by", label: "witnessed stores signatures" },
+  { table: "stores_items", column: "created_by", label: "stores items" },
+  { table: "stores_employees", column: "created_by", label: "stores employees" },
 ];
 
 /** Cleared, not counted: the foreign keys are `on delete set null`. */

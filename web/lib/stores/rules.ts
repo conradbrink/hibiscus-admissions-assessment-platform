@@ -113,7 +113,10 @@ export const ITEM_STATUS_TONE: Record<ItemStatus, Tone> = {
  */
 export function itemStatus(item: ItemBalances): ItemStatus {
   if (item.qty_available <= 0) {
-    return item.qty_checked_out > 0 && item.qty_unavailable === 0 && item.qty_assigned === 0 ? "checked_out" : "out_of_stock";
+    // Nothing on the shelf, but every unit is accounted for with somebody (on
+    // loan or assigned) and none is broken: the item is not out of stock, it
+    // is all out. The dashboard's Out of stock count reads the same way.
+    return item.qty_checked_out + item.qty_assigned > 0 && item.qty_unavailable === 0 ? "checked_out" : "out_of_stock";
   }
   if (item.min_stock > 0 && item.qty_available <= item.min_stock) return "low_stock";
   if (item.item_type !== "consumable" && item.qty_checked_out + item.qty_assigned + item.qty_unavailable > 0) return "partially_available";
@@ -216,6 +219,9 @@ export function storesErrorMessage(error: { message?: string; code?: string } | 
   if (!message) return "Something went wrong. Please try again.";
   if (code === "42501" && /permission denied for/i.test(message)) return "You do not have permission to do that.";
   if (/duplicate key value/i.test(message)) {
+    // The same press of a button arriving twice at once: one of the two
+    // saved it (or is saving it). It is not a name clash.
+    if (/_request_id_key/i.test(message)) return "This was already being saved. Reload the page to see whether it was recorded.";
     if (/employee/i.test(message) && /number/i.test(message)) return "Another employee already has that employee number.";
     return "That name is already in use. Choose another.";
   }

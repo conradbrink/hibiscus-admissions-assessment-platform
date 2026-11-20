@@ -109,7 +109,13 @@ as $$
        where not o.is_overdue and o.expected_return_date <= public.stores_today() + soon.days
     ),
     'low_stock', (select count(*) from public.stores_items where is_active and is_low_stock),
-    'out_of_stock', (select count(*) from public.stores_items where is_active and qty_available = 0),
+    -- The register's own "Out of Stock": nothing on the shelf, and not
+    -- simply because every one of them is out on loan or assigned.
+    'out_of_stock', (
+      select count(*) from public.stores_items
+       where is_active and qty_available = 0
+         and not (qty_unavailable = 0 and qty_checked_out + qty_assigned > 0)
+    ),
     'assigned', (select coalesce(sum(qty_assigned), 0) from public.stores_items),
     'unavailable', (select coalesce(sum(qty_unavailable), 0) from public.stores_items),
     'due_soon_days', (select days from soon)
@@ -187,8 +193,12 @@ grant execute on function public.stores_reconciliation() to authenticated;
 -- Consumables used, by item and department, over a period
 -- ---------------------------------------------------------------------------
 
--- Net of reversals: a reversed issue's lines carry the issue's id too, with
--- the opposite sign, so they cancel inside the same sum.
+-- Counted against the day the goods were issued, not the day a line was
+-- written: a reversal is dated when somebody noticed the mistake, which may
+-- be next month, and charging the minus to next month would leave this
+-- month's figure wrong and next month's negative. A reversed issue's lines
+-- carry the issue's id too, with the opposite sign, so a reversed issue nets
+-- to nothing in its own period, and it is not counted as an issue.
 create or replace function public.stores_consumables_usage(p_from date, p_to date)
 returns table (item_id uuid, item_name text, unit text, category_name text, department_name text, quantity bigint, issues bigint)
 language sql
@@ -200,15 +210,15 @@ as $$
          i.name,
          i.unit,
          c.name,
-         coalesce(m.department_name, 'No department'),
+         coalesce(s.department_name, 'No department'),
          sum(-m.available_delta)::bigint,
-         count(distinct m.issue_id) filter (where m.movement_type = 'issued')::bigint
+         count(distinct s.id) filter (where s.reversal_id is null)::bigint
     from public.stores_movements m
+    join public.stores_issues s on s.id = m.issue_id
     join public.stores_items i on i.id = m.item_id
     left join public.stores_categories c on c.id = i.category_id
-   where m.issue_id is not null
-     and (m.occurred_at at time zone 'Africa/Gaborone')::date between p_from and p_to
-   group by m.item_id, i.name, i.unit, c.name, coalesce(m.department_name, 'No department')
+   where (s.issued_at at time zone 'Africa/Gaborone')::date between p_from and p_to
+   group by m.item_id, i.name, i.unit, c.name, coalesce(s.department_name, 'No department')
   having sum(-m.available_delta) <> 0
    order by i.name, 5
 $$;

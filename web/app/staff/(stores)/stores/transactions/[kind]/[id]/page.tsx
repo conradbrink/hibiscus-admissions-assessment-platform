@@ -174,7 +174,10 @@ async function Checkout({ id, ctx }: { id: string; ctx: Ctx }) {
               </ul>
             </section>
           ) : null}
-          {ctx.admin && co.status === "open" && !co.reversal_id && (returns ?? []).length === 0 && (lines ?? []).every((l) => l.quantity_written_off === 0) ? (
+          {/* The database's own rule: nothing on it has come back (net of
+              reversed returns) or been written off. Counting return records
+              hid the button for good once a return was reversed. */}
+          {ctx.admin && co.status === "open" && !co.reversal_id && (lines ?? []).every((l) => l.quantity_returned === 0 && l.quantity_written_off === 0) ? (
             <section className="surface p-4">
               <h2 className="mb-2 text-sm font-semibold">Correct this checkout</h2>
               <ReverseForm kind="checkout" id={co.id} reference={co.reference} consequence="The equipment goes back on the shelf. The signature and this record stay as they are, marked as reversed." />
@@ -323,7 +326,13 @@ async function Assignment({ id, ctx }: { id: string; ctx: Ctx }) {
   const status = a.status === "active" ? <Badge variant="info">Assigned</Badge> : a.status === "returned" ? <Badge variant="success">Back in the storeroom</Badge> : <Badge variant="destructive">Reversed</Badge>;
   return (
     <>
-      <PageTitle title={`${TITLES.assignment} · ${a.reference}`} description={`${a.item_name} to ${a.department_name}`} back={{ href: "/staff/stores/issues/assigned", label: "Assigned assets" }} />
+      {/* The assigned-assets list is a storekeeper's screen; somebody who may
+          only read Stores goes back to the item instead of to a refusal. */}
+      <PageTitle
+        title={`${TITLES.assignment} · ${a.reference}`}
+        description={`${a.item_name} to ${a.department_name}`}
+        back={ctx.writer ? { href: "/staff/stores/issues/assigned", label: "Assigned assets" } : { href: `/staff/stores/inventory/${a.item_id}`, label: a.item_name }}
+      />
       {ctx.done ? (
         <Done title={`Assignment ${a.reference} recorded. ${a.item_name} stays on the school's asset register.`}>
           <Link href="/staff/stores/issues/assign" className={cn(buttonVariants(), big)}><Plus aria-hidden /> Assign another</Link>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
@@ -47,17 +48,38 @@ export function AcknowledgementScreen({
   error: string | null;
   signed: boolean;
 }) {
-  // The page under the overlay must not scroll with it on a phone.
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // The page under the overlay must not scroll with it on a phone, and must
+  // not be reachable at all: `inert` takes it out of the tab order and away
+  // from a screen reader, so Tab cannot walk the employee into the menu
+  // behind the signing screen. Focus starts on the screen itself.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const shell = document.querySelector<HTMLElement>(".staff-shell");
+    const wasInert = shell?.hasAttribute("inert") ?? false;
+    shell?.setAttribute("inert", "");
+    dialogRef.current?.focus();
     return () => {
       document.body.style.overflow = prev;
+      if (shell && !wasInert) shell.removeAttribute("inert");
     };
   }, []);
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-background" role="dialog" aria-modal="true" aria-labelledby="ack-title">
+  // Escape is the storekeeper's Back, except while saving.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !pending) onBack();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onBack, pending]);
+
+  // Rendered at the foot of the page, outside the app shell, so making the
+  // shell inert does not take the signing screen with it.
+  return createPortal(
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-background outline-none" role="dialog" aria-modal="true" aria-labelledby="ack-title">
       <div className="mx-auto flex min-h-full max-w-2xl flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6">
         <div className="mb-3 flex items-center justify-between">
           <button type="button" onClick={onBack} disabled={pending} className="inline-flex h-11 items-center gap-1 rounded-lg pr-3 text-sm font-medium text-primary hover:bg-muted disabled:opacity-50">
@@ -105,6 +127,7 @@ export function AcknowledgementScreen({
           {pending ? "Saving…" : signed ? confirmLabel : "Waiting for the signature"}
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

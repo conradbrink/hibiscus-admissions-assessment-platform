@@ -241,6 +241,12 @@ create index if not exists stores_items_low_idx on public.stores_items(is_low_st
 -- An item's type decides which movements it may take part in, so it cannot
 -- change underneath stock that is out: a "consumable" with five on loan could
 -- never be checked back in.
+--
+-- Nor may a storekeeper change the type of an item that holds stock. Removing
+-- stock without a write-off is an administrator's decision, and changing a
+-- projector into a "consumable" and issuing it would make five projectors
+-- disappear with no administrator involved. An administrator may still
+-- correct a type that was set wrongly.
 create or replace function public.stores_items_guard()
 returns trigger
 language plpgsql
@@ -251,6 +257,13 @@ begin
      and (old.qty_checked_out > 0 or old.qty_assigned > 0) then
     raise exception 'The type of "%" cannot change while some of it is on loan or assigned. Get it back to the storeroom first.', old.name
       using errcode = 'check_violation';
+  end if;
+  if new.item_type is distinct from old.item_type
+     and old.qty_available + old.qty_unavailable > 0
+     and auth.uid() is not null
+     and not public.has_permission('stores.admin') then
+    raise exception 'Only a Stores administrator can change the type of an item that has stock.'
+      using errcode = 'insufficient_privilege';
   end if;
   new.updated_at = now();
   new.updated_by = coalesce(auth.uid(), new.updated_by);

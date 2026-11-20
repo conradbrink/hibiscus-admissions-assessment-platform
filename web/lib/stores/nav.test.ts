@@ -9,6 +9,15 @@ const admissions = toPermissionSet(["applications.read", "applications.write"]);
 
 const hrefs = (groups: ReturnType<typeof visibleStoresGroups>) => groups.flatMap((g) => g.items.map((i) => i.href));
 
+describe("two-step verification", () => {
+  it("is reachable by somebody whose only roles are Stores ones", () => {
+    for (const p of [keeper, storesAdmin, reader]) {
+      expect(canAccessPath(p, "/staff/verify")).toBe(true);
+      expect(canAccessPath(p, "/staff/security")).toBe(true);
+    }
+  });
+});
+
 describe("the Stores rail", () => {
   it("has the nine places the school asked for, in order", () => {
     expect(STORES_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.label))).toEqual([

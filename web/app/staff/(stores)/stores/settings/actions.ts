@@ -26,13 +26,22 @@ export async function saveNamed(_: StoresActionState, formData: FormData): Promi
     if (!name.success) throw new Error(name.error.issues[0]?.message ?? "Enter a name.");
     const id = String(formData.get("id") ?? "");
     const table = TABLES[list];
-    const isActive = formData.get("isActive") !== null ? formData.get("isActive") === "on" : true;
     if (id) {
+      // An unticked checkbox sends nothing at all, so absent means "not in
+      // use". Reading absent as "in use" made it impossible to switch one off.
+      const isActive = formData.get("isActive") === "on";
       const { data, error } = await ctx.supabase.from(table).update({ name: name.data, is_active: isActive }).eq("id", z.guid().parse(id)).select("id").maybeSingle();
       if (error) throw new Error(storesErrorMessage(error));
       if (!data) throw new Error("That entry was not found.");
-    } else {
+    } else if (table === "stores_departments") {
       const { error } = await ctx.supabase.from(table).insert({ name: name.data });
+      if (error) throw new Error(storesErrorMessage(error));
+    } else {
+      // A new category or storage place goes after the existing ones. At the
+      // default order of zero, a new "Block 7" sorted ahead of the main
+      // storeroom and became where every new item was said to be kept.
+      const { data: last } = await ctx.supabase.from(table).select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle();
+      const { error } = await ctx.supabase.from(table).insert({ name: name.data, sort_order: (last?.sort_order ?? 0) + 10 });
       if (error) throw new Error(storesErrorMessage(error));
     }
     revalidatePath("/staff/stores", "layout");
@@ -45,8 +54,11 @@ export async function reactivateItem(_: StoresActionState, formData: FormData): 
   return storesGuarded(async () => {
     const ctx = await requireStaffAction("stores.admin");
     const id = z.guid().parse(formData.get("id"));
-    const { error } = await ctx.supabase.from("stores_items").update({ is_active: true }).eq("id", id);
+    // An update that matches no row is not an error to PostgREST, so ask for
+    // the row back: "Switched on." must mean it was.
+    const { data, error } = await ctx.supabase.from("stores_items").update({ is_active: true }).eq("id", id).select("id").maybeSingle();
     if (error) throw new Error(storesErrorMessage(error));
+    if (!data) throw new Error("That item was not found.");
     revalidatePath("/staff/stores", "layout");
     return { message: "Switched on." };
   });
@@ -87,15 +99,26 @@ export async function inviteStoresUser(_: StoresActionState, formData: FormData)
       .safeParse({ email: String(formData.get("email") ?? "").trim().toLowerCase(), fullName: formData.get("fullName"), role: formData.get("role") });
     if (!p.success) throw new Error(p.error.issues[0]?.message ?? "Check the form.");
     const admin = createAdminClient();
-    const { data: existing } = await admin.from("staff_profiles").select("id").ilike("email", p.data.email).maybeSingle();
-    if (existing) throw new Error("That person already has an account. Give them access from the list below instead.");
+    // A case-insensitive exact match: `_` and `%` in an address are pattern
+    // characters to ilike, so they are escaped, and more than one row (two
+    // spellings of one address) is still "already has an account".
+    const pattern = p.data.email.replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data: existing, error: eErr } = await admin.from("staff_profiles").select("id").ilike("email", pattern).limit(1);
+    if (eErr) throw new Error(storesErrorMessage(eErr));
+    if (existing?.length) throw new Error("That person already has an account. Give them access from the list below instead.");
     const { data: role } = await admin.from("roles").select("id").eq("code", p.data.role).single();
     if (!role) throw new Error("The Stores roles are missing. Ask a super administrator.");
+    // Nobody hands out more than they hold. The account is made with the
+    // service role, where the database's own ceiling on staff_roles does not
+    // apply, so it is asked here first, as the signed-in person.
+    const { data: allowed, error: gErr } = await ctx.supabase.rpc("can_grant_role", { p_role_id: role.id });
+    if (gErr) throw new Error(storesErrorMessage(gErr));
+    if (!allowed) throw new Error("You cannot give somebody that role: it carries permissions you do not have yourself. Ask a super administrator.");
 
     const { data: created, error: cErr } = await admin.auth.admin.createUser({ email: p.data.email, email_confirm: true, password: randomBytes(24).toString("base64url") });
     if (cErr || !created.user) throw new Error(cErr?.message.includes("already") ? "That email address is already registered. Ask a super administrator." : "Could not create the account.");
     const userId = created.user.id;
-    const { error: pErr } = await admin.from("staff_profiles").insert({ id: userId, full_name: p.data.fullName, email: p.data.email, is_active: true });
+    const { error: pErr } = await admin.from("staff_profiles").insert({ id: userId, full_name: p.data.fullName, email: p.data.email, is_active: true, digest_enabled: false });
     if (pErr) throw new Error(storesErrorMessage(pErr));
     const { error: rErr } = await admin.from("staff_roles").insert({ staff_id: userId, role_id: role.id });
     if (rErr) throw new Error(storesErrorMessage(rErr));

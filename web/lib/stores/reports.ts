@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import type { Database, StoresItemType, StoresMovementType } from "@/lib/supabase/types";
-import { CONDITION_LABELS, ITEM_STATUS_LABELS, ITEM_TYPE_LABELS, MOVEMENT_LABELS, dueState, itemStatus, type Condition } from "@/lib/stores/rules";
+import { CONDITION_LABELS, ITEM_STATUS_LABELS, ITEM_TYPE_LABELS, MOVEMENT_LABELS, dueState, itemStatus, type Condition, type MovementType } from "@/lib/stores/rules";
 import { shelfChange } from "@/lib/stores/links";
 import type { Cell } from "@/lib/stores/export";
 
@@ -24,9 +24,23 @@ export const REPORTS: Record<ReportKind, { title: string; blurb: string; dated: 
   valuation: { title: "Inventory valuation", blurb: "What the register is worth, at the price last paid. Items with no price are listed apart.", dated: false },
 };
 
-export type Column = { label: string; align?: "right"; money?: boolean };
+/** `money`: minor units. `signed`: a change, shown with its sign (+2, −1). */
+export type Column = { label: string; align?: "right"; money?: boolean; signed?: boolean };
 export type Report = { columns: Column[]; rows: Cell[][]; summary?: string; footer?: Cell[] };
-export type ReportFilters = { from: string; to: string; category?: string | null };
+/**
+ * Every id here has been checked to be a uuid (and `type` a movement type)
+ * by the caller. The movement filters are only read by the movements report,
+ * so its download is the list the movements page showed.
+ */
+export type ReportFilters = {
+  from: string;
+  to: string;
+  category?: string | null;
+  item?: string | null;
+  type?: MovementType | null;
+  employee?: string | null;
+  department?: string | null;
+};
 
 /** The rows of one report, read through the caller's own client. Money cells are minor units; the page and the export each format them. */
 export async function buildReport(supabase: Client, kind: ReportKind, f: ReportFilters, today: string): Promise<Report> {
@@ -76,11 +90,15 @@ export async function buildReport(supabase: Client, kind: ReportKind, f: ReportF
     case "movements": {
       let q = supabase.from("v_stores_movements").select("*").gte("occurred_at", fromTs).lte("occurred_at", toTs).order("id", { ascending: false }).limit(10000);
       if (f.category) q = q.eq("category_id", f.category);
+      if (f.item) q = q.eq("item_id", f.item);
+      if (f.type) q = q.eq("movement_type", f.type);
+      if (f.employee) q = q.eq("employee_id", f.employee);
+      if (f.department) q = q.eq("department_id", f.department);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       return {
-        columns: [{ label: "Date" }, { label: "Reference" }, { label: "Movement" }, { label: "Item" }, { label: "Category" }, { label: "Quantity", align: "right" }, { label: "Shelf change", align: "right" }, { label: "Employee" }, { label: "Department" }, { label: "Condition" }, { label: "Recorded by" }, { label: "Notes" }],
-        rows: (data ?? []).map((m) => [formatDateTime(m.occurred_at), m.reference, MOVEMENT_LABELS[m.movement_type as StoresMovementType], m.item_name, m.category_name, m.quantity, shelfChange(m.available_delta), m.employee_name, m.department_name, m.condition ? CONDITION_LABELS[m.condition as Condition] : null, m.recorded_by_name, m.notes]),
+        columns: [{ label: "Date" }, { label: "Reference" }, { label: "Movement" }, { label: "Item" }, { label: "Category" }, { label: "Quantity", align: "right" }, { label: "Shelf change", align: "right", signed: true }, { label: "Employee" }, { label: "Department" }, { label: "Condition" }, { label: "Recorded by" }, { label: "Notes" }],
+        rows: (data ?? []).map((m) => [formatDateTime(m.occurred_at), m.reference, MOVEMENT_LABELS[m.movement_type as StoresMovementType], m.item_name, m.category_name, m.quantity, m.available_delta, m.employee_name, m.department_name, m.condition ? CONDITION_LABELS[m.condition as Condition] : null, m.recorded_by_name, m.notes]),
         summary: `${data?.length ?? 0} movements from ${formatDate(f.from)} to ${formatDate(f.to)}.`,
       };
     }
@@ -135,11 +153,16 @@ export async function buildReport(supabase: Client, kind: ReportKind, f: ReportF
 export function displayCell(c: Cell, col: Column): string {
   if (c === null || c === "") return "—";
   if (col.money && typeof c === "number") return formatMoney(c, "BWP");
+  if (col.signed && typeof c === "number") return shelfChange(c);
   return String(c);
 }
 
-/** A cell as the download carries it: money in pula with two decimals, so a spreadsheet can add it up. */
+/**
+ * A cell as the download carries it: money as a number of pula and a change
+ * as a plain signed number, so a spreadsheet can add both up. ("+2" or
+ * "−1" as text would sit in the column as words.)
+ */
 export function exportCell(c: Cell, col: Column): Cell {
-  if (col.money && typeof c === "number") return (c / 100).toFixed(2);
+  if (col.money && typeof c === "number") return Math.round(c) / 100;
   return c;
 }

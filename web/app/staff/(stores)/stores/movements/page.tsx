@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { Pagination, queryBuilder } from "@/components/crm/bits";
 import { EmptyState, PageTitle } from "@/components/staff/page-title";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { formatDateTime } from "@/lib/format-date";
 import { requireStaff } from "@/lib/staff/session";
-import { listEmployees, listItems, listNamed } from "@/lib/stores/data";
+import { isPastLastPage, listEmployees, listItems, listNamed } from "@/lib/stores/data";
 import { movementHref, shelfChange } from "@/lib/stores/links";
 import { MOVEMENT_LABELS, MOVEMENT_TYPES, type MovementType } from "@/lib/stores/rules";
 import { isUuid } from "@/lib/uuid";
@@ -48,10 +49,22 @@ export default async function MovementsPage({ searchParams }: { searchParams: Pr
     listEmployees(supabase, { includeInactive: true }),
     listNamed(supabase, "stores_departments", { includeInactive: true }),
   ]);
+  if (isPastLastPage(error) && page > 1) redirect(`/staff/stores/movements${queryBuilder(sp)({ page: undefined })}`);
   if (error) throw new Error(error.message);
   const qs = queryBuilder(sp);
   const filtered = Boolean(sp.from || sp.to || sp.item || sp.category || type || sp.employee || sp.department);
-  const exportQs = new URLSearchParams({ kind: "movements", ...(sp.from ? { from: sp.from } : {}), ...(sp.to ? { to: sp.to } : {}), ...(sp.category ? { category: sp.category } : {}) }).toString();
+  // The download carries every filter the list was read with, so the file is
+  // the list on the screen (up to the report's own limit), not more.
+  const exportQs = new URLSearchParams({
+    kind: "movements",
+    ...(sp.from && DATE.test(sp.from) ? { from: sp.from } : {}),
+    ...(sp.to && DATE.test(sp.to) ? { to: sp.to } : {}),
+    ...(isUuid(sp.category) ? { category: sp.category } : {}),
+    ...(isUuid(sp.item) ? { item: sp.item } : {}),
+    ...(type ? { type } : {}),
+    ...(isUuid(sp.employee) ? { employee: sp.employee } : {}),
+    ...(isUuid(sp.department) ? { department: sp.department } : {}),
+  }).toString();
 
   return (
     <>

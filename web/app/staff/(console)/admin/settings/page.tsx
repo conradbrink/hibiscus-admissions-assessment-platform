@@ -47,8 +47,8 @@ function Field({ row, field }: { row: Row; field: SettingField }) {
           </label>
         ) : field.kind === "date" ? (
           <Input type="date" name="value" defaultValue={shown} className="h-8 md:h-8" />
-        ) : field.kind === "text" ? (
-          <Input name="value" defaultValue={shown} maxLength={2000} className="h-8 md:h-8" />
+        ) : field.kind === "text" || field.kind === "requiredText" ? (
+          <Input name="value" defaultValue={shown} maxLength={2000} required={field.kind === "requiredText"} className="h-8 md:h-8" />
         ) : (
           <>
             <Input

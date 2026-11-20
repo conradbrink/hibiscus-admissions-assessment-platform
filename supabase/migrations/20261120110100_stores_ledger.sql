@@ -220,6 +220,10 @@ create table if not exists public.stores_receipts (
   notes text check (notes is null or length(notes) <= 1000),
   -- The quantity an item started with when it was added to the register.
   is_opening boolean not null default false,
+  -- What the item's price and supplier were before this receipt changed
+  -- them, so reversing a mistyped receipt puts them back.
+  price_before_minor bigint,
+  supplier_before text,
   recorded_at timestamptz not null default now(),
   recorded_by uuid references public.staff_profiles(id) on delete set null,
   recorded_by_name text not null,
@@ -763,6 +767,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   -- The same request, again: the item it made.
   select i.* into v_item from public.stores_receipts r join public.stores_items i on i.id = r.item_id
    where r.request_id = p_request_id;
@@ -864,6 +872,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_receipts where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -889,11 +901,13 @@ begin
   v_ref := public.stores_next_reference('RC');
   insert into public.stores_receipts (
     reference, request_id, item_id, item_name, quantity, received_on, supplier,
-    unit_price_minor, invoice_ref, notes, recorded_by, recorded_by_name
+    unit_price_minor, invoice_ref, notes, price_before_minor, supplier_before,
+    recorded_by, recorded_by_name
   ) values (
     v_ref, p_request_id, v_item.id, v_item.name, p_quantity, v_on, v_supplier,
     p_unit_price_minor, public.stores_text(p_invoice_ref, 80, 'The invoice reference'),
-    public.stores_text(p_notes, 1000, 'The note'), auth.uid(), v_actor
+    public.stores_text(p_notes, 1000, 'The note'), v_item.purchase_price_minor, v_item.supplier,
+    auth.uid(), v_actor
   ) returning id into v_id;
 
   -- The latest price and supplier become the item's, so the valuation
@@ -948,6 +962,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_checkouts where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1093,6 +1111,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select r.id, r.reference into v_id, v_ref from public.stores_returns r where r.request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true,
@@ -1249,6 +1271,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_issues where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1343,8 +1369,14 @@ as $$
 declare
   v_actor text := public.stores_actor('stores.write');
   v_item public.stores_items;
-  v_emp record;
-  v_dept record;
+  -- Scalars rather than a record: a record that is never assigned (no
+  -- responsible person) cannot have its fields named in a statement at all,
+  -- even in a branch that is not taken, and the department-only
+  -- assignment failed with "record v_emp is not assigned yet".
+  v_emp_name text;
+  v_emp_department uuid;
+  v_emp_active boolean;
+  v_dept public.stores_departments;
   v_id uuid;
   v_ref text;
   v_now timestamptz := now();
@@ -1353,6 +1385,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_assignments where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1362,18 +1398,19 @@ begin
   end if;
 
   if p_employee_id is not null then
-    select e.id, e.full_name, e.is_active, e.department_id into v_emp from public.stores_employees e where e.id = p_employee_id;
+    select e.full_name, e.department_id, e.is_active into v_emp_name, v_emp_department, v_emp_active
+      from public.stores_employees e where e.id = p_employee_id;
     if not found then
       raise exception 'That employee is not in the directory.' using errcode = 'check_violation';
     end if;
-    if not v_emp.is_active then
-      raise exception '% is no longer active in the directory.', v_emp.full_name using errcode = 'check_violation';
+    if not v_emp_active then
+      raise exception '% is no longer active in the directory.', v_emp_name using errcode = 'check_violation';
     end if;
   end if;
 
   -- Always a department: the one chosen, else the responsible person's.
-  select id, name, is_active into v_dept from public.stores_departments
-   where id = coalesce(p_department_id, case when p_employee_id is not null then v_emp.department_id end);
+  select * into v_dept from public.stores_departments
+   where id = coalesce(p_department_id, v_emp_department);
   if not found then
     raise exception 'Choose the department the item is assigned to.' using errcode = 'check_violation';
   end if;
@@ -1402,7 +1439,7 @@ begin
     employee_id, employee_name, location_note, assigned_at, notes, recorded_by, recorded_by_name
   ) values (
     v_ref, p_request_id, v_item.id, v_item.name, v_item.unit, p_quantity, v_dept.id, v_dept.name,
-    p_employee_id, case when p_employee_id is not null then v_emp.full_name end,
+    p_employee_id, v_emp_name,
     public.stores_text(p_location_note, 160, 'The location'), v_now, v_notes, auth.uid(), v_actor
   ) returning id into v_id;
 
@@ -1417,7 +1454,7 @@ begin
     notes, assignment_id, recorded_by, recorded_by_name
   ) values (
     v_now, 'assigned', v_ref, v_item.id, v_item.name, p_quantity,
-    -p_quantity, p_quantity, p_employee_id, case when p_employee_id is not null then v_emp.full_name end,
+    -p_quantity, p_quantity, p_employee_id, v_emp_name,
     v_dept.id, v_dept.name, v_notes, v_id, auth.uid(), v_actor
   );
 
@@ -1449,6 +1486,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_asset_returns where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1552,6 +1593,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_adjustments where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1574,6 +1619,13 @@ begin
     end if;
     select * into v_co from public.stores_checkouts where id = v_cl.checkout_id for update;
     select * into v_cl from public.stores_checkout_lines where id = p_checkout_line_id for update;
+    -- A reversed checkout's lines still read as outstanding (the reversal
+    -- put the stock back, not the line), and a completed one has nothing
+    -- out: writing off either would take the stock off the shelf twice.
+    if v_co.status <> 'open' then
+      raise exception 'Checkout % is no longer open, so nothing on it can be written off.', v_co.reference
+        using errcode = 'check_violation';
+    end if;
     if p_item_id is distinct from v_cl.item_id then
       raise exception 'That checkout line is for a different item.' using errcode = 'check_violation';
     end if;
@@ -1694,6 +1746,10 @@ begin
   if p_request_id is null then
     raise exception 'The request has no id. Reload the page and try again.' using errcode = 'check_violation';
   end if;
+  -- Two arrivals of the same request (a retry while the first is still
+  -- running) queue here, so the second sees the first's row and replays it
+  -- instead of failing on the unique index.
+  perform pg_advisory_xact_lock(hashtextextended(p_request_id::text, 0));
   select id, reference into v_id, v_ref from public.stores_reversals where request_id = p_request_id;
   if found then
     return jsonb_build_object('id', v_id, 'reference', v_ref, 'replayed', true);
@@ -1814,6 +1870,25 @@ begin
   case p_kind
     when 'receipt' then
       update public.stores_receipts set reversal_id = v_id where id = p_id;
+      -- Put back the price and supplier this receipt set, unless a later
+      -- receipt (still standing) has set them since, or somebody has typed
+      -- a different one on the item.
+      update public.stores_items i
+         set purchase_price_minor = case when r.unit_price_minor is not null and i.purchase_price_minor is not distinct from r.unit_price_minor
+                                         then r.price_before_minor else i.purchase_price_minor end,
+             supplier = case when r.supplier is not null and i.supplier is not distinct from r.supplier
+                             then r.supplier_before else i.supplier end
+        from public.stores_receipts r
+       where r.id = p_id
+         and i.id = r.item_id
+         and not r.is_opening
+         and not exists (
+           select 1 from public.stores_receipts later
+            where later.item_id = r.item_id
+              and later.reversal_id is null
+              and later.recorded_at > r.recorded_at
+              and (later.unit_price_minor is not null or later.supplier is not null)
+         );
     when 'checkout' then
       update public.stores_checkouts set reversal_id = v_id, status = 'reversed', completed_at = v_now where id = p_id;
     when 'return' then

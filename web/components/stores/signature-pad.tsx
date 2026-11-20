@@ -31,7 +31,9 @@ export function StoresSignaturePad({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const boxRef = useRef<{ w: number; h: number }>({ w: DRAWING_WIDTH, h: 200 });
-  const drawingRef = useRef(false);
+  // The pointer that is signing. A second finger, or a palm resting on a
+  // tablet, is ignored rather than joined to the stroke with a long line.
+  const pointerRef = useRef<number | null>(null);
   const [hasInk, setHasInk] = useState(false);
   const [hint, setHint] = useState("Sign here");
 
@@ -118,15 +120,15 @@ export function StoresSignaturePad({
   };
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (disabled) return;
+    if (disabled || pointerRef.current !== null) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    drawingRef.current = true;
+    pointerRef.current = e.pointerId;
     strokesRef.current.push([toPoint(e)]);
     paint();
   };
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
+    if (pointerRef.current !== e.pointerId) return;
     e.preventDefault();
     const stroke = strokesRef.current[strokesRef.current.length - 1];
     // A pen reports every point it passed through; use them all, so a fast
@@ -142,8 +144,8 @@ export function StoresSignaturePad({
     paint();
   };
   const onUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
+    if (pointerRef.current !== e.pointerId) return;
+    pointerRef.current = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {

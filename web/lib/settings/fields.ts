@@ -35,7 +35,9 @@ export type SettingKind =
   | "timeList"
   | "bool"
   | "date"
-  | "text";
+  | "text"
+  /** Text that may not be blank: what somebody signs, for instance. */
+  | "requiredText";
 
 export type SettingField = {
   kind: SettingKind;
@@ -134,8 +136,8 @@ export const SETTING_FIELDS: Record<string, SettingField> = {
   crm_stale_contact_days: F("int", "CRM", "Count a family as “no response” after", { unit: "days" }),
 
   // Hibiscus Stores
-  stores_checkout_acknowledgement: F("text", "Stores", "What an employee signs when equipment is checked out to them", { help: "Shown on the handover screen above the signature box and stored with every signature. Changing it affects the next signature only." }),
-  stores_return_acknowledgement: F("text", "Stores", "What an employee signs when they return equipment", { help: "Shown on the return screen above the signature box and stored with every signature." }),
+  stores_checkout_acknowledgement: F("requiredText", "Stores", "What an employee signs when equipment is checked out to them", { help: "Shown on the handover screen above the signature box and stored with every signature. Changing it affects the next signature only." }),
+  stores_return_acknowledgement: F("requiredText", "Stores", "What an employee signs when they return equipment", { help: "Shown on the return screen above the signature box and stored with every signature." }),
   stores_due_soon_days: F("int0", "Stores", "Show equipment as due soon (amber) this many days before its return date", { unit: "days" }),
 
   // Keeping and deleting data
@@ -229,6 +231,12 @@ export function parseSetting(kind: SettingKind, raw: string, label: string): str
       return value;
     }
     case "text":
+      return value;
+    case "requiredText":
+      // A blank acknowledgement would put a signature under nothing at all;
+      // the database falls back to the built-in wording, so the screen and
+      // the record would also disagree about what was signed.
+      if (!value) throw new Error(`${label}: this cannot be left blank.`);
       return value;
   }
 }

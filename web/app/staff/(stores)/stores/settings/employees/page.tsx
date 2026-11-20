@@ -25,14 +25,21 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
   let q = supabase.from("stores_employees").select("*, stores_departments!stores_employees_department_id_fkey(name)").order("full_name").limit(500);
   if (!sp.all) q = q.eq("is_active", true);
   if (term) q = q.or(`full_name.ilike.%${term}%,employee_number.ilike.%${term}%`);
-  const [{ data, error }, departments, { data: campuses }] = await Promise.all([q, listNamed(supabase, "stores_departments"), supabase.from("campuses").select("id, name").eq("is_active", true).order("sort_order")]);
+  // Every department and campus, switched off or not: an employee whose own
+  // one was switched off must still see it selected, or saving any change
+  // would quietly move them to whatever came first in the list.
+  const [{ data, error }, departments, { data: campuses }] = await Promise.all([
+    q,
+    listNamed(supabase, "stores_departments", { includeInactive: true }),
+    supabase.from("campuses").select("id, name, is_active").order("sort_order"),
+  ]);
   if (error) throw new Error(error.message);
   return (
     <div className="mx-auto max-w-3xl">
       <PageTitle title="Employees" description="The people who collect stock. They never sign in, and Stores never sends them anything." back={can(permissions, "stores.admin") ? { href: "/staff/stores/settings", label: "Settings" } : undefined} />
       <details className="surface mb-4 p-4" open={!data?.length && !term}>
         <summary className="cursor-pointer text-sm font-semibold">Add an employee</summary>
-        <div className="mt-3"><EmployeeEditor departments={departments} campuses={campuses ?? []} /></div>
+        <div className="mt-3"><EmployeeEditor departments={departments.filter((d) => d.is_active)} campuses={(campuses ?? []).filter((c) => c.is_active)} /></div>
       </details>
       <form method="get" role="search" className="mb-3 flex flex-wrap gap-2">
         <Input name="q" type="search" placeholder="Search by name or number" defaultValue={sp.q ?? ""} aria-label="Search employees" className="flex-1" />
@@ -50,7 +57,13 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
                 {!e.is_active ? <Badge variant="muted">Switched off</Badge> : null}
                 <Link href={`/staff/stores/movements?employee=${e.id}`} className="ml-auto text-xs font-medium text-primary hover:underline">History</Link>
               </summary>
-              <div className="mt-4"><EmployeeEditor employee={e} departments={departments} campuses={campuses ?? []} /></div>
+              <div className="mt-4">
+                <EmployeeEditor
+                  employee={e}
+                  departments={departments.filter((d) => d.is_active || d.id === e.department_id)}
+                  campuses={(campuses ?? []).filter((c) => c.is_active || c.id === e.campus_id)}
+                />
+              </div>
             </details>
           </li>
         ))}

@@ -2367,6 +2367,9 @@ export type StoresReceiptRow = StoresRecorded & {
   received_on: string;
   supplier: string | null;
   unit_price_minor: number | null;
+  /** The item's price and supplier before this receipt, put back if it is reversed. */
+  price_before_minor: number | null;
+  supplier_before: string | null;
   invoice_ref: string | null;
   notes: string | null;
   is_opening: boolean;
@@ -4108,6 +4111,7 @@ export type Database = {
       };
       stores_reverse: { Args: { p_request_id: string; p_kind: StoresReversalKind; p_id: string; p_reason: string }; Returns: Json };
       stores_set_role: { Args: { p_staff_id: string; p_role_code: "storekeeper" | "stores_admin"; p_granted: boolean }; Returns: undefined };
+      can_grant_role: { Args: { p_role_id: string }; Returns: boolean };
       stores_dashboard_counts: { Args: Record<string, never>; Returns: Json };
       stores_reconciliation: { Args: Record<string, never>; Returns: { item_id: string; item_name: string; problem: string }[] };
       stores_consumables_usage: {

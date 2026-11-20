@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowDownToLine, ArrowUpFromLine, HandHelping, PackagePlus, Pencil } from "lucide-react";
 import { Pagination } from "@/components/crm/bits";
 import { EmptyState, PageTitle } from "@/components/staff/page-title";
@@ -11,7 +11,7 @@ import { formatDate, formatDateTime } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { can } from "@/lib/permissions";
 import { requireStaff } from "@/lib/staff/session";
-import { acknowledgements } from "@/lib/stores/data";
+import { acknowledgements, isPastLastPage } from "@/lib/stores/data";
 import { movementHref, shelfChange, transactionHref } from "@/lib/stores/links";
 import { ITEM_TYPE_LABELS } from "@/lib/stores/rules";
 import { schoolToday } from "@/lib/stores/server";
@@ -28,12 +28,12 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
  * ever happened to it. The five figures always add up, because the database
  * keeps them as four balances and a total that is their sum.
  */
-export default async function ItemPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ page?: string; added?: string }> }) {
+export default async function ItemPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ page?: string; added?: string; photo?: string }> }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   if (!isUuid(id)) notFound();
   const { supabase, permissions } = await requireStaff("stores.read");
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
-  const [{ data: item }, { data: moves, count }, { data: loans }, { data: assigned }, ack] = await Promise.all([
+  const [{ data: item }, { data: moves, count, error: movesError }, { data: loans }, { data: assigned }, ack] = await Promise.all([
     supabase
       .from("stores_items")
       .select("*, stores_categories!stores_items_category_id_fkey(name), stores_locations!stores_items_location_id_fkey(name), stores_item_photos(sha256)")
@@ -50,6 +50,8 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
     acknowledgements(supabase),
   ]);
   if (!item) notFound();
+  if (isPastLastPage(movesError) && page > 1) redirect(`/staff/stores/inventory/${id}`);
+  if (movesError) throw new Error(movesError.message);
   const today = schoolToday();
   const writer = can(permissions, "stores.write");
   const admin = can(permissions, "stores.admin");
@@ -80,6 +82,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
       {sp.added ? (
         <p className="mb-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success" role="status">
           {item.name} is on the register{item.qty_total > 0 ? `, with an opening stock of ${item.qty_total}${item.unit !== "each" ? ` ${item.unit}` : ""}` : ""}.
+          {sp.photo === "failed" ? <span className="mt-1 block font-medium text-warning-foreground">The photo was not saved. Add it again from Edit.</span> : null}
         </p>
       ) : null}
 
@@ -120,7 +123,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
             <PackagePlus aria-hidden /> Receive stock
           </Link>
           {item.qty_checked_out > 0 ? (
-            <Link href={`/staff/stores/check-in?q=${encodeURIComponent(item.name)}`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 text-base sm:h-9 sm:text-sm")}>
+            <Link href={`/staff/stores/check-in?item=${item.id}`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 text-base sm:h-9 sm:text-sm")}>
               <ArrowDownToLine aria-hidden /> Check in
             </Link>
           ) : null}

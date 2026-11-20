@@ -14,6 +14,7 @@ import { QuantityStepper } from "@/components/stores/quantity-stepper";
 import { checkoutEquipment } from "@/app/staff/(stores)/stores/check-out/actions";
 import { formatDateLong, formatDateTime } from "@/lib/format-date";
 import type { EmployeeChoice, ItemChoice } from "@/lib/stores/data";
+import { NO_ANSWER } from "@/lib/stores/offline";
 import { newRequestId } from "@/lib/stores/request-id";
 import { nextSchoolDay, quantityLine, quickReturnDates } from "@/lib/stores/rules";
 import type { Drawing } from "@/lib/stores/signature";
@@ -94,15 +95,23 @@ export function CheckoutForm({
     if (!drawing || !employeeId) return;
     setError(null);
     startTransition(async () => {
-      const result = await checkoutEquipment({
-        requestId,
-        employeeId,
-        expectedReturnDate: expected,
-        lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity })),
-        drawing: JSON.stringify(drawing),
-        acknowledgement,
-        notes,
-      });
+      let result: Awaited<ReturnType<typeof checkoutEquipment>>;
+      try {
+        result = await checkoutEquipment({
+          requestId,
+          employeeId,
+          expectedReturnDate: expected,
+          lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity })),
+          drawing: JSON.stringify(drawing),
+          acknowledgement,
+          notes,
+        });
+      } catch {
+        // No answer: stay on the signed screen with the same request id, so
+        // Confirm again replays a checkout that did reach the database.
+        setError(NO_ANSWER);
+        return;
+      }
       if (result.error || !result.id) {
         setError(result.error ?? "The checkout was not saved. Try again.");
         return;

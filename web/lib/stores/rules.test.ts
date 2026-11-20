@@ -12,7 +12,11 @@ describe("itemStatus", () => {
     expect(itemStatus(item({ qty_assigned: 1 }))).toBe("partially_available");
     expect(itemStatus(item({ qty_unavailable: 1 }))).toBe("partially_available");
   });
-  it("reads Checked Out when every one is on loan", () => expect(itemStatus(item({ qty_available: 0, qty_checked_out: 5 }))).toBe("checked_out"));
+  it("reads Checked Out when every one is on loan or assigned", () => {
+    expect(itemStatus(item({ qty_available: 0, qty_checked_out: 5 }))).toBe("checked_out");
+    expect(itemStatus(item({ item_type: "asset", qty_available: 0, qty_assigned: 5 }))).toBe("checked_out");
+    expect(itemStatus(item({ qty_available: 0, qty_checked_out: 3, qty_assigned: 2 }))).toBe("checked_out");
+  });
   it("reads Out of Stock when nothing is left and none of it is merely on loan", () => {
     expect(itemStatus(item({ qty_available: 0 }))).toBe("out_of_stock");
     expect(itemStatus(item({ qty_available: 0, qty_checked_out: 2, qty_unavailable: 1 }))).toBe("out_of_stock");
@@ -23,6 +27,13 @@ describe("itemStatus", () => {
     expect(itemStatus(item({ item_type: "consumable", qty_available: 1, min_stock: 0 }))).toBe("available");
   });
   it("adds the four buckets for the total", () => expect(totalOf(item({ qty_checked_out: 2, qty_assigned: 1, qty_unavailable: 1 }))).toBe(9));
+});
+
+describe("storesErrorMessage", () => {
+  it("does not call a repeated save a name clash", () => {
+    expect(storesErrorMessage({ code: "23505", message: 'duplicate key value violates unique constraint "stores_checkouts_request_id_key"' })).toMatch(/already being saved/);
+    expect(storesErrorMessage({ code: "23505", message: 'duplicate key value violates unique constraint "stores_categories_name_key"' })).toMatch(/already in use/);
+  });
 });
 
 describe("dueState", () => {

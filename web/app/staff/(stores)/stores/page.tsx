@@ -23,7 +23,7 @@ type Counts = Record<string, number>;
  */
 export default async function StoresDashboardPage() {
   const { supabase, permissions } = await requireStaff("stores.read");
-  const [{ data: countsRaw }, { data: outstanding }, { data: low }, { data: recent }, { data: recon }, ack] = await Promise.all([
+  const [{ data: countsRaw, error: countsError }, { data: outstanding }, { data: low }, { data: recent }, { data: recon, error: reconError }, ack] = await Promise.all([
     supabase.rpc("stores_dashboard_counts"),
     supabase.from("v_stores_outstanding").select("*").order("expected_return_date").order("employee_name").limit(8),
     supabase.from("stores_items").select("id, name, unit, qty_available, min_stock").eq("is_active", true).eq("is_low_stock", true).order("qty_available").limit(8),
@@ -31,6 +31,10 @@ export default async function StoresDashboardPage() {
     supabase.rpc("stores_reconciliation"),
     acknowledgements(supabase),
   ]);
+  // The five figures are the point of the page: if they cannot be read, the
+  // page says so (the error screen) rather than showing a row of zeros that
+  // look like an empty storeroom.
+  if (countsError) throw new Error(countsError.message);
   const c = (countsRaw ?? {}) as Counts;
   const n = (k: string) => Number(c[k] ?? 0);
   const today = schoolToday();
@@ -66,7 +70,10 @@ export default async function StoresDashboardPage() {
         <StatTile label="Available equipment" value={n("available_equipment")} icon={PackageCheck} tone="success" href="/staff/stores/inventory?type=reusable" hint="on the shelf" />
         <StatTile label="Checked out" value={n("checked_out")} icon={ArrowUpFromLine} tone="info" href={writer ? "/staff/stores/check-in" : "/staff/stores/reports/outstanding"} hint={`${n("open_checkouts")} ${n("open_checkouts") === 1 ? "checkout" : "checkouts"}`} />
         <StatTile label="Overdue equipment" value={n("overdue_quantity")} icon={Clock} tone="destructive" href="/staff/stores/reports/overdue" hint={n("overdue_checkouts") ? `${n("overdue_checkouts")} ${n("overdue_checkouts") === 1 ? "checkout" : "checkouts"}` : "nothing late"} />
-        <StatTile label="Low stock items" value={n("low_stock")} icon={TriangleAlert} tone="warning" href="/staff/stores/inventory?show=low" hint={n("out_of_stock") ? `${n("out_of_stock")} with none on the shelf` : undefined} />
+        {/* No "none on the shelf" hint here: that count includes items with no
+            reorder level, which are not low stock, so it read as more than the
+            figure above it. */}
+        <StatTile label="Low stock items" value={n("low_stock")} icon={TriangleAlert} tone="warning" href="/staff/stores/inventory?show=low" />
       </section>
 
       <div className="grid gap-7 lg:grid-cols-3 lg:gap-6">
@@ -172,12 +179,20 @@ export default async function StoresDashboardPage() {
         )}
       </section>
 
-      <p className={cn("flex items-center gap-2 text-xs", recon && recon.length ? "text-destructive" : "text-muted-foreground")}>
-        {recon && recon.length ? <TriangleAlert className="size-3.5" aria-hidden /> : <CircleCheck className="size-3.5 text-success" aria-hidden />}
-        {recon && recon.length
-          ? `${recon.length} ${recon.length === 1 ? "balance does" : "balances do"} not agree with the history. Tell a Stores administrator: ${recon.map((r) => r.item_name).join(", ")}.`
-          : "Every balance agrees with its stock movement history."}
-      </p>
+      {/* A check that did not run is not a check that passed. */}
+      {reconError ? (
+        <p className="flex items-center gap-2 text-xs text-warning-foreground">
+          <TriangleAlert className="size-3.5" aria-hidden />
+          The balance check could not run just now. Reload the page to try again.
+        </p>
+      ) : (
+        <p className={cn("flex items-center gap-2 text-xs", recon && recon.length ? "text-destructive" : "text-muted-foreground")}>
+          {recon && recon.length ? <TriangleAlert className="size-3.5" aria-hidden /> : <CircleCheck className="size-3.5 text-success" aria-hidden />}
+          {recon && recon.length
+            ? `${recon.length} ${recon.length === 1 ? "balance does" : "balances do"} not agree with the history. Tell a Stores administrator: ${recon.map((r) => r.item_name).join(", ")}.`
+            : "Every balance agrees with its stock movement history."}
+        </p>
+      )}
     </div>
   );
 }

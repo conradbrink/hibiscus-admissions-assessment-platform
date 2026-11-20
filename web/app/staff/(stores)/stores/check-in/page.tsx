@@ -11,6 +11,7 @@ import { dueState, quantityLine } from "@/lib/stores/rules";
 import { schoolToday } from "@/lib/stores/server";
 import type { StoresOutstandingRow } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
+import { isUuid } from "@/lib/uuid";
 
 export const metadata = { title: "Check in equipment" };
 
@@ -22,12 +23,16 @@ type Group = { checkoutId: string; reference: string; employee: string; departme
  * per checkout; the table on a wide screen lists every item with the
  * figures the school asked for.
  */
-export default async function CheckInPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function CheckInPage({ searchParams }: { searchParams: Promise<{ q?: string; item?: string }> }) {
   const sp = await searchParams;
   const { supabase } = await requireStaff("stores.write");
   const term = searchTerm(sp.q);
+  // From an item's own page: the loans of exactly that item, not of every
+  // item whose name happens to contain its name.
+  const itemId = isUuid(sp.item) ? sp.item : null;
   let q = supabase.from("v_stores_outstanding").select("*").order("expected_return_date").order("employee_name").limit(2000);
   if (term) q = q.or(`employee_name.ilike.%${term}%,item_name.ilike.%${term}%,reference.ilike.%${term}%,department_name.ilike.%${term}%`);
+  if (itemId) q = q.eq("item_id", itemId);
   const [{ data, error }, ack] = await Promise.all([q, acknowledgements(supabase)]);
   if (error) throw new Error(error.message);
   const today = schoolToday();
@@ -44,8 +49,10 @@ export default async function CheckInPage({ searchParams }: { searchParams: Prom
     <>
       <PageTitle
         title="Check in equipment"
-        description={list.length ? `${list.length} ${list.length === 1 ? "checkout" : "checkouts"} with equipment out${overdue ? `, ${overdue} overdue` : ""}.` : "Nothing is out on loan."}
-      />
+        description={list.length ? `${list.length} ${list.length === 1 ? "checkout" : "checkouts"} with ${itemId ? `${list[0].lines[0]?.item_name ?? "this item"}` : "equipment"} out${overdue ? `, ${overdue} overdue` : ""}.` : itemId ? "None of this item is out on loan." : "Nothing is out on loan."}
+      >
+        {itemId ? <Link href="/staff/stores/check-in" className={buttonVariants({ variant: "outline" })}>Show every loan</Link> : null}
+      </PageTitle>
       <form method="get" role="search" className="mb-4 flex gap-2">
         <Input name="q" type="search" placeholder="Search by employee, equipment or reference" defaultValue={sp.q ?? ""} aria-label="Search outstanding equipment" autoFocus={!sp.q} />
         <button type="submit" className={cn(buttonVariants({ variant: "secondary" }), "h-11 px-4 md:h-9")}>Search</button>
