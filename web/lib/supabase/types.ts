@@ -2034,6 +2034,15 @@ export type EventSalesRow = {
   ticket_price_minor: number;
   early_price_minor: number | null;
   early_until: string | null;
+  /**
+   * A dated offer: a named price from one moment to another, charged while it
+   * runs if it is lower than the early or standard price. All four are set,
+   * or none.
+   */
+  offer_name: string | null;
+  offer_price_minor: number | null;
+  offer_from: string | null;
+  offer_until: string | null;
   max_tickets_per_order: number;
   tickets_open: boolean;
   stall_price_minor: number | null;
@@ -3173,7 +3182,8 @@ export type Database = {
       >;
       event_sales: TableOf<
         EventSalesRow,
-        | "ticket_label" | "early_price_minor" | "early_until" | "max_tickets_per_order" | "tickets_open"
+        | "ticket_label" | "early_price_minor" | "early_until" | "offer_name" | "offer_price_minor" | "offer_from" | "offer_until"
+        | "max_tickets_per_order" | "tickets_open"
         | "stall_price_minor" | "stall_tickets" | "stall_capacity" | "stalls_open" | "ticket_prefix"
         | "next_ticket_no" | "show_time" | "intro" | "stall_intro",
         [Rel<"event_sales_event_id_fkey", "event_id", "crm_events", true>]

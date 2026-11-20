@@ -8,33 +8,96 @@ import type { CrmEventRow, EventSalesRow } from "@/lib/supabase/types";
  * The price a buyer is charged is decided in the database, by
  * `create_event_order()`, under a lock and on the database's clock. This is
  * the same rule for the page: the price on the button and the countdown to
- * the early price ending. The two must agree, so the rule is one line in each
+ * the price changing. The two must agree, so the rule is a few lines in each
  * place and a test here pins this half of it.
+ *
+ * Three prices, in the order they are tried: the early price until its
+ * moment, the standard price after it, and, while a dated offer runs (Black
+ * Friday at the Christmas Show, 20 November 2026), the offer's price if it is
+ * the lower one. An offer never makes a ticket dearer.
  *
  * Pure: no clock of its own. Every caller passes `now`.
  */
 
-export type SalesPrices = Pick<EventSalesRow, "ticket_price_minor" | "early_price_minor" | "early_until">;
+export type SalesPrices = Pick<
+  EventSalesRow,
+  "ticket_price_minor" | "early_price_minor" | "early_until" | "offer_name" | "offer_price_minor" | "offer_from" | "offer_until"
+>;
 
-export type TicketPrice = {
+/** One price a ticket can have: what it costs, and what the order calls it. */
+export type PriceStep = {
   unitMinor: number;
-  name: "Early bird" | "Standard";
-  /** When the early price stops, while it still applies. */
-  earlyEndsAt: Date | null;
-  /** The price after the early one ends, while the early one applies. */
-  laterMinor: number | null;
+  /** "Early bird", "Standard", or the offer's own name. Stored on the order as its `price_name`. */
+  name: string;
+  kind: "offer" | "early" | "standard";
 };
 
-export function ticketPriceAt(sales: SalesPrices, now: Date): TicketPrice {
-  const until = sales.early_until ? new Date(sales.early_until) : null;
-  if (until && sales.early_price_minor !== null && now.getTime() < until.getTime()) {
-    return { unitMinor: sales.early_price_minor, name: "Early bird", earlyEndsAt: until, laterMinor: sales.ticket_price_minor };
+export type TicketPrice = PriceStep & {
+  /** While an offer applies: what a ticket would cost at this moment without it. */
+  usualMinor: number | null;
+  /** When this price stops, if it does. */
+  endsAt: Date | null;
+  /** The price from that moment on. */
+  next: PriceStep | null;
+};
+
+const at = (moment: string | null | undefined): number | null => (moment ? new Date(moment).getTime() : null);
+
+/** The price with no offer: early until its moment, standard after. */
+function usualStep(sales: SalesPrices, t: number): PriceStep {
+  const until = at(sales.early_until);
+  if (until !== null && sales.early_price_minor !== null && t < until) {
+    return { unitMinor: sales.early_price_minor, name: "Early bird", kind: "early" };
   }
-  return { unitMinor: sales.ticket_price_minor, name: "Standard", earlyEndsAt: null, laterMinor: null };
+  return { unitMinor: sales.ticket_price_minor, name: "Standard", kind: "standard" };
 }
 
-/** The last day of the early price, as a buyer reads it: an end at midnight is the day before. */
-export function earlyLastDay(until: Date): Date {
+function stepAt(sales: SalesPrices, t: number): PriceStep {
+  const usual = usualStep(sales, t);
+  const from = at(sales.offer_from);
+  const until = at(sales.offer_until);
+  const offer = sales.offer_price_minor ?? null;
+  if (sales.offer_name && offer !== null && from !== null && until !== null && t >= from && t < until && offer < usual.unitMinor) {
+    return { unitMinor: offer, name: sales.offer_name.trim(), kind: "offer" };
+  }
+  return usual;
+}
+
+export function ticketPriceAt(sales: SalesPrices, now: Date): TicketPrice {
+  const t = now.getTime();
+  const current = stepAt(sales, t);
+  const usualMinor = current.kind === "offer" ? usualStep(sales, t).unitMinor : null;
+  // The moments a price can change, soonest first. The price ends at the
+  // first one where it really does: an early price that stops in the middle
+  // of an offer changes nothing a buyer pays, so it is passed over.
+  const moments = [at(sales.early_until), at(sales.offer_from), at(sales.offer_until)]
+    .filter((m): m is number => m !== null && m > t)
+    .sort((a, b) => a - b);
+  for (const m of moments) {
+    const next = stepAt(sales, m);
+    if (next.unitMinor !== current.unitMinor || next.kind !== current.kind) {
+      return { ...current, usualMinor, endsAt: new Date(m), next };
+    }
+  }
+  return { ...current, usualMinor, endsAt: null, next: null };
+}
+
+/**
+ * The offer, while the page should still name it: one that is set, has not
+ * ended, and is below the standard price. Null once it is over.
+ */
+export function offerToShow(sales: SalesPrices, now: Date): { name: string; unitMinor: number; from: Date; until: Date; running: boolean } | null {
+  const from = at(sales.offer_from);
+  const until = at(sales.offer_until);
+  const offer = sales.offer_price_minor ?? null;
+  if (!sales.offer_name || offer === null || from === null || until === null) return null;
+  const t = now.getTime();
+  if (t >= until || offer >= sales.ticket_price_minor) return null;
+  return { name: sales.offer_name.trim(), unitMinor: offer, from: new Date(from), until: new Date(until), running: stepAt(sales, t).kind === "offer" };
+}
+
+/** The last day a price applies, as a buyer reads it: an end at midnight is the day before. */
+export function lastDay(until: Date): Date {
   return new Date(until.getTime() - 1);
 }
 

@@ -6,12 +6,22 @@ import type { EventSalesRow } from "@/lib/supabase/types";
  * terms: prices typed as "150" or "P 150.00", and the early price's last day
  * as a date. Stored as minor units and as the moment the early price stops,
  * which is midnight at the start of the next day in school time (UTC+2, as
- * every campus is).
+ * every campus is). A dated offer is typed the same way: a name, a price, a
+ * first day and a last day.
  *
  * Pure. Unit tested.
  */
 
-export type SalesFields = Pick<
+export type OfferFields = Pick<EventSalesRow, "offer_name" | "offer_price_minor" | "offer_from" | "offer_until">;
+
+const NO_OFFER: OfferFields = { offer_name: null, offer_price_minor: null, offer_from: null, offer_until: null };
+
+/**
+ * What a save writes. The offer is written only when the form carried its
+ * boxes: a page left open from before the offer existed has none, and saving
+ * it must not wipe an offer that is running.
+ */
+export type SalesFields = Partial<OfferFields> & Pick<
   EventSalesRow,
   | "slug"
   | "ticket_label"
@@ -30,19 +40,59 @@ export type SalesFields = Pick<
   | "stall_intro"
 >;
 
-/** "2026-11-27" → the instant the early price stops: 28 November, 00:00 school time. */
-export function earlyUntilFromLastDay(lastDay: string): string | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDay)) return null;
-  const start = new Date(`${lastDay}T00:00:00+02:00`);
-  if (Number.isNaN(start.getTime())) return null;
-  return new Date(start.getTime() + 86_400_000).toISOString();
+/** "2026-11-23" → the instant that day starts in school time. A day that does not exist is null. */
+function dayStart(day: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const start = new Date(`${day}T00:00:00+02:00`);
+  return Number.isNaN(start.getTime()) ? null : start;
 }
 
-/** The reverse, for the date box: the last school day the early price applies. */
+/** "2026-11-27" → the instant the early price stops: 28 November, 00:00 school time. */
+export function earlyUntilFromLastDay(lastDay: string): string | null {
+  const start = dayStart(lastDay);
+  return start ? new Date(start.getTime() + 86_400_000).toISOString() : null;
+}
+
+/** The reverse, for the date box: the last school day a price applies, from the moment it stops. */
 export function lastDayFromEarlyUntil(earlyUntil: string | null): string {
   if (!earlyUntil) return "";
   const lastMoment = new Date(new Date(earlyUntil).getTime() - 1);
   return new Date(lastMoment.getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** "2026-11-23" → the instant an offer starts: that day, 00:00 school time. */
+export function offerFromFirstDay(firstDay: string): string | null {
+  return dayStart(firstDay)?.toISOString() ?? null;
+}
+
+/** The reverse, for the date box: the school day an offer starts on. */
+export function firstDayFromOfferFrom(offerFrom: string | null): string {
+  if (!offerFrom) return "";
+  return new Date(new Date(offerFrom).getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The offer's four boxes: all filled in, or all empty for no offer. The price
+ * must be below the ticket price, or it is not an offer; `create_event_order()`
+ * would never charge it.
+ */
+function parseOffer(form: Record<string, string | undefined>, ticketPrice: number): { ok: true; value: OfferFields } | { ok: false; error: string } {
+  const name = (form.offerName ?? "").trim();
+  const priceRaw = (form.offerPrice ?? "").trim();
+  const firstDay = (form.offerFirstDay ?? "").trim();
+  const lastDay = (form.offerLastDay ?? "").trim();
+  if (!name && !priceRaw && !firstDay && !lastDay) return { ok: true, value: NO_OFFER };
+
+  const price = parseMoneyToMinor(priceRaw);
+  const from = offerFromFirstDay(firstDay);
+  const until = earlyUntilFromLastDay(lastDay);
+  if (!name || price === null || price <= 0 || !from || !until) {
+    return { ok: false, error: "A special offer needs a name, a price, a first day and a last day. Leave all four empty for no offer." };
+  }
+  if (name.length > 40) return { ok: false, error: "The offer's name is too long. Use 40 characters or fewer: Black Friday." };
+  if (from >= until) return { ok: false, error: "The offer's last day is before its first day." };
+  if (price >= ticketPrice) return { ok: false, error: "The offer price must be lower than the ticket price." };
+  return { ok: true, value: { offer_name: name, offer_price_minor: price, offer_from: from, offer_until: until } };
 }
 
 function whole(raw: string | undefined, min: number, max: number): number | null {
@@ -70,6 +120,11 @@ export function parseSalesForm(form: Record<string, string | undefined>): { ok: 
       return { ok: false, error: "An early-bird price needs both a price and its last day. Leave both empty for no early price." };
     }
   }
+
+  // Only a form that has the offer's boxes may change the offer.
+  const hasOfferBoxes = form.offerName !== undefined || form.offerPrice !== undefined || form.offerFirstDay !== undefined || form.offerLastDay !== undefined;
+  const offer = hasOfferBoxes ? parseOffer(form, ticketPrice) : null;
+  if (offer && !offer.ok) return offer;
 
   const stallRaw = (form.stallPrice ?? "").trim();
   const stallPrice = stallRaw ? parseMoneyToMinor(stallRaw) : null;
@@ -99,6 +154,7 @@ export function parseSalesForm(form: Record<string, string | undefined>): { ok: 
       ticket_price_minor: ticketPrice,
       early_price_minor: earlyPrice,
       early_until: earlyUntil,
+      ...(offer ? offer.value : {}),
       max_tickets_per_order: maxTickets,
       tickets_open: form.ticketsOpen === "on",
       stall_price_minor: stallPrice,
