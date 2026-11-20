@@ -4921,6 +4921,410 @@ begin
   end;
   perform pg_temp.service();
 
+  -- -------------------------------------------------------------------------
+  -- 85. Hibiscus Stores: only the functions move stock, history is never
+  --     rewritten, and every rule the storekeeper relies on holds
+  --
+  -- Written as the storeroom's own day: items added, equipment checked out
+  -- and signed for, part of it brought back, some of it damaged, consumables
+  -- issued, an asset assigned, a correction and two reversals. Each step that
+  -- must be refused is attempted, and each one that must work is the control.
+  -- At the end every balance is reconciled against its history.
+  -- -------------------------------------------------------------------------
+  declare
+    u_keeper uuid := gen_random_uuid();
+    u_sadmin uuid := gen_random_uuid();
+    v_cat uuid;
+    v_cat_clean uuid;
+    v_dept uuid;
+    v_emp uuid;
+    v_proj uuid;
+    v_ball uuid;
+    v_soap uuid;
+    v_spk uuid;
+    v_res jsonb;
+    v_res2 jsonb;
+    v_co uuid;
+    v_line_ball uuid;
+    v_line_proj uuid;
+    v_issue uuid;
+    v_assign uuid;
+    v_ack_out text;
+    v_ack_in text;
+    v_sig jsonb := '{"w":600,"h":260,"strokes":[[[10,100],[100,100],[200,120],[300,100],[420,90]]]}'::jsonb;
+    v_req uuid := gen_random_uuid();
+    v_n int;
+    v_ok boolean;
+  begin
+    perform pg_temp.service();
+    insert into auth.users (id, email) values (u_keeper, 'sec-keeper@test.invalid'), (u_sadmin, 'sec-stores-admin@test.invalid');
+    insert into public.staff_profiles (id, full_name, email, is_active) values
+      (u_keeper, 'Sec Keeper', 'sec-keeper@test.invalid', true),
+      (u_sadmin, 'Sec Stores Admin', 'sec-stores-admin@test.invalid', true);
+    insert into public.staff_roles (staff_id, role_id)
+      select u_keeper, id from public.roles where code = 'storekeeper'
+      union all
+      select u_sadmin, id from public.roles where code = 'stores_admin';
+    select id into v_cat from public.stores_categories where name = 'Sports Equipment';
+    select id into v_cat_clean from public.stores_categories where name = 'Cleaning Consumables';
+    select id into v_dept from public.stores_departments where name = 'Sports';
+    select value #>> '{}' into v_ack_out from public.settings where key = 'stores_checkout_acknowledgement';
+    select value #>> '{}' into v_ack_in from public.settings where key = 'stores_return_acknowledgement';
+    if v_cat is null or v_cat_clean is null or v_dept is null or v_ack_out is null or v_ack_in is null then
+      raise exception 'SUITE BROKEN: stores seed data missing';
+    end if;
+
+    -- The storekeeper sets up: an employee, and four items.
+    perform pg_temp.impersonate(u_keeper);
+    insert into public.stores_employees (full_name, department_id, created_by) values ('John Mokoena', v_dept, u_keeper) returning id into v_emp;
+    v_proj := (public.stores_create_item(gen_random_uuid(), 'Sec Projector', v_cat, 'reusable', 'each', null, 0, null, 450000, null, 2) ->> 'id')::uuid;
+    v_ball := (public.stores_create_item(gen_random_uuid(), 'Sec Football', v_cat, 'reusable', 'each', null, 0, null, null, null, 5) ->> 'id')::uuid;
+    v_soap := (public.stores_create_item(gen_random_uuid(), 'Sec Floor Cleaner', v_cat_clean, 'consumable', 'litres', null, 3, null, null, null, 10) ->> 'id')::uuid;
+    v_spk := (public.stores_create_item(gen_random_uuid(), 'Sec Speaker', v_cat, 'reusable', 'each', null, 0, null, null, null, 3) ->> 'id')::uuid;
+    perform pg_temp.service();
+    if (select qty_total from public.stores_items where id = v_ball) <> 5 then
+      v_fail := v_fail || E'\n  - 85 control: a new item did not start with its opening stock';
+    end if;
+
+    -- Nobody outside Stores reads the register or moves stock: not a person
+    -- with no roles, not the admissions team, not management.
+    foreach v_res2 in array array[to_jsonb(u_noroles), to_jsonb(u_staff), to_jsonb(u_management)] loop
+      perform pg_temp.impersonate((v_res2 #>> '{}')::uuid);
+      select count(*) into v_n from public.stores_items;
+      if v_n <> 0 then
+        v_fail := v_fail || E'\n  - 85: somebody without stores.read read the register';
+      end if;
+      select count(*) into v_n from public.stores_movements;
+      if v_n <> 0 then
+        v_fail := v_fail || E'\n  - 85: somebody without stores.read read the ledger';
+      end if;
+      begin
+        perform public.stores_receive(gen_random_uuid(), v_ball, 100);
+        v_fail := v_fail || E'\n  - 85: somebody without stores.write received stock';
+      exception when insufficient_privilege then null;
+      end;
+      perform pg_temp.service();
+    end loop;
+    perform pg_temp.service();
+
+    -- A photo: the storekeeper may add one; it must be a JPEG; nobody
+    -- outside Stores may see it; and the hash is the database's, not theirs.
+    perform pg_temp.impersonate(u_keeper);
+    insert into public.stores_item_photos (item_id, bytes, sha256)
+    values (v_ball, decode('ffd8ffe0' || repeat('00', 200), 'hex'), 'forged');
+    begin
+      insert into public.stores_item_photos (item_id, bytes) values (v_soap, decode('3c73766720' || repeat('00', 200), 'hex'));
+      v_fail := v_fail || E'\n  - 85: something that is not a JPEG was stored as an item photo';
+    exception when check_violation then null;
+    end;
+    perform pg_temp.service();
+    if (select sha256 from public.stores_item_photos where item_id = v_ball) = 'forged' then
+      v_fail := v_fail || E'\n  - 85: an item photo kept the hash its uploader claimed';
+    end if;
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_n from public.stores_item_photos;
+    if v_n <> 0 then
+      v_fail := v_fail || E'\n  - 85: somebody without stores.read saw an item photo';
+    end if;
+    perform pg_temp.service();
+
+    -- A balance cannot be typed in, and the ledger cannot be written by hand.
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      update public.stores_items set qty_available = 999 where id = v_ball;
+      v_fail := v_fail || E'\n  - 85: a storekeeper set a balance by hand';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      insert into public.stores_movements (movement_type, reference, item_id, item_name, quantity, available_delta, recorded_by_name)
+      values ('received', 'FORGED', v_ball, 'x', 50, 50, 'x');
+      v_fail := v_fail || E'\n  - 85: a storekeeper wrote a movement by hand';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      update public.stores_checkouts set status = 'completed';
+      v_fail := v_fail || E'\n  - 85: a storekeeper closed a checkout by hand';
+    exception when insufficient_privilege then null;
+    end;
+    -- Control: describing an item is theirs.
+    update public.stores_items set description = 'Size 5' where id = v_ball;
+    perform pg_temp.service();
+    if (select description from public.stores_items where id = v_ball) is distinct from 'Size 5' then
+      v_fail := v_fail || E'\n  - 85 control: a storekeeper could not describe an item';
+    end if;
+
+    -- Checkouts that must be refused.
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)), '[]'::jsonb, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a checkout went through without a signature';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)), '{"w":600,"h":260,"strokes":[[[1,1],[2,2]]]}'::jsonb, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a checkout went through on a tap rather than a signature';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)),
+        '{"w":600,"h":260,"strokes":[[[10,100],[900,100]]],"svg":"<script>"}'::jsonb, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a drawing with points outside its box, or with extra keys, was taken as a signature';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_proj, 'quantity', 3)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: more was checked out than was available';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_proj, 'quantity', 2), jsonb_build_object('item_id', v_proj, 'quantity', 1)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: splitting one item over two lines got past the available count';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_soap, 'quantity', 1)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a consumable was checked out';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() - 1,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a checkout was due back in the past';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, null,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a checkout had no return date';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 0)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a checkout of nothing went through';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 3,
+        jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)), v_sig, 'I promise nothing.');
+      v_fail := v_fail || E'\n  - 85: a signature was accepted over words the school did not write';
+    exception when check_violation then null;
+    end;
+
+    -- The control: five footballs and a projector, one signature. The same
+    -- request again moves nothing.
+    v_res := public.stores_checkout(v_req, v_emp, public.stores_today() + 3,
+      jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 5), jsonb_build_object('item_id', v_proj, 'quantity', 1)), v_sig, v_ack_out);
+    v_co := (v_res ->> 'id')::uuid;
+    v_res2 := public.stores_checkout(v_req, v_emp, public.stores_today() + 3,
+      jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 5), jsonb_build_object('item_id', v_proj, 'quantity', 1)), v_sig, v_ack_out);
+    perform pg_temp.service();
+    if (v_res2 ->> 'id')::uuid is distinct from v_co or coalesce((v_res2 ->> 'replayed')::boolean, false) is not true then
+      v_fail := v_fail || E'\n  - 85: a repeated checkout request did not return the first';
+    end if;
+    if (select qty_available from public.stores_items where id = v_ball) <> 0
+       or (select qty_checked_out from public.stores_items where id = v_ball) <> 5
+       or (select count(*) from public.stores_checkouts where request_id = v_req) <> 1 then
+      v_fail := v_fail || E'\n  - 85: a repeated checkout moved stock twice';
+    end if;
+    if (select count(*) from public.stores_signatures where checkout_id = v_co and kind = 'checkout') <> 1 then
+      v_fail := v_fail || E'\n  - 85: the checkout signature was not stored once';
+    end if;
+    select id into v_line_ball from public.stores_checkout_lines where checkout_id = v_co and item_id = v_ball;
+    select id into v_line_proj from public.stores_checkout_lines where checkout_id = v_co and item_id = v_proj;
+
+    -- A partial return: three of five footballs, signed. Then more than is
+    -- outstanding, refused.
+    perform pg_temp.impersonate(u_keeper);
+    v_res := public.stores_check_in(gen_random_uuid(), v_co,
+      jsonb_build_array(jsonb_build_object('line_id', v_line_ball, 'quantity', 3, 'condition', 'good')), v_sig, v_ack_in);
+    perform pg_temp.service();
+    if (select quantity_outstanding from public.stores_checkout_lines where id = v_line_ball) <> 2
+       or (select status from public.stores_checkouts where id = v_co) <> 'open'
+       or (select qty_available from public.stores_items where id = v_ball) <> 3 then
+      v_fail := v_fail || E'\n  - 85: a partial return did not leave two footballs outstanding and the checkout open';
+    end if;
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      perform public.stores_check_in(gen_random_uuid(), v_co,
+        jsonb_build_array(jsonb_build_object('line_id', v_line_ball, 'quantity', 3, 'condition', 'good')), v_sig, v_ack_in);
+      v_fail := v_fail || E'\n  - 85: more was returned than was outstanding';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_check_in(gen_random_uuid(), v_co,
+        jsonb_build_array(jsonb_build_object('line_id', v_line_ball, 'quantity', 1, 'condition', 'good')), null, v_ack_in);
+      v_fail := v_fail || E'\n  - 85: a return went through without a signature';
+    exception when check_violation then null;
+    end;
+    -- The rest, with the projector damaged: the checkout completes and the
+    -- projector is held back.
+    v_res := public.stores_check_in(gen_random_uuid(), v_co,
+      jsonb_build_array(
+        jsonb_build_object('line_id', v_line_ball, 'quantity', 2, 'condition', 'good'),
+        jsonb_build_object('line_id', v_line_proj, 'quantity', 1, 'condition', 'damaged', 'note', 'Cracked lens')),
+      v_sig, v_ack_in);
+    perform pg_temp.service();
+    if (select status from public.stores_checkouts where id = v_co) <> 'completed'
+       or (select qty_unavailable from public.stores_items where id = v_proj) <> 1
+       or (select qty_available from public.stores_items where id = v_proj) <> 1
+       or (select count(*) from public.stores_signatures where checkout_id = v_co and kind = 'return') <> 2 then
+      v_fail := v_fail || E'\n  - 85: a full return with damage did not complete the checkout, hold the projector back and keep both signatures';
+    end if;
+
+    -- Damaged equipment cannot go out: one projector is on the shelf, the
+    -- other is held back, and two cannot be checked out.
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      perform public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today() + 1,
+        jsonb_build_array(jsonb_build_object('item_id', v_proj, 'quantity', 2)), v_sig, v_ack_out);
+      v_fail := v_fail || E'\n  - 85: a damaged projector was checked out';
+    exception when check_violation then null;
+    end;
+    perform pg_temp.service();
+
+    -- History, even for the service role.
+    begin
+      update public.stores_signatures set acknowledgement = 'I agreed to nothing.' where checkout_id = v_co;
+      v_fail := v_fail || E'\n  - 85: a signature was replaced';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      delete from public.stores_movements where item_id = v_ball;
+      v_fail := v_fail || E'\n  - 85: a movement was deleted';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      delete from public.stores_checkouts where id = v_co;
+      v_fail := v_fail || E'\n  - 85: a checkout was deleted';
+    exception when insufficient_privilege or foreign_key_violation then null;
+    end;
+    begin
+      delete from public.stores_items where id = v_ball;
+      v_fail := v_fail || E'\n  - 85: an item with history was deleted';
+    exception when foreign_key_violation then null;
+    end;
+
+    -- Consumables: no more than is in stock; the control deducts.
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      perform public.stores_issue(gen_random_uuid(), v_emp, jsonb_build_array(jsonb_build_object('item_id', v_soap, 'quantity', 11)));
+      v_fail := v_fail || E'\n  - 85: more consumables were issued than were in stock';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_issue(gen_random_uuid(), v_emp, jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 1)));
+      v_fail := v_fail || E'\n  - 85: equipment was issued as if it were a consumable';
+    exception when check_violation then null;
+    end;
+    v_issue := (public.stores_issue(gen_random_uuid(), v_emp, jsonb_build_array(jsonb_build_object('item_id', v_soap, 'quantity', 4))) ->> 'id')::uuid;
+    -- An asset assigned to the department for good.
+    v_assign := (public.stores_assign(gen_random_uuid(), v_spk, 1, v_dept, v_emp, 'Sports office') ->> 'id')::uuid;
+    -- Only an administrator corrects a count or reverses a transaction.
+    begin
+      perform public.stores_adjust(gen_random_uuid(), v_soap, 'count_correction', -1, 'Stock take');
+      v_fail := v_fail || E'\n  - 85: a storekeeper corrected a count';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      perform public.stores_reverse(gen_random_uuid(), 'assignment', v_assign, 'Wrong department');
+      v_fail := v_fail || E'\n  - 85: a storekeeper reversed a transaction';
+    exception when insufficient_privilege then null;
+    end;
+    -- But a repair is theirs to record.
+    perform public.stores_adjust(gen_random_uuid(), v_proj, 'repaired', 1, 'Lens replaced');
+    perform pg_temp.service();
+    if (select qty_available from public.stores_items where id = v_soap) <> 6
+       or (select qty_assigned from public.stores_items where id = v_spk) <> 1
+       or (select qty_total from public.stores_items where id = v_spk) <> 3
+       or (select qty_available from public.stores_items where id = v_proj) <> 2 then
+      v_fail := v_fail || E'\n  - 85: an issue, an assignment or a repair did not move the balances it should';
+    end if;
+
+    perform pg_temp.impersonate(u_sadmin);
+    perform public.stores_adjust(gen_random_uuid(), v_soap, 'count_correction', -1, 'Stock take found one fewer');
+    perform public.stores_reverse(gen_random_uuid(), 'assignment', v_assign, 'Assigned to the wrong department');
+    perform public.stores_reverse(gen_random_uuid(), 'issue', v_issue, 'Issued twice by mistake');
+    begin
+      perform public.stores_reverse(gen_random_uuid(), 'issue', v_issue, 'Again');
+      v_fail := v_fail || E'\n  - 85: one issue was reversed twice';
+    exception when check_violation then null;
+    end;
+    begin
+      perform public.stores_reverse(gen_random_uuid(), 'checkout', v_co, 'Should not be possible');
+      v_fail := v_fail || E'\n  - 85: a checkout with returns behind it was reversed';
+    exception when check_violation then null;
+    end;
+    perform pg_temp.service();
+    if (select qty_available from public.stores_items where id = v_soap) <> 9
+       or (select qty_assigned from public.stores_items where id = v_spk) <> 0
+       or (select status from public.stores_assignments where id = v_assign) <> 'reversed' then
+      v_fail := v_fail || E'\n  - 85: a correction or a reversal did not put the balances back';
+    end if;
+
+    -- Overdue is computed from the date: move one checkout's date back (the
+    -- service role may; staff may not) and it shows.
+    perform pg_temp.impersonate(u_keeper);
+    v_res := public.stores_checkout(gen_random_uuid(), v_emp, public.stores_today(),
+      jsonb_build_array(jsonb_build_object('item_id', v_ball, 'quantity', 2)), v_sig, v_ack_out);
+    perform pg_temp.service();
+    update public.stores_checkouts set expected_return_date = public.stores_today() - 2 where id = (v_res ->> 'id')::uuid;
+    perform pg_temp.impersonate(u_keeper);
+    select count(*) into v_n from public.v_stores_outstanding where checkout_id = (v_res ->> 'id')::uuid and is_overdue;
+    if v_n <> 1 or (public.stores_dashboard_counts() ->> 'overdue_quantity')::int <> 2 then
+      v_fail := v_fail || E'\n  - 85: an overdue checkout was not shown as overdue';
+    end if;
+    perform pg_temp.service();
+
+    -- The Stores roles, and only those, from a Stores administrator, and
+    -- never on their own account.
+    perform pg_temp.impersonate(u_keeper);
+    begin
+      perform public.stores_set_role(u_staff, 'storekeeper', true);
+      v_fail := v_fail || E'\n  - 85: a storekeeper handed out a Stores role';
+    exception when insufficient_privilege then null;
+    end;
+    perform pg_temp.service();
+    perform pg_temp.impersonate(u_sadmin);
+    begin
+      perform public.stores_set_role(u_staff, 'super_admin', true);
+      v_fail := v_fail || E'\n  - 85: a Stores administrator handed out a role that is not a Stores role';
+    exception when insufficient_privilege then null;
+    end;
+    begin
+      perform public.stores_set_role(u_sadmin, 'storekeeper', false);
+      v_fail := v_fail || E'\n  - 85: a Stores administrator changed their own roles';
+    exception when insufficient_privilege then null;
+    end;
+    perform public.stores_set_role(u_staff, 'storekeeper', true);
+    perform pg_temp.service();
+    perform pg_temp.impersonate(u_staff);
+    select count(*) into v_n from public.stores_items where id = v_ball;
+    if v_n <> 1 then
+      v_fail := v_fail || E'\n  - 85 control: the Stores role a Stores administrator gave did not open the register';
+    end if;
+    perform pg_temp.service();
+    perform pg_temp.impersonate(u_sadmin);
+    perform public.stores_set_role(u_staff, 'storekeeper', false);
+    perform pg_temp.service();
+
+    -- And after all of that, every balance agrees with its history.
+    perform pg_temp.impersonate(u_sadmin);
+    for v_res in select to_jsonb(r) from public.stores_reconciliation() r loop
+      v_fail := v_fail || E'\n  - 85: reconciliation: ' || (v_res ->> 'item_name') || ': ' || (v_res ->> 'problem');
+    end loop;
+    perform pg_temp.service();
+  exception when others then
+    v_fail := v_fail || E'\n  - ' || ('85: unexpected error: ' || sqlerrm);
+  end;
+  perform pg_temp.service();
+
   if v_fail <> '' then
     raise exception 'SECURITY REGRESSIONS:%', v_fail;
   end if;

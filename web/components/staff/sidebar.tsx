@@ -8,29 +8,17 @@ import { Logo } from "@/components/brand/logo";
 import { initials } from "@/components/staff/initials";
 import { NAV_ICONS } from "@/components/staff/nav-icons";
 import { activeHref, type NavGroup } from "@/components/staff/nav-items";
+import { CRM_LINK, type SidebarProduct } from "@/components/staff/products";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 /**
- * The left rail: the logo, the switch between the two halves of the
- * platform, one icon and word per destination with the active one tinted
- * in the brand colour, and who is signed in at the foot. On a phone it
- * folds behind a menu button.
+ * The left rail: the logo, the switch between the products on the one
+ * sign-in, one icon and word per destination with the active one tinted in
+ * the brand colour, and who is signed in at the foot. On a phone it folds
+ * behind a menu button.
  */
-/** Which half of the platform the rail is drawing, and the way across. */
-export type SidebarProduct = {
-  /** "Admissions" or "CRM": the half this is, named in the switcher. */
-  label: string;
-  home: string;
-  /**
-   * The other half: where the switch link goes and what it is called. `short`
-   * is what the switcher shows when the full name will not fit beside the
-   * name of this half; the full name stays as the link's accessible name.
-   */
-  switchTo: { href: string; label: string; short?: string } | null;
-};
-
-const ADMISSIONS: SidebarProduct = { label: "Admissions", home: "/staff", switchTo: { href: "/staff/crm", label: "Hibiscus CRM", short: "CRM" } };
+const ADMISSIONS: SidebarProduct = { label: "Admissions", home: "/staff", switchTo: [CRM_LINK] };
 
 export function StaffSidebar({
   groups,
@@ -63,19 +51,24 @@ export function StaffSidebar({
           rail, above the day's work, because switching is the one thing a
           person does before anything else when they are in the wrong one.
           It reads as a switcher: the half you are in, and the other. */}
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-sidebar-border py-1 pr-1 pl-3 text-[12.5px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-lg border border-sidebar-border py-1 pr-1 pl-3 text-[12.5px]">
         <span className="truncate font-semibold text-foreground">{product.label}</span>
-        {product.switchTo ? (
-          <Link
-            href={product.switchTo.href}
-            onClick={() => setOpen(false)}
-            aria-label={`Switch to ${product.switchTo.label}`}
-            title={`Switch to ${product.switchTo.label}`}
-            className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-          >
-            <ArrowLeftRight className="size-3.5" aria-hidden />
-            {product.switchTo.short ?? product.switchTo.label}
-          </Link>
+        {product.switchTo.length ? (
+          <span className="flex flex-wrap items-center justify-end gap-0.5">
+            {product.switchTo.map((other) => (
+              <Link
+                key={other.href}
+                href={other.href}
+                onClick={() => setOpen(false)}
+                aria-label={`Switch to ${other.label}`}
+                title={`Switch to ${other.label}`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              >
+                <ArrowLeftRight className="size-3.5" aria-hidden />
+                {other.short ?? other.label}
+              </Link>
+            ))}
+          </span>
         ) : null}
       </div>
       {groups.map((group, gi) => (

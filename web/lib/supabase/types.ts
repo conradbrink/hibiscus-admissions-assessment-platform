@@ -2266,6 +2266,313 @@ export type CrmFamilyFactsRow = {
 // Database
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Hibiscus Stores (20261120110000_stores_core and the two after it)
+// ---------------------------------------------------------------------------
+
+export type StoresItemType = "reusable" | "consumable" | "asset";
+export type StoresCondition = "good" | "damaged" | "missing_parts" | "needs_maintenance";
+export type StoresMovementType =
+  | "received" | "checked_out" | "returned" | "issued" | "assigned"
+  | "asset_returned" | "adjustment" | "transfer" | "reversal";
+export type StoresAdjustmentKind = "count_correction" | "mark_damaged" | "repaired" | "write_off" | "write_off_outstanding";
+export type StoresReversalKind = "receipt" | "checkout" | "return" | "issue" | "assignment";
+
+/** A department, category or storage place: the three settings lists share a shape. */
+export type StoresNamedRow = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+export type StoresDepartmentRow = StoresNamedRow;
+export type StoresCategoryRow = StoresNamedRow & { sort_order: number };
+export type StoresLocationRow = StoresNamedRow & { sort_order: number };
+
+export type StoresEmployeeRow = {
+  id: string;
+  full_name: string;
+  department_id: string;
+  campus_id: string | null;
+  employee_number: string | null;
+  contact_details: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export type StoresItemRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  category_id: string;
+  item_type: StoresItemType;
+  unit: string;
+  min_stock: number;
+  location_id: string | null;
+  purchase_price_minor: number | null;
+  supplier: string | null;
+  is_active: boolean;
+  qty_available: number;
+  qty_checked_out: number;
+  qty_assigned: number;
+  qty_unavailable: number;
+  /** Generated: the four buckets added together. */
+  qty_total: number;
+  /** Generated: at or under a reorder level above zero. */
+  is_low_stock: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+/** One JPEG per item. `bytes` arrives from PostgREST as `\\x…` hex text. */
+export type StoresItemPhotoRow = {
+  item_id: string;
+  content_type: "image/jpeg";
+  bytes: string;
+  /** Set by the database from the bytes. */
+  sha256: string;
+  width: number | null;
+  height: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+};
+
+type StoresRecorded = { recorded_by: string | null; recorded_by_name: string };
+
+export type StoresReversalRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  target_kind: StoresReversalKind;
+  target_id: string;
+  target_reference: string;
+  reason: string;
+  recorded_at: string;
+};
+
+export type StoresReceiptRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  item_id: string;
+  item_name: string;
+  quantity: number;
+  received_on: string;
+  supplier: string | null;
+  unit_price_minor: number | null;
+  invoice_ref: string | null;
+  notes: string | null;
+  is_opening: boolean;
+  recorded_at: string;
+  reversal_id: string | null;
+};
+
+export type StoresCheckoutRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  employee_id: string;
+  employee_name: string;
+  department_id: string | null;
+  department_name: string | null;
+  checked_out_at: string;
+  expected_return_date: string;
+  status: "open" | "completed" | "reversed";
+  completed_at: string | null;
+  notes: string | null;
+  reversal_id: string | null;
+};
+
+export type StoresCheckoutLineRow = {
+  id: string;
+  checkout_id: string;
+  item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  quantity_returned: number;
+  quantity_written_off: number;
+  /** Generated: quantity less what came back and what was written off. */
+  quantity_outstanding: number;
+};
+
+export type StoresReturnRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  checkout_id: string;
+  employee_id: string;
+  employee_name: string;
+  returned_at: string;
+  notes: string | null;
+  reversal_id: string | null;
+};
+
+export type StoresReturnLineRow = {
+  id: string;
+  return_id: string;
+  checkout_line_id: string;
+  item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  condition: StoresCondition;
+  note: string | null;
+};
+
+export type StoresSignatureRow = StoresRecorded & {
+  id: string;
+  kind: "checkout" | "return";
+  checkout_id: string;
+  return_id: string | null;
+  employee_id: string;
+  employee_name: string;
+  /** `{ w, h, strokes }`: the pad's box and the [x, y] strokes in it. Rendered to SVG on display. */
+  drawing: Json;
+  acknowledgement: string;
+  summary: Json;
+  summary_hash: string;
+  signed_at: string;
+};
+
+export type StoresIssueRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  employee_id: string;
+  employee_name: string;
+  department_id: string | null;
+  department_name: string | null;
+  issued_at: string;
+  notes: string | null;
+  reversal_id: string | null;
+};
+
+export type StoresIssueLineRow = {
+  id: string;
+  issue_id: string;
+  item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+};
+
+export type StoresAssignmentRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  quantity_returned: number;
+  /** Generated: still with the department. */
+  quantity_held: number;
+  department_id: string;
+  department_name: string;
+  employee_id: string | null;
+  employee_name: string | null;
+  location_note: string | null;
+  assigned_at: string;
+  status: "active" | "returned" | "reversed";
+  returned_at: string | null;
+  notes: string | null;
+  reversal_id: string | null;
+};
+
+export type StoresAssetReturnRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  assignment_id: string;
+  item_id: string;
+  item_name: string;
+  quantity: number;
+  condition: StoresCondition;
+  notes: string | null;
+  returned_at: string;
+};
+
+export type StoresAdjustmentRow = StoresRecorded & {
+  id: string;
+  reference: string;
+  request_id: string;
+  item_id: string;
+  item_name: string;
+  kind: StoresAdjustmentKind;
+  quantity: number;
+  available_delta: number;
+  checked_out_delta: number;
+  unavailable_delta: number;
+  checkout_line_id: string | null;
+  reason: string;
+  recorded_at: string;
+};
+
+export type StoresMovementRow = StoresRecorded & {
+  id: number;
+  occurred_at: string;
+  movement_type: StoresMovementType;
+  reference: string;
+  item_id: string;
+  item_name: string;
+  quantity: number;
+  available_delta: number;
+  checked_out_delta: number;
+  assigned_delta: number;
+  unavailable_delta: number;
+  employee_id: string | null;
+  employee_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  condition: StoresCondition | null;
+  notes: string | null;
+  receipt_id: string | null;
+  checkout_id: string | null;
+  return_id: string | null;
+  issue_id: string | null;
+  assignment_id: string | null;
+  asset_return_id: string | null;
+  adjustment_id: string | null;
+  reversal_id: string | null;
+  reverses_movement_id: number | null;
+};
+
+export type StoresMovementViewRow = StoresMovementRow & {
+  item_type: StoresItemType;
+  unit: string;
+  category_id: string;
+  category_name: string | null;
+};
+
+export type StoresOutstandingRow = {
+  line_id: string;
+  checkout_id: string;
+  reference: string;
+  employee_id: string;
+  employee_name: string;
+  department_id: string | null;
+  department_name: string | null;
+  item_id: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  quantity_returned: number;
+  quantity_written_off: number;
+  quantity_outstanding: number;
+  checked_out_at: string;
+  expected_return_date: string;
+  is_overdue: boolean;
+  days_overdue: number;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -3262,6 +3569,130 @@ export type Database = {
           Rel<"crm_import_rows_student_id_fkey", "student_id", "students">,
         ]
       >;
+      // Hibiscus Stores. Only the five settings tables and the item's
+      // descriptive columns take a write from staff; everything else is
+      // written by the stores_* functions below.
+      stores_departments: TableOf<StoresDepartmentRow, "is_active" | "updated_by">;
+      stores_categories: TableOf<StoresCategoryRow, "is_active" | "updated_by" | "sort_order">;
+      stores_locations: TableOf<StoresLocationRow, "is_active" | "updated_by" | "sort_order">;
+      stores_employees: TableOf<
+        StoresEmployeeRow,
+        "campus_id" | "employee_number" | "contact_details" | "is_active" | "created_by" | "updated_by",
+        [
+          Rel<"stores_employees_department_id_fkey", "department_id", "stores_departments">,
+          Rel<"stores_employees_campus_id_fkey", "campus_id", "campuses">,
+        ]
+      >;
+      stores_items: TableOf<
+        StoresItemRow,
+        | "description" | "unit" | "min_stock" | "location_id" | "purchase_price_minor" | "supplier" | "is_active"
+        | "qty_available" | "qty_checked_out" | "qty_assigned" | "qty_unavailable" | "qty_total" | "is_low_stock" | "created_by" | "updated_by",
+        [
+          Rel<"stores_items_category_id_fkey", "category_id", "stores_categories">,
+          Rel<"stores_items_location_id_fkey", "location_id", "stores_locations">,
+        ]
+      >;
+      stores_item_photos: TableOf<
+        StoresItemPhotoRow,
+        "content_type" | "sha256" | "width" | "height" | "uploaded_by" | "uploaded_at",
+        [Rel<"stores_item_photos_item_id_fkey", "item_id", "stores_items", true>]
+      >;
+      stores_reversals: TableOf<StoresReversalRow>;
+      stores_receipts: TableOf<
+        StoresReceiptRow,
+        never,
+        [
+          Rel<"stores_receipts_item_id_fkey", "item_id", "stores_items">,
+          Rel<"stores_receipts_reversal_id_fkey", "reversal_id", "stores_reversals">,
+        ]
+      >;
+      stores_checkouts: TableOf<
+        StoresCheckoutRow,
+        never,
+        [
+          Rel<"stores_checkouts_employee_id_fkey", "employee_id", "stores_employees">,
+          Rel<"stores_checkouts_department_id_fkey", "department_id", "stores_departments">,
+          Rel<"stores_checkouts_reversal_id_fkey", "reversal_id", "stores_reversals">,
+        ]
+      >;
+      stores_checkout_lines: TableOf<
+        StoresCheckoutLineRow,
+        never,
+        [
+          Rel<"stores_checkout_lines_checkout_id_fkey", "checkout_id", "stores_checkouts">,
+          Rel<"stores_checkout_lines_item_id_fkey", "item_id", "stores_items">,
+        ]
+      >;
+      stores_returns: TableOf<
+        StoresReturnRow,
+        never,
+        [
+          Rel<"stores_returns_checkout_id_fkey", "checkout_id", "stores_checkouts">,
+          Rel<"stores_returns_employee_id_fkey", "employee_id", "stores_employees">,
+          Rel<"stores_returns_reversal_id_fkey", "reversal_id", "stores_reversals">,
+        ]
+      >;
+      stores_return_lines: TableOf<
+        StoresReturnLineRow,
+        never,
+        [
+          Rel<"stores_return_lines_return_id_fkey", "return_id", "stores_returns">,
+          Rel<"stores_return_lines_checkout_line_id_fkey", "checkout_line_id", "stores_checkout_lines">,
+          Rel<"stores_return_lines_item_id_fkey", "item_id", "stores_items">,
+        ]
+      >;
+      stores_signatures: TableOf<
+        StoresSignatureRow,
+        never,
+        [
+          Rel<"stores_signatures_checkout_id_fkey", "checkout_id", "stores_checkouts">,
+          Rel<"stores_signatures_return_id_fkey", "return_id", "stores_returns">,
+        ]
+      >;
+      stores_issues: TableOf<
+        StoresIssueRow,
+        never,
+        [
+          Rel<"stores_issues_employee_id_fkey", "employee_id", "stores_employees">,
+          Rel<"stores_issues_reversal_id_fkey", "reversal_id", "stores_reversals">,
+        ]
+      >;
+      stores_issue_lines: TableOf<
+        StoresIssueLineRow,
+        never,
+        [
+          Rel<"stores_issue_lines_issue_id_fkey", "issue_id", "stores_issues">,
+          Rel<"stores_issue_lines_item_id_fkey", "item_id", "stores_items">,
+        ]
+      >;
+      stores_assignments: TableOf<
+        StoresAssignmentRow,
+        never,
+        [
+          Rel<"stores_assignments_item_id_fkey", "item_id", "stores_items">,
+          Rel<"stores_assignments_department_id_fkey", "department_id", "stores_departments">,
+          Rel<"stores_assignments_employee_id_fkey", "employee_id", "stores_employees">,
+          Rel<"stores_assignments_reversal_id_fkey", "reversal_id", "stores_reversals">,
+        ]
+      >;
+      stores_asset_returns: TableOf<
+        StoresAssetReturnRow,
+        never,
+        [Rel<"stores_asset_returns_assignment_id_fkey", "assignment_id", "stores_assignments">]
+      >;
+      stores_adjustments: TableOf<
+        StoresAdjustmentRow,
+        never,
+        [
+          Rel<"stores_adjustments_item_id_fkey", "item_id", "stores_items">,
+          Rel<"stores_adjustments_checkout_line_id_fkey", "checkout_line_id", "stores_checkout_lines">,
+        ]
+      >;
+      stores_movements: TableOf<
+        StoresMovementRow,
+        never,
+        [Rel<"stores_movements_item_id_fkey", "item_id", "stores_items">]
+      >;
     };
     Views: {
       /** One row per live family with everything a list, a rule or a campaign asks about. */
@@ -3375,6 +3806,16 @@ export type Database = {
           median_seconds_to_booking: number | null;
           p90_seconds_to_booking: number | null;
         };
+        Relationships: [];
+      };
+      /** Equipment on loan, one row per item per open checkout, with overdue computed for today. */
+      v_stores_outstanding: {
+        Row: StoresOutstandingRow;
+        Relationships: [];
+      };
+      /** The stores ledger with the item's type and category, for filtering. */
+      v_stores_movements: {
+        Row: StoresMovementViewRow;
         Relationships: [];
       };
     };
@@ -3595,6 +4036,83 @@ export type Database = {
           contact_id: string;
           created: boolean;
         }[];
+      };
+      // Hibiscus Stores: the only writers of stock. Each returns
+      // { id, reference } (and `replayed` when the request id was seen before).
+      stores_today: { Args: Record<string, never>; Returns: string };
+      stores_create_item: {
+        Args: {
+          p_request_id: string;
+          p_name: string;
+          p_category_id: string;
+          p_item_type: StoresItemType;
+          p_unit?: string;
+          p_description?: string | null;
+          p_min_stock?: number;
+          p_location_id?: string | null;
+          p_purchase_price_minor?: number | null;
+          p_supplier?: string | null;
+          p_opening_quantity?: number;
+        };
+        Returns: Json;
+      };
+      stores_receive: {
+        Args: {
+          p_request_id: string;
+          p_item_id: string;
+          p_quantity: number;
+          p_received_on?: string | null;
+          p_supplier?: string | null;
+          p_unit_price_minor?: number | null;
+          p_invoice_ref?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Json;
+      };
+      stores_checkout: {
+        Args: {
+          p_request_id: string;
+          p_employee_id: string;
+          p_expected_return_date: string;
+          p_lines: Json;
+          p_signature: Json;
+          p_acknowledgement: string;
+          p_notes?: string | null;
+        };
+        Returns: Json;
+      };
+      stores_check_in: {
+        Args: { p_request_id: string; p_checkout_id: string; p_lines: Json; p_signature: Json; p_acknowledgement: string; p_notes?: string | null };
+        Returns: Json;
+      };
+      stores_issue: { Args: { p_request_id: string; p_employee_id: string; p_lines: Json; p_notes?: string | null }; Returns: Json };
+      stores_assign: {
+        Args: {
+          p_request_id: string;
+          p_item_id: string;
+          p_quantity: number;
+          p_department_id?: string | null;
+          p_employee_id?: string | null;
+          p_location_note?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: Json;
+      };
+      stores_return_asset: {
+        Args: { p_request_id: string; p_assignment_id: string; p_quantity: number; p_condition?: StoresCondition; p_notes?: string | null };
+        Returns: Json;
+      };
+      stores_adjust: {
+        Args: { p_request_id: string; p_item_id: string; p_kind: StoresAdjustmentKind; p_quantity: number; p_reason: string; p_checkout_line_id?: string | null };
+        Returns: Json;
+      };
+      stores_reverse: { Args: { p_request_id: string; p_kind: StoresReversalKind; p_id: string; p_reason: string }; Returns: Json };
+      stores_set_role: { Args: { p_staff_id: string; p_role_code: "storekeeper" | "stores_admin"; p_granted: boolean }; Returns: undefined };
+      stores_dashboard_counts: { Args: Record<string, never>; Returns: Json };
+      stores_reconciliation: { Args: Record<string, never>; Returns: { item_id: string; item_name: string; problem: string }[] };
+      stores_consumables_usage: {
+        Args: { p_from: string; p_to: string };
+        Returns: { item_id: string; item_name: string; unit: string; category_name: string | null; department_name: string; quantity: number; issues: number }[];
       };
     };
     Enums: Record<string, never>;

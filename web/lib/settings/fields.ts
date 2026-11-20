@@ -57,6 +57,7 @@ export const SECTIONS = [
   "Scholarships",
   "Automation",
   "CRM",
+  "Stores",
   "Keeping and deleting data",
   "Everything else",
 ] as const;
@@ -131,6 +132,11 @@ export const SETTING_FIELDS: Record<string, SettingField> = {
   crm_campaign_approval_required: F("bool", "CRM", "A campaign needs signing off before it sends"),
   crm_follow_up_days: F("int", "CRM", "A new enquiry should be contacted within", { unit: "days" }),
   crm_stale_contact_days: F("int", "CRM", "Count a family as “no response” after", { unit: "days" }),
+
+  // Hibiscus Stores
+  stores_checkout_acknowledgement: F("text", "Stores", "What an employee signs when equipment is checked out to them", { help: "Shown on the handover screen above the signature box and stored with every signature. Changing it affects the next signature only." }),
+  stores_return_acknowledgement: F("text", "Stores", "What an employee signs when they return equipment", { help: "Shown on the return screen above the signature box and stored with every signature." }),
+  stores_due_soon_days: F("int0", "Stores", "Show equipment as due soon (amber) this many days before its return date", { unit: "days" }),
 
   // Keeping and deleting data
   retention_enabled: F("bool", "Keeping and deleting data", "Anonymise old applications automatically"),

@@ -1,3 +1,4 @@
+import { productFor } from "@/components/staff/products";
 import { StaffSidebar } from "@/components/staff/sidebar";
 import { StaffTopbar } from "@/components/staff/topbar";
 import { visibleCrmGroups } from "@/lib/crm/nav";
@@ -25,7 +26,7 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
           groups={groups}
           name={ctx.profile.full_name ?? ""}
           email={ctx.profile.email}
-          product={{ label: "CRM", home: "/staff/crm", switchTo: { href: "/staff", label: "Hibiscus Admissions", short: "Admissions" } }}
+          product={productFor(ctx.permissions, "crm")}
         />
         <main className="min-w-0 flex-1 bg-background/70 px-4 py-5 md:px-8 md:py-6 print:bg-white print:p-0">
           <StaffTopbar
