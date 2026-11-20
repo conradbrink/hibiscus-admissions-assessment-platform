@@ -1047,6 +1047,87 @@ Limits, honestly: the poster says "limited presold tickets" and gives no
 number, so nothing limits how many are sold at the offer price; the event's
 capacity is still the only cap.
 
+### Hibiscus Stores (20 November 2026) — the storeroom register
+
+Asked for by the owner: one Purchasing Officer / Storekeeper records every
+movement of the school's stock (reusable equipment, consumables and assets
+placed with a department for good), and employees sign on the storekeeper's
+phone when equipment goes out and when it comes back. It is a third product
+on the same staff sign-in, at `/staff/stores`, beside Admissions and the CRM,
+with the console's own shell, colours, cards and badges. On a phone it adds a
+bottom bar (Home, Check out, Check in, Issue, Inventory) and installs to the
+home screen from its manifest (`public/stores/`).
+
+- **Permissions and roles.** `stores.read`, `stores.write`, `stores.admin`,
+  and two roles: `storekeeper` (read and write) and `stores_admin` (all
+  three). Neither is campus-scoped: there is one central storeroom serving
+  every campus. A Stores administrator hands out those two roles, and only
+  those, through `stores_set_role()` (never on their own account, never
+  above their own permissions) or invites somebody new with one of them.
+  Switching a sign-in off and every other role stay with Staff and roles.
+- **Employees are not accounts.** `stores_employees` is a directory: a name,
+  a department, optionally a campus, a number and contact details for the
+  school's records. Nothing in Stores signs them in or sends them anything;
+  there is no email, WhatsApp, SMS or request flow anywhere in it. The
+  storekeeper adds a person from the checkout screen without leaving it.
+- **Balances are four buckets the functions alone write.** `stores_items`
+  holds `qty_available`, `qty_checked_out`, `qty_assigned`,
+  `qty_unavailable` and a generated `qty_total`. Staff have no grant on any
+  of them. The `stores_*` functions in `…stores_ledger.sql` are `security
+  definer`, check `stores.write` or `stores.admin` first, lock the items in
+  id order, refuse anything that would go negative, and write one line per
+  item to `stores_movements` in the same transaction, with the signed change
+  to each bucket. `stores_reconciliation()` checks that every balance equals
+  the sum of its history, that "on loan" equals what open checkouts say is
+  outstanding, and that "assigned" equals what active assignments hold. The
+  dashboard shows its verdict and security suite case 85 runs it.
+- **Every write is idempotent.** The browser mints a request id per review
+  (Check Out, Check In) or per form, every transaction table has it as a
+  unique key, and a second tap or a retried request returns the first
+  result and moves nothing.
+- **Three item types.** Reusable equipment is checked out and in; a
+  consumable is issued and deducted; an asset (or reusable equipment) can be
+  assigned to a department for good, stays on the register as assigned, and
+  comes back with "Return to storeroom". Returned in good condition, stock
+  goes back on the shelf; damaged, missing parts or needing maintenance, it
+  is held back until "Repaired" or "Written off".
+- **The signature is the strokes, not a picture.** The pad records `{w, h,
+  strokes}` in its own box (tall on a phone), the server and the database
+  (`stores_signature_ok`) both validate it, and the page draws the SVG from
+  the numbers as a data-URL image. It is stored with the acknowledgement as
+  shown, a summary of what was on screen and that summary's SHA-256, read
+  only under row-level security, and is append-only for every role.
+- **The acknowledgements are settings,** not code: Workflow settings →
+  Stores. The function refuses a signature over any other words, so what
+  is stored is what was shown.
+- **Nothing is edited after the fact.** Movements and signatures refuse
+  update and delete for every role (the one exception is a deleted staff
+  account's id becoming null; every row keeps the recorder's name). A wrong
+  receipt, checkout, return, issue or assignment is reversed by a Stores
+  administrator with a reason (`stores_reverse`): the reversal is its own
+  reference and lines, and the original is marked. A count that is wrong is
+  a documented adjustment. Items, employees, departments, categories and
+  locations are switched off, never deleted.
+- **Item photos** are taken with the phone's camera on the item form,
+  redrawn on the phone at most 1,024 px as JPEG (which drops the location a
+  phone writes into a photo), stripped of EXIF/IPTC segments again on the
+  server, and held in `stores_item_photos` under row-level security. They
+  are served only by `/staff/stores/inventory/<id>/photo` with the person's
+  session, never by a public URL.
+- **Reports** (eight) are built by `lib/stores/reports.ts` for the page and
+  the CSV/Excel download alike; text cells that could run as a formula are
+  defused.
+- **Sample data** for a development database is `supabase/seed/dev_stores.sql`.
+  It goes through the same functions and is never to be run on production.
+
+Limits, honestly: one storeroom is in use; storage locations exist as a list
+and every item names one, but moving stock between them (the `transfer`
+movement type) is not built. There is no offline mode or service worker: a
+checkout is real once the database has it, and the app says so when it
+cannot reach the server. Barcodes and QR codes are for a later version. The
+`.xlsx` download writes every cell as text, as the Ed-admin writer does; the
+CSV opens in Excel with numbers as numbers.
+
 ### The pre-schools' free trial week
 
 A child joining Nursery to Pre-Reception sits no assessment, and the
