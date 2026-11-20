@@ -237,11 +237,22 @@ export function duplicatesWithinFile(records: ReadonlyArray<{ index: number; rec
   return out;
 }
 
-/** A CSV line, quoted where a cell needs it. */
+/** A text cell a spreadsheet would run as a formula: one starting with =, +, -, @, a tab or a carriage return. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/**
+ * A CSV line, quoted where a cell needs it.
+ *
+ * Exports carry what parents typed (names, emails, notes), so a text cell that
+ * would start a formula in Excel or Google Sheets is prefixed with `'` and
+ * opens as text. Only strings are guarded: a real number such as a negative
+ * amount stays a number.
+ */
 export function csvLine(cells: ReadonlyArray<string | number | boolean | null | undefined>): string {
   return cells
     .map((c) => {
-      const s = c === null || c === undefined ? "" : String(c);
+      let s = c === null || c === undefined ? "" : String(c);
+      if (typeof c === "string" && FORMULA_START.test(s)) s = `'${s}`;
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     })
     .join(",");
