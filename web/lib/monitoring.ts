@@ -1,5 +1,8 @@
 import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
 
+/** `@sentry/nextjs` does not re-export the type, so it is read off `init`. */
+type DataCollection = NonNullable<NonNullable<Parameters<typeof import("@sentry/nextjs").init>[0]>["dataCollection"]>;
+
 /**
  * Shared Sentry configuration for the browser and the server.
  *
@@ -11,8 +14,11 @@ import type { Breadcrumb, ErrorEvent } from "@sentry/nextjs";
  * This system holds children's names, dates of birth, and — from Phase 3 —
  * medical information and identity numbers. Sentry is a third party.
  *
- *   * `sendDefaultPii: false` — no IPs, no cookies, no usernames attached
- *     automatically.
+ *   * {@link DATA_COLLECTION} — no user, no IP address, no cookies, no
+ *     request or response bodies, no query strings, no local variables, no
+ *     database, queue or AI payloads. Every category is switched off by
+ *     name, because Sentry 11 removed `sendDefaultPii` (passing it does
+ *     nothing) and collects all of them unless told not to.
  *   * {@link scrubEvent} removes credential-shaped values from headers, query
  *     strings and extra data before anything leaves the process.
  *   * Tracing and replay are off. Replay records the screen, and these screens
@@ -129,12 +135,43 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
   return event;
 }
 
+/**
+ * What the SDK may collect on its own, before `beforeSend` sees the event.
+ *
+ * Sentry 11 turned every one of these on by default and removed the
+ * `sendDefaultPii` switch this file used to rely on. Under the old options
+ * an upgraded SDK would have attached the signed-in person, their IP
+ * address, cookies, every request and response body (a registration form, a
+ * child's medical details) and the local variables of the failing frame.
+ * `monitoring.test.ts` reads back what the SDK actually resolved, so a
+ * category added in a later version that defaults to on fails the test
+ * rather than leaking quietly.
+ *
+ * Request headers are kept, less the ones that identify a person or carry a
+ * credential, because a user agent is often what explains a browser bug.
+ */
+const HEADER_DENY = ["authorization", "cookie", "set-cookie", "apikey", "x-supabase-auth", "forwarded", "-ip", "remote-", "via", "-user"];
+
+export const DATA_COLLECTION: DataCollection = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: { request: { deny: HEADER_DENY }, response: { deny: HEADER_DENY } },
+  httpBodies: [],
+  urlQueryParams: false,
+  graphQL: { document: false, variables: false },
+  genAI: { inputs: false, outputs: false },
+  mcp: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  queues: false,
+  stackFrameVariables: false,
+};
+
 /** Options shared by every runtime. */
 export const sharedSentryOptions = {
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   release: process.env.VERCEL_GIT_COMMIT_SHA,
-  sendDefaultPii: false,
+  dataCollection: DATA_COLLECTION,
   tracesSampleRate: 0,
   beforeSend: scrubEvent,
   beforeBreadcrumb: scrubBreadcrumb,
