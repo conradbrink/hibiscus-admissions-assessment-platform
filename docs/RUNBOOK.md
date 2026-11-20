@@ -676,7 +676,10 @@ waits for a person to approve it.
    `digest_hour` (Gaborone time), once per campus per day, only when there
    is something to report.
 2. Each person has **Receives the morning digest** on Staff & roles; a
-   campus-limited person gets their campuses', head office gets all.
+   campus-limited person gets their campuses', head office gets all. Only
+   people whose roles let them read admissions (or who are super
+   administrators) get it at all: a Stores-only or CRM-only account never
+   does, whatever that box says.
 3. `/staff/admin/dev-outbox` lists digests like any other email; a
    `failed` one shows why.
 
@@ -1262,7 +1265,8 @@ existing colleague, or "Invite somebody new" with one of the two Stores
 roles. Nobody can change their own roles there, and nobody can invite somebody
 into a role that carries more than they hold themselves. A Stores role never
 gives access to Admissions or the CRM, and an account invited from Stores has
-the admissions morning digest off; switching somebody's sign-in off is still
+the admissions morning digest off (it is only ever sent to people who can read
+admissions anyway); switching somebody's sign-in off is still
 done under Admissions → Settings → Staff and roles.
 
 ## Hibiscus Stores: a transaction was recorded wrongly

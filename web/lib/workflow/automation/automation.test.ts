@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ABANDONED_STATUSES, CLOSED_STATUSES, digestHasContent, digestKey, gaboroneNow, groupByPlace, retentionCandidates, waitlistOrder } from "@/lib/workflow/automation/rules";
+import { ABANDONED_STATUSES, CLOSED_STATUSES, chooseDigestRecipients, digestHasContent, digestKey, gaboroneNow, groupByPlace, retentionCandidates, waitlistOrder } from "@/lib/workflow/automation/rules";
 
 const now = new Date("2026-09-05T08:00:00Z");
 const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString();
@@ -66,5 +66,38 @@ describe("digest", () => {
   it("is not sent when there is nothing to say", () => {
     expect(digestHasContent({ a: 0, b: 0 })).toBe(false);
     expect(digestHasContent({ a: 0, b: 2 })).toBe(true);
+  });
+
+  describe("recipients", () => {
+    const staff = [{ id: "head" }, { id: "registrar" }, { id: "storekeeper" }, { id: "marketing" }, { id: "campus-admin" }, { id: "other-campus" }];
+    const rows = {
+      assignments: [
+        { staff_id: "campus-admin", campus_id: "c1" },
+        { staff_id: "other-campus", campus_id: "c2" },
+      ],
+      campusScoped: ["campus-admin", "other-campus"],
+      // The storekeeper and the CRM-only marketing account hold no role with
+      // applications.read or admin.
+      admissionsReaders: ["head", "registrar", "campus-admin", "other-campus"],
+    };
+    const ids = (campus: string, r = rows) => chooseDigestRecipients(staff, campus, r).map((s) => s.id);
+
+    it("goes to admissions staff who may see the campus", () => {
+      expect(ids("c1")).toEqual(["head", "registrar", "campus-admin"]);
+      expect(ids("c2")).toEqual(["head", "registrar", "other-campus"]);
+    });
+
+    it("never goes to somebody who cannot read admissions, however unrestricted their campuses", () => {
+      expect(ids("c1")).not.toContain("storekeeper");
+      expect(ids("c1")).not.toContain("marketing");
+    });
+
+    it("keeps a campus-scoped role with no campus away from every campus", () => {
+      expect(ids("c1", { ...rows, assignments: [], campusScoped: ["campus-admin"] })).not.toContain("campus-admin");
+    });
+
+    it("goes to nobody when nobody may read admissions", () => {
+      expect(ids("c1", { ...rows, admissionsReaders: [] })).toEqual([]);
+    });
   });
 });

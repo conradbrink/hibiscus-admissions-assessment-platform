@@ -68,6 +68,42 @@ export function digestKey(campusId: string, date: string): string {
   return `digest:${campusId}:${date}`;
 }
 
+/**
+ * The permission the morning digest is written for. Its figures are the
+ * admissions dashboard's, and its link opens that dashboard, which needs this
+ * permission; `admin` implies it, as everywhere else.
+ */
+export const DIGEST_PERMISSION = "applications.read";
+
+/**
+ * Who gets a campus's digest, from rows already read. Somebody qualifies when
+ * they may read admissions (a Stores-only or CRM-only account never sees
+ * these figures in the app, so it is not emailed them either), and they may
+ * see the campus: assigned to it, or unrestricted (no campus rows and no
+ * campus-scoped role). The campus rule mirrors `can_access_campus`.
+ * The caller has already kept only active staff with the digest on.
+ */
+export function chooseDigestRecipients<T extends { id: string }>(
+  staff: readonly T[],
+  campusId: string,
+  rows: {
+    assignments: ReadonlyArray<{ staff_id: string; campus_id: string }>;
+    campusScoped: Iterable<string>;
+    admissionsReaders: Iterable<string>;
+  }
+): T[] {
+  const assigned = new Map<string, Set<string>>();
+  for (const a of rows.assignments) assigned.set(a.staff_id, (assigned.get(a.staff_id) ?? new Set()).add(a.campus_id));
+  const scoped = new Set(rows.campusScoped);
+  const readers = new Set(rows.admissionsReaders);
+  return staff.filter((s) => {
+    if (!readers.has(s.id)) return false;
+    const mine = assigned.get(s.id);
+    if (mine) return mine.has(campusId);
+    return !scoped.has(s.id);
+  });
+}
+
 /** Whether the digest has anything to say. */
 export function digestHasContent(counts: Record<string, number>): boolean {
   return Object.values(counts).some((v) => v > 0);

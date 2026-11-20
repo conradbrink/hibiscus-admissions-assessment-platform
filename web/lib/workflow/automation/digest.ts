@@ -5,7 +5,7 @@ import { formatDateLong } from "@/lib/format-date";
 import { getSettings } from "@/lib/settings";
 import { siteUrl } from "@/lib/tokens";
 import type { JobRow } from "@/lib/supabase/types";
-import { digestHasContent, digestKey, gaboroneNow } from "@/lib/workflow/automation/rules";
+import { DIGEST_PERMISSION, chooseDigestRecipients, digestHasContent, digestKey, gaboroneNow } from "@/lib/workflow/automation/rules";
 import { enqueueJobs } from "@/lib/workflow/engine";
 import type { HandlerResult } from "@/lib/workflow/handlers";
 
@@ -13,7 +13,8 @@ import type { HandlerResult } from "@/lib/workflow/handlers";
  * One morning email per campus team: the counts that need attention, no
  * applicant names, no links to applicants. Queued once per campus per day
  * by the drain after the digest hour; sent to every active member of staff
- * who may see the campus and has not turned the digest off.
+ * who may read admissions, may see the campus, and has not turned the digest
+ * off.
  */
 
 export async function queueDigests(admin: AdminClient, now = new Date()): Promise<number> {
@@ -45,7 +46,14 @@ export async function staffDigestHandler(admin: AdminClient, job: JobRow): Promi
   const counts = (countsRaw ?? {}) as Counts;
   if (!digestHasContent(counts)) return { outcome: "skipped", reason: "nothing to report" };
 
-  const recipients = await digestRecipients(admin, p.campus_id);
+  let recipients: Awaited<ReturnType<typeof digestRecipients>>;
+  try {
+    recipients = await digestRecipients(admin, p.campus_id);
+  } catch (e) {
+    // Not "nobody to send to": a read that failed is retried, not taken as
+    // an empty list that quietly drops the morning's email.
+    return { outcome: "failed", error: e instanceof Error ? e.message : "could not read the digest recipients", retryable: true };
+  }
   if (!recipients.length) return { outcome: "skipped", reason: "nobody to send to" };
 
   const variables = {
@@ -78,22 +86,30 @@ export async function staffDigestHandler(admin: AdminClient, job: JobRow): Promi
 }
 
 /**
- * Who gets a campus's digest: active staff with the digest on who are
- * either assigned to the campus or unrestricted (no campus rows and no
- * campus-scoped role). Mirrors `can_access_campus`.
+ * Who gets a campus's digest: active staff with the digest on who may read
+ * admissions and may see the campus (see `chooseDigestRecipients`). Read
+ * with the service role, so the permission is resolved here the way
+ * `has_permission` resolves it: any role carrying the permission or `admin`.
+ * Throws when a read fails, so the job is retried.
  */
 export async function digestRecipients(admin: AdminClient, campusId: string): Promise<Array<{ id: string; full_name: string; email: string }>> {
-  const [{ data: staff }, { data: assignments }, { data: scopedRoles }] = await Promise.all([
+  const [staff, assignments, scopedRoles, grants] = await Promise.all([
     admin.from("staff_profiles").select("id, full_name, email").eq("is_active", true).eq("digest_enabled", true),
     admin.from("staff_campuses").select("staff_id, campus_id"),
     admin.from("staff_roles").select("staff_id, roles!inner(campus_scoped)").eq("roles.campus_scoped", true),
+    admin.from("role_permissions").select("role_id").in("permission_code", [DIGEST_PERMISSION, "admin"]),
   ]);
-  const assigned = new Map<string, Set<string>>();
-  for (const a of assignments ?? []) assigned.set(a.staff_id, (assigned.get(a.staff_id) ?? new Set()).add(a.campus_id));
-  const scoped = new Set((scopedRoles ?? []).map((r) => r.staff_id));
-  return (staff ?? []).filter((s) => {
-    const mine = assigned.get(s.id);
-    if (mine) return mine.has(campusId);
-    return !scoped.has(s.id);
+  for (const r of [staff, assignments, scopedRoles, grants]) if (r.error) throw new Error(r.error.message);
+  const roleIds = [...new Set((grants.data ?? []).map((g) => g.role_id))];
+  let readers: string[] = [];
+  if (roleIds.length) {
+    const holders = await admin.from("staff_roles").select("staff_id").in("role_id", roleIds);
+    if (holders.error) throw new Error(holders.error.message);
+    readers = (holders.data ?? []).map((h) => h.staff_id);
+  }
+  return chooseDigestRecipients(staff.data ?? [], campusId, {
+    assignments: assignments.data ?? [],
+    campusScoped: (scopedRoles.data ?? []).map((r) => r.staff_id),
+    admissionsReaders: readers,
   });
 }
