@@ -7,14 +7,14 @@ import type { EventSalesRow } from "@/lib/supabase/types";
  * as a date. Stored as minor units and as the moment the early price stops,
  * which is midnight at the start of the next day in school time (UTC+2, as
  * every campus is). A dated offer is typed the same way: a name, a price, a
- * first day and a last day.
+ * first day and a last day, and, if stalls are on offer too, a stall price.
  *
  * Pure. Unit tested.
  */
 
-export type OfferFields = Pick<EventSalesRow, "offer_name" | "offer_price_minor" | "offer_from" | "offer_until">;
+export type OfferFields = Pick<EventSalesRow, "offer_name" | "offer_price_minor" | "offer_from" | "offer_until" | "offer_stall_price_minor">;
 
-const NO_OFFER: OfferFields = { offer_name: null, offer_price_minor: null, offer_from: null, offer_until: null };
+const NO_OFFER: OfferFields = { offer_name: null, offer_price_minor: null, offer_from: null, offer_until: null, offer_stall_price_minor: null };
 
 /**
  * What a save writes. The offer is written only when the form carried its
@@ -75,13 +75,27 @@ export function firstDayFromOfferFrom(offerFrom: string | null): string {
  * The offer's four boxes: all filled in, or all empty for no offer. The price
  * must be below the ticket price, or it is not an offer; `create_event_order()`
  * would never charge it.
+ *
+ * A fifth box, the offer's price for a stall, is optional and the same rule
+ * applies: below the stall price. It is written only when the form carried
+ * it, for the same reason as the offer itself: a page left open from before
+ * the box existed must not wipe it. Ending the offer always empties it, as
+ * the database will not keep a stall price with no offer beside it.
  */
-function parseOffer(form: Record<string, string | undefined>, ticketPrice: number): { ok: true; value: OfferFields } | { ok: false; error: string } {
+function parseOffer(
+  form: Record<string, string | undefined>,
+  ticketPrice: number,
+  stallPrice: number | null,
+): { ok: true; value: Partial<OfferFields> } | { ok: false; error: string } {
   const name = (form.offerName ?? "").trim();
   const priceRaw = (form.offerPrice ?? "").trim();
   const firstDay = (form.offerFirstDay ?? "").trim();
   const lastDay = (form.offerLastDay ?? "").trim();
-  if (!name && !priceRaw && !firstDay && !lastDay) return { ok: true, value: NO_OFFER };
+  const stallRaw = (form.offerStallPrice ?? "").trim();
+  if (!name && !priceRaw && !firstDay && !lastDay) {
+    if (stallRaw) return { ok: false, error: "A stall's offer price belongs to a special offer. Fill in the offer's name, price and days, or empty the stall's offer price." };
+    return { ok: true, value: NO_OFFER };
+  }
 
   const price = parseMoneyToMinor(priceRaw);
   const from = offerFromFirstDay(firstDay);
@@ -92,7 +106,20 @@ function parseOffer(form: Record<string, string | undefined>, ticketPrice: numbe
   if (name.length > 40) return { ok: false, error: "The offer's name is too long. Use 40 characters or fewer: Black Friday." };
   if (from >= until) return { ok: false, error: "The offer's last day is before its first day." };
   if (price >= ticketPrice) return { ok: false, error: "The offer price must be lower than the ticket price." };
-  return { ok: true, value: { offer_name: name, offer_price_minor: price, offer_from: from, offer_until: until } };
+  const value: Partial<OfferFields> = { offer_name: name, offer_price_minor: price, offer_from: from, offer_until: until };
+
+  if (form.offerStallPrice !== undefined) {
+    if (!stallRaw) {
+      value.offer_stall_price_minor = null;
+    } else {
+      const stallOffer = parseMoneyToMinor(stallRaw);
+      if (stallOffer === null || stallOffer <= 0) return { ok: false, error: "Enter the stall's offer price, or leave it empty for no stall offer." };
+      if (stallPrice === null) return { ok: false, error: "Set a stall price before giving stalls an offer price." };
+      if (stallOffer >= stallPrice) return { ok: false, error: "The stall's offer price must be lower than the stall price." };
+      value.offer_stall_price_minor = stallOffer;
+    }
+  }
+  return { ok: true, value };
 }
 
 function whole(raw: string | undefined, min: number, max: number): number | null {
@@ -121,14 +148,15 @@ export function parseSalesForm(form: Record<string, string | undefined>): { ok: 
     }
   }
 
-  // Only a form that has the offer's boxes may change the offer.
-  const hasOfferBoxes = form.offerName !== undefined || form.offerPrice !== undefined || form.offerFirstDay !== undefined || form.offerLastDay !== undefined;
-  const offer = hasOfferBoxes ? parseOffer(form, ticketPrice) : null;
-  if (offer && !offer.ok) return offer;
-
   const stallRaw = (form.stallPrice ?? "").trim();
   const stallPrice = stallRaw ? parseMoneyToMinor(stallRaw) : null;
   if (stallRaw && (stallPrice === null || stallPrice <= 0)) return { ok: false, error: "Enter the stall price, or leave it empty for no stalls." };
+
+  // Only a form that has the offer's boxes may change the offer.
+  const hasOfferBoxes =
+    form.offerName !== undefined || form.offerPrice !== undefined || form.offerFirstDay !== undefined || form.offerLastDay !== undefined || form.offerStallPrice !== undefined;
+  const offer = hasOfferBoxes ? parseOffer(form, ticketPrice, stallPrice) : null;
+  if (offer && !offer.ok) return offer;
 
   const maxTickets = whole(form.maxTickets, 1, 30);
   if (maxTickets === null) return { ok: false, error: "Tickets per order must be a whole number from 1 to 30." };

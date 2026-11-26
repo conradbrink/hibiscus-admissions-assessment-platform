@@ -96,6 +96,38 @@ export function offerToShow(sales: SalesPrices, now: Date): { name: string; unit
   return { name: sales.offer_name.trim(), unitMinor: offer, from: new Date(from), until: new Date(until), running: stepAt(sales, t).kind === "offer" };
 }
 
+export type StallPrices = Pick<EventSalesRow, "stall_price_minor" | "offer_name" | "offer_stall_price_minor" | "offer_from" | "offer_until">;
+
+export type StallPrice = {
+  unitMinor: number;
+  /** "Stall", or the offer's own name. Stored on the order as its `price_name`. */
+  name: string;
+  kind: "offer" | "standard";
+  /** While an offer applies: the stall price it replaces. */
+  usualMinor: number | null;
+  /** When an offer's price stops. Null for the stall price, which does not. */
+  endsAt: Date | null;
+};
+
+/**
+ * What a stall costs right now: the stall price, or, while the dated offer
+ * runs, the offer's stall price if it is the lower one (Black Friday at the
+ * Christmas Show, 26 November 2026). The same rule as the stall branch of
+ * `create_event_order()`. Null for an event with no stalls.
+ */
+export function stallPriceAt(sales: StallPrices, now: Date): StallPrice | null {
+  const usual = sales.stall_price_minor;
+  if (usual === null) return null;
+  const t = now.getTime();
+  const from = at(sales.offer_from);
+  const until = at(sales.offer_until);
+  const offer = sales.offer_stall_price_minor ?? null;
+  if (sales.offer_name && offer !== null && from !== null && until !== null && t >= from && t < until && offer < usual) {
+    return { unitMinor: offer, name: sales.offer_name.trim(), kind: "offer", usualMinor: usual, endsAt: new Date(until) };
+  }
+  return { unitMinor: usual, name: "Stall", kind: "standard", usualMinor: null, endsAt: null };
+}
+
 /** The last day a price applies, as a buyer reads it: an end at midnight is the day before. */
 export function lastDay(until: Date): Date {
   return new Date(until.getTime() - 1);

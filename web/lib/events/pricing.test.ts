@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdownParts, eventStillAhead, eventWhen, lastDay, offerToShow, ticketPriceAt } from "@/lib/events/pricing";
+import { countdownParts, eventStillAhead, eventWhen, lastDay, offerToShow, stallPriceAt, ticketPriceAt } from "@/lib/events/pricing";
 import { formatDateLong } from "@/lib/format-date";
 
 const NO_OFFER = { offer_name: null, offer_price_minor: null, offer_from: null, offer_until: null };
@@ -90,6 +90,35 @@ describe("offerToShow", () => {
     const offer = offerToShow(BLACK_FRIDAY, new Date("2026-11-20T08:00:00Z"));
     expect(formatDateLong(offer?.from)).toBe(formatDateLong("2026-11-23"));
     expect(formatDateLong(offer ? lastDay(offer.until) : null)).toBe(formatDateLong("2026-12-01"));
+  });
+});
+
+describe("stallPriceAt", () => {
+  // The owner's request of 26 November 2026: a stall P500 instead of P750
+  // while the Black Friday offer runs.
+  const STALLS = { stall_price_minor: 75000, offer_name: "Black Friday", offer_stall_price_minor: 50000, offer_from: BLACK_FRIDAY.offer_from, offer_until: BLACK_FRIDAY.offer_until };
+
+  it("charges the offer's stall price while the offer runs, beside the stall price it replaces", () => {
+    const p = stallPriceAt(STALLS, new Date("2026-11-27T08:00:00Z"));
+    expect(p).toMatchObject({ unitMinor: 50000, name: "Black Friday", kind: "offer", usualMinor: 75000 });
+    expect(p?.endsAt?.toISOString()).toBe("2026-12-01T22:00:00.000Z");
+  });
+
+  it("charges the stall price before the offer starts and from the second it ends", () => {
+    const standard = { unitMinor: 75000, name: "Stall", kind: "standard", usualMinor: null, endsAt: null };
+    expect(stallPriceAt(STALLS, new Date("2026-11-22T21:59:59.999Z"))).toEqual(standard);
+    expect(stallPriceAt(STALLS, new Date("2026-11-22T22:00:00.000Z"))).toMatchObject({ unitMinor: 50000, kind: "offer" });
+    expect(stallPriceAt(STALLS, new Date("2026-12-01T21:59:59.999Z"))).toMatchObject({ unitMinor: 50000, kind: "offer" });
+    expect(stallPriceAt(STALLS, new Date("2026-12-01T22:00:00.000Z"))).toEqual(standard);
+  });
+
+  it("never makes a stall dearer, and leaves it alone for an offer on tickets only", () => {
+    expect(stallPriceAt({ ...STALLS, offer_stall_price_minor: 80000 }, new Date("2026-11-27T08:00:00Z"))).toMatchObject({ unitMinor: 75000, kind: "standard" });
+    expect(stallPriceAt({ ...STALLS, offer_stall_price_minor: null }, new Date("2026-11-27T08:00:00Z"))).toMatchObject({ unitMinor: 75000, kind: "standard" });
+  });
+
+  it("is null for an event with no stalls", () => {
+    expect(stallPriceAt({ ...STALLS, stall_price_minor: null }, new Date("2026-11-27T08:00:00Z"))).toBeNull();
   });
 });
 

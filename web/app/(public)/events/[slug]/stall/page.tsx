@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import { StallForm } from "@/components/events/stall-form";
 import { loadSaleEvent } from "@/lib/events/orders";
-import { eventStillAhead, eventWhen } from "@/lib/events/pricing";
+import { eventStillAhead, eventWhen, lastDay, stallPriceAt } from "@/lib/events/pricing";
+import { formatDateLong } from "@/lib/format-date";
 import { formatMoney } from "@/lib/money";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookStall } from "../actions";
@@ -26,11 +27,15 @@ export default async function StallPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = await searchParams;
   const sale = await loadSaleEvent(createAdminClient(), slug);
-  if (!sale || sale.sales.stall_price_minor === null) notFound();
+  const now = new Date();
+  // The price is decided by create_event_order(); this is the same rule, for the page.
+  const price = sale ? stallPriceAt(sale.sales, now) : null;
+  if (!sale || !price) notFound();
   const { event, sales, campus } = sale;
-  const ahead = eventStillAhead(event, new Date());
+  const ahead = eventStillAhead(event, now);
   const open = ahead && sales.stalls_open;
   const staff = sales.stall_tickets - 1;
+  const money = (minor: number) => formatMoney(minor, campus.currency);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
@@ -47,11 +52,28 @@ export default async function StallPage({ params, searchParams }: Props) {
         </li>
       </ul>
 
-      <div className="mt-6 flex items-baseline justify-between gap-4 rounded-2xl bg-accent/60 px-5 py-4">
-        <p className="text-sm leading-relaxed">
-          One stall, with {sales.stall_tickets} tickets: one for you{staff > 0 ? ` and ${staff === 1 ? "one for a member of your staff" : `${staff} for your staff`}` : ""}.
+      {/* During a dated offer the stall price is crossed out beside the offer's, as on the ticket page. */}
+      <div className="mt-6 flex items-end justify-between gap-4 rounded-2xl bg-accent/60 px-5 py-4">
+        <div className="space-y-1 text-sm leading-relaxed">
+          {price.kind === "offer" && price.usualMinor !== null && price.endsAt ? (
+            <p>
+              <strong>{price.name}</strong> price until <strong>{formatDateLong(lastDay(price.endsAt))}</strong>. You save{" "}
+              <strong className="whitespace-nowrap">{money(price.usualMinor - price.unitMinor)}</strong>.
+            </p>
+          ) : null}
+          <p>
+            One stall, with {sales.stall_tickets} tickets: one for you{staff > 0 ? ` and ${staff === 1 ? "one for a member of your staff" : `${staff} for your staff`}` : ""}.
+          </p>
+        </div>
+        <p className="text-right">
+          {price.usualMinor !== null ? (
+            <span className="block text-sm text-muted-foreground">
+              <span className="sr-only">Usual price </span>
+              <s className="whitespace-nowrap tabular-nums">{money(price.usualMinor)}</s>
+            </span>
+          ) : null}
+          <span className="block text-2xl font-bold whitespace-nowrap tabular-nums">{money(price.unitMinor)}</span>
         </p>
-        <p className="text-2xl font-bold whitespace-nowrap tabular-nums">{formatMoney(sales.stall_price_minor ?? 0, campus.currency)}</p>
       </div>
       {sales.stall_intro ? <p className="mt-5 text-base leading-relaxed whitespace-pre-line text-pretty">{sales.stall_intro}</p> : null}
 
@@ -62,7 +84,7 @@ export default async function StallPage({ params, searchParams }: Props) {
           </p>
         ) : null}
         {open ? (
-          <StallForm action={bookStall.bind(null, sales.slug)} priceMinor={sales.stall_price_minor ?? 0} currency={campus.currency} stallTickets={sales.stall_tickets} />
+          <StallForm action={bookStall.bind(null, sales.slug)} priceMinor={price.unitMinor} currency={campus.currency} stallTickets={sales.stall_tickets} />
         ) : (
           <p className="text-base">{event.is_cancelled ? "This event has been cancelled." : !ahead ? "This event has already taken place." : "Stall bookings are not open yet. Please come back soon."}</p>
         )}

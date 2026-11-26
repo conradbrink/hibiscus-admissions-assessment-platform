@@ -2043,6 +2043,8 @@ export type EventSalesRow = {
   offer_price_minor: number | null;
   offer_from: string | null;
   offer_until: string | null;
+  /** The offer's price for a stall, charged while it runs if lower than the stall price. Set only beside an offer. */
+  offer_stall_price_minor: number | null;
   max_tickets_per_order: number;
   tickets_open: boolean;
   stall_price_minor: number | null;
@@ -3492,7 +3494,7 @@ export type Database = {
       >;
       event_sales: TableOf<
         EventSalesRow,
-        | "ticket_label" | "early_price_minor" | "early_until" | "offer_name" | "offer_price_minor" | "offer_from" | "offer_until"
+        | "ticket_label" | "early_price_minor" | "early_until" | "offer_name" | "offer_price_minor" | "offer_from" | "offer_until" | "offer_stall_price_minor"
         | "max_tickets_per_order" | "tickets_open"
         | "stall_price_minor" | "stall_tickets" | "stall_capacity" | "stalls_open" | "ticket_prefix"
         | "next_ticket_no" | "show_time" | "intro" | "stall_intro",

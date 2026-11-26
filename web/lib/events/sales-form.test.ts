@@ -93,6 +93,29 @@ describe("a special offer on the form", () => {
     expect(parseSalesForm({ ...FORM, ...OFFER, offerLastDay: "2026-11-23" })).toMatchObject({ ok: true, value: { offer_until: "2026-11-23T22:00:00.000Z" } });
   });
 
+  it("reads a stall's offer price below the stall price, and empties it when the box is empty", () => {
+    // The owner's request of 26 November 2026: stalls P500 for Black Friday.
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerStallPrice: "500" })).toMatchObject({ ok: true, value: { offer_name: "Black Friday", offer_stall_price_minor: 50000 } });
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerStallPrice: "" })).toMatchObject({ ok: true, value: { offer_stall_price_minor: null } });
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerStallPrice: "750" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, offerStallPrice: "nothing" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...OFFER, stallPrice: "", offerStallPrice: "500" }).ok).toBe(false);
+  });
+
+  it("will not keep a stall's offer price without an offer, and empties it with the offer", () => {
+    const empty = { offerName: "", offerPrice: "", offerFirstDay: "", offerLastDay: "" };
+    expect(parseSalesForm({ ...FORM, ...empty, offerStallPrice: "500" }).ok).toBe(false);
+    expect(parseSalesForm({ ...FORM, ...empty, offerStallPrice: "" })).toMatchObject({ ok: true, value: { offer_name: null, offer_stall_price_minor: null } });
+    // A page from before the stall box existed, ending the offer: the stall price goes with it.
+    expect(parseSalesForm({ ...FORM, ...empty })).toMatchObject({ ok: true, value: { offer_name: null, offer_stall_price_minor: null } });
+  });
+
+  it("leaves a stall's offer price alone when the form has no box for it", () => {
+    // A tickets page left open from before the box existed, saved with the offer running.
+    const r = parseSalesForm({ ...FORM, ...OFFER });
+    expect(r.ok && "offer_stall_price_minor" in r.value).toBe(false);
+  });
+
   it("round-trips its first day through the moment it starts", () => {
     expect(offerFromFirstDay("2026-11-23")).toBe("2026-11-22T22:00:00.000Z");
     expect(firstDayFromOfferFrom("2026-11-22T22:00:00.000Z")).toBe("2026-11-23");

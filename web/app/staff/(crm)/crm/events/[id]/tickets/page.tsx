@@ -233,13 +233,17 @@ function SalesForm({ eventId, sales, currency, hasCampus }: { eventId: string; s
           {label("Early bird's last day")}
           <Input name="earlyLastDay" type="date" defaultValue={lastDayFromEarlyUntil(sales?.early_until ?? null)} />
         </label>
-        <label>
+        <label className="sm:col-span-2">
           {label("Special offer's name")}
           <Input name="offerName" defaultValue={sales?.offer_name ?? ""} placeholder="None" maxLength={40} />
         </label>
         <label>
-          {label(`Offer price (${symbol})`)}
+          {label(`Offer price for a ticket (${symbol})`)}
           <Input name="offerPrice" inputMode="decimal" defaultValue={money(sales?.offer_price_minor)} placeholder="None" />
+        </label>
+        <label>
+          {label(`Offer price for a stall (${symbol})`)}
+          <Input name="offerStallPrice" inputMode="decimal" defaultValue={money(sales?.offer_stall_price_minor)} placeholder="Usual stall price" />
         </label>
         <label>
           {label("Offer's first day")}
@@ -251,7 +255,8 @@ function SalesForm({ eventId, sales, currency, hasCampus }: { eventId: string; s
         </label>
         <p className="text-muted-foreground sm:col-span-2">
           A special offer, such as Black Friday, is charged from the start of its first day to the end of its last day, when it is lower than the price a
-          ticket would have that day. The public page names it. Leave all four empty for no offer.
+          ticket would have that day. The public page names it. A stall&rsquo;s offer price is optional, uses the same days, and must be lower than the
+          stall price. Leave the name, ticket price and days empty for no offer.
         </p>
         <label>
           {label(`Stall price (${symbol})`)}

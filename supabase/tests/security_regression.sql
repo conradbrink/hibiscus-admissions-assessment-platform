@@ -4714,6 +4714,46 @@ begin
     if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 10000 and price_name = 'Standard') then
       v_fail := v_fail || E'\n  - ' || '83: an offer that had ended was still charged';
     end if;
+
+    -- The offer's stall price follows the same rule: charged while the offer
+    -- runs, under its name, only if it is below the stall price, and never
+    -- after the offer has ended.
+    update public.event_sales
+       set stall_price_minor = 30000, stalls_open = true, offer_stall_price_minor = 20000,
+           offer_from = now() - interval '1 hour', offer_until = now() + interval '1 hour'
+     where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'stall', 'Sec', 'Stall', 'sec-stall@test.invalid', null, null,
+      '[{"first_name":"Sec","last_name":"Stall"},{"first_name":"Sec","last_name":"Helper"}]'::jsonb,
+      'Sec Stall Co', null, false, 'sec-link-hash-83-stall-offer');
+    if not exists (select 1 from public.event_orders where id = v_offer and kind = 'stall' and unit_amount_minor = 20000 and amount_minor = 20000 and price_name = 'Sec offer') then
+      v_fail := v_fail || E'\n  - ' || '83: a stall booked while an offer ran was not charged the offer''s stall price under its name';
+    end if;
+    update public.event_sales set offer_stall_price_minor = 35000 where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'stall', 'Sec', 'Stall', 'sec-stall@test.invalid', null, null,
+      '[{"first_name":"Sec","last_name":"Stall"},{"first_name":"Sec","last_name":"Helper"}]'::jsonb,
+      'Sec Stall Co', null, false, 'sec-link-hash-83-stall-dear');
+    if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 30000 and price_name = 'Stall') then
+      v_fail := v_fail || E'\n  - ' || '83: an offer''s stall price above the stall price made a stall dearer';
+    end if;
+    update public.event_sales
+       set offer_stall_price_minor = 20000, offer_from = now() - interval '2 hours', offer_until = now() - interval '1 hour'
+     where event_id = v_ev;
+    select order_id into v_offer from public.create_event_order(
+      v_ev, 'stall', 'Sec', 'Stall', 'sec-stall@test.invalid', null, null,
+      '[{"first_name":"Sec","last_name":"Stall"},{"first_name":"Sec","last_name":"Helper"}]'::jsonb,
+      'Sec Stall Co', null, false, 'sec-link-hash-83-stall-over');
+    if not exists (select 1 from public.event_orders where id = v_offer and unit_amount_minor = 30000 and price_name = 'Stall') then
+      v_fail := v_fail || E'\n  - ' || '83: an offer''s stall price was still charged after the offer ended';
+    end if;
+    begin
+      update public.event_sales set offer_name = null, offer_price_minor = null, offer_from = null, offer_until = null where event_id = v_ev;
+      v_fail := v_fail || E'\n  - ' || '83: an offer was ended and its stall price kept';
+    exception when check_violation then null;
+    end;
+    update public.event_sales set offer_stall_price_minor = null, stall_price_minor = null, stalls_open = false where event_id = v_ev;
+
     begin
       update public.event_sales set offer_from = null where event_id = v_ev;
       v_fail := v_fail || E'\n  - ' || '83: half an offer was saved';
@@ -4836,9 +4876,10 @@ begin
     -- Control: an offer is a price, and prices are the staff's to set.
     begin
       update public.event_sales
-         set offer_name = 'Sec staff offer', offer_price_minor = 8000, offer_from = now() + interval '1 day', offer_until = now() + interval '2 days'
+         set offer_name = 'Sec staff offer', offer_price_minor = 8000, offer_from = now() + interval '1 day', offer_until = now() + interval '2 days',
+             offer_stall_price_minor = 15000
        where event_id = v_ev;
-      if not exists (select 1 from public.event_sales where event_id = v_ev and offer_name = 'Sec staff offer') then
+      if not exists (select 1 from public.event_sales where event_id = v_ev and offer_name = 'Sec staff offer' and offer_stall_price_minor = 15000) then
         v_fail := v_fail || E'\n  - ' || '83 control: the administrator''s offer was not saved';
       end if;
     exception when others then
