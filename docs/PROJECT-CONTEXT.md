@@ -1069,10 +1069,13 @@ anybody changing it back.
   the ticket's offer price. It must be below the stall price. Like the
   offer, it is written only when the form carried its box, and ending the
   offer always empties it.
-- **The order to apply it**: the migration, then the page. The old staff
-  form ignores the new column, while the new one cannot save without it.
-  Between the two, the old stall page still says P750 while the database
-  charges P500, so deploy the page straight after.
+- **Applied to production on 26 November 2026** through the connector
+  (`20261126084725`), before the page was deployed: the old staff form
+  ignores the new column, while the new one cannot save without it.
+  Production's `create_event_order()` was the 20 November function byte for
+  byte before, and is the function the local replay tested after. Until the
+  page is deployed, the old stall page still says P750 while the database
+  charges P500.
 
 ### Hibiscus Stores (20 November 2026) — the storeroom register
 
@@ -1647,9 +1650,9 @@ contradicts itself, the choice made is recorded and must be confirmed.
    is in the live database since 20 November; the page that names it must
    be deployed before 23 November. After 1 December the price goes to the
    standard P220: say if the school wants something else. Stalls are P500
-   instead of P750 for the same days (asked for on 26 November): the
-   migration `…a_stall_price_in_the_dated_offer` and the stall page that
-   shows it.
+   instead of P750 for the same days (asked for on 26 November): in the
+   live database since 26 November; the stall page that shows it must be
+   deployed for the page to say so.
 
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in
