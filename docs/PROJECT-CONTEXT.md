@@ -1047,6 +1047,33 @@ Limits, honestly: the poster says "limited presold tickets" and gives no
 number, so nothing limits how many are sold at the offer price; the event's
 capacity is still the only cap.
 
+### Black Friday stalls (26 November 2026)
+
+The owner asked for the stall price to be **P500 as a Black Friday special**,
+instead of P750. The Black Friday offer was already running on the tickets,
+so the stall price joined it rather than becoming a second offer: the same
+name and the same days (23 November to the end of 1 December 2026), with a
+price of its own for a stall. On 2 December a stall is P750 again without
+anybody changing it back.
+
+- **One more column, `offer_stall_price_minor`.** Optional, and set only
+  beside an offer (`event_sales_offer_stall_check`), because an offer is
+  ended by emptying its boxes and a stall price with no days would mean
+  nothing. An offer on tickets only leaves it empty.
+- **The same rule as the tickets.** The stall branch of
+  `create_event_order()` charges the offer's stall price while the offer
+  runs, under the offer's name, and only if it is lower than the stall
+  price. `stallPriceAt` in `lib/events/pricing.ts` is the same rule for the
+  stall page, which crosses out P750 beside P500 and says until when.
+- **Staff set it on the tickets page**, as "Offer price for a stall", next to
+  the ticket's offer price. It must be below the stall price. Like the
+  offer, it is written only when the form carried its box, and ending the
+  offer always empties it.
+- **The order to apply it**: the migration, then the page. The old staff
+  form ignores the new column, while the new one cannot save without it.
+  Between the two, the old stall page still says P750 while the database
+  charges P500, so deploy the page straight after.
+
 ### Hibiscus Stores (20 November 2026) — the storeroom register
 
 Asked for by the owner: one Purchasing Officer / Storekeeper records every
@@ -1619,7 +1646,10 @@ contradicts itself, the choice made is recorded and must be confirmed.
    and paid for. The Black Friday offer (P150, 23 November to 1 December)
    is in the live database since 20 November; the page that names it must
    be deployed before 23 November. After 1 December the price goes to the
-   standard P220: say if the school wants something else.
+   standard P220: say if the school wants something else. Stalls are P500
+   instead of P750 for the same days (asked for on 26 November): the
+   migration `…a_stall_price_in_the_dated_offer` and the stall page that
+   shows it.
 
 1. **Potch is confirmed ZA.** Still to do: assign its grades in the matrix,
    create a ZAR fee schedule, and choose a payment provider that settles in

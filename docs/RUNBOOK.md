@@ -318,12 +318,18 @@ The withdrawn offer stays in the applicant's history with the reason given.
 ### A special offer (Black Friday)
 
 On the same page, under the early-bird boxes: **Special offer's name**,
-**Offer price**, **Offer's first day** and **Offer's last day**. Fill in all
-four and **Save**. The offer runs from the start of its first day to the end
-of its last day, and the public page names it and crosses out the usual
-price. It must be lower than the ticket price, and it is only charged when
-it is the lowest price that day. To end an offer early, empty all four boxes
-and **Save**. Tickets already bought keep the price they were bought at.
+**Offer price for a ticket**, **Offer's first day** and **Offer's last day**.
+Fill in all four and **Save**. The offer runs from the start of its first day
+to the end of its last day, and the public page names it and crosses out the
+usual price. It must be lower than the ticket price, and it is only charged
+when it is the lowest price that day. To end an offer early, empty all four
+boxes and **Save**. Tickets already bought keep the price they were bought
+at.
+
+To put stalls on offer too, fill in **Offer price for a stall**. It uses the
+offer's days and must be lower than the stall price; the stall page crosses
+out the usual stall price. Leave it empty for an offer on tickets only.
+Ending the offer ends the stall price with it.
 
 Every person needs their own ticket with their own name. A parent buying
 for four types four names.
